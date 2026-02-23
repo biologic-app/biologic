@@ -40,6 +40,7 @@ async def test_auth_service_login_success() -> None:
     user, role = _build_user_role()
     repository = SimpleNamespace(
         get_user_with_role_by_username=AsyncMock(return_value=(user, role)),
+        list_permissions_by_role_id=AsyncMock(return_value=[("objects", "read"), ("objects", "update")]),
     )
     service = AuthService(repository=repository, settings=_settings())
 
@@ -47,6 +48,9 @@ async def test_auth_service_login_success() -> None:
 
     assert session.user.username == "admin"
     assert session.user.role_key == "admin"
+    assert any(perm.resource == "dashboard" and perm.action == "view" for perm in session.permissions)
+    assert any(perm.resource == "objects" and perm.action == "view" for perm in session.permissions)
+    assert any(perm.resource == "objects" and perm.action == "edit" for perm in session.permissions)
     assert tokens.access_token
     assert tokens.refresh_token
 
@@ -55,6 +59,7 @@ async def test_auth_service_login_invalid_credentials() -> None:
     user, role = _build_user_role(password="another")
     repository = SimpleNamespace(
         get_user_with_role_by_username=AsyncMock(return_value=(user, role)),
+        list_permissions_by_role_id=AsyncMock(return_value=[]),
     )
     service = AuthService(repository=repository, settings=_settings())
 
@@ -66,6 +71,7 @@ async def test_auth_service_login_missing_role() -> None:
     user, _ = _build_user_role()
     repository = SimpleNamespace(
         get_user_with_role_by_username=AsyncMock(return_value=(user, None)),
+        list_permissions_by_role_id=AsyncMock(return_value=[]),
     )
     service = AuthService(repository=repository, settings=_settings())
 
@@ -94,6 +100,7 @@ async def test_auth_service_me_reads_access_and_refresh_exp() -> None:
     )
     repository = SimpleNamespace(
         get_user_with_role_by_id=AsyncMock(return_value=(user, role)),
+        list_permissions_by_role_id=AsyncMock(return_value=[("objects", "read")]),
     )
     service = AuthService(repository=repository, settings=settings)
 
@@ -117,6 +124,7 @@ async def test_auth_service_refresh_rotates_refresh_version() -> None:
     repository = SimpleNamespace(
         get_user_with_role_by_id=AsyncMock(return_value=(user, role)),
         bump_refresh_token_version=AsyncMock(return_value=1),
+        list_permissions_by_role_id=AsyncMock(return_value=[("objects", "read")]),
     )
     service = AuthService(repository=repository, settings=settings)
 
@@ -141,6 +149,7 @@ async def test_auth_service_refresh_rejects_revoked_token() -> None:
     repository = SimpleNamespace(
         get_user_with_role_by_id=AsyncMock(return_value=(user, role)),
         bump_refresh_token_version=AsyncMock(return_value=6),
+        list_permissions_by_role_id=AsyncMock(return_value=[("objects", "read")]),
     )
     service = AuthService(repository=repository, settings=settings)
 
@@ -175,6 +184,7 @@ async def test_auth_service_logout_revokes_valid_refresh() -> None:
     repository = SimpleNamespace(
         get_user_with_role_by_id=AsyncMock(return_value=(user, role)),
         bump_refresh_token_version=AsyncMock(return_value=3),
+        list_permissions_by_role_id=AsyncMock(return_value=[("objects", "read")]),
     )
     service = AuthService(repository=repository, settings=settings)
 

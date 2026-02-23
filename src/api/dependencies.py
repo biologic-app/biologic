@@ -1,8 +1,10 @@
+from collections.abc import AsyncGenerator
+
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.config import get_settings
-from src.core.database import get_db_session
+from src.core.config import Settings, get_settings
+from src.core.database import get_db_session, get_session_factory
 from src.repositories.auth_repository import AuthRepository
 from src.repositories.branches_repository import BranchRepository
 from src.repositories.change_log_repository import ChangeLogRepository
@@ -27,6 +29,7 @@ from src.repositories.tests_repository import TestRepository
 from src.repositories.user_roles_repository import UserRoleRepository
 from src.repositories.users_repository import UserRepository
 from src.services.auth_service import AuthService
+from src.services.mock_auth_service import MockAuthService
 from src.services.branches_service import BranchService
 from src.services.change_log_service import ChangeLogService
 from src.services.conclusion_statuses_service import ConclusionStatusService
@@ -51,9 +54,16 @@ from src.services.user_roles_service import UserRoleService
 from src.services.users_service import UserService
 
 
-def get_auth_service(db_session: AsyncSession = Depends(get_db_session)) -> AuthService:
-    repository = AuthRepository(session=db_session)
-    return AuthService(repository=repository, settings=get_settings())
+async def get_auth_service(
+    settings: Settings = Depends(get_settings),
+) -> AsyncGenerator[AuthService | MockAuthService, None]:
+    if settings.auth_mode == "mock":
+        yield MockAuthService(settings=settings)
+        return
+    session_factory = get_session_factory()
+    async with session_factory() as db_session:
+        repository = AuthRepository(session=db_session)
+        yield AuthService(repository=repository, settings=settings)
 
 
 def get_branches_service(db_session: AsyncSession = Depends(get_db_session)) -> BranchService:

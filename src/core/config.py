@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     auth_cookie_secure: bool | None = None
     auth_cookie_domain: str | None = None
     auth_cookie_path: str = "/"
+    auth_mode: Literal["live", "mock"] = "live"
 
     model_config = SettingsConfigDict(
         env_file=".env",

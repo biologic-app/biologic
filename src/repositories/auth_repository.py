@@ -6,7 +6,7 @@ from uuid import UUID
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.entities import Role, User
+from src.models.entities import Role, RolePermission, User
 
 
 class AuthRepository:
@@ -53,3 +53,9 @@ class AuthRepository:
         new_version = result.scalar_one_or_none()
         await self._session.commit()
         return new_version
+
+    async def list_permissions_by_role_id(self, role_id: UUID) -> list[tuple[str, str]]:
+        stmt = select(RolePermission.resource, RolePermission.action).where(RolePermission.role_id == role_id)
+        result = await self._session.execute(stmt)
+        rows = result.all()
+        return [(resource, action) for resource, action in rows]

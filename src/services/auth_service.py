@@ -17,7 +17,7 @@ from src.core.security import (
 )
 from src.models.entities import Role, User
 from src.repositories.auth_repository import AuthRepository
-from src.schemas.auth import AuthLoginDTO, AuthSessionDTO, AuthUserDTO
+from src.schemas.auth import AuthLoginDTO, AuthPermissionDTO, AuthSessionDTO, AuthUserDTO
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,11 +29,44 @@ class AuthTokenBundle:
 
 
 class AuthService:
+    _resource_map = {
+        "research_goals": "research-goals",
+        "sample_targets": "sample-targets",
+        "sample_types": "sample-types",
+        "protocol_types": "protocol-types",
+        "user_types": "user-types",
+        "roles": "user-types",
+        "role_permissions": "user-types",
+    }
+    _action_map = {
+        "read": "view",
+        "update": "edit",
+    }
+
     def __init__(self, repository: AuthRepository, settings: Settings) -> None:
         self._repository = repository
         self._settings = settings
         self._access_ttl = timedelta(minutes=settings.access_token_ttl_minutes)
         self._refresh_ttl = timedelta(days=settings.refresh_token_ttl_days)
+
+    def _map_resource(self, resource: str) -> str:
+        return self._resource_map.get(resource, resource.replace("_", "-"))
+
+    def _map_action(self, action: str) -> str:
+        return self._action_map.get(action, action)
+
+    async def _build_permissions(self, role: Role) -> list[AuthPermissionDTO]:
+        raw_permissions = await self._repository.list_permissions_by_role_id(role.id)
+        normalized: dict[tuple[str, str], AuthPermissionDTO] = {
+            ("dashboard", "view"): AuthPermissionDTO(resource="dashboard", action="view")
+        }
+        for resource, action in raw_permissions:
+            mapped = AuthPermissionDTO(
+                resource=self._map_resource(resource),
+                action=self._map_action(action),
+            )
+            normalized[(mapped.resource, mapped.action)] = mapped
+        return list(normalized.values())
 
     def _decode_token(self, token: str, token_type: TokenType) -> dict[str, object]:
         try:
@@ -67,11 +100,13 @@ class AuthService:
         user: User,
         role: Role | None,
         *,
+        permissions: list[AuthPermissionDTO],
         access_expires_at: datetime,
         refresh_expires_at: datetime | None = None,
     ) -> AuthSessionDTO:
         return AuthSessionDTO(
             user=self._build_user_dto(user, role),
+            permissions=permissions,
             access_expires_at=access_expires_at,
             refresh_expires_at=refresh_expires_at,
         )
@@ -110,11 +145,13 @@ class AuthService:
             raise UnauthorizedError("Invalid username or password.")
         if role is None:
             raise NotFoundError(f"Role {user.role_id} was not found.")
+        permissions = await self._build_permissions(role)
 
         tokens = self._issue_tokens(user, role)
         session = self._build_session(
             user,
             role,
+            permissions=permissions,
             access_expires_at=tokens.access_expires_at,
             refresh_expires_at=tokens.refresh_expires_at,
         )
@@ -127,6 +164,9 @@ class AuthService:
         if auth_row is None:
             raise NotFoundError(f"User {user_id} was not found.")
         user, role = auth_row
+        if role is None:
+            raise NotFoundError(f"Role {user.role_id} was not found.")
+        permissions = await self._build_permissions(role)
 
         refresh_expires_at = None
         if refresh_token:
@@ -140,6 +180,7 @@ class AuthService:
         return self._build_session(
             user,
             role,
+            permissions=permissions,
             access_expires_at=token_expiration(access_payload),
             refresh_expires_at=refresh_expires_at,
         )
@@ -155,6 +196,7 @@ class AuthService:
         user, role = auth_row
         if role is None:
             raise NotFoundError(f"Role {user.role_id} was not found.")
+        permissions = await self._build_permissions(role)
         if user.refresh_token_version != refresh_version:
             raise UnauthorizedError("Refresh token is revoked.")
 
@@ -167,6 +209,7 @@ class AuthService:
         session = self._build_session(
             user,
             role,
+            permissions=permissions,
             access_expires_at=tokens.access_expires_at,
             refresh_expires_at=tokens.refresh_expires_at,
         )

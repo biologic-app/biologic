@@ -26,9 +26,16 @@ class AuthUserDTO(BaseModel):
     patronymic: str | None = None
 
 
+class AuthPermissionDTO(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    resource: str
+    action: str
+
+
 class AuthSessionDTO(BaseModel):
     model_config = ConfigDict(extra="forbid")
     user: AuthUserDTO
+    permissions: list[AuthPermissionDTO] = Field(default_factory=list)
     access_expires_at: datetime
     refresh_expires_at: datetime | None = None
 

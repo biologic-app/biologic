@@ -15,6 +15,7 @@ from src.schemas.auth import (
 )
 from src.schemas.base import ActionMetaDTO
 from src.services.auth_service import AuthService, AuthTokenBundle
+from src.services.mock_auth_service import MockAuthService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -60,7 +61,7 @@ def _clear_auth_cookies(response: Response, settings: Settings) -> None:
 async def auth_login(
     payload: AuthLoginDTO,
     response: Response,
-    service: AuthService = Depends(get_auth_service),
+    service: AuthService | MockAuthService = Depends(get_auth_service),
     settings: Settings = Depends(get_settings),
 ) -> AuthSessionEnvelopeDTO:
     session, tokens = await service.login(payload)
@@ -71,7 +72,7 @@ async def auth_login(
 @router.get("/me", response_model=AuthSessionEnvelopeDTO)
 async def auth_me(
     request: Request,
-    service: AuthService = Depends(get_auth_service),
+    service: AuthService | MockAuthService = Depends(get_auth_service),
     settings: Settings = Depends(get_settings),
 ) -> AuthSessionEnvelopeDTO:
     access_token = request.cookies.get(settings.access_cookie_name)
@@ -86,7 +87,7 @@ async def auth_me(
 async def auth_refresh(
     request: Request,
     response: Response,
-    service: AuthService = Depends(get_auth_service),
+    service: AuthService | MockAuthService = Depends(get_auth_service),
     settings: Settings = Depends(get_settings),
 ) -> AuthSessionEnvelopeDTO:
     refresh_token = request.cookies.get(settings.refresh_cookie_name)
@@ -101,7 +102,7 @@ async def auth_refresh(
 async def auth_logout(
     request: Request,
     response: Response,
-    service: AuthService = Depends(get_auth_service),
+    service: AuthService | MockAuthService = Depends(get_auth_service),
     settings: Settings = Depends(get_settings),
 ) -> AuthLogoutEnvelopeDTO:
     refresh_token = request.cookies.get(settings.refresh_cookie_name)
