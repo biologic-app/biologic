@@ -59,3 +59,13 @@ class UnauthorizedError(AppError):
             detail=detail,
             type_uri="https://example.local/problems/unauthorized",
         )
+
+
+class ForbiddenError(AppError):
+    def __init__(self, detail: str = "Forbidden.") -> None:
+        super().__init__(
+            status_code=403,
+            title="Forbidden",
+            detail=detail,
+            type_uri="https://example.local/problems/forbidden",
+        )

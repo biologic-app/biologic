@@ -5,6 +5,7 @@ from src.api.v1.endpoints.branches import router as branches_router
 from src.api.v1.endpoints.change_log import router as change_log_router
 from src.api.v1.endpoints.conclusion_statuses import router as conclusion_statuses_router
 from src.api.v1.endpoints.conclusions import router as conclusions_router
+from src.api.v1.endpoints.dashboard import router as dashboard_router
 from src.api.v1.endpoints.directions import router as directions_router
 from src.api.v1.endpoints.doctors import router as doctors_router
 from src.api.v1.endpoints.health import router as health_router
@@ -28,6 +29,7 @@ from src.api.v1.endpoints.users import router as users_router
 router = APIRouter()
 router.include_router(health_router)
 router.include_router(auth_router)
+router.include_router(dashboard_router)
 router.include_router(branches_router)
 router.include_router(change_log_router)
 router.include_router(conclusion_statuses_router)

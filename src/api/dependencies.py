@@ -29,15 +29,16 @@ from src.repositories.tests_repository import TestRepository
 from src.repositories.user_roles_repository import UserRoleRepository
 from src.repositories.users_repository import UserRepository
 from src.services.auth_service import AuthService
-from src.services.mock_auth_service import MockAuthService
 from src.services.branches_service import BranchService
 from src.services.change_log_service import ChangeLogService
 from src.services.conclusion_statuses_service import ConclusionStatusService
 from src.services.conclusions_service import ConclusionService
+from src.services.dashboard_service import DashboardQuickActionsService
 from src.services.directions_service import DirectionService
 from src.services.doctors_service import DoctorService
 from src.services.indicators_service import IndicatorService
 from src.services.labs_service import LabService
+from src.services.mock_auth_service import MockAuthService
 from src.services.objects_service import ObjectService
 from src.services.protocol_types_service import ProtocolTypeService
 from src.services.protocols_service import ProtocolService
@@ -52,6 +53,8 @@ from src.services.statuses_service import StatusService
 from src.services.tests_service import TestService
 from src.services.user_roles_service import UserRoleService
 from src.services.users_service import UserService
+
+_dashboard_quick_actions_service = DashboardQuickActionsService()
 
 
 async def get_auth_service(
@@ -188,3 +191,7 @@ def get_role_permissions_service(
 ) -> RolePermissionService:
     repository = RolePermissionRepository(session=db_session)
     return RolePermissionService(repository=repository)
+
+
+def get_dashboard_quick_actions_service() -> DashboardQuickActionsService:
+    return _dashboard_quick_actions_service
