@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import ClassVar
 
 from src.core.config import Settings
 from src.core.errors import NotFoundError, UnauthorizedError
@@ -29,16 +30,18 @@ class AuthTokenBundle:
 
 
 class AuthService:
-    _resource_map = {
+    _resource_map: ClassVar[dict[str, str]] = {
         "research_goals": "research-goals",
         "sample_targets": "sample-targets",
         "sample_types": "sample-types",
         "protocol_types": "protocol-types",
         "user_types": "user-types",
         "roles": "user-types",
+        "permissions": "user-types",
+        "user_scopes": "user-types",
         "role_permissions": "user-types",
     }
-    _action_map = {
+    _action_map: ClassVar[dict[str, str]] = {
         "read": "view",
         "update": "edit",
     }

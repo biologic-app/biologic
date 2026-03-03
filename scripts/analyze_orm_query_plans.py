@@ -10,7 +10,7 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from sqlalchemy import Select, select, text
 from sqlalchemy.dialects import postgresql
@@ -18,11 +18,9 @@ from sqlalchemy.engine.url import make_url
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
-from src.models.base import Base
-from src.models.entities import RolePermission
-from src.repositories.crud_repository import CRUDRepository, ListQuery
-from src.repositories.role_permissions_repository import RolePermissionRepository
 from scripts import seed_data
+from src.models.base import Base
+from src.repositories.crud_repository import CRUDRepository, ListQuery
 
 
 @dataclass(slots=True, frozen=True)
@@ -367,42 +365,6 @@ async def _build_repository_query_specs(
                 method=f"resolve_include_reference({include_name})",
                 purpose=(f"Загрузка include-ссылки `{include_name}` по FK для обогащения DTO."),
                 sql=_compile_sql(stmt),
-            )
-        )
-
-    if isinstance(repository, RolePermissionRepository):
-        sample_row = await session.execute(
-            select(RolePermission.role_id, RolePermission.resource, RolePermission.action)
-            .where(RolePermission.deleted_at.is_(None))
-            .limit(1)
-        )
-        row = sample_row.first()
-        if row is None:
-            role_model = repository._include_targets["role"]
-            role_id = cast(UUID | None, await _fetch_first_id(session, role_model))
-            if role_id is None:
-                role_id = uuid4()
-            resource = "__missing_resource__"
-            action = "__missing_action__"
-        else:
-            role_id, resource, action = row
-
-        role_permission_stmt = (
-            select(RolePermission)
-            .where(RolePermission.role_id == role_id)
-            .where(RolePermission.resource == resource)
-            .where(RolePermission.action == action)
-            .where(RolePermission.deleted_at.is_(None))
-        )
-        query_specs.append(
-            QuerySpec(
-                query_id=f"{repository_name}.get_by_pk",
-                repository=repository_name,
-                model=model_name,
-                table=table_name,
-                method="get_by_pk",
-                purpose="Получение разрешения по составному PK (role_id, resource, action).",
-                sql=_compile_sql(role_permission_stmt),
             )
         )
 

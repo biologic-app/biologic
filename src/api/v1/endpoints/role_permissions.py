@@ -31,15 +31,13 @@ async def create_role_permissions(
     return await service.create(payload)
 
 
-@router.get("/{role_id}/{resource}/{action}", response_model=RolePermissionReadEnvelopeDTO)
+@router.get("/{entity_id}", response_model=RolePermissionReadEnvelopeDTO)
 async def get_role_permissions(
-    role_id: UUID,
-    resource: str,
-    action: str,
+    entity_id: UUID,
     include: str | None = Query(default=None),
     service: RolePermissionService = Depends(get_role_permissions_service),
 ) -> RolePermissionReadEnvelopeDTO:
-    return await service.get(role_id, resource, action, includes=parse_includes(include))
+    return await service.get(entity_id, includes=parse_includes(include))
 
 
 @router.get("", response_model=RolePermissionListEnvelopeDTO)
@@ -48,7 +46,7 @@ async def list_role_permissions(
     service: RolePermissionService = Depends(get_role_permissions_service),
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=15, ge=1, le=500),
-    sort_by: str = Query(default="created_at"),
+    sort_by: str = Query(default="id"),
     sort_order: SortOrder = Query(default="desc"),
     include: str | None = Query(default=None),
 ) -> RolePermissionListEnvelopeDTO:
@@ -64,24 +62,20 @@ async def list_role_permissions(
     )
 
 
-@router.patch("/{role_id}/{resource}/{action}", response_model=RolePermissionUpdateEnvelopeDTO)
+@router.patch("/{entity_id}", response_model=RolePermissionUpdateEnvelopeDTO)
 async def update_role_permissions(
-    role_id: UUID,
-    resource: str,
-    action: str,
+    entity_id: UUID,
     payload: RolePermissionUpdateDTO,
     service: RolePermissionService = Depends(get_role_permissions_service),
 ) -> RolePermissionUpdateEnvelopeDTO:
-    return await service.update(role_id, resource, action, payload)
+    return await service.update(entity_id, payload)
 
 
-@router.delete("/{role_id}/{resource}/{action}", response_model=RolePermissionDeleteEnvelopeDTO)
+@router.delete("/{entity_id}", response_model=RolePermissionDeleteEnvelopeDTO)
 async def delete_role_permissions(
-    role_id: UUID,
-    resource: str,
-    action: str,
+    entity_id: UUID,
     payload: DeleteRequestDTO | None = Body(default=None),
     service: RolePermissionService = Depends(get_role_permissions_service),
 ) -> RolePermissionDeleteEnvelopeDTO:
     reason = payload.reason if payload is not None else None
-    return await service.delete(role_id, resource, action, reason=reason)
+    return await service.delete(entity_id, reason=reason)

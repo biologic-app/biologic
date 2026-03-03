@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -19,51 +18,48 @@ from src.schemas.base import (
 )
 
 
-class UserRoleCreateDTO(BaseModel):
+class UserScopeCreateDTO(BaseModel):
     model_config = ConfigDict(extra="forbid")
     user_id: UUID
-    role_id: UUID
+    scope_id: UUID | None = None
 
 
-class UserRoleReadDTO(BaseModel):
+class UserScopeReadDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="forbid")
     id: UUID
     user_id: UUID
-    role_id: UUID
-    created_at: datetime
-    updated_at: datetime
+    scope_id: UUID | None = None
     user: EntityRefDTO | None = None
-    role: EntityRefDTO | None = None
 
 
-UserRoleListReadDTO = UserRoleReadDTO
+UserScopeListReadDTO = UserScopeReadDTO
 
 
-class UserRoleUpdateDTO(BaseModel):
+class UserScopeUpdateDTO(BaseModel):
     model_config = ConfigDict(extra="forbid")
     user_id: UUID | None = None
-    role_id: UUID | None = None
+    scope_id: UUID | None = None
 
 
-class UserRoleDeleteDTO(DeleteRequestDTO):
+class UserScopeDeleteDTO(DeleteRequestDTO):
     id: UUID
 
 
-class UserRoleReadEnvelopeDTO(ReadResponseDTO[UserRoleReadDTO]):
+class UserScopeReadEnvelopeDTO(ReadResponseDTO[UserScopeReadDTO]):
     meta: ReadMetaDTO = Field(default_factory=ReadMetaDTO)
 
 
-class UserRoleListEnvelopeDTO(ListResponseDTO[UserRoleListReadDTO]):
+class UserScopeListEnvelopeDTO(ListResponseDTO[UserScopeListReadDTO]):
     meta: ListMetaDTO
 
 
-class UserRoleCreateEnvelopeDTO(ActionResponseDTO[UserRoleReadDTO]):
+class UserScopeCreateEnvelopeDTO(ActionResponseDTO[UserScopeReadDTO]):
     meta: ActionMetaDTO = Field(default_factory=ActionMetaDTO)
 
 
-class UserRoleUpdateEnvelopeDTO(ActionResponseDTO[UserRoleReadDTO]):
+class UserScopeUpdateEnvelopeDTO(ActionResponseDTO[UserScopeReadDTO]):
     meta: ActionMetaDTO = Field(default_factory=ActionMetaDTO)
 
 
-class UserRoleDeleteEnvelopeDTO(DeleteResponseDTO):
+class UserScopeDeleteEnvelopeDTO(DeleteResponseDTO):
     meta: DeleteMetaDTO = Field(default_factory=DeleteMetaDTO)

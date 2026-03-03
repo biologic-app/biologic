@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -22,6 +23,7 @@ class RoleCreateDTO(BaseModel):
     model_config = ConfigDict(extra="forbid")
     key: str
     name: str
+    scope_type: Literal["global", "own_branch", "own_lab", "own_objects"]
 
 
 class RoleReadDTO(BaseModel):
@@ -29,6 +31,7 @@ class RoleReadDTO(BaseModel):
     id: UUID
     key: str
     name: str
+    scope_type: Literal["global", "own_branch", "own_lab", "own_objects"]
     created_at: datetime
     updated_at: datetime
 
@@ -40,6 +43,7 @@ class RoleUpdateDTO(BaseModel):
     model_config = ConfigDict(extra="forbid")
     key: str | None = None
     name: str | None = None
+    scope_type: Literal["global", "own_branch", "own_lab", "own_objects"] | None = None
 
 
 class RoleDeleteDTO(DeleteRequestDTO):

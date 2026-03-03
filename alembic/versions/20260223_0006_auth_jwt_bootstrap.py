@@ -23,12 +23,32 @@ def upgrade() -> None:
         """)
 
     op.execute("""
-        INSERT INTO roles (key, name)
-        VALUES ('admin', 'Administrator')
-        ON CONFLICT (key) DO UPDATE
-        SET
-            name = EXCLUDED.name,
-            updated_at = CURRENT_TIMESTAMP
+        DO $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = 'roles'
+                  AND column_name = 'scope_type'
+            ) THEN
+                INSERT INTO roles (key, name, scope_type)
+                VALUES ('admin', 'Administrator', 'global')
+                ON CONFLICT (key) DO UPDATE
+                SET
+                    name = EXCLUDED.name,
+                    scope_type = EXCLUDED.scope_type,
+                    updated_at = CURRENT_TIMESTAMP;
+            ELSE
+                INSERT INTO roles (key, name)
+                VALUES ('admin', 'Administrator')
+                ON CONFLICT (key) DO UPDATE
+                SET
+                    name = EXCLUDED.name,
+                    updated_at = CURRENT_TIMESTAMP;
+            END IF;
+        END
+        $$;
         """)
 
     op.execute(f"""
@@ -82,24 +102,7 @@ def upgrade() -> None:
             updated_at = CURRENT_TIMESTAMP
         """)
 
-    op.execute("""
-        INSERT INTO user_roles (user_id, role_id)
-        SELECT u.id, u.role_id
-        FROM users u
-        WHERE u.username = 'admin'
-        ON CONFLICT (user_id, role_id) DO NOTHING
-        """)
-
-
 def downgrade() -> None:
-    op.execute("""
-        DELETE FROM user_roles ur
-        USING users u
-        WHERE ur.user_id = u.id
-          AND u.username = 'admin'
-          AND u.code = 'ADM-001'
-        """)
-
     op.execute("""
         DELETE FROM users
         WHERE username = 'admin'

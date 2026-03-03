@@ -17,6 +17,7 @@ from src.models.entities import (
     Indicator,
     Lab,
     Object,
+    Permission,
     Protocol,
     ProtocolType,
     ResearchGoal,
@@ -28,7 +29,7 @@ from src.models.entities import (
     SampleType,
     Status,
     User,
-    UserRole,
+    UserScope,
 )
 from src.models.entities import Test as DbRow
 from tests._helpers import build_model_instance
@@ -43,7 +44,8 @@ ALL_ENTITIES = [
     Status,
     ConclusionStatus,
     Conclusion,
-    UserRole,
+    Permission,
+    UserScope,
     Object,
     Doctor,
     Direction,

@@ -16,16 +16,19 @@ depends_on = None
 
 def upgrade() -> None:
     op.execute("""
-        INSERT INTO roles (key, name)
+        INSERT INTO roles (key, name, scope_type)
         VALUES
-            ('admin', 'Administrator'),
-            ('registrar', 'Registrar'),
-            ('lab_head', 'Laboratory Head'),
-            ('branch_head', 'Branch Head'),
-            ('viewer', 'Viewer')
+            ('admin', 'Administrator', 'global'),
+            ('registrar', 'Registrar', 'own_branch'),
+            ('branch_chief', 'Branch Chief', 'own_branch'),
+            ('lab_chief', 'Laboratory Chief', 'own_lab'),
+            ('lab_doctor', 'Laboratory Doctor', 'own_lab'),
+            ('laborant', 'Laborant', 'own_lab'),
+            ('sanitary_inspector', 'Sanitary Inspector', 'own_objects')
         ON CONFLICT (key) DO UPDATE
         SET
             name = EXCLUDED.name,
+            scope_type = EXCLUDED.scope_type,
             updated_at = CURRENT_TIMESTAMP;
         """)
 
@@ -293,14 +296,6 @@ def upgrade() -> None:
         """)
 
     op.execute("""
-        INSERT INTO user_roles (user_id, role_id)
-        SELECT u.id, u.role_id
-        FROM users u
-        WHERE u.username LIKE 'user_%'
-        ON CONFLICT (user_id, role_id) DO NOTHING;
-        """)
-
-    op.execute("""
         WITH resources (resource) AS (
             VALUES
                 ('branches'),
@@ -320,30 +315,81 @@ def upgrade() -> None:
                 ('create'),
                 ('update'),
                 ('delete')
+        ),
+        permissions_seed AS (
+            INSERT INTO permissions (resource, action)
+            SELECT res.resource, act.action
+            FROM resources res
+            CROSS JOIN actions act
+            ON CONFLICT (resource, action) DO NOTHING
+            RETURNING id, resource, action
+        ),
+        permission_map AS (
+            SELECT id, resource, action FROM permissions_seed
+            UNION ALL
+            SELECT p.id, p.resource, p.action
+            FROM permissions p
+            JOIN resources res ON res.resource = p.resource
+            JOIN actions act ON act.action = p.action
         )
-        INSERT INTO role_permissions (role_id, resource, action)
-        SELECT r.id, res.resource, act.action
+        INSERT INTO role_permissions (role_id, permission_id)
+        SELECT DISTINCT r.id, pm.id
         FROM roles r
-        CROSS JOIN resources res
-        CROSS JOIN actions act
-        WHERE r.key = 'admin' OR act.action = 'read'
-        ON CONFLICT (role_id, resource, action) DO NOTHING;
+        JOIN permission_map pm ON r.key = 'admin' OR pm.action = 'read'
+        ON CONFLICT (role_id, permission_id) DO NOTHING;
         """)
 
 
 def downgrade() -> None:
     op.execute("""
-        DELETE FROM user_roles ur
-        USING users u
-        WHERE ur.user_id = u.id
-          AND u.username LIKE 'user_%';
+        DELETE FROM role_permissions rp
+        USING roles r, permissions p
+        WHERE rp.role_id = r.id
+          AND rp.permission_id = p.id
+          AND r.key IN (
+              'admin',
+              'registrar',
+              'branch_chief',
+              'lab_chief',
+              'lab_doctor',
+              'laborant',
+              'sanitary_inspector'
+          )
+          AND p.resource IN (
+              'branches',
+              'labs',
+              'objects',
+              'doctors',
+              'research_goals',
+              'indicators',
+              'directions',
+              'samples',
+              'results',
+              'tests'
+          )
+          AND p.action IN ('read', 'create', 'update', 'delete');
         """)
 
     op.execute("""
-        DELETE FROM role_permissions rp
-        USING roles r
-        WHERE rp.role_id = r.id
-          AND r.key IN ('admin', 'registrar', 'lab_head', 'branch_head', 'viewer');
+        DELETE FROM permissions p
+        WHERE p.resource IN (
+            'branches',
+            'labs',
+            'objects',
+            'doctors',
+            'research_goals',
+            'indicators',
+            'directions',
+            'samples',
+            'results',
+            'tests'
+        )
+        AND p.action IN ('read', 'create', 'update', 'delete')
+        AND NOT EXISTS (
+            SELECT 1
+            FROM role_permissions rp
+            WHERE rp.permission_id = p.id
+        );
         """)
 
     op.execute("DELETE FROM users WHERE username LIKE 'user_%';")
@@ -359,5 +405,13 @@ def downgrade() -> None:
     op.execute("DELETE FROM statuses WHERE code LIKE 'ST-%';")
     op.execute("""
         DELETE FROM roles
-        WHERE key IN ('admin', 'registrar', 'lab_head', 'branch_head', 'viewer');
+        WHERE key IN (
+            'admin',
+            'registrar',
+            'branch_chief',
+            'lab_chief',
+            'lab_doctor',
+            'laborant',
+            'sanitary_inspector'
+        );
         """)

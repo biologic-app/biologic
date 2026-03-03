@@ -12,12 +12,12 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 
 from src.core.database import get_engine
-from src.models.entities import Branch, Role, RolePermission
+from src.models.entities import Branch, Permission, Role, RolePermission
 from src.repositories.crud_repository import CRUDRepository, ListQuery
 
 pytestmark = [pytest.mark.integration, pytest.mark.db_plan]
 
-_REQUIRED_TABLES = ("branches", "roles", "role_permissions")
+_REQUIRED_TABLES = ("branches", "roles", "permissions", "role_permissions")
 _SCAN_NODES = {"Index Scan", "Index Only Scan", "Bitmap Heap Scan", "Seq Scan"}
 
 
@@ -193,10 +193,11 @@ async def test_crud_resolve_include_reference_explain_json(db_plan_session: Asyn
             id=role_id,
             key=f"plan-role-{role_id.hex[:8]}",
             name="Plan Role",
+            scope_type="global",
         )
     )
 
-    stmt = select(Role).where(Role.id == role_id).where(Role.deleted_at.is_(None))
+    stmt = select(Role).where(Role.id == role_id)
     explain = await _explain_json(db_plan_session, stmt)
     plan = explain["Plan"]
     assert isinstance(plan, dict)
@@ -205,7 +206,7 @@ async def test_crud_resolve_include_reference_explain_json(db_plan_session: Asyn
     assert _collect_node_types(plan) & _SCAN_NODES
 
 
-async def test_role_permission_get_by_pk_explain_prefers_index(
+async def test_role_permission_lookup_by_role_and_permission_prefers_index(
     db_plan_session: AsyncSession,
 ) -> None:
     role_id = uuid4()
@@ -214,27 +215,41 @@ async def test_role_permission_get_by_pk_explain_prefers_index(
             id=role_id,
             key=f"plan-rp-role-{role_id.hex[:8]}",
             name="Plan RP Role",
+            scope_type="global",
         )
     )
 
-    target_resource = "plan_target_resource"
-    target_action = "read"
+    permission_ids = [uuid4() for _ in range(201)]
     permission_rows = [
-        {"role_id": role_id, "resource": f"plan_resource_{idx}", "action": "read"}
-        for idx in range(200)
+        {
+            "id": permission_id,
+            "resource": f"plan_resource_{idx}",
+            "action": "read",
+        }
+        for idx, permission_id in enumerate(permission_ids[:-1])
     ]
+    target_permission_id = permission_ids[-1]
     permission_rows.append(
-        {"role_id": role_id, "resource": target_resource, "action": target_action}
+        {
+            "id": target_permission_id,
+            "resource": "plan_target_resource",
+            "action": "read",
+        }
     )
-    await db_plan_session.execute(insert(RolePermission), permission_rows)
+    await db_plan_session.execute(insert(Permission), permission_rows)
+    await db_plan_session.execute(
+        insert(RolePermission),
+        [
+            {"role_id": role_id, "permission_id": permission_id}
+            for permission_id in permission_ids
+        ],
+    )
     await db_plan_session.execute(text("SET LOCAL enable_seqscan = off"))
 
     stmt = (
         select(RolePermission)
         .where(RolePermission.role_id == role_id)
-        .where(RolePermission.resource == target_resource)
-        .where(RolePermission.action == target_action)
-        .where(RolePermission.deleted_at.is_(None))
+        .where(RolePermission.permission_id == target_permission_id)
     )
     explain = await _explain_json(db_plan_session, stmt)
     plan = explain["Plan"]

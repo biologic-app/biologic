@@ -22,6 +22,7 @@ STEM_TO_ENTITY: dict[str, str] = {
     "indicators": "Indicator",
     "labs": "Lab",
     "objects": "Object",
+    "permissions": "Permission",
     "protocol_types": "ProtocolType",
     "protocols": "Protocol",
     "research_goals": "ResearchGoal",
@@ -33,7 +34,7 @@ STEM_TO_ENTITY: dict[str, str] = {
     "samples": "Sample",
     "statuses": "Status",
     "tests": "Test",
-    "user_roles": "UserRole",
+    "user_scopes": "UserScope",
     "users": "User",
 }
 

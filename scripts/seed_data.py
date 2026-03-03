@@ -24,8 +24,9 @@ SEEDED_TABLES: tuple[str, ...] = (
     "research_goals",
     "indicators",
     "users",
-    "user_roles",
+    "permissions",
     "role_permissions",
+    "user_scopes",
     "directions",
     "samples",
     "sample_targets",
@@ -208,8 +209,9 @@ async def truncate_seeded_tables(conn: asyncpg.Connection) -> None:
             research_goals,
             objects,
             doctors,
-            user_roles,
             role_permissions,
+            user_scopes,
+            permissions,
             users,
             labs,
             branches,
@@ -227,16 +229,19 @@ async def seed_reference_entities(conn: asyncpg.Connection, count: int) -> None:
         return
 
     await conn.execute("""
-        INSERT INTO roles (key, name)
+        INSERT INTO roles (key, name, scope_type)
         VALUES
-            ('admin', 'Administrator'),
-            ('registrar', 'Registrar'),
-            ('lab_head', 'Laboratory Head'),
-            ('branch_head', 'Branch Head'),
-            ('viewer', 'Viewer')
+            ('admin', 'Administrator', 'global'),
+            ('registrar', 'Registrar', 'own_branch'),
+            ('branch_chief', 'Branch Chief', 'own_branch'),
+            ('lab_chief', 'Laboratory Chief', 'own_lab'),
+            ('lab_doctor', 'Laboratory Doctor', 'own_lab'),
+            ('laborant', 'Laborant', 'own_lab'),
+            ('sanitary_inspector', 'Sanitary Inspector', 'own_objects')
         ON CONFLICT (key) DO UPDATE
         SET
             name = EXCLUDED.name,
+            scope_type = EXCLUDED.scope_type,
             updated_at = CURRENT_TIMESTAMP;
         """)
 
@@ -537,14 +542,6 @@ async def seed_reference_entities(conn: asyncpg.Connection, count: int) -> None:
     )
 
     await conn.execute("""
-        INSERT INTO user_roles (user_id, role_id)
-        SELECT u.id, u.role_id
-        FROM users u
-        WHERE u.username LIKE 'user_%'
-        ON CONFLICT (user_id, role_id) DO NOTHING;
-        """)
-
-    await conn.execute("""
         WITH resources (resource) AS (
             VALUES
                 ('branches'),
@@ -564,14 +561,28 @@ async def seed_reference_entities(conn: asyncpg.Connection, count: int) -> None:
                 ('create'),
                 ('update'),
                 ('delete')
+        ),
+        permissions_seed AS (
+            INSERT INTO permissions (resource, action)
+            SELECT res.resource, act.action
+            FROM resources res
+            CROSS JOIN actions act
+            ON CONFLICT (resource, action) DO NOTHING
+            RETURNING id, resource, action
+        ),
+        permission_map AS (
+            SELECT id, resource, action FROM permissions_seed
+            UNION ALL
+            SELECT p.id, p.resource, p.action
+            FROM permissions p
+            JOIN resources res ON res.resource = p.resource
+            JOIN actions act ON act.action = p.action
         )
-        INSERT INTO role_permissions (role_id, resource, action)
-        SELECT r.id, res.resource, act.action
+        INSERT INTO role_permissions (role_id, permission_id)
+        SELECT DISTINCT r.id, pm.id
         FROM roles r
-        CROSS JOIN resources res
-        CROSS JOIN actions act
-        WHERE r.key = 'admin' OR act.action = 'read'
-        ON CONFLICT (role_id, resource, action) DO NOTHING;
+        JOIN permission_map pm ON r.key = 'admin' OR pm.action = 'read'
+        ON CONFLICT (role_id, permission_id) DO NOTHING;
         """)
 
 

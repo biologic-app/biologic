@@ -57,40 +57,17 @@ async def test_endpoint_module_crud_handlers(stem: str) -> None:
 
     created = await create_fn(payload=bundle["create_payload"], service=service)
 
-    if stem == "role_permissions":
-        fetched = await get_fn(
-            role_id=uuid4(),
-            resource="sample",
-            action="read",
-            include="role",
-            service=service,
-        )
-        updated = await update_fn(
-            role_id=uuid4(),
-            resource="sample",
-            action="read",
-            payload=bundle["update_payload"],
-            service=service,
-        )
-        deleted = await delete_fn(
-            role_id=uuid4(),
-            resource="sample",
-            action="read",
-            payload=DeleteRequestDTO(reason="cleanup"),
-            service=service,
-        )
-    else:
-        fetched = await get_fn(entity_id=uuid4(), include="role,branch", service=service)
-        updated = await update_fn(
-            entity_id=uuid4(),
-            payload=bundle["update_payload"],
-            service=service,
-        )
-        deleted = await delete_fn(
-            entity_id=uuid4(),
-            payload=DeleteRequestDTO(reason="cleanup"),
-            service=service,
-        )
+    fetched = await get_fn(entity_id=uuid4(), include="role,branch", service=service)
+    updated = await update_fn(
+        entity_id=uuid4(),
+        payload=bundle["update_payload"],
+        service=service,
+    )
+    deleted = await delete_fn(
+        entity_id=uuid4(),
+        payload=DeleteRequestDTO(reason="cleanup"),
+        service=service,
+    )
 
     listed = await list_fn(
         request=make_request("code=X&created_at_from=2025-01-01T00:00:00Z"),

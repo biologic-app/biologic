@@ -7,11 +7,11 @@ from uuid import uuid4
 
 import pytest
 
-from src.core.errors import NotFoundError, ValidationError
+from src.core.errors import ValidationError
 from src.schemas.common import PageMeta
 from tests._helpers import STEM_TO_ENTITY, build_contract_bundle
 
-STANDARD_SERVICE_STEMS = sorted(stem for stem in STEM_TO_ENTITY if stem not in {"role_permissions"})
+STANDARD_SERVICE_STEMS = sorted(STEM_TO_ENTITY)
 
 
 class _FakeCRUD:
@@ -67,9 +67,10 @@ async def test_standard_services_crud_flow(stem: str) -> None:
     fake_crud = _FakeCRUD(read_data=bundle["read_data"])
     service._crud = fake_crud
 
+    sort_by = "id" if stem in {"permissions", "role_permissions", "user_scopes"} else "created_at"
     create_response = await service.create(bundle["create_payload"])
     get_response = await service.get(uuid4())
-    list_response = await service.list(offset=0, limit=15, sort_by="created_at", sort_order="desc")
+    list_response = await service.list(offset=0, limit=15, sort_by=sort_by, sort_order="desc")
     update_response = await service.update(uuid4(), bundle["update_payload"])
     delete_response = await service.delete(uuid4(), reason="cleanup")
 
@@ -121,43 +122,3 @@ async def test_lab_service_include_expansion() -> None:
 
     assert response.meta.includes == ["branch"]
     assert response.data.branch is None
-
-
-async def test_role_permissions_service_flow_and_errors() -> None:
-    from src.services.role_permissions_service import RolePermissionService
-
-    bundle = build_contract_bundle("role_permissions")
-    role_permission_data = bundle["read_data"]
-    entity = SimpleNamespace(**role_permission_data.model_dump())
-
-    repository = SimpleNamespace(
-        allowed_includes={"fake"},
-        resolve_include_reference=AsyncMock(return_value=None),
-        resolve_include_references=AsyncMock(return_value={}),
-        get_by_pk=AsyncMock(return_value=entity),
-        update_by_pk=AsyncMock(return_value=entity),
-        delete_by_pk=AsyncMock(return_value=True),
-    )
-    service = RolePermissionService(repository=repository)
-    service._crud = _FakeCRUD(read_data=role_permission_data)
-
-    create_response = await service.create(bundle["create_payload"])
-    get_response = await service.get(uuid4(), "sample", "read")
-    include_response = await service.get(uuid4(), "sample", "read", includes=["fake"])
-    list_response = await service.list(offset=0, limit=15)
-    update_response = await service.update(uuid4(), "sample", "read", bundle["update_payload"])
-    delete_response = await service.delete(uuid4(), "sample", "read", reason="cleanup")
-
-    assert create_response.meta.operation == "create"
-    assert get_response.data == role_permission_data
-    assert include_response.meta.includes == ["fake"]
-    assert list_response.meta.total == 1
-    assert update_response.meta.operation == "update"
-    assert delete_response.meta.deleted is True
-
-    with pytest.raises(ValidationError):
-        await service.get(uuid4(), "sample", "read", includes=["bad"])
-
-    repository.get_by_pk = AsyncMock(return_value=None)
-    with pytest.raises(NotFoundError):
-        await service.get(uuid4(), "sample", "read")

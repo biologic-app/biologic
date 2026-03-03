@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 from datetime import datetime
+from enum import StrEnum
 from uuid import UUID
 
 from sqlalchemy import (
     Boolean,
     DateTime,
+    Enum as SQLEnum,
     ForeignKey,
     Index,
     Integer,
-    PrimaryKeyConstraint,
     SmallInteger,
     Text,
     text,
@@ -209,9 +210,19 @@ class User(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class RoleScopeType(StrEnum):
+    GLOBAL = "global"
+    OWN_BRANCH = "own_branch"
+    OWN_LAB = "own_lab"
+    OWN_OBJECTS = "own_objects"
+
+
 class Role(Base):
     __tablename__ = "roles"
-    __table_args__ = (Index("roles_roles_key", "key", unique=True),)
+    __table_args__ = (
+        Index("roles_roles_key", "key", unique=True),
+        Index("roles_roles_scope_type", "scope_type"),
+    )
 
     id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
@@ -220,6 +231,10 @@ class Role(Base):
     )
     key: Mapped[str] = mapped_column(Text, nullable=False)
     name: Mapped[str] = mapped_column(Text, nullable=False)
+    scope_type: Mapped[RoleScopeType] = mapped_column(
+        SQLEnum(RoleScopeType, name="role_scope_type"),
+        nullable=False,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -230,6 +245,46 @@ class Role(Base):
         nullable=False,
         server_default=text("CURRENT_TIMESTAMP"),
     )
+
+
+class Permission(Base):
+    __tablename__ = "permissions"
+    __table_args__ = (
+        Index(
+            "permissions_permissions_resource_action",
+            "resource",
+            "action",
+            unique=True,
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("uuidv7()"),
+    )
+    resource: Mapped[str] = mapped_column(Text, nullable=False)
+    action: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class UserScope(Base):
+    __tablename__ = "user_scopes"
+    __table_args__ = (
+        Index("user_scopes_user_scopes_user_id_scope_id", "user_id", "scope_id", unique=True),
+        Index("user_scopes_user_scopes_scope_id", "scope_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("uuidv7()"),
+    )
+    user_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.id", name="fk_user_scopes_user_id_users_id"),
+        nullable=False,
+    )
+    scope_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
 
 
 class Test(Base):
@@ -367,49 +422,6 @@ class Conclusion(Base):
     updated_by: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("users.id", name="fk_conclusions_updated_by_users_id"),
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        server_default=text("CURRENT_TIMESTAMP"),
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        server_default=text("CURRENT_TIMESTAMP"),
-    )
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
-
-class UserRole(Base):
-    __tablename__ = "user_roles"
-    __table_args__ = (
-        Index("user_roles_user_roles_user_id_role_id", "user_id", "role_id", unique=True),
-        Index("user_roles_user_roles_deleted_at", "deleted_at"),
-    )
-
-    id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        primary_key=True,
-        server_default=text("uuidv7()"),
-    )
-    user_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("users.id", name="fk_user_roles_user_id_users_id"),
-        nullable=False,
-    )
-    role_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("roles.id", name="fk_user_roles_role_id_roles_id"),
-        nullable=False,
-    )
-    created_by: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("users.id", name="fk_user_roles_created_by_users_id"),
-    )
-    updated_by: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("users.id", name="fk_user_roles_updated_by_users_id"),
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -686,35 +698,29 @@ class Branch(Base):
 class RolePermission(Base):
     __tablename__ = "role_permissions"
     __table_args__ = (
-        PrimaryKeyConstraint("role_id", "resource", "action", name="role_permissions_pk"),
+        Index(
+            "role_permissions_role_permissions_role_id_permission_id",
+            "role_id",
+            "permission_id",
+            unique=True,
+        ),
     )
 
+    id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("uuidv7()"),
+    )
     role_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("roles.id", name="fk_role_permissions_role_id_roles_id"),
         nullable=False,
     )
-    resource: Mapped[str] = mapped_column(Text, nullable=False)
-    action: Mapped[str] = mapped_column(Text, nullable=False)
-    created_by: Mapped[UUID | None] = mapped_column(
+    permission_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("users.id", name="fk_role_permissions_created_by_users_id"),
-    )
-    updated_by: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("users.id", name="fk_role_permissions_updated_by_users_id"),
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
+        ForeignKey("permissions.id", name="fk_role_permissions_permission_id_permissions_id"),
         nullable=False,
-        server_default=text("CURRENT_TIMESTAMP"),
     )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        server_default=text("CURRENT_TIMESTAMP"),
-    )
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Sample(Base):

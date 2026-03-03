@@ -3,10 +3,10 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.entities import Role, RolePermission, User
+from src.models.entities import Permission, Role, RolePermission, User
 
 
 class AuthRepository:
@@ -55,7 +55,63 @@ class AuthRepository:
         return new_version
 
     async def list_permissions_by_role_id(self, role_id: UUID) -> list[tuple[str, str]]:
-        stmt = select(RolePermission.resource, RolePermission.action).where(RolePermission.role_id == role_id)
+        stmt = (
+            select(Permission.resource, Permission.action)
+            .join(RolePermission, RolePermission.permission_id == Permission.id)
+            .where(RolePermission.role_id == role_id)
+        )
         result = await self._session.execute(stmt)
         rows = result.all()
         return [(resource, action) for resource, action in rows]
+
+    async def is_allowed(
+        self,
+        *,
+        user_id: UUID,
+        resource: str,
+        action: str,
+        target_scope_id: UUID | None,
+    ) -> bool:
+        stmt = text(
+            """
+            WITH user_role AS (
+              SELECT u.role_id, r.scope_type
+              FROM users u
+              JOIN roles r ON r.id = u.role_id
+              WHERE u.id = :user_id
+                AND u.deleted_at IS NULL
+            ),
+            has_permission AS (
+              SELECT 1
+              FROM role_permissions rp
+              JOIN permissions p ON p.id = rp.permission_id
+              JOIN user_role ur ON ur.role_id = rp.role_id
+              WHERE p.resource = :resource
+                AND p.action = :action
+            ),
+            has_scope AS (
+              SELECT 1
+              FROM user_role ur
+              WHERE ur.scope_type = 'global'
+              UNION ALL
+              SELECT 1
+              FROM user_scopes us
+              JOIN user_role ur ON ur.scope_type != 'global'
+              WHERE us.user_id = :user_id
+                AND (us.scope_id IS NULL OR us.scope_id = :target_scope_id)
+            )
+            SELECT
+              EXISTS(SELECT 1 FROM has_permission) AND
+              EXISTS(SELECT 1 FROM has_scope) AS is_allowed
+            """
+        )
+        result = await self._session.execute(
+            stmt,
+            {
+                "user_id": user_id,
+                "resource": resource,
+                "action": action,
+                "target_scope_id": target_scope_id,
+            },
+        )
+        return bool(result.scalar_one())

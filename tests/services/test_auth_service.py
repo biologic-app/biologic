@@ -31,7 +31,7 @@ def _build_user_role(*, password: str = "admin123", refresh_version: int = 0) ->
     user.first_name = "System"
     user.last_name = "Administrator"
 
-    role = Role(key="admin", name="Administrator")
+    role = Role(key="admin", name="Administrator", scope_type="global")
     role.id = role_id
     return user, role
 
@@ -40,7 +40,9 @@ async def test_auth_service_login_success() -> None:
     user, role = _build_user_role()
     repository = SimpleNamespace(
         get_user_with_role_by_username=AsyncMock(return_value=(user, role)),
-        list_permissions_by_role_id=AsyncMock(return_value=[("objects", "read"), ("objects", "update")]),
+        list_permissions_by_role_id=AsyncMock(
+            return_value=[("objects", "read"), ("objects", "update")]
+        ),
     )
     service = AuthService(repository=repository, settings=_settings())
 
@@ -48,7 +50,10 @@ async def test_auth_service_login_success() -> None:
 
     assert session.user.username == "admin"
     assert session.user.role_key == "admin"
-    assert any(perm.resource == "dashboard" and perm.action == "view" for perm in session.permissions)
+    assert any(
+        perm.resource == "dashboard" and perm.action == "view"
+        for perm in session.permissions
+    )
     assert any(perm.resource == "objects" and perm.action == "view" for perm in session.permissions)
     assert any(perm.resource == "objects" and perm.action == "edit" for perm in session.permissions)
     assert tokens.access_token

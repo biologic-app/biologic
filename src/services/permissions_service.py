@@ -4,31 +4,31 @@ from uuid import UUID
 
 from src.core.errors import ValidationError
 from src.repositories.crud_repository import SortOrder
-from src.repositories.role_permissions_repository import RolePermissionRepository
+from src.repositories.permissions_repository import PermissionRepository
 from src.schemas import (
-    RolePermissionCreateDTO,
-    RolePermissionCreateEnvelopeDTO,
-    RolePermissionDeleteEnvelopeDTO,
-    RolePermissionListEnvelopeDTO,
-    RolePermissionReadDTO,
-    RolePermissionReadEnvelopeDTO,
-    RolePermissionUpdateDTO,
-    RolePermissionUpdateEnvelopeDTO,
+    PermissionCreateDTO,
+    PermissionCreateEnvelopeDTO,
+    PermissionDeleteEnvelopeDTO,
+    PermissionListEnvelopeDTO,
+    PermissionReadDTO,
+    PermissionReadEnvelopeDTO,
+    PermissionUpdateDTO,
+    PermissionUpdateEnvelopeDTO,
 )
 from src.schemas.base import ActionMetaDTO, DeleteMetaDTO, ListMetaDTO, ReadMetaDTO
 from src.services.crud_service import CRUDService
 
 
-class RolePermissionService:
-    _sort_fields: ClassVar[set[str]] = {"id", "role_id", "permission_id"}
+class PermissionService:
+    _sort_fields: ClassVar[set[str]] = {"id", "resource", "action"}
 
-    def __init__(self, repository: RolePermissionRepository) -> None:
+    def __init__(self, repository: PermissionRepository) -> None:
         self._repository = repository
         self._crud = CRUDService(
             repository=repository,
-            read_schema=RolePermissionReadDTO,
+            read_schema=PermissionReadDTO,
             allowed_sort_fields=self._sort_fields,
-            not_found_message="RolePermission {entity_id} was not found.",
+            not_found_message="Permission {entity_id} was not found.",
         )
 
     def _validate_includes(self, includes: list[str]) -> list[str]:
@@ -45,17 +45,17 @@ class RolePermissionService:
             )
         return includes
 
-    async def create(self, payload: RolePermissionCreateDTO) -> RolePermissionCreateEnvelopeDTO:
+    async def create(self, payload: PermissionCreateDTO) -> PermissionCreateEnvelopeDTO:
         data = await self._crud.create(payload.model_dump(exclude_unset=True))
-        return RolePermissionCreateEnvelopeDTO(data=data, meta=ActionMetaDTO(operation="create"))
+        return PermissionCreateEnvelopeDTO(data=data, meta=ActionMetaDTO(operation="create"))
 
     async def get(
         self, entity_id: UUID, includes: list[str] | None = None
-    ) -> RolePermissionReadEnvelopeDTO:
+    ) -> PermissionReadEnvelopeDTO:
         includes = self._validate_includes(includes or [])
         data = await self._crud.get(entity_id)
         data = await self._crud.expand_includes(data, includes)
-        return RolePermissionReadEnvelopeDTO(
+        return PermissionReadEnvelopeDTO(
             data=data,
             meta=ReadMetaDTO(
                 includes=includes,
@@ -75,7 +75,7 @@ class RolePermissionService:
         includes: list[str] | None = None,
         exact_filters: Mapping[str, str] | None = None,
         range_filters: Mapping[str, tuple[str | None, str | None]] | None = None,
-    ) -> RolePermissionListEnvelopeDTO:
+    ) -> PermissionListEnvelopeDTO:
         includes = self._validate_includes(includes or [])
         items, page_meta = await self._crud.list(
             offset=offset,
@@ -94,16 +94,18 @@ class RolePermissionService:
             includes_applied=includes,
             includes_allowed=sorted(self._repository.allowed_includes),
         )
-        return RolePermissionListEnvelopeDTO(items=expanded_items, meta=meta)
+        return PermissionListEnvelopeDTO(items=expanded_items, meta=meta)
 
     async def update(
-        self, entity_id: UUID, payload: RolePermissionUpdateDTO
-    ) -> RolePermissionUpdateEnvelopeDTO:
+        self, entity_id: UUID, payload: PermissionUpdateDTO
+    ) -> PermissionUpdateEnvelopeDTO:
         data = await self._crud.update(entity_id, payload.model_dump(exclude_unset=True))
-        return RolePermissionUpdateEnvelopeDTO(data=data, meta=ActionMetaDTO(operation="update"))
+        return PermissionUpdateEnvelopeDTO(data=data, meta=ActionMetaDTO(operation="update"))
 
     async def delete(
-        self, entity_id: UUID, reason: str | None = None
-    ) -> RolePermissionDeleteEnvelopeDTO:
+        self,
+        entity_id: UUID,
+        reason: str | None = None,
+    ) -> PermissionDeleteEnvelopeDTO:
         await self._crud.delete(entity_id, reason=reason)
-        return RolePermissionDeleteEnvelopeDTO(meta=DeleteMetaDTO(operation="delete", deleted=True))
+        return PermissionDeleteEnvelopeDTO(meta=DeleteMetaDTO(operation="delete", deleted=True))

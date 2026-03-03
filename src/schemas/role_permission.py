@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -22,18 +21,16 @@ from src.schemas.base import (
 class RolePermissionCreateDTO(BaseModel):
     model_config = ConfigDict(extra="forbid")
     role_id: UUID
-    resource: str
-    action: str
+    permission_id: UUID
 
 
 class RolePermissionReadDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="forbid")
+    id: UUID
     role_id: UUID
-    resource: str
-    action: str
-    created_at: datetime
-    updated_at: datetime
+    permission_id: UUID
     role: EntityRefDTO | None = None
+    permission: EntityRefDTO | None = None
 
 
 RolePermissionListReadDTO = RolePermissionReadDTO
@@ -42,14 +39,11 @@ RolePermissionListReadDTO = RolePermissionReadDTO
 class RolePermissionUpdateDTO(BaseModel):
     model_config = ConfigDict(extra="forbid")
     role_id: UUID | None = None
-    resource: str | None = None
-    action: str | None = None
+    permission_id: UUID | None = None
 
 
 class RolePermissionDeleteDTO(DeleteRequestDTO):
-    role_id: UUID
-    resource: str
-    action: str
+    id: UUID
 
 
 class RolePermissionReadEnvelopeDTO(ReadResponseDTO[RolePermissionReadDTO]):
