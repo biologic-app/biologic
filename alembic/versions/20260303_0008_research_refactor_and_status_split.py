@@ -24,12 +24,24 @@ def upgrade() -> None:
             created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
             deleted_at timestamptz
-        );
+        )
+        """
+    )
+    op.execute(
+        """
         CREATE UNIQUE INDEX IF NOT EXISTS direction_statuses_direction_statuses_code
-            ON direction_statuses (code);
+            ON direction_statuses (code)
+        """
+    )
+    op.execute(
+        """
         CREATE INDEX IF NOT EXISTS direction_statuses_direction_statuses_deleted_at
-            ON direction_statuses (deleted_at);
+            ON direction_statuses (deleted_at)
+        """
+    )
 
+    op.execute(
+        """
         CREATE TABLE IF NOT EXISTS sample_statuses (
             id uuid PRIMARY KEY DEFAULT uuidv7(),
             code text,
@@ -37,12 +49,24 @@ def upgrade() -> None:
             created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
             deleted_at timestamptz
-        );
+        )
+        """
+    )
+    op.execute(
+        """
         CREATE UNIQUE INDEX IF NOT EXISTS sample_statuses_sample_statuses_code
-            ON sample_statuses (code);
+            ON sample_statuses (code)
+        """
+    )
+    op.execute(
+        """
         CREATE INDEX IF NOT EXISTS sample_statuses_sample_statuses_deleted_at
-            ON sample_statuses (deleted_at);
+            ON sample_statuses (deleted_at)
+        """
+    )
 
+    op.execute(
+        """
         CREATE TABLE IF NOT EXISTS research_statuses (
             id uuid PRIMARY KEY DEFAULT uuidv7(),
             code text,
@@ -50,12 +74,24 @@ def upgrade() -> None:
             created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
             deleted_at timestamptz
-        );
+        )
+        """
+    )
+    op.execute(
+        """
         CREATE UNIQUE INDEX IF NOT EXISTS research_statuses_research_statuses_code
-            ON research_statuses (code);
+            ON research_statuses (code)
+        """
+    )
+    op.execute(
+        """
         CREATE INDEX IF NOT EXISTS research_statuses_research_statuses_deleted_at
-            ON research_statuses (deleted_at);
+            ON research_statuses (deleted_at)
+        """
+    )
 
+    op.execute(
+        """
         CREATE TABLE IF NOT EXISTS test_statuses (
             id uuid PRIMARY KEY DEFAULT uuidv7(),
             code text,
@@ -63,11 +99,19 @@ def upgrade() -> None:
             created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
             deleted_at timestamptz
-        );
+        )
+        """
+    )
+    op.execute(
+        """
         CREATE UNIQUE INDEX IF NOT EXISTS test_statuses_test_statuses_code
-            ON test_statuses (code);
+            ON test_statuses (code)
+        """
+    )
+    op.execute(
+        """
         CREATE INDEX IF NOT EXISTS test_statuses_test_statuses_deleted_at
-            ON test_statuses (deleted_at);
+            ON test_statuses (deleted_at)
         """
     )
 
@@ -80,8 +124,11 @@ def upgrade() -> None:
             ('in_progress', 'В работе'),
             ('partially_completed', 'Частично выполнено'),
             ('completed', 'Выполнено')
-        ON CONFLICT (code) DO NOTHING;
-
+        ON CONFLICT (code) DO NOTHING
+        """
+    )
+    op.execute(
+        """
         INSERT INTO sample_statuses (code, name)
         VALUES
             ('pending', 'На регистрации'),
@@ -90,8 +137,11 @@ def upgrade() -> None:
             ('in_progress', 'На исследовании'),
             ('analyzed', 'Обработан'),
             ('completed', 'Закрыт')
-        ON CONFLICT (code) DO NOTHING;
-
+        ON CONFLICT (code) DO NOTHING
+        """
+    )
+    op.execute(
+        """
         INSERT INTO research_statuses (code, name)
         VALUES
             ('draft', 'Черновик'),
@@ -99,15 +149,18 @@ def upgrade() -> None:
             ('in_progress', 'В работе'),
             ('completed', 'Завершено'),
             ('rejected', 'Отклонено')
-        ON CONFLICT (code) DO NOTHING;
-
+        ON CONFLICT (code) DO NOTHING
+        """
+    )
+    op.execute(
+        """
         INSERT INTO test_statuses (code, name)
         VALUES
             ('queued', 'Запланировано'),
             ('in_progress', 'Выполняется'),
             ('completed', 'Выполнено'),
             ('rejected', 'Отклонено')
-        ON CONFLICT (code) DO NOTHING;
+        ON CONFLICT (code) DO NOTHING
         """
     )
 
@@ -127,16 +180,19 @@ def upgrade() -> None:
             created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
             deleted_at timestamptz
-        );
-
-        CREATE INDEX IF NOT EXISTS research_research_sample_id ON research (sample_id);
-        CREATE INDEX IF NOT EXISTS research_research_research_goal_id ON research (research_goal_id);
-        CREATE INDEX IF NOT EXISTS research_research_status_id ON research (status_id);
-        CREATE INDEX IF NOT EXISTS research_research_received_at ON research (received_at);
-        CREATE INDEX IF NOT EXISTS research_research_completed_at ON research (completed_at);
-        CREATE INDEX IF NOT EXISTS research_research_deleted_at ON research (deleted_at);
+        )
         """
     )
+    op.execute("CREATE INDEX IF NOT EXISTS research_research_sample_id ON research (sample_id)")
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS research_research_research_goal_id ON research (research_goal_id)"
+    )
+    op.execute("CREATE INDEX IF NOT EXISTS research_research_status_id ON research (status_id)")
+    op.execute("CREATE INDEX IF NOT EXISTS research_research_received_at ON research (received_at)")
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS research_research_completed_at ON research (completed_at)"
+    )
+    op.execute("CREATE INDEX IF NOT EXISTS research_research_deleted_at ON research (deleted_at)")
 
     op.execute(
         """
