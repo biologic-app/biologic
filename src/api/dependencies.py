@@ -1,10 +1,8 @@
-from collections.abc import AsyncGenerator
-
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import Settings, get_settings
-from src.core.database import get_db_session, get_session_factory
+from src.core.database import get_db_session
 from src.repositories.auth_repository import AuthRepository
 from src.repositories.branches_repository import BranchRepository
 from src.repositories.change_log_repository import ChangeLogRepository
@@ -40,7 +38,6 @@ from src.services.directions_service import DirectionService
 from src.services.doctors_service import DoctorService
 from src.services.indicators_service import IndicatorService
 from src.services.labs_service import LabService
-from src.services.mock_auth_service import MockAuthService
 from src.services.objects_service import ObjectService
 from src.services.permissions_service import PermissionService
 from src.services.protocol_types_service import ProtocolTypeService
@@ -61,16 +58,12 @@ from src.services.users_service import UserService
 _dashboard_quick_actions_service = DashboardQuickActionsService()
 
 
-async def get_auth_service(
+def get_auth_service(
+    db_session: AsyncSession = Depends(get_db_session),
     settings: Settings = Depends(get_settings),
-) -> AsyncGenerator[AuthService | MockAuthService, None]:
-    if settings.auth_mode == "mock":
-        yield MockAuthService(settings=settings)
-        return
-    session_factory = get_session_factory()
-    async with session_factory() as db_session:
-        repository = AuthRepository(session=db_session)
-        yield AuthService(repository=repository, settings=settings)
+) -> AuthService:
+    repository = AuthRepository(session=db_session)
+    return AuthService(repository=repository, settings=settings)
 
 
 def get_branches_service(db_session: AsyncSession = Depends(get_db_session)) -> BranchService:

@@ -20,7 +20,7 @@ def _provider_kwargs(provider: object) -> dict[str, object]:
     if "db_session" in params:
         kwargs["db_session"] = object()
     if "settings" in params:
-        kwargs["settings"] = Settings(auth_mode="mock")
+        kwargs["settings"] = Settings()
     return kwargs
 
 

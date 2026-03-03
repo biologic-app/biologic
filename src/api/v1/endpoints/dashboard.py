@@ -16,14 +16,13 @@ from src.schemas.dashboard import (
 )
 from src.services.auth_service import AuthService
 from src.services.dashboard_service import DashboardQuickActionsService
-from src.services.mock_auth_service import MockAuthService
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
 async def _require_session(
     request: Request,
-    auth_service: AuthService | MockAuthService,
+    auth_service: AuthService,
     settings: Settings,
 ) -> AuthSessionDTO:
     access_token = request.cookies.get(settings.access_cookie_name)
@@ -41,7 +40,7 @@ def _permissions(session: AuthSessionDTO) -> list[tuple[str, str]]:
 async def list_quick_actions(
     request: Request,
     service: DashboardQuickActionsService = Depends(get_dashboard_quick_actions_service),
-    auth_service: AuthService | MockAuthService = Depends(get_auth_service),
+    auth_service: AuthService = Depends(get_auth_service),
     settings: Settings = Depends(get_settings),
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),
@@ -64,7 +63,7 @@ async def create_quick_action(
     payload: DashboardQuickActionCreateDTO,
     request: Request,
     service: DashboardQuickActionsService = Depends(get_dashboard_quick_actions_service),
-    auth_service: AuthService | MockAuthService = Depends(get_auth_service),
+    auth_service: AuthService = Depends(get_auth_service),
     settings: Settings = Depends(get_settings),
 ) -> DashboardQuickActionCreateEnvelopeDTO:
     session = await _require_session(request, auth_service, settings)
@@ -84,7 +83,7 @@ async def update_quick_action(
     payload: DashboardQuickActionUpdateDTO,
     request: Request,
     service: DashboardQuickActionsService = Depends(get_dashboard_quick_actions_service),
-    auth_service: AuthService | MockAuthService = Depends(get_auth_service),
+    auth_service: AuthService = Depends(get_auth_service),
     settings: Settings = Depends(get_settings),
 ) -> DashboardQuickActionUpdateEnvelopeDTO:
     session = await _require_session(request, auth_service, settings)
@@ -104,7 +103,7 @@ async def delete_quick_action(
     quick_action_id: int,
     request: Request,
     service: DashboardQuickActionsService = Depends(get_dashboard_quick_actions_service),
-    auth_service: AuthService | MockAuthService = Depends(get_auth_service),
+    auth_service: AuthService = Depends(get_auth_service),
     settings: Settings = Depends(get_settings),
 ) -> DashboardQuickActionDeleteEnvelopeDTO:
     session = await _require_session(request, auth_service, settings)
