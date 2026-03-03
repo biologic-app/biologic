@@ -237,7 +237,11 @@ class Role(Base):
     key: Mapped[str] = mapped_column(Text, nullable=False)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     scope_type: Mapped[RoleScopeType] = mapped_column(
-        SQLEnum(RoleScopeType, name="role_scope_type"),
+        SQLEnum(
+            RoleScopeType,
+            name="role_scope_type",
+            values_callable=lambda enum: [item.value for item in enum],
+        ),
         nullable=False,
     )
     created_at: Mapped[datetime] = mapped_column(
