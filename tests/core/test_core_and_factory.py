@@ -92,7 +92,7 @@ async def test_http_error_handler() -> None:
 
 def test_create_app_and_health_endpoint() -> None:
     app = create_app()
-    routes = {route.path for route in src.routes}
+    routes = {route.path for route in app.routes}
 
     assert "/api/v1/health" in routes
     assert "/docs" in routes

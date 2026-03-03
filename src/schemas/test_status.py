@@ -18,58 +18,49 @@ from src.schemas.base import (
 )
 
 
-class ConclusionCreateDTO(BaseModel):
+class TestStatusCreateDTO(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    code: str
+    code: str | None = None
     name: str
-    text_singular: str
-    text_plural: str
-    comment: str | None = None
 
 
-class ConclusionReadDTO(BaseModel):
+class TestStatusReadDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="forbid")
     id: UUID
-    code: str
+    code: str | None = None
     name: str
-    text_singular: str
-    text_plural: str
-    comment: str | None = None
     created_at: datetime
     updated_at: datetime
 
 
-ConclusionListReadDTO = ConclusionReadDTO
+TestStatusListReadDTO = TestStatusReadDTO
 
 
-class ConclusionUpdateDTO(BaseModel):
+class TestStatusUpdateDTO(BaseModel):
     model_config = ConfigDict(extra="forbid")
     code: str | None = None
     name: str | None = None
-    text_singular: str | None = None
-    text_plural: str | None = None
-    comment: str | None = None
 
 
-class ConclusionDeleteDTO(DeleteRequestDTO):
+class TestStatusDeleteDTO(DeleteRequestDTO):
     id: UUID
 
 
-class ConclusionReadEnvelopeDTO(ReadResponseDTO[ConclusionReadDTO]):
+class TestStatusReadEnvelopeDTO(ReadResponseDTO[TestStatusReadDTO]):
     meta: ReadMetaDTO = Field(default_factory=ReadMetaDTO)
 
 
-class ConclusionListEnvelopeDTO(ListResponseDTO[ConclusionListReadDTO]):
+class TestStatusListEnvelopeDTO(ListResponseDTO[TestStatusListReadDTO]):
     meta: ListMetaDTO
 
 
-class ConclusionCreateEnvelopeDTO(ActionResponseDTO[ConclusionReadDTO]):
+class TestStatusCreateEnvelopeDTO(ActionResponseDTO[TestStatusReadDTO]):
     meta: ActionMetaDTO = Field(default_factory=ActionMetaDTO)
 
 
-class ConclusionUpdateEnvelopeDTO(ActionResponseDTO[ConclusionReadDTO]):
+class TestStatusUpdateEnvelopeDTO(ActionResponseDTO[TestStatusReadDTO]):
     meta: ActionMetaDTO = Field(default_factory=ActionMetaDTO)
 
 
-class ConclusionDeleteEnvelopeDTO(DeleteResponseDTO):
+class TestStatusDeleteEnvelopeDTO(DeleteResponseDTO):
     meta: DeleteMetaDTO = Field(default_factory=DeleteMetaDTO)

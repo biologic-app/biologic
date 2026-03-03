@@ -72,8 +72,7 @@ class AuthRepository:
         action: str,
         target_scope_id: UUID | None,
     ) -> bool:
-        stmt = text(
-            """
+        stmt = text("""
             WITH user_role AS (
               SELECT u.role_id, r.scope_type
               FROM users u
@@ -103,8 +102,7 @@ class AuthRepository:
             SELECT
               EXISTS(SELECT 1 FROM has_permission) AND
               EXISTS(SELECT 1 FROM has_scope) AS is_allowed
-            """
-        )
+            """)
         result = await self._session.execute(
             stmt,
             {

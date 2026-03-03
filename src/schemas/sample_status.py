@@ -18,49 +18,49 @@ from src.schemas.base import (
 )
 
 
-class ConclusionStatusCreateDTO(BaseModel):
+class SampleStatusCreateDTO(BaseModel):
     model_config = ConfigDict(extra="forbid")
     code: str | None = None
-    name: str | None = None
+    name: str
 
 
-class ConclusionStatusReadDTO(BaseModel):
+class SampleStatusReadDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="forbid")
     id: UUID
     code: str | None = None
-    name: str | None = None
+    name: str
     created_at: datetime
     updated_at: datetime
 
 
-ConclusionStatusListReadDTO = ConclusionStatusReadDTO
+SampleStatusListReadDTO = SampleStatusReadDTO
 
 
-class ConclusionStatusUpdateDTO(BaseModel):
+class SampleStatusUpdateDTO(BaseModel):
     model_config = ConfigDict(extra="forbid")
     code: str | None = None
     name: str | None = None
 
 
-class ConclusionStatusDeleteDTO(DeleteRequestDTO):
+class SampleStatusDeleteDTO(DeleteRequestDTO):
     id: UUID
 
 
-class ConclusionStatusReadEnvelopeDTO(ReadResponseDTO[ConclusionStatusReadDTO]):
+class SampleStatusReadEnvelopeDTO(ReadResponseDTO[SampleStatusReadDTO]):
     meta: ReadMetaDTO = Field(default_factory=ReadMetaDTO)
 
 
-class ConclusionStatusListEnvelopeDTO(ListResponseDTO[ConclusionStatusListReadDTO]):
+class SampleStatusListEnvelopeDTO(ListResponseDTO[SampleStatusListReadDTO]):
     meta: ListMetaDTO
 
 
-class ConclusionStatusCreateEnvelopeDTO(ActionResponseDTO[ConclusionStatusReadDTO]):
+class SampleStatusCreateEnvelopeDTO(ActionResponseDTO[SampleStatusReadDTO]):
     meta: ActionMetaDTO = Field(default_factory=ActionMetaDTO)
 
 
-class ConclusionStatusUpdateEnvelopeDTO(ActionResponseDTO[ConclusionStatusReadDTO]):
+class SampleStatusUpdateEnvelopeDTO(ActionResponseDTO[SampleStatusReadDTO]):
     meta: ActionMetaDTO = Field(default_factory=ActionMetaDTO)
 
 
-class ConclusionStatusDeleteEnvelopeDTO(DeleteResponseDTO):
+class SampleStatusDeleteEnvelopeDTO(DeleteResponseDTO):
     meta: DeleteMetaDTO = Field(default_factory=DeleteMetaDTO)

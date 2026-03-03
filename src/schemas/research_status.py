@@ -18,13 +18,13 @@ from src.schemas.base import (
 )
 
 
-class StatusCreateDTO(BaseModel):
+class ResearchStatusCreateDTO(BaseModel):
     model_config = ConfigDict(extra="forbid")
     code: str | None = None
     name: str
 
 
-class StatusReadDTO(BaseModel):
+class ResearchStatusReadDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="forbid")
     id: UUID
     code: str | None = None
@@ -33,34 +33,34 @@ class StatusReadDTO(BaseModel):
     updated_at: datetime
 
 
-StatusListReadDTO = StatusReadDTO
+ResearchStatusListReadDTO = ResearchStatusReadDTO
 
 
-class StatusUpdateDTO(BaseModel):
+class ResearchStatusUpdateDTO(BaseModel):
     model_config = ConfigDict(extra="forbid")
     code: str | None = None
     name: str | None = None
 
 
-class StatusDeleteDTO(DeleteRequestDTO):
+class ResearchStatusDeleteDTO(DeleteRequestDTO):
     id: UUID
 
 
-class StatusReadEnvelopeDTO(ReadResponseDTO[StatusReadDTO]):
+class ResearchStatusReadEnvelopeDTO(ReadResponseDTO[ResearchStatusReadDTO]):
     meta: ReadMetaDTO = Field(default_factory=ReadMetaDTO)
 
 
-class StatusListEnvelopeDTO(ListResponseDTO[StatusListReadDTO]):
+class ResearchStatusListEnvelopeDTO(ListResponseDTO[ResearchStatusListReadDTO]):
     meta: ListMetaDTO
 
 
-class StatusCreateEnvelopeDTO(ActionResponseDTO[StatusReadDTO]):
+class ResearchStatusCreateEnvelopeDTO(ActionResponseDTO[ResearchStatusReadDTO]):
     meta: ActionMetaDTO = Field(default_factory=ActionMetaDTO)
 
 
-class StatusUpdateEnvelopeDTO(ActionResponseDTO[StatusReadDTO]):
+class ResearchStatusUpdateEnvelopeDTO(ActionResponseDTO[ResearchStatusReadDTO]):
     meta: ActionMetaDTO = Field(default_factory=ActionMetaDTO)
 
 
-class StatusDeleteEnvelopeDTO(DeleteResponseDTO):
+class ResearchStatusDeleteEnvelopeDTO(DeleteResponseDTO):
     meta: DeleteMetaDTO = Field(default_factory=DeleteMetaDTO)

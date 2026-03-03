@@ -18,58 +18,49 @@ from src.schemas.base import (
 )
 
 
-class ConclusionCreateDTO(BaseModel):
+class DirectionStatusCreateDTO(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    code: str
+    code: str | None = None
     name: str
-    text_singular: str
-    text_plural: str
-    comment: str | None = None
 
 
-class ConclusionReadDTO(BaseModel):
+class DirectionStatusReadDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="forbid")
     id: UUID
-    code: str
+    code: str | None = None
     name: str
-    text_singular: str
-    text_plural: str
-    comment: str | None = None
     created_at: datetime
     updated_at: datetime
 
 
-ConclusionListReadDTO = ConclusionReadDTO
+DirectionStatusListReadDTO = DirectionStatusReadDTO
 
 
-class ConclusionUpdateDTO(BaseModel):
+class DirectionStatusUpdateDTO(BaseModel):
     model_config = ConfigDict(extra="forbid")
     code: str | None = None
     name: str | None = None
-    text_singular: str | None = None
-    text_plural: str | None = None
-    comment: str | None = None
 
 
-class ConclusionDeleteDTO(DeleteRequestDTO):
+class DirectionStatusDeleteDTO(DeleteRequestDTO):
     id: UUID
 
 
-class ConclusionReadEnvelopeDTO(ReadResponseDTO[ConclusionReadDTO]):
+class DirectionStatusReadEnvelopeDTO(ReadResponseDTO[DirectionStatusReadDTO]):
     meta: ReadMetaDTO = Field(default_factory=ReadMetaDTO)
 
 
-class ConclusionListEnvelopeDTO(ListResponseDTO[ConclusionListReadDTO]):
+class DirectionStatusListEnvelopeDTO(ListResponseDTO[DirectionStatusListReadDTO]):
     meta: ListMetaDTO
 
 
-class ConclusionCreateEnvelopeDTO(ActionResponseDTO[ConclusionReadDTO]):
+class DirectionStatusCreateEnvelopeDTO(ActionResponseDTO[DirectionStatusReadDTO]):
     meta: ActionMetaDTO = Field(default_factory=ActionMetaDTO)
 
 
-class ConclusionUpdateEnvelopeDTO(ActionResponseDTO[ConclusionReadDTO]):
+class DirectionStatusUpdateEnvelopeDTO(ActionResponseDTO[DirectionStatusReadDTO]):
     meta: ActionMetaDTO = Field(default_factory=ActionMetaDTO)
 
 
-class ConclusionDeleteEnvelopeDTO(DeleteResponseDTO):
+class DirectionStatusDeleteEnvelopeDTO(DeleteResponseDTO):
     meta: DeleteMetaDTO = Field(default_factory=DeleteMetaDTO)

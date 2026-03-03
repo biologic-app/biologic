@@ -8,8 +8,8 @@ from src.core.database import get_db_session, get_session_factory
 from src.repositories.auth_repository import AuthRepository
 from src.repositories.branches_repository import BranchRepository
 from src.repositories.change_log_repository import ChangeLogRepository
-from src.repositories.conclusion_statuses_repository import ConclusionStatusRepository
 from src.repositories.conclusions_repository import ConclusionRepository
+from src.repositories.direction_statuses_repository import DirectionStatusRepository
 from src.repositories.directions_repository import DirectionRepository
 from src.repositories.doctors_repository import DoctorRepository
 from src.repositories.indicators_repository import IndicatorRepository
@@ -19,22 +19,23 @@ from src.repositories.permissions_repository import PermissionRepository
 from src.repositories.protocol_types_repository import ProtocolTypeRepository
 from src.repositories.protocols_repository import ProtocolRepository
 from src.repositories.research_goals_repository import ResearchGoalRepository
-from src.repositories.results_repository import ResultRepository
+from src.repositories.research_repository import ResearchRepository
+from src.repositories.research_statuses_repository import ResearchStatusRepository
 from src.repositories.role_permissions_repository import RolePermissionRepository
 from src.repositories.roles_repository import RoleRepository
-from src.repositories.sample_targets_repository import SampleTargetRepository
+from src.repositories.sample_statuses_repository import SampleStatusRepository
 from src.repositories.sample_types_repository import SampleTypeRepository
 from src.repositories.samples_repository import SampleRepository
-from src.repositories.statuses_repository import StatusRepository
+from src.repositories.test_statuses_repository import TestStatusRepository
 from src.repositories.tests_repository import TestRepository
 from src.repositories.user_scopes_repository import UserScopeRepository
 from src.repositories.users_repository import UserRepository
 from src.services.auth_service import AuthService
 from src.services.branches_service import BranchService
 from src.services.change_log_service import ChangeLogService
-from src.services.conclusion_statuses_service import ConclusionStatusService
 from src.services.conclusions_service import ConclusionService
 from src.services.dashboard_service import DashboardQuickActionsService
+from src.services.direction_statuses_service import DirectionStatusService
 from src.services.directions_service import DirectionService
 from src.services.doctors_service import DoctorService
 from src.services.indicators_service import IndicatorService
@@ -45,13 +46,14 @@ from src.services.permissions_service import PermissionService
 from src.services.protocol_types_service import ProtocolTypeService
 from src.services.protocols_service import ProtocolService
 from src.services.research_goals_service import ResearchGoalService
-from src.services.results_service import ResultService
+from src.services.research_service import ResearchService
+from src.services.research_statuses_service import ResearchStatusService
 from src.services.role_permissions_service import RolePermissionService
 from src.services.roles_service import RoleService
-from src.services.sample_targets_service import SampleTargetService
+from src.services.sample_statuses_service import SampleStatusService
 from src.services.sample_types_service import SampleTypeService
 from src.services.samples_service import SampleService
-from src.services.statuses_service import StatusService
+from src.services.test_statuses_service import TestStatusService
 from src.services.tests_service import TestService
 from src.services.user_scopes_service import UserScopeService
 from src.services.users_service import UserService
@@ -81,18 +83,18 @@ def get_change_log_service(db_session: AsyncSession = Depends(get_db_session)) -
     return ChangeLogService(repository=repository)
 
 
-def get_conclusion_statuses_service(
-    db_session: AsyncSession = Depends(get_db_session),
-) -> ConclusionStatusService:
-    repository = ConclusionStatusRepository(session=db_session)
-    return ConclusionStatusService(repository=repository)
-
-
 def get_conclusions_service(
     db_session: AsyncSession = Depends(get_db_session),
 ) -> ConclusionService:
     repository = ConclusionRepository(session=db_session)
     return ConclusionService(repository=repository)
+
+
+def get_direction_statuses_service(
+    db_session: AsyncSession = Depends(get_db_session),
+) -> DirectionStatusService:
+    repository = DirectionStatusRepository(session=db_session)
+    return DirectionStatusService(repository=repository)
 
 
 def get_directions_service(db_session: AsyncSession = Depends(get_db_session)) -> DirectionService:
@@ -146,9 +148,16 @@ def get_research_goals_service(
     return ResearchGoalService(repository=repository)
 
 
-def get_results_service(db_session: AsyncSession = Depends(get_db_session)) -> ResultService:
-    repository = ResultRepository(session=db_session)
-    return ResultService(repository=repository)
+def get_research_service(db_session: AsyncSession = Depends(get_db_session)) -> ResearchService:
+    repository = ResearchRepository(session=db_session)
+    return ResearchService(repository=repository)
+
+
+def get_research_statuses_service(
+    db_session: AsyncSession = Depends(get_db_session),
+) -> ResearchStatusService:
+    repository = ResearchStatusRepository(session=db_session)
+    return ResearchStatusService(repository=repository)
 
 
 def get_roles_service(db_session: AsyncSession = Depends(get_db_session)) -> RoleService:
@@ -156,11 +165,11 @@ def get_roles_service(db_session: AsyncSession = Depends(get_db_session)) -> Rol
     return RoleService(repository=repository)
 
 
-def get_sample_targets_service(
+def get_sample_statuses_service(
     db_session: AsyncSession = Depends(get_db_session),
-) -> SampleTargetService:
-    repository = SampleTargetRepository(session=db_session)
-    return SampleTargetService(repository=repository)
+) -> SampleStatusService:
+    repository = SampleStatusRepository(session=db_session)
+    return SampleStatusService(repository=repository)
 
 
 def get_sample_types_service(
@@ -175,9 +184,11 @@ def get_samples_service(db_session: AsyncSession = Depends(get_db_session)) -> S
     return SampleService(repository=repository)
 
 
-def get_statuses_service(db_session: AsyncSession = Depends(get_db_session)) -> StatusService:
-    repository = StatusRepository(session=db_session)
-    return StatusService(repository=repository)
+def get_test_statuses_service(
+    db_session: AsyncSession = Depends(get_db_session),
+) -> TestStatusService:
+    repository = TestStatusRepository(session=db_session)
+    return TestStatusService(repository=repository)
 
 
 def get_tests_service(db_session: AsyncSession = Depends(get_db_session)) -> TestService:

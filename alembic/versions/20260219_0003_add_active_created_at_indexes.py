@@ -33,8 +33,8 @@ def upgrade() -> None:
         )
         op.execute(
             """
-            CREATE INDEX CONCURRENTLY IF NOT EXISTS results_results_active_created_at
-            ON results (created_at DESC, id)
+            CREATE INDEX CONCURRENTLY IF NOT EXISTS research_research_active_created_at
+            ON research (created_at DESC, id)
             WHERE deleted_at IS NULL
             """
         )
@@ -50,6 +50,6 @@ def upgrade() -> None:
 def downgrade() -> None:
     with op.get_context().autocommit_block():
         op.execute("DROP INDEX CONCURRENTLY IF EXISTS tests_tests_active_created_at")
-        op.execute("DROP INDEX CONCURRENTLY IF EXISTS results_results_active_created_at")
+        op.execute("DROP INDEX CONCURRENTLY IF EXISTS research_research_active_created_at")
         op.execute("DROP INDEX CONCURRENTLY IF EXISTS samples_samples_active_created_at")
         op.execute("DROP INDEX CONCURRENTLY IF EXISTS directions_directions_active_created_at")

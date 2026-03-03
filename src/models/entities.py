@@ -7,13 +7,15 @@ from uuid import UUID
 from sqlalchemy import (
     Boolean,
     DateTime,
-    Enum as SQLEnum,
     ForeignKey,
     Index,
     Integer,
     SmallInteger,
     Text,
     text,
+)
+from sqlalchemy import (
+    Enum as SQLEnum,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
@@ -107,7 +109,7 @@ class Lab(Base):
 class Indicator(Base):
     __tablename__ = "indicators"
     __table_args__ = (
-        Index("indicators_indicators_lab_id", "lab_id"),
+        Index("indicators_indicators_research_goal_id", "research_goal_id"),
         Index("indicators_indicators_sample_type_id", "sample_type_id"),
         Index("indicators_indicators_deleted_at", "deleted_at"),
     )
@@ -123,9 +125,12 @@ class Indicator(Base):
     norm_value: Mapped[str | None] = mapped_column(Text)
     default_text: Mapped[str | None] = mapped_column(Text)
     comment: Mapped[str | None] = mapped_column(Text)
-    lab_id: Mapped[UUID | None] = mapped_column(
+    research_goal_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("labs.id", name="fk_indicators_lab_id_labs_id"),
+        ForeignKey(
+            "research_goals.id",
+            name="fk_indicators_research_goal_id_research_goals_id",
+        ),
     )
     sample_type_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
@@ -290,7 +295,7 @@ class UserScope(Base):
 class Test(Base):
     __tablename__ = "tests"
     __table_args__ = (
-        Index("tests_tests_result_id", "result_id"),
+        Index("tests_tests_research_id", "research_id"),
         Index("tests_tests_indicator_id", "indicator_id"),
         Index("tests_tests_status_id", "status_id"),
         Index("tests_tests_is_active", "is_active"),
@@ -306,9 +311,9 @@ class Test(Base):
     comment: Mapped[str | None] = mapped_column(Text)
     norm: Mapped[str | None] = mapped_column(Text)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
-    result_id: Mapped[UUID] = mapped_column(
+    research_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("results.id", name="fk_tests_result_id_results_id"),
+        ForeignKey("research.id", name="fk_tests_research_id_research_id"),
         nullable=False,
     )
     indicator_id: Mapped[UUID | None] = mapped_column(
@@ -317,7 +322,7 @@ class Test(Base):
     )
     status_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("statuses.id", name="fk_tests_status_id_statuses_id"),
+        ForeignKey("test_statuses.id", name="fk_tests_status_id_test_statuses_id"),
     )
     created_by: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
@@ -340,11 +345,11 @@ class Test(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
-class Status(Base):
-    __tablename__ = "statuses"
+class DirectionStatus(Base):
+    __tablename__ = "direction_statuses"
     __table_args__ = (
-        Index("statuses_statuses_code", "code", unique=True),
-        Index("statuses_statuses_deleted_at", "deleted_at"),
+        Index("direction_statuses_direction_statuses_code", "code", unique=True),
+        Index("direction_statuses_direction_statuses_deleted_at", "deleted_at"),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -367,11 +372,11 @@ class Status(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
-class ConclusionStatus(Base):
-    __tablename__ = "conclusion_statuses"
+class SampleStatus(Base):
+    __tablename__ = "sample_statuses"
     __table_args__ = (
-        Index("conclusion_statuses_conclusion_statuses_code", "code", unique=True),
-        Index("conclusion_statuses_conclusion_statuses_deleted_at", "deleted_at"),
+        Index("sample_statuses_sample_statuses_code", "code", unique=True),
+        Index("sample_statuses_sample_statuses_deleted_at", "deleted_at"),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -380,7 +385,61 @@ class ConclusionStatus(Base):
         server_default=text("uuidv7()"),
     )
     code: Mapped[str | None] = mapped_column(Text)
-    name: Mapped[str | None] = mapped_column(Text)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ResearchStatus(Base):
+    __tablename__ = "research_statuses"
+    __table_args__ = (
+        Index("research_statuses_research_statuses_code", "code", unique=True),
+        Index("research_statuses_research_statuses_deleted_at", "deleted_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("uuidv7()"),
+    )
+    code: Mapped[str | None] = mapped_column(Text)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class TestStatus(Base):
+    __tablename__ = "test_statuses"
+    __table_args__ = (
+        Index("test_statuses_test_statuses_code", "code", unique=True),
+        Index("test_statuses_test_statuses_deleted_at", "deleted_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("uuidv7()"),
+    )
+    code: Mapped[str | None] = mapped_column(Text)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -397,7 +456,7 @@ class ConclusionStatus(Base):
 class Conclusion(Base):
     __tablename__ = "conclusions"
     __table_args__ = (
-        Index("conclusions_conclusions_status_id", "conclusion_status_id"),
+        Index("conclusions_conclusions_code", "code", unique=True),
         Index("conclusions_conclusions_deleted_at", "deleted_at"),
     )
 
@@ -406,15 +465,11 @@ class Conclusion(Base):
         primary_key=True,
         server_default=text("uuidv7()"),
     )
+    code: Mapped[str] = mapped_column(Text, nullable=False)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    text_singular: Mapped[str] = mapped_column(Text, nullable=False)
+    text_plural: Mapped[str] = mapped_column(Text, nullable=False)
     comment: Mapped[str | None] = mapped_column(Text)
-    conclusion_status_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(
-            "conclusion_statuses.id",
-            name="fk_conclusions_conclusion_status_id_conclusion_statuses_id",
-        ),
-        nullable=False,
-    )
     created_by: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("users.id", name="fk_conclusions_created_by_users_id"),
@@ -544,7 +599,7 @@ class Direction(Base):
     )
     status_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("statuses.id", name="fk_directions_status_id_statuses_id"),
+        ForeignKey("direction_statuses.id", name="fk_directions_status_id_direction_statuses_id"),
     )
     created_by: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
@@ -570,12 +625,15 @@ class Direction(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
-class SampleTarget(Base):
-    __tablename__ = "sample_targets"
+class Research(Base):
+    __tablename__ = "research"
     __table_args__ = (
-        Index("sample_targets_sample_targets_sample_id", "sample_id"),
-        Index("sample_targets_sample_targets_research_goal_id", "research_goal_id"),
-        Index("sample_targets_sample_targets_deleted_at", "deleted_at"),
+        Index("research_research_sample_id", "sample_id"),
+        Index("research_research_research_goal_id", "research_goal_id"),
+        Index("research_research_status_id", "status_id"),
+        Index("research_research_received_at", "received_at"),
+        Index("research_research_completed_at", "completed_at"),
+        Index("research_research_deleted_at", "deleted_at"),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -585,29 +643,33 @@ class SampleTarget(Base):
     )
     sample_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("samples.id", name="fk_sample_targets_sample_id_samples_id"),
+        ForeignKey("samples.id", name="fk_research_sample_id_samples_id"),
         nullable=False,
     )
     research_goal_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey(
             "research_goals.id",
-            name="fk_sample_targets_research_goal_id_research_goals_id",
+            name="fk_research_research_goal_id_research_goals_id",
         ),
         nullable=False,
     )
+    comment: Mapped[str | None] = mapped_column(Text)
+    recommendation: Mapped[str | None] = mapped_column(Text)
     status_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("statuses.id", name="fk_sample_targets_status_id_statuses_id"),
+        ForeignKey("research_statuses.id", name="fk_research_status_id_research_statuses_id"),
     )
     created_by: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("users.id", name="fk_sample_targets_created_by_users_id"),
+        ForeignKey("users.id", name="fk_research_created_by_users_id"),
     )
     updated_by: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("users.id", name="fk_sample_targets_updated_by_users_id"),
+        ForeignKey("users.id", name="fk_research_updated_by_users_id"),
     )
+    received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -760,7 +822,7 @@ class Sample(Base):
     )
     status_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("statuses.id", name="fk_samples_status_id_statuses_id"),
+        ForeignKey("sample_statuses.id", name="fk_samples_status_id_sample_statuses_id"),
     )
     direction_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
@@ -840,61 +902,6 @@ class ProtocolType(Base):
     )
     code: Mapped[str | None] = mapped_column(Text)
     name: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        server_default=text("CURRENT_TIMESTAMP"),
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        server_default=text("CURRENT_TIMESTAMP"),
-    )
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
-
-class Result(Base):
-    __tablename__ = "results"
-    __table_args__ = (
-        Index("results_results_sample_id", "sample_id"),
-        Index("results_results_lab_id", "lab_id"),
-        Index("results_results_status_id", "status_id"),
-        Index("results_results_received_at", "received_at"),
-        Index("results_results_completed_at", "completed_at"),
-        Index("results_results_deleted_at", "deleted_at"),
-    )
-
-    id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        primary_key=True,
-        server_default=text("uuidv7()"),
-    )
-    comment: Mapped[str | None] = mapped_column(Text)
-    recommendation: Mapped[str | None] = mapped_column(Text)
-    is_done: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
-    lab_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("labs.id", name="fk_results_lab_id_labs_id"),
-    )
-    sample_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("samples.id", name="fk_results_sample_id_samples_id"),
-        nullable=False,
-    )
-    status_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("statuses.id", name="fk_results_status_id_statuses_id"),
-    )
-    created_by: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("users.id", name="fk_results_created_by_users_id"),
-    )
-    updated_by: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("users.id", name="fk_results_updated_by_users_id"),
-    )
-    received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

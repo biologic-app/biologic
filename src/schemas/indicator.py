@@ -27,7 +27,7 @@ class IndicatorCreateDTO(BaseModel):
     norm_value: str | None = None
     default_text: str | None = None
     comment: str | None = None
-    lab_id: UUID | None = None
+    research_goal_id: UUID | None = None
     sample_type_id: UUID | None = None
 
 
@@ -40,11 +40,11 @@ class IndicatorReadDTO(BaseModel):
     norm_value: str | None = None
     default_text: str | None = None
     comment: str | None = None
-    lab_id: UUID | None = None
+    research_goal_id: UUID | None = None
     sample_type_id: UUID | None = None
     created_at: datetime
     updated_at: datetime
-    lab: EntityRefDTO | None = None
+    research_goal: EntityRefDTO | None = None
     sample_type: EntityRefDTO | None = None
 
 
@@ -59,7 +59,7 @@ class IndicatorUpdateDTO(BaseModel):
     norm_value: str | None = None
     default_text: str | None = None
     comment: str | None = None
-    lab_id: UUID | None = None
+    research_goal_id: UUID | None = None
     sample_type_id: UUID | None = None
 
 

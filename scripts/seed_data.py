@@ -1,3 +1,5 @@
+# ruff: noqa: RUF001
+
 from __future__ import annotations
 
 import argparse
@@ -13,8 +15,10 @@ AUX_TABLE_MAX_MULTIPLIER = 20
 
 SEEDED_TABLES: tuple[str, ...] = (
     "roles",
-    "statuses",
-    "conclusion_statuses",
+    "direction_statuses",
+    "sample_statuses",
+    "research_statuses",
+    "test_statuses",
     "sample_types",
     "protocol_types",
     "branches",
@@ -29,8 +33,7 @@ SEEDED_TABLES: tuple[str, ...] = (
     "user_scopes",
     "directions",
     "samples",
-    "sample_targets",
-    "results",
+    "research",
     "tests",
     "conclusions",
     "protocols",
@@ -42,21 +45,21 @@ PROFILE_DEFAULTS: dict[str, dict[str, int]] = {
         "reference_count": 5,
         "directions": 100,
         "samples": 100,
-        "results": 100,
+        "research": 100,
         "tests": 100,
     },
     "dev": {
         "reference_count": 100,
         "directions": 10_000,
         "samples": 10_000,
-        "results": 10_000,
+        "research": 10_000,
         "tests": 10_000,
     },
     "perf-lite": {
         "reference_count": 100,
         "directions": 100_000,
         "samples": 100_000,
-        "results": 100_000,
+        "research": 100_000,
         "tests": 100_000,
     },
 }
@@ -68,7 +71,7 @@ class SeedPlan:
     reference_count: int
     directions: int
     samples: int
-    results: int
+    research: int
     tests: int
     truncate: bool
 
@@ -111,10 +114,10 @@ def parse_args() -> argparse.Namespace:
         help="Rows for samples (0-1000000).",
     )
     parser.add_argument(
-        "--results",
+        "--research",
         type=int,
         default=None,
-        help="Rows for results (0-1000000).",
+        help="Rows for research (0-1000000).",
     )
     parser.add_argument(
         "--tests",
@@ -169,13 +172,13 @@ def build_plan(args: argparse.Namespace) -> SeedPlan:
     )
     directions = defaults["directions"] if args.directions is None else args.directions
     samples = defaults["samples"] if args.samples is None else args.samples
-    results = defaults["results"] if args.results is None else args.results
+    research = defaults["research"] if args.research is None else args.research
     tests = defaults["tests"] if args.tests is None else args.tests
 
     enforce_bounds("reference_count", reference_count, 0, REFERENCE_MAX)
     enforce_bounds("directions", directions, 0, HIGHLOAD_MAX)
     enforce_bounds("samples", samples, 0, HIGHLOAD_MAX)
-    enforce_bounds("results", results, 0, HIGHLOAD_MAX)
+    enforce_bounds("research", research, 0, HIGHLOAD_MAX)
     enforce_bounds("tests", tests, 0, HIGHLOAD_MAX)
 
     return SeedPlan(
@@ -183,7 +186,7 @@ def build_plan(args: argparse.Namespace) -> SeedPlan:
         reference_count=reference_count,
         directions=directions,
         samples=samples,
-        results=results,
+        research=research,
         tests=tests,
         truncate=args.truncate,
     )
@@ -198,8 +201,7 @@ async def truncate_seeded_tables(conn: asyncpg.Connection) -> None:
     await conn.execute("""
         TRUNCATE TABLE
             tests,
-            results,
-            sample_targets,
+            research,
             samples,
             directions,
             protocols,
@@ -217,8 +219,10 @@ async def truncate_seeded_tables(conn: asyncpg.Connection) -> None:
             branches,
             sample_types,
             protocol_types,
-            conclusion_statuses,
-            statuses,
+            test_statuses,
+            research_statuses,
+            sample_statuses,
+            direction_statuses,
             roles
         CASCADE;
         """)
@@ -245,29 +249,49 @@ async def seed_reference_entities(conn: asyncpg.Connection, count: int) -> None:
             updated_at = CURRENT_TIMESTAMP;
         """)
 
-    await conn.execute(
-        """
-        INSERT INTO statuses (code, name)
-        SELECT
-            'ST-' || LPAD(gs::text, 3, '0'),
-            'Status ' || gs::text
-        FROM generate_series(1, $1::int) AS gs
+    await conn.execute("""
+        INSERT INTO direction_statuses (code, name)
+        VALUES
+            ('draft', 'Черновик'),
+            ('registered', 'Зарегистрировано'),
+            ('in_progress', 'В работе'),
+            ('partially_completed', 'Частично выполнено'),
+            ('completed', 'Выполнено')
         ON CONFLICT (code) DO NOTHING;
-        """,
-        count,
-    )
+        """)
 
-    await conn.execute(
-        """
-        INSERT INTO conclusion_statuses (code, name)
-        SELECT
-            'CSTAT-' || LPAD(gs::text, 3, '0'),
-            'Conclusion Status ' || gs::text
-        FROM generate_series(1, $1::int) AS gs
+    await conn.execute("""
+        INSERT INTO sample_statuses (code, name)
+        VALUES
+            ('pending', 'На регистрации'),
+            ('registered', 'Зарегистрирован'),
+            ('rejected', 'Брак'),
+            ('in_progress', 'На исследовании'),
+            ('analyzed', 'Обработан'),
+            ('completed', 'Закрыт')
         ON CONFLICT (code) DO NOTHING;
-        """,
-        count,
-    )
+        """)
+
+    await conn.execute("""
+        INSERT INTO research_statuses (code, name)
+        VALUES
+            ('draft', 'Черновик'),
+            ('ordered', 'Запланировано'),
+            ('in_progress', 'В работе'),
+            ('completed', 'Завершено'),
+            ('rejected', 'Отклонено')
+        ON CONFLICT (code) DO NOTHING;
+        """)
+
+    await conn.execute("""
+        INSERT INTO test_statuses (code, name)
+        VALUES
+            ('queued', 'Запланировано'),
+            ('in_progress', 'Выполняется'),
+            ('completed', 'Выполнено'),
+            ('rejected', 'Отклонено')
+        ON CONFLICT (code) DO NOTHING;
+        """)
 
     await conn.execute(
         """
@@ -423,12 +447,12 @@ async def seed_reference_entities(conn: asyncpg.Connection, count: int) -> None:
 
     await conn.execute(
         """
-        WITH lab_pool AS (
+        WITH research_goal_pool AS (
             SELECT
                 id,
                 row_number() OVER (ORDER BY code, id) AS rn
-            FROM labs
-            WHERE code LIKE 'LAB-%'
+            FROM research_goals
+            WHERE code LIKE 'RG-%'
         ),
         sample_type_pool AS (
             SELECT
@@ -441,7 +465,7 @@ async def seed_reference_entities(conn: asyncpg.Connection, count: int) -> None:
             SELECT
                 gs,
                 'Indicator ' || gs::text AS name,
-                ((gs - 1) % $1::int) + 1 AS lab_rn,
+                ((gs - 1) % $1::int) + 1 AS research_goal_rn,
                 ((gs - 1) % $1::int) + 1 AS sample_type_rn
             FROM generate_series(1, $1::int) AS gs
         )
@@ -452,7 +476,7 @@ async def seed_reference_entities(conn: asyncpg.Connection, count: int) -> None:
             norm_value,
             default_text,
             comment,
-            lab_id,
+            research_goal_id,
             sample_type_id
         )
         SELECT
@@ -462,10 +486,10 @@ async def seed_reference_entities(conn: asyncpg.Connection, count: int) -> None:
             (src.gs::text || '.0'),
             'N/A',
             'Auto-seeded reference indicator',
-            lp.id,
+            rgp.id,
             stp.id
         FROM src
-        LEFT JOIN lab_pool lp ON lp.rn = src.lab_rn
+        LEFT JOIN research_goal_pool rgp ON rgp.rn = src.research_goal_rn
         LEFT JOIN sample_type_pool stp ON stp.rn = src.sample_type_rn
         WHERE NOT EXISTS (
             SELECT 1
@@ -550,9 +574,13 @@ async def seed_reference_entities(conn: asyncpg.Connection, count: int) -> None:
                 ('doctors'),
                 ('research_goals'),
                 ('indicators'),
+                ('direction_statuses'),
+                ('sample_statuses'),
+                ('research_statuses'),
+                ('test_statuses'),
                 ('directions'),
                 ('samples'),
-                ('results'),
+                ('research'),
                 ('tests')
         ),
         actions (action) AS (
@@ -606,7 +634,7 @@ async def insert_directions(conn: asyncpg.Connection, count: int) -> None:
         object_meta AS (SELECT COUNT(*)::int AS cnt FROM object_pool),
         status_pool AS (
             SELECT id, row_number() OVER (ORDER BY id) AS rn
-            FROM statuses
+            FROM direction_statuses
             WHERE deleted_at IS NULL
         ),
         status_meta AS (SELECT COUNT(*)::int AS cnt FROM status_pool),
@@ -678,7 +706,7 @@ async def insert_samples(conn: asyncpg.Connection, count: int) -> None:
         sample_type_meta AS (SELECT COUNT(*)::int AS cnt FROM sample_type_pool),
         status_pool AS (
             SELECT id, row_number() OVER (ORDER BY id) AS rn
-            FROM statuses
+            FROM sample_statuses
             WHERE deleted_at IS NULL
         ),
         status_meta AS (SELECT COUNT(*)::int AS cnt FROM status_pool),
@@ -744,17 +772,17 @@ async def insert_samples(conn: asyncpg.Connection, count: int) -> None:
     )
 
 
-async def insert_sample_targets(conn: asyncpg.Connection, count: int) -> None:
+async def insert_research(conn: asyncpg.Connection, count: int) -> None:
     if count == 0:
         return
 
     sample_total = await table_count(conn, "samples")
     if sample_total == 0:
-        raise RuntimeError("Cannot generate sample_targets: samples table is empty.")
+        raise RuntimeError("Cannot generate research: samples table is empty.")
 
     research_goal_total = await table_count(conn, "research_goals")
     if research_goal_total == 0:
-        raise RuntimeError("Cannot generate sample_targets: research_goals table is empty.")
+        raise RuntimeError("Cannot generate research: research_goals table is empty.")
 
     await conn.execute(
         """
@@ -772,7 +800,7 @@ async def insert_sample_targets(conn: asyncpg.Connection, count: int) -> None:
         research_goal_meta AS (SELECT COUNT(*)::int AS cnt FROM research_goal_pool),
         status_pool AS (
             SELECT id, row_number() OVER (ORDER BY id) AS rn
-            FROM statuses
+            FROM research_statuses
             WHERE deleted_at IS NULL
         ),
         status_meta AS (SELECT COUNT(*)::int AS cnt FROM status_pool),
@@ -786,73 +814,21 @@ async def insert_sample_targets(conn: asyncpg.Connection, count: int) -> None:
                 ((gs - 1) % GREATEST((SELECT cnt FROM status_meta), 1)) + 1 AS status_rn
             FROM generate_series(1, $1::int) AS gs
         )
-        INSERT INTO sample_targets (sample_id, research_goal_id, status_id)
-        SELECT
-            sp.id,
-            rgp.id,
-            stp.id
-        FROM src
-        JOIN sample_pool sp ON sp.rn = src.sample_rn
-        JOIN research_goal_pool rgp ON rgp.rn = src.research_goal_rn
-        LEFT JOIN status_pool stp ON stp.rn = src.status_rn;
-        """,
-        count,
-    )
-
-
-async def insert_results(conn: asyncpg.Connection, count: int) -> None:
-    if count == 0:
-        return
-
-    sample_total = await table_count(conn, "samples")
-    if sample_total == 0:
-        raise RuntimeError("Cannot generate results: samples table is empty.")
-
-    await conn.execute(
-        """
-        WITH sample_pool AS (
-            SELECT id, row_number() OVER (ORDER BY id) AS rn
-            FROM samples
-            WHERE deleted_at IS NULL
-        ),
-        sample_meta AS (SELECT COUNT(*)::int AS cnt FROM sample_pool),
-        lab_pool AS (
-            SELECT id, row_number() OVER (ORDER BY id) AS rn
-            FROM labs
-            WHERE deleted_at IS NULL
-        ),
-        lab_meta AS (SELECT COUNT(*)::int AS cnt FROM lab_pool),
-        status_pool AS (
-            SELECT id, row_number() OVER (ORDER BY id) AS rn
-            FROM statuses
-            WHERE deleted_at IS NULL
-        ),
-        status_meta AS (SELECT COUNT(*)::int AS cnt FROM status_pool),
-        src AS (
-            SELECT
-                gs,
-                ((gs - 1) % GREATEST((SELECT cnt FROM sample_meta), 1)) + 1 AS sample_rn,
-                ((gs - 1) % GREATEST((SELECT cnt FROM lab_meta), 1)) + 1 AS lab_rn,
-                ((gs - 1) % GREATEST((SELECT cnt FROM status_meta), 1)) + 1 AS status_rn
-            FROM generate_series(1, $1::int) AS gs
-        )
-        INSERT INTO results (
+        INSERT INTO research (
+            sample_id,
+            research_goal_id,
+            status_id,
             comment,
             recommendation,
-            is_done,
-            lab_id,
-            sample_id,
-            status_id,
             received_at,
             completed_at
         )
         SELECT
-            'Result comment ' || src.gs::text,
-            'Recommendation ' || ((src.gs % 7) + 1)::text,
-            (src.gs % 3 = 0),
-            lp.id,
             sp.id,
+            rgp.id,
             stp.id,
+            'Research comment ' || src.gs::text,
+            'Recommendation ' || ((src.gs % 7) + 1)::text,
             CURRENT_TIMESTAMP - ((src.gs % 15) || ' days')::interval,
             CASE
                 WHEN src.gs % 3 = 0
@@ -861,7 +837,7 @@ async def insert_results(conn: asyncpg.Connection, count: int) -> None:
             END
         FROM src
         JOIN sample_pool sp ON sp.rn = src.sample_rn
-        LEFT JOIN lab_pool lp ON lp.rn = src.lab_rn
+        JOIN research_goal_pool rgp ON rgp.rn = src.research_goal_rn
         LEFT JOIN status_pool stp ON stp.rn = src.status_rn;
         """,
         count,
@@ -872,18 +848,18 @@ async def insert_tests(conn: asyncpg.Connection, count: int) -> None:
     if count == 0:
         return
 
-    result_total = await table_count(conn, "results")
-    if result_total == 0:
-        raise RuntimeError("Cannot generate tests: results table is empty.")
+    research_total = await table_count(conn, "research")
+    if research_total == 0:
+        raise RuntimeError("Cannot generate tests: research table is empty.")
 
     await conn.execute(
         """
-        WITH result_pool AS (
+        WITH research_pool AS (
             SELECT id, row_number() OVER (ORDER BY id) AS rn
-            FROM results
+            FROM research
             WHERE deleted_at IS NULL
         ),
-        result_meta AS (SELECT COUNT(*)::int AS cnt FROM result_pool),
+        research_meta AS (SELECT COUNT(*)::int AS cnt FROM research_pool),
         indicator_pool AS (
             SELECT id, row_number() OVER (ORDER BY id) AS rn
             FROM indicators
@@ -892,14 +868,14 @@ async def insert_tests(conn: asyncpg.Connection, count: int) -> None:
         indicator_meta AS (SELECT COUNT(*)::int AS cnt FROM indicator_pool),
         status_pool AS (
             SELECT id, row_number() OVER (ORDER BY id) AS rn
-            FROM statuses
+            FROM test_statuses
             WHERE deleted_at IS NULL
         ),
         status_meta AS (SELECT COUNT(*)::int AS cnt FROM status_pool),
         src AS (
             SELECT
                 gs,
-                ((gs - 1) % GREATEST((SELECT cnt FROM result_meta), 1)) + 1 AS result_rn,
+                ((gs - 1) % GREATEST((SELECT cnt FROM research_meta), 1)) + 1 AS research_rn,
                 ((gs - 1) % GREATEST((SELECT cnt FROM indicator_meta), 1)) + 1 AS indicator_rn,
                 ((gs - 1) % GREATEST((SELECT cnt FROM status_meta), 1)) + 1 AS status_rn
             FROM generate_series(1, $1::int) AS gs
@@ -909,7 +885,7 @@ async def insert_tests(conn: asyncpg.Connection, count: int) -> None:
             comment,
             norm,
             is_active,
-            result_id,
+            research_id,
             indicator_id,
             status_id
         )
@@ -922,7 +898,7 @@ async def insert_tests(conn: asyncpg.Connection, count: int) -> None:
             ip.id,
             sp.id
         FROM src
-        JOIN result_pool rp ON rp.rn = src.result_rn
+        JOIN research_pool rp ON rp.rn = src.research_rn
         LEFT JOIN indicator_pool ip ON ip.rn = src.indicator_rn
         LEFT JOIN status_pool sp ON sp.rn = src.status_rn;
         """,
@@ -934,32 +910,20 @@ async def insert_conclusions(conn: asyncpg.Connection, count: int) -> None:
     if count == 0:
         return
 
-    conclusion_status_total = await table_count(conn, "conclusion_statuses")
-    if conclusion_status_total == 0:
-        raise RuntimeError("Cannot generate conclusions: conclusion_statuses table is empty.")
-
     await conn.execute(
         """
-        WITH conclusion_status_pool AS (
-            SELECT id, row_number() OVER (ORDER BY id) AS rn
-            FROM conclusion_statuses
-            WHERE deleted_at IS NULL
-        ),
-        conclusion_status_meta AS (SELECT COUNT(*)::int AS cnt FROM conclusion_status_pool),
-        src AS (
-            SELECT
-                gs,
-                (
-                    (gs - 1) % GREATEST((SELECT cnt FROM conclusion_status_meta), 1)
-                ) + 1 AS conclusion_status_rn
+        WITH src AS (
+            SELECT gs
             FROM generate_series(1, $1::int) AS gs
         )
-        INSERT INTO conclusions (comment, conclusion_status_id)
+        INSERT INTO conclusions (code, name, text_singular, text_plural, comment)
         SELECT
+            'CONCLUSION-' || LPAD(src.gs::text, 6, '0'),
             'Conclusion ' || src.gs::text,
-            csp.id
-        FROM src
-        JOIN conclusion_status_pool csp ON csp.rn = src.conclusion_status_rn;
+            'Заключение для образца ' || src.gs::text,
+            'Заключения для образцов ' || src.gs::text,
+            'Conclusion ' || src.gs::text,
+        FROM src;
         """,
         count,
     )
@@ -1026,8 +990,7 @@ async def insert_protocols(conn: asyncpg.Connection, count: int) -> None:
     )
 
     # Link seeded protocols to samples so protocol_id also participates in seeded relations.
-    await conn.execute(
-        """
+    await conn.execute("""
         WITH sample_pool AS (
             SELECT id, row_number() OVER (ORDER BY id) AS rn
             FROM samples
@@ -1053,8 +1016,7 @@ async def insert_protocols(conn: asyncpg.Connection, count: int) -> None:
         FROM mapping mp
         JOIN protocol_pool pp ON pp.rn = mp.protocol_rn
         WHERE s.id = mp.sample_id;
-        """
-    )
+        """)
 
 
 async def insert_change_log(conn: asyncpg.Connection, count: int) -> None:
@@ -1174,17 +1136,13 @@ async def run_seed(plan: SeedPlan) -> None:
         print(f"Generating samples: {plan.samples}")
         await insert_samples(conn, plan.samples)
 
-        sample_targets_count = derive_aux_table_count(plan.samples, plan.reference_count)
-        print(f"Generating sample_targets: {sample_targets_count}")
-        await insert_sample_targets(conn, sample_targets_count)
-
-        print(f"Generating results: {plan.results}")
-        await insert_results(conn, plan.results)
+        print(f"Generating research: {plan.research}")
+        await insert_research(conn, plan.research)
 
         print(f"Generating tests: {plan.tests}")
         await insert_tests(conn, plan.tests)
 
-        conclusions_count = derive_aux_table_count(plan.results, plan.reference_count)
+        conclusions_count = derive_aux_table_count(plan.research, plan.reference_count)
         print(f"Generating conclusions: {conclusions_count}")
         await insert_conclusions(conn, conclusions_count)
 

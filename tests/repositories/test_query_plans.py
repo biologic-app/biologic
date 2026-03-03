@@ -239,10 +239,7 @@ async def test_role_permission_lookup_by_role_and_permission_prefers_index(
     await db_plan_session.execute(insert(Permission), permission_rows)
     await db_plan_session.execute(
         insert(RolePermission),
-        [
-            {"role_id": role_id, "permission_id": permission_id}
-            for permission_id in permission_ids
-        ],
+        [{"role_id": role_id, "permission_id": permission_id} for permission_id in permission_ids],
     )
     await db_plan_session.execute(text("SET LOCAL enable_seqscan = off"))
 

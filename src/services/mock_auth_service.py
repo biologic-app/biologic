@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import ClassVar
 from uuid import UUID, uuid5
 
 from src.core.config import Settings
@@ -38,13 +39,16 @@ def _user_id(username: str) -> UUID:
 
 
 class MockAuthService:
-    _all_resources = [
+    _all_resources: ClassVar[tuple[str, ...]] = (
         "dashboard",
         "directions",
+        "direction-statuses",
         "samples",
-        "sample-targets",
+        "sample-statuses",
+        "research-statuses",
+        "test-statuses",
         "protocols",
-        "results",
+        "research",
         "conclusions",
         "tests",
         "doctors",
@@ -55,11 +59,10 @@ class MockAuthService:
         "sample-types",
         "indicators",
         "protocol-types",
-        "statuses",
         "user-types",
         "objects",
-    ]
-    _crud_actions = ["create", "edit", "delete"]
+    )
+    _crud_actions: ClassVar[tuple[str, ...]] = ("create", "edit", "delete")
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
@@ -71,7 +74,10 @@ class MockAuthService:
 
     def _init_users(self) -> None:
         admin_permissions = [
-            *[AuthPermissionDTO(resource=resource, action="view") for resource in self._all_resources],
+            *[
+                AuthPermissionDTO(resource=resource, action="view")
+                for resource in self._all_resources
+            ],
             *[
                 AuthPermissionDTO(resource=resource, action=action)
                 for resource in self._all_resources
@@ -83,7 +89,7 @@ class MockAuthService:
             AuthPermissionDTO(resource="dashboard", action="view"),
             AuthPermissionDTO(resource="directions", action="view"),
             AuthPermissionDTO(resource="protocols", action="view"),
-            AuthPermissionDTO(resource="results", action="view"),
+            AuthPermissionDTO(resource="research", action="view"),
             AuthPermissionDTO(resource="conclusions", action="view"),
             AuthPermissionDTO(resource="research-goals", action="view"),
         ]
@@ -91,7 +97,7 @@ class MockAuthService:
             AuthPermissionDTO(resource="dashboard", action="view"),
             AuthPermissionDTO(resource="directions", action="view"),
             AuthPermissionDTO(resource="samples", action="view"),
-            AuthPermissionDTO(resource="results", action="view"),
+            AuthPermissionDTO(resource="research", action="view"),
             AuthPermissionDTO(resource="sample-types", action="view"),
             AuthPermissionDTO(resource="indicators", action="view"),
         ]

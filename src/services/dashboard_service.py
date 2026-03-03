@@ -85,10 +85,10 @@ class DashboardQuickActionsService:
                 "icon": "pi pi-box",
             },
             {
-                "label": "Результаты",
-                "resource": "results",
+                "label": "Исследования",
+                "resource": "research",
                 "action": "view",
-                "to": "/results",
+                "to": "/research",
                 "icon": "pi pi-chart-bar",
             },
             {

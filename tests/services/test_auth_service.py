@@ -51,8 +51,7 @@ async def test_auth_service_login_success() -> None:
     assert session.user.username == "admin"
     assert session.user.role_key == "admin"
     assert any(
-        perm.resource == "dashboard" and perm.action == "view"
-        for perm in session.permissions
+        perm.resource == "dashboard" and perm.action == "view" for perm in session.permissions
     )
     assert any(perm.resource == "objects" and perm.action == "view" for perm in session.permissions)
     assert any(perm.resource == "objects" and perm.action == "edit" for perm in session.permissions)

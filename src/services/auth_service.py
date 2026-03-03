@@ -32,7 +32,10 @@ class AuthTokenBundle:
 class AuthService:
     _resource_map: ClassVar[dict[str, str]] = {
         "research_goals": "research-goals",
-        "sample_targets": "sample-targets",
+        "direction_statuses": "direction-statuses",
+        "sample_statuses": "sample-statuses",
+        "research_statuses": "research-statuses",
+        "test_statuses": "test-statuses",
         "sample_types": "sample-types",
         "protocol_types": "protocol-types",
         "user_types": "user-types",

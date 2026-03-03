@@ -15,8 +15,8 @@ from src.schemas.base import ActionMetaDTO, DeleteMetaDTO, ListMetaDTO, ReadMeta
 STEM_TO_ENTITY: dict[str, str] = {
     "branches": "Branch",
     "change_log": "ChangeLog",
-    "conclusion_statuses": "ConclusionStatus",
     "conclusions": "Conclusion",
+    "direction_statuses": "DirectionStatus",
     "directions": "Direction",
     "doctors": "Doctor",
     "indicators": "Indicator",
@@ -25,14 +25,15 @@ STEM_TO_ENTITY: dict[str, str] = {
     "permissions": "Permission",
     "protocol_types": "ProtocolType",
     "protocols": "Protocol",
+    "research": "Research",
     "research_goals": "ResearchGoal",
-    "results": "Result",
+    "research_statuses": "ResearchStatus",
     "role_permissions": "RolePermission",
     "roles": "Role",
-    "sample_targets": "SampleTarget",
+    "sample_statuses": "SampleStatus",
     "sample_types": "SampleType",
     "samples": "Sample",
-    "statuses": "Status",
+    "test_statuses": "TestStatus",
     "tests": "Test",
     "user_scopes": "UserScope",
     "users": "User",
@@ -41,9 +42,9 @@ STEM_TO_ENTITY: dict[str, str] = {
 
 def endpoint_stems() -> list[str]:
     stems: list[str] = []
-    for path in sorted(Path("app/api/v1/endpoints").glob("*.py")):
+    for path in sorted(Path("src/api/v1/endpoints").glob("*.py")):
         stem = path.stem
-        if stem in {"__init__", "_helpers", "health", "auth"}:
+        if stem in {"__init__", "_helpers", "health", "auth", "dashboard"}:
             continue
         stems.append(stem)
     return stems

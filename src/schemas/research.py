@@ -19,70 +19,67 @@ from src.schemas.base import (
 )
 
 
-class ResultCreateDTO(BaseModel):
+class ResearchCreateDTO(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    sample_id: UUID
+    research_goal_id: UUID
+    status_id: UUID | None = None
     comment: str | None = None
     recommendation: str | None = None
-    is_done: bool
-    lab_id: UUID | None = None
-    sample_id: UUID
-    status_id: UUID | None = None
     received_at: datetime | None = None
     completed_at: datetime | None = None
 
 
-class ResultReadDTO(BaseModel):
+class ResearchReadDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="forbid")
     id: UUID
+    sample_id: UUID
+    research_goal_id: UUID
+    status_id: UUID | None = None
     comment: str | None = None
     recommendation: str | None = None
-    is_done: bool
-    lab_id: UUID | None = None
-    sample_id: UUID
-    status_id: UUID | None = None
     received_at: datetime | None = None
     completed_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
-    lab: EntityRefDTO | None = None
     sample: EntityRefDTO | None = None
+    research_goal: EntityRefDTO | None = None
     status: EntityRefDTO | None = None
 
 
-ResultListReadDTO = ResultReadDTO
+ResearchListReadDTO = ResearchReadDTO
 
 
-class ResultUpdateDTO(BaseModel):
+class ResearchUpdateDTO(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    sample_id: UUID | None = None
+    research_goal_id: UUID | None = None
+    status_id: UUID | None = None
     comment: str | None = None
     recommendation: str | None = None
-    is_done: bool | None = None
-    lab_id: UUID | None = None
-    sample_id: UUID | None = None
-    status_id: UUID | None = None
     received_at: datetime | None = None
     completed_at: datetime | None = None
 
 
-class ResultDeleteDTO(DeleteRequestDTO):
+class ResearchDeleteDTO(DeleteRequestDTO):
     id: UUID
 
 
-class ResultReadEnvelopeDTO(ReadResponseDTO[ResultReadDTO]):
+class ResearchReadEnvelopeDTO(ReadResponseDTO[ResearchReadDTO]):
     meta: ReadMetaDTO = Field(default_factory=ReadMetaDTO)
 
 
-class ResultListEnvelopeDTO(ListResponseDTO[ResultListReadDTO]):
+class ResearchListEnvelopeDTO(ListResponseDTO[ResearchListReadDTO]):
     meta: ListMetaDTO
 
 
-class ResultCreateEnvelopeDTO(ActionResponseDTO[ResultReadDTO]):
+class ResearchCreateEnvelopeDTO(ActionResponseDTO[ResearchReadDTO]):
     meta: ActionMetaDTO = Field(default_factory=ActionMetaDTO)
 
 
-class ResultUpdateEnvelopeDTO(ActionResponseDTO[ResultReadDTO]):
+class ResearchUpdateEnvelopeDTO(ActionResponseDTO[ResearchReadDTO]):
     meta: ActionMetaDTO = Field(default_factory=ActionMetaDTO)
 
 
-class ResultDeleteEnvelopeDTO(DeleteResponseDTO):
+class ResearchDeleteEnvelopeDTO(DeleteResponseDTO):
     meta: DeleteMetaDTO = Field(default_factory=DeleteMetaDTO)

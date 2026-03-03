@@ -4,41 +4,38 @@ from uuid import UUID
 
 from src.core.errors import ValidationError
 from src.repositories.crud_repository import SortOrder
-from src.repositories.sample_targets_repository import SampleTargetRepository
+from src.repositories.sample_statuses_repository import SampleStatusRepository
 from src.schemas import (
-    SampleTargetCreateDTO,
-    SampleTargetCreateEnvelopeDTO,
-    SampleTargetDeleteEnvelopeDTO,
-    SampleTargetListEnvelopeDTO,
-    SampleTargetReadDTO,
-    SampleTargetReadEnvelopeDTO,
-    SampleTargetUpdateDTO,
-    SampleTargetUpdateEnvelopeDTO,
+    SampleStatusCreateDTO,
+    SampleStatusCreateEnvelopeDTO,
+    SampleStatusDeleteEnvelopeDTO,
+    SampleStatusListEnvelopeDTO,
+    SampleStatusReadDTO,
+    SampleStatusReadEnvelopeDTO,
+    SampleStatusUpdateDTO,
+    SampleStatusUpdateEnvelopeDTO,
 )
 from src.schemas.base import ActionMetaDTO, DeleteMetaDTO, ListMetaDTO, ReadMetaDTO
 from src.services.crud_service import CRUDService
 
 
-class SampleTargetService:
+class SampleStatusService:
     _sort_fields: ClassVar[set[str]] = {
-        "status_id",
-        "updated_by",
+        "name",
         "updated_at",
-        "research_goal_id",
-        "created_by",
-        "id",
         "created_at",
-        "sample_id",
+        "id",
         "deleted_at",
+        "code",
     }
 
-    def __init__(self, repository: SampleTargetRepository) -> None:
+    def __init__(self, repository: SampleStatusRepository) -> None:
         self._repository = repository
         self._crud = CRUDService(
             repository=repository,
-            read_schema=SampleTargetReadDTO,
+            read_schema=SampleStatusReadDTO,
             allowed_sort_fields=self._sort_fields,
-            not_found_message="SampleTarget {entity_id} was not found.",
+            not_found_message="SampleStatus {entity_id} was not found.",
         )
 
     def _validate_includes(self, includes: list[str]) -> list[str]:
@@ -55,17 +52,17 @@ class SampleTargetService:
             )
         return includes
 
-    async def create(self, payload: SampleTargetCreateDTO) -> SampleTargetCreateEnvelopeDTO:
+    async def create(self, payload: SampleStatusCreateDTO) -> SampleStatusCreateEnvelopeDTO:
         data = await self._crud.create(payload.model_dump(exclude_unset=True))
-        return SampleTargetCreateEnvelopeDTO(data=data, meta=ActionMetaDTO(operation="create"))
+        return SampleStatusCreateEnvelopeDTO(data=data, meta=ActionMetaDTO(operation="create"))
 
     async def get(
         self, entity_id: UUID, includes: list[str] | None = None
-    ) -> SampleTargetReadEnvelopeDTO:
+    ) -> SampleStatusReadEnvelopeDTO:
         includes = self._validate_includes(includes or [])
         data = await self._crud.get(entity_id)
         data = await self._crud.expand_includes(data, includes)
-        return SampleTargetReadEnvelopeDTO(
+        return SampleStatusReadEnvelopeDTO(
             data=data,
             meta=ReadMetaDTO(
                 includes=includes,
@@ -85,7 +82,7 @@ class SampleTargetService:
         includes: list[str] | None = None,
         exact_filters: Mapping[str, str] | None = None,
         range_filters: Mapping[str, tuple[str | None, str | None]] | None = None,
-    ) -> SampleTargetListEnvelopeDTO:
+    ) -> SampleStatusListEnvelopeDTO:
         includes = self._validate_includes(includes or [])
         items, page_meta = await self._crud.list(
             offset=offset,
@@ -104,16 +101,16 @@ class SampleTargetService:
             includes_applied=includes,
             includes_allowed=sorted(self._repository.allowed_includes),
         )
-        return SampleTargetListEnvelopeDTO(items=expanded_items, meta=meta)
+        return SampleStatusListEnvelopeDTO(items=expanded_items, meta=meta)
 
     async def update(
-        self, entity_id: UUID, payload: SampleTargetUpdateDTO
-    ) -> SampleTargetUpdateEnvelopeDTO:
+        self, entity_id: UUID, payload: SampleStatusUpdateDTO
+    ) -> SampleStatusUpdateEnvelopeDTO:
         data = await self._crud.update(entity_id, payload.model_dump(exclude_unset=True))
-        return SampleTargetUpdateEnvelopeDTO(data=data, meta=ActionMetaDTO(operation="update"))
+        return SampleStatusUpdateEnvelopeDTO(data=data, meta=ActionMetaDTO(operation="update"))
 
     async def delete(
         self, entity_id: UUID, reason: str | None = None
-    ) -> SampleTargetDeleteEnvelopeDTO:
+    ) -> SampleStatusDeleteEnvelopeDTO:
         await self._crud.delete(entity_id, reason=reason)
-        return SampleTargetDeleteEnvelopeDTO(meta=DeleteMetaDTO(operation="delete", deleted=True))
+        return SampleStatusDeleteEnvelopeDTO(meta=DeleteMetaDTO(operation="delete", deleted=True))

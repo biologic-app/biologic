@@ -33,7 +33,7 @@ class TestService:
         "is_active",
         "indicator_id",
         "value",
-        "result_id",
+        "research_id",
     }
 
     def __init__(self, repository: TestRepository) -> None:

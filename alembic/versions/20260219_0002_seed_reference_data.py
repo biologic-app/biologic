@@ -33,20 +33,46 @@ def upgrade() -> None:
         """)
 
     op.execute("""
-        INSERT INTO statuses (code, name)
-        SELECT
-            'ST-' || LPAD(gs::text, 3, '0'),
-            'Status ' || gs::text
-        FROM generate_series(1, 100) AS gs
+        INSERT INTO direction_statuses (code, name)
+        VALUES
+            ('draft', 'Черновик'),
+            ('registered', 'Зарегистрировано'),
+            ('in_progress', 'В работе'),
+            ('partially_completed', 'Частично выполнено'),
+            ('completed', 'Выполнено')
         ON CONFLICT (code) DO NOTHING;
         """)
 
     op.execute("""
-        INSERT INTO conclusion_statuses (code, name)
-        SELECT
-            'CSTAT-' || LPAD(gs::text, 3, '0'),
-            'Conclusion Status ' || gs::text
-        FROM generate_series(1, 100) AS gs
+        INSERT INTO sample_statuses (code, name)
+        VALUES
+            ('pending', 'На регистрации'),
+            ('registered', 'Зарегистрирован'),
+            ('rejected', 'Брак'),
+            ('in_progress', 'На исследовании'),
+            ('analyzed', 'Обработан'),
+            ('completed', 'Закрыт')
+        ON CONFLICT (code) DO NOTHING;
+        """)
+
+    op.execute("""
+        INSERT INTO research_statuses (code, name)
+        VALUES
+            ('draft', 'Черновик'),
+            ('ordered', 'Запланировано'),
+            ('in_progress', 'В работе'),
+            ('completed', 'Завершено'),
+            ('rejected', 'Отклонено')
+        ON CONFLICT (code) DO NOTHING;
+        """)
+
+    op.execute("""
+        INSERT INTO test_statuses (code, name)
+        VALUES
+            ('queued', 'Запланировано'),
+            ('in_progress', 'Выполняется'),
+            ('completed', 'Выполнено'),
+            ('rejected', 'Отклонено')
         ON CONFLICT (code) DO NOTHING;
         """)
 
@@ -182,12 +208,12 @@ def upgrade() -> None:
         """)
 
     op.execute("""
-        WITH lab_pool AS (
+        WITH research_goal_pool AS (
             SELECT
                 id,
                 row_number() OVER (ORDER BY code, id) AS rn
-            FROM labs
-            WHERE code LIKE 'LAB-%'
+            FROM research_goals
+            WHERE code LIKE 'RG-%'
         ),
         sample_type_pool AS (
             SELECT
@@ -200,7 +226,7 @@ def upgrade() -> None:
             SELECT
                 gs,
                 'Indicator ' || gs::text AS name,
-                ((gs - 1) % 100) + 1 AS lab_rn,
+                ((gs - 1) % 100) + 1 AS research_goal_rn,
                 ((gs - 1) % 100) + 1 AS sample_type_rn
             FROM generate_series(1, 100) AS gs
         )
@@ -211,7 +237,7 @@ def upgrade() -> None:
             norm_value,
             default_text,
             comment,
-            lab_id,
+            research_goal_id,
             sample_type_id
         )
         SELECT
@@ -221,10 +247,10 @@ def upgrade() -> None:
             (src.gs::text || '.0'),
             'N/A',
             'Auto-seeded reference indicator',
-            lp.id,
+            rgp.id,
             stp.id
         FROM src
-        LEFT JOIN lab_pool lp ON lp.rn = src.lab_rn
+        LEFT JOIN research_goal_pool rgp ON rgp.rn = src.research_goal_rn
         LEFT JOIN sample_type_pool stp ON stp.rn = src.sample_type_rn
         WHERE NOT EXISTS (
             SELECT 1
@@ -304,9 +330,13 @@ def upgrade() -> None:
                 ('doctors'),
                 ('research_goals'),
                 ('indicators'),
+                ('direction_statuses'),
+                ('sample_statuses'),
+                ('research_statuses'),
+                ('test_statuses'),
                 ('directions'),
                 ('samples'),
-                ('results'),
+                ('research'),
                 ('tests')
         ),
         actions (action) AS (
@@ -362,9 +392,13 @@ def downgrade() -> None:
               'doctors',
               'research_goals',
               'indicators',
+              'direction_statuses',
+              'sample_statuses',
+              'research_statuses',
+              'test_statuses',
               'directions',
               'samples',
-              'results',
+              'research',
               'tests'
           )
           AND p.action IN ('read', 'create', 'update', 'delete');
@@ -379,9 +413,13 @@ def downgrade() -> None:
             'doctors',
             'research_goals',
             'indicators',
+            'direction_statuses',
+            'sample_statuses',
+            'research_statuses',
+            'test_statuses',
             'directions',
             'samples',
-            'results',
+            'research',
             'tests'
         )
         AND p.action IN ('read', 'create', 'update', 'delete')
@@ -401,8 +439,10 @@ def downgrade() -> None:
     op.execute("DELETE FROM branches WHERE code LIKE 'BR-%';")
     op.execute("DELETE FROM sample_types WHERE code LIKE 'SAMPLE-TYPE-%';")
     op.execute("DELETE FROM protocol_types WHERE code LIKE 'PROTO-%';")
-    op.execute("DELETE FROM conclusion_statuses WHERE code LIKE 'CSTAT-%';")
-    op.execute("DELETE FROM statuses WHERE code LIKE 'ST-%';")
+    op.execute("DELETE FROM test_statuses WHERE code IN ('queued', 'in_progress', 'completed', 'rejected');")
+    op.execute("DELETE FROM research_statuses WHERE code IN ('draft', 'ordered', 'in_progress', 'completed', 'rejected');")
+    op.execute("DELETE FROM sample_statuses WHERE code IN ('pending', 'registered', 'rejected', 'in_progress', 'analyzed', 'completed');")
+    op.execute("DELETE FROM direction_statuses WHERE code IN ('draft', 'registered', 'in_progress', 'partially_completed', 'completed');")
     op.execute("""
         DELETE FROM roles
         WHERE key IN (

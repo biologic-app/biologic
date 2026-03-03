@@ -24,7 +24,7 @@ class IndicatorService:
         "norm_text",
         "name",
         "default_text",
-        "lab_id",
+        "research_goal_id",
         "updated_by",
         "updated_at",
         "comment",

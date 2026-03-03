@@ -52,8 +52,7 @@ def _session(role_key: str, permissions: list[tuple[str, str]]) -> AuthSessionDT
             last_name="User",
         ),
         permissions=[
-            AuthPermissionDTO(resource=resource, action=action)
-            for resource, action in permissions
+            AuthPermissionDTO(resource=resource, action=action) for resource, action in permissions
         ],
         access_expires_at=datetime.now(UTC),
         refresh_expires_at=datetime.now(UTC),

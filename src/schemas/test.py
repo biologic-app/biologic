@@ -25,7 +25,7 @@ class TestCreateDTO(BaseModel):
     comment: str | None = None
     norm: str | None = None
     is_active: bool
-    result_id: UUID
+    research_id: UUID
     indicator_id: UUID | None = None
     status_id: UUID | None = None
 
@@ -37,12 +37,12 @@ class TestReadDTO(BaseModel):
     comment: str | None = None
     norm: str | None = None
     is_active: bool
-    result_id: UUID
+    research_id: UUID
     indicator_id: UUID | None = None
     status_id: UUID | None = None
     created_at: datetime
     updated_at: datetime
-    result: EntityRefDTO | None = None
+    research: EntityRefDTO | None = None
     indicator: EntityRefDTO | None = None
     status: EntityRefDTO | None = None
 
@@ -56,7 +56,7 @@ class TestUpdateDTO(BaseModel):
     comment: str | None = None
     norm: str | None = None
     is_active: bool | None = None
-    result_id: UUID | None = None
+    research_id: UUID | None = None
     indicator_id: UUID | None = None
     status_id: UUID | None = None
 

@@ -3,39 +3,46 @@ from typing import ClassVar
 from uuid import UUID
 
 from src.core.errors import ValidationError
-from src.repositories.conclusion_statuses_repository import ConclusionStatusRepository
 from src.repositories.crud_repository import SortOrder
+from src.repositories.research_repository import ResearchRepository
 from src.schemas import (
-    ConclusionStatusCreateDTO,
-    ConclusionStatusCreateEnvelopeDTO,
-    ConclusionStatusDeleteEnvelopeDTO,
-    ConclusionStatusListEnvelopeDTO,
-    ConclusionStatusReadDTO,
-    ConclusionStatusReadEnvelopeDTO,
-    ConclusionStatusUpdateDTO,
-    ConclusionStatusUpdateEnvelopeDTO,
+    ResearchCreateDTO,
+    ResearchCreateEnvelopeDTO,
+    ResearchDeleteEnvelopeDTO,
+    ResearchListEnvelopeDTO,
+    ResearchReadDTO,
+    ResearchReadEnvelopeDTO,
+    ResearchUpdateDTO,
+    ResearchUpdateEnvelopeDTO,
 )
 from src.schemas.base import ActionMetaDTO, DeleteMetaDTO, ListMetaDTO, ReadMetaDTO
 from src.services.crud_service import CRUDService
 
 
-class ConclusionStatusService:
+class ResearchService:
     _sort_fields: ClassVar[set[str]] = {
-        "name",
+        "status_id",
+        "updated_by",
         "updated_at",
-        "created_at",
+        "research_goal_id",
+        "created_by",
         "id",
+        "created_at",
+        "sample_id",
         "deleted_at",
-        "code",
+        "comment",
+        "recommendation",
+        "received_at",
+        "completed_at",
     }
 
-    def __init__(self, repository: ConclusionStatusRepository) -> None:
+    def __init__(self, repository: ResearchRepository) -> None:
         self._repository = repository
         self._crud = CRUDService(
             repository=repository,
-            read_schema=ConclusionStatusReadDTO,
+            read_schema=ResearchReadDTO,
             allowed_sort_fields=self._sort_fields,
-            not_found_message="ConclusionStatus {entity_id} was not found.",
+            not_found_message="Research {entity_id} was not found.",
         )
 
     def _validate_includes(self, includes: list[str]) -> list[str]:
@@ -52,17 +59,17 @@ class ConclusionStatusService:
             )
         return includes
 
-    async def create(self, payload: ConclusionStatusCreateDTO) -> ConclusionStatusCreateEnvelopeDTO:
+    async def create(self, payload: ResearchCreateDTO) -> ResearchCreateEnvelopeDTO:
         data = await self._crud.create(payload.model_dump(exclude_unset=True))
-        return ConclusionStatusCreateEnvelopeDTO(data=data, meta=ActionMetaDTO(operation="create"))
+        return ResearchCreateEnvelopeDTO(data=data, meta=ActionMetaDTO(operation="create"))
 
     async def get(
         self, entity_id: UUID, includes: list[str] | None = None
-    ) -> ConclusionStatusReadEnvelopeDTO:
+    ) -> ResearchReadEnvelopeDTO:
         includes = self._validate_includes(includes or [])
         data = await self._crud.get(entity_id)
         data = await self._crud.expand_includes(data, includes)
-        return ConclusionStatusReadEnvelopeDTO(
+        return ResearchReadEnvelopeDTO(
             data=data,
             meta=ReadMetaDTO(
                 includes=includes,
@@ -82,7 +89,7 @@ class ConclusionStatusService:
         includes: list[str] | None = None,
         exact_filters: Mapping[str, str] | None = None,
         range_filters: Mapping[str, tuple[str | None, str | None]] | None = None,
-    ) -> ConclusionStatusListEnvelopeDTO:
+    ) -> ResearchListEnvelopeDTO:
         includes = self._validate_includes(includes or [])
         items, page_meta = await self._crud.list(
             offset=offset,
@@ -101,18 +108,14 @@ class ConclusionStatusService:
             includes_applied=includes,
             includes_allowed=sorted(self._repository.allowed_includes),
         )
-        return ConclusionStatusListEnvelopeDTO(items=expanded_items, meta=meta)
+        return ResearchListEnvelopeDTO(items=expanded_items, meta=meta)
 
     async def update(
-        self, entity_id: UUID, payload: ConclusionStatusUpdateDTO
-    ) -> ConclusionStatusUpdateEnvelopeDTO:
+        self, entity_id: UUID, payload: ResearchUpdateDTO
+    ) -> ResearchUpdateEnvelopeDTO:
         data = await self._crud.update(entity_id, payload.model_dump(exclude_unset=True))
-        return ConclusionStatusUpdateEnvelopeDTO(data=data, meta=ActionMetaDTO(operation="update"))
+        return ResearchUpdateEnvelopeDTO(data=data, meta=ActionMetaDTO(operation="update"))
 
-    async def delete(
-        self, entity_id: UUID, reason: str | None = None
-    ) -> ConclusionStatusDeleteEnvelopeDTO:
+    async def delete(self, entity_id: UUID, reason: str | None = None) -> ResearchDeleteEnvelopeDTO:
         await self._crud.delete(entity_id, reason=reason)
-        return ConclusionStatusDeleteEnvelopeDTO(
-            meta=DeleteMetaDTO(operation="delete", deleted=True)
-        )
+        return ResearchDeleteEnvelopeDTO(meta=DeleteMetaDTO(operation="delete", deleted=True))

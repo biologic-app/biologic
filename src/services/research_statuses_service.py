@@ -4,22 +4,22 @@ from uuid import UUID
 
 from src.core.errors import ValidationError
 from src.repositories.crud_repository import SortOrder
-from src.repositories.statuses_repository import StatusRepository
+from src.repositories.research_statuses_repository import ResearchStatusRepository
 from src.schemas import (
-    StatusCreateDTO,
-    StatusCreateEnvelopeDTO,
-    StatusDeleteEnvelopeDTO,
-    StatusListEnvelopeDTO,
-    StatusReadDTO,
-    StatusReadEnvelopeDTO,
-    StatusUpdateDTO,
-    StatusUpdateEnvelopeDTO,
+    ResearchStatusCreateDTO,
+    ResearchStatusCreateEnvelopeDTO,
+    ResearchStatusDeleteEnvelopeDTO,
+    ResearchStatusListEnvelopeDTO,
+    ResearchStatusReadDTO,
+    ResearchStatusReadEnvelopeDTO,
+    ResearchStatusUpdateDTO,
+    ResearchStatusUpdateEnvelopeDTO,
 )
 from src.schemas.base import ActionMetaDTO, DeleteMetaDTO, ListMetaDTO, ReadMetaDTO
 from src.services.crud_service import CRUDService
 
 
-class StatusService:
+class ResearchStatusService:
     _sort_fields: ClassVar[set[str]] = {
         "name",
         "updated_at",
@@ -29,13 +29,13 @@ class StatusService:
         "code",
     }
 
-    def __init__(self, repository: StatusRepository) -> None:
+    def __init__(self, repository: ResearchStatusRepository) -> None:
         self._repository = repository
         self._crud = CRUDService(
             repository=repository,
-            read_schema=StatusReadDTO,
+            read_schema=ResearchStatusReadDTO,
             allowed_sort_fields=self._sort_fields,
-            not_found_message="Status {entity_id} was not found.",
+            not_found_message="ResearchStatus {entity_id} was not found.",
         )
 
     def _validate_includes(self, includes: list[str]) -> list[str]:
@@ -52,17 +52,17 @@ class StatusService:
             )
         return includes
 
-    async def create(self, payload: StatusCreateDTO) -> StatusCreateEnvelopeDTO:
+    async def create(self, payload: ResearchStatusCreateDTO) -> ResearchStatusCreateEnvelopeDTO:
         data = await self._crud.create(payload.model_dump(exclude_unset=True))
-        return StatusCreateEnvelopeDTO(data=data, meta=ActionMetaDTO(operation="create"))
+        return ResearchStatusCreateEnvelopeDTO(data=data, meta=ActionMetaDTO(operation="create"))
 
     async def get(
         self, entity_id: UUID, includes: list[str] | None = None
-    ) -> StatusReadEnvelopeDTO:
+    ) -> ResearchStatusReadEnvelopeDTO:
         includes = self._validate_includes(includes or [])
         data = await self._crud.get(entity_id)
         data = await self._crud.expand_includes(data, includes)
-        return StatusReadEnvelopeDTO(
+        return ResearchStatusReadEnvelopeDTO(
             data=data,
             meta=ReadMetaDTO(
                 includes=includes,
@@ -82,7 +82,7 @@ class StatusService:
         includes: list[str] | None = None,
         exact_filters: Mapping[str, str] | None = None,
         range_filters: Mapping[str, tuple[str | None, str | None]] | None = None,
-    ) -> StatusListEnvelopeDTO:
+    ) -> ResearchStatusListEnvelopeDTO:
         includes = self._validate_includes(includes or [])
         items, page_meta = await self._crud.list(
             offset=offset,
@@ -101,12 +101,16 @@ class StatusService:
             includes_applied=includes,
             includes_allowed=sorted(self._repository.allowed_includes),
         )
-        return StatusListEnvelopeDTO(items=expanded_items, meta=meta)
+        return ResearchStatusListEnvelopeDTO(items=expanded_items, meta=meta)
 
-    async def update(self, entity_id: UUID, payload: StatusUpdateDTO) -> StatusUpdateEnvelopeDTO:
+    async def update(
+        self, entity_id: UUID, payload: ResearchStatusUpdateDTO
+    ) -> ResearchStatusUpdateEnvelopeDTO:
         data = await self._crud.update(entity_id, payload.model_dump(exclude_unset=True))
-        return StatusUpdateEnvelopeDTO(data=data, meta=ActionMetaDTO(operation="update"))
+        return ResearchStatusUpdateEnvelopeDTO(data=data, meta=ActionMetaDTO(operation="update"))
 
-    async def delete(self, entity_id: UUID, reason: str | None = None) -> StatusDeleteEnvelopeDTO:
+    async def delete(
+        self, entity_id: UUID, reason: str | None = None
+    ) -> ResearchStatusDeleteEnvelopeDTO:
         await self._crud.delete(entity_id, reason=reason)
-        return StatusDeleteEnvelopeDTO(meta=DeleteMetaDTO(operation="delete", deleted=True))
+        return ResearchStatusDeleteEnvelopeDTO(meta=DeleteMetaDTO(operation="delete", deleted=True))

@@ -117,10 +117,10 @@ def parse_args() -> argparse.Namespace:
         help="Override samples count for seed phase.",
     )
     parser.add_argument(
-        "--results",
+        "--research",
         type=int,
         default=None,
-        help="Override results count for seed phase.",
+        help="Override research count for seed phase.",
     )
     parser.add_argument(
         "--tests",
@@ -759,7 +759,7 @@ async def _seed_if_requested(args: argparse.Namespace) -> str:
         reference_count=args.reference_count,
         directions=args.directions,
         samples=args.samples,
-        results=args.results,
+        research=args.research,
         tests=args.tests,
         truncate=args.truncate,
     )
