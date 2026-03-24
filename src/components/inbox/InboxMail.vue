@@ -1,53 +1,16 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
 import { format } from 'date-fns'
 import { useI18n } from 'vue-i18n'
 import { useLocale } from '../../composables/useLocale'
 import type { Mail } from '../../types'
 
-const props = defineProps<{
+defineProps<{
   mail: Mail
 }>()
 
 const emits = defineEmits(['close'])
 const { t } = useI18n()
 const { dateFnsLocale } = useLocale()
-
-const dropdownItems = computed(() => [[{
-  label: t('inbox.markUnread'),
-  icon: 'i-lucide-check-circle'
-}, {
-  label: t('inbox.markImportant'),
-  icon: 'i-lucide-triangle-alert'
-}], [{
-  label: t('inbox.starThread'),
-  icon: 'i-lucide-star'
-}, {
-  label: t('inbox.muteThread'),
-  icon: 'i-lucide-circle-pause'
-}]])
-
-const toast = useToast()
-
-const reply = ref('')
-const loading = ref(false)
-
-function onSubmit() {
-  loading.value = true
-
-  setTimeout(() => {
-    reply.value = ''
-
-    toast.add({
-      title: t('inbox.sentTitle'),
-      description: t('inbox.sentDescription'),
-      icon: 'i-lucide-check-circle',
-      color: 'success'
-    })
-
-    loading.value = false
-  }, 1000)
-}
 
 function formatMailDate(date: string) {
   return format(new Date(date), 'dd MMM HH:mm', { locale: dateFnsLocale.value })
@@ -75,18 +38,6 @@ function formatMailDate(date: string) {
             variant="ghost"
           />
         </UTooltip>
-
-        <UTooltip :text="t('inbox.reply')">
-          <UButton icon="i-lucide-reply" color="neutral" variant="ghost" />
-        </UTooltip>
-
-        <UDropdownMenu :items="dropdownItems">
-          <UButton
-            icon="i-lucide-ellipsis-vertical"
-            color="neutral"
-            variant="ghost"
-          />
-        </UDropdownMenu>
       </template>
     </UDashboardNavbar>
 
@@ -114,61 +65,14 @@ function formatMailDate(date: string) {
     </div>
 
     <div class="flex-1 p-4 sm:p-6 overflow-y-auto">
+      <div class="mb-4 flex items-center gap-2 text-sm text-muted">
+        <UIcon name="i-lucide-badge-info" class="size-4" />
+        <span>{{ t('inbox.systemTitle') }}</span>
+      </div>
+
       <p class="whitespace-pre-wrap">
         {{ mail.body }}
       </p>
-    </div>
-
-    <div class="pb-4 px-4 sm:px-6 shrink-0">
-      <UCard variant="subtle" class="mt-auto" :ui="{ header: 'flex items-center gap-1.5 text-dimmed' }">
-        <template #header>
-          <UIcon name="i-lucide-reply" class="size-5" />
-
-          <span class="text-sm truncate">
-            {{ t('inbox.replyTo', { name: props.mail.from.name, email: props.mail.from.email }) }}
-          </span>
-        </template>
-
-        <form @submit.prevent="onSubmit">
-          <UTextarea
-            v-model="reply"
-            color="neutral"
-            variant="none"
-            required
-            autoresize
-            :placeholder="t('inbox.writeReply')"
-            :rows="4"
-            :disabled="loading"
-            class="w-full"
-            :ui="{ base: 'p-0 resize-none' }"
-          />
-
-          <div class="flex items-center justify-between">
-            <UTooltip :text="t('inbox.attachFile')">
-              <UButton
-                color="neutral"
-                variant="ghost"
-                icon="i-lucide-paperclip"
-              />
-            </UTooltip>
-
-            <div class="flex items-center justify-end gap-2">
-              <UButton
-                color="neutral"
-                variant="ghost"
-                :label="t('inbox.saveDraft')"
-              />
-              <UButton
-                type="submit"
-                color="neutral"
-                :loading="loading"
-                :label="t('inbox.send')"
-                icon="i-lucide-send"
-              />
-            </div>
-          </div>
-        </form>
-      </UCard>
     </div>
   </UDashboardPanel>
 </template>

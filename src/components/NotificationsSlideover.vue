@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useFetch } from '@vueuse/core'
 import { formatDistanceToNow } from 'date-fns'
 import { useI18n } from 'vue-i18n'
@@ -11,6 +12,7 @@ const { t } = useI18n()
 const { dateFnsLocale } = useLocale()
 
 const { data: notifications } = useFetch('https://dashboard-template.nuxt.dev/api/notifications', { initialData: [] }).json<Notification[]>()
+const unreadNotifications = computed(() => (notifications.value ?? []).filter(notification => notification.unread))
 
 function formatNotificationTime(date: string) {
   return formatDistanceToNow(new Date(date), {
@@ -26,8 +28,12 @@ function formatNotificationTime(date: string) {
     :title="t('notifications.title')"
   >
     <template #body>
+      <div v-if="!unreadNotifications.length" class="flex min-h-32 items-center justify-center text-sm text-muted">
+        {{ t('inbox.noUnread') }}
+      </div>
+
       <RouterLink
-        v-for="notification in notifications"
+        v-for="notification in unreadNotifications"
         :key="notification.id"
         :to="`/inbox?id=${notification.id}`"
         class="px-3 py-2.5 rounded-md hover:bg-elevated/50 flex items-center gap-3 relative -mx-3 first:-mt-3 last:-mb-3"

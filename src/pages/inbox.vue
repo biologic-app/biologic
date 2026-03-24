@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useFetch, useBreakpoints, breakpointsTailwind } from '@vueuse/core'
+import { useBreakpoints, breakpointsTailwind } from '@vueuse/core'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import type { Mail } from '../types'
+import { useSystemMessages } from '../composables/useSystemMessages'
 
 const { t } = useI18n()
 const tabItems = computed(() => [{
@@ -13,15 +15,16 @@ const tabItems = computed(() => [{
   value: 'unread'
 }])
 const selectedTab = ref('all')
-
-const { data: mails } = useFetch('https://dashboard-template.nuxt.dev/api/mails', { initialData: [] }).json<Mail[]>()
+const route = useRoute()
+const router = useRouter()
+const { mails, unreadMails } = useSystemMessages()
 
 const filteredMails = computed(() => {
   if (selectedTab.value === 'unread') {
-    return mails.value?.filter(mail => !!mail.unread) ?? []
+    return unreadMails.value
   }
 
-  return mails.value ?? []
+  return mails.value
 })
 
 const selectedMail = ref<Mail | null>()
@@ -37,11 +40,47 @@ const isMailPanelOpen = computed({
   }
 })
 
-watch(filteredMails, () => {
-  if (!filteredMails.value.find(mail => mail.id === selectedMail.value?.id)) {
+function setSelectedMail(mail: Mail | null | undefined) {
+  selectedMail.value = mail ?? null
+
+  if (mail) {
+    if (route.query.id !== String(mail.id)) {
+      router.replace({ query: { ...route.query, id: String(mail.id) } })
+    }
+    return
+  }
+
+  if (route.query.id) {
+    const nextQuery = { ...route.query }
+    delete nextQuery.id
+    router.replace({ query: nextQuery })
+  }
+}
+
+watch(mails, () => {
+  if (!mails.value.find(mail => mail.id === selectedMail.value?.id)) {
     selectedMail.value = null
   }
 })
+
+watch([mails, () => route.query.id], () => {
+  const rawId = route.query.id
+  const id = typeof rawId === 'string' ? Number(rawId) : Number.NaN
+
+  if (!Number.isFinite(id)) {
+    return
+  }
+
+  const mail = mails.value.find(item => item.id === id) ?? null
+  if (!mail) {
+    setSelectedMail(null)
+    return
+  }
+
+  if (selectedMail.value?.id !== mail.id) {
+    setSelectedMail(mail)
+  }
+}, { immediate: true })
 
 const breakpoints = useBreakpoints(breakpointsTailwind)
 const isMobile = breakpoints.smaller('lg')
@@ -73,17 +112,24 @@ const isMobile = breakpoints.smaller('lg')
       </template>
     </UDashboardNavbar>
 
-    <InboxList v-model="selectedMail" :mails="filteredMails" />
+    <InboxList
+      :model-value="selectedMail"
+      :mails="filteredMails"
+      @update:model-value="setSelectedMail"
+    />
   </UDashboardPanel>
 
-  <InboxMail v-if="selectedMail" :mail="selectedMail" @close="selectedMail = null" />
-  <div v-else class="hidden lg:flex flex-1 items-center justify-center">
+  <InboxMail v-if="selectedMail" :mail="selectedMail" @close="setSelectedMail(null)" />
+  <div v-else class="hidden lg:flex flex-1 flex-col items-center justify-center gap-3">
     <UIcon name="i-lucide-inbox" class="size-32 text-dimmed" />
+    <p class="text-sm text-muted">
+      {{ filteredMails.length ? t('inbox.open') : t('inbox.empty') }}
+    </p>
   </div>
 
   <USlideover v-if="isMobile" v-model:open="isMailPanelOpen">
     <template #content>
-      <InboxMail v-if="selectedMail" :mail="selectedMail" @close="selectedMail = null" />
+      <InboxMail v-if="selectedMail" :mail="selectedMail" @close="setSelectedMail(null)" />
     </template>
   </USlideover>
 </template>
