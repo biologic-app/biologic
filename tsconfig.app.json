@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "rootDir": ".",
+    "baseUrl": ".",
     "target": "ES2020",
     "useDefineForClassFields": true,
     "module": "ESNext",
@@ -23,17 +24,11 @@
 
     /* Paths */
     "paths": {
+      "@/*": ["./src/*"],
       "#build/ui/*": ["./node_modules/.nuxt-ui/ui/*"]
     },
-    "types": [
-      "vite-plugin-vue-layouts/client"
-    ]
+    "types": []
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue", "auto-imports.d.ts", "components.d.ts"],
-  "vueCompilerOptions": {
-    "plugins": [
-      "vue-router/volar/sfc-typed-router",
-      "vue-router/volar/sfc-route-blocks"
-    ]
-  }
+  "vueCompilerOptions": {}
 }

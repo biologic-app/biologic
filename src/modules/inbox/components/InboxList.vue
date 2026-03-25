@@ -1,0 +1,91 @@
+<script setup lang="ts">
+import { ref, watch } from 'vue'
+import { format, isToday } from 'date-fns'
+import { useLocale } from '@/shared/composables/useLocale'
+import type { Mail } from '@/shared/types'
+
+const props = defineProps<{
+  mails: Mail[]
+}>()
+const { dateFnsLocale } = useLocale()
+
+const mailsRefs = ref<Record<number, Element | null>>({})
+
+const selectedMail = defineModel<Mail | null>()
+
+watch(selectedMail, () => {
+  if (!selectedMail.value) {
+    return
+  }
+  const currentRef = mailsRefs.value[selectedMail.value.id]
+  if (currentRef) {
+    currentRef.scrollIntoView({ block: 'nearest' })
+  }
+})
+
+defineShortcuts({
+  arrowdown: () => {
+    const index = props.mails.findIndex(mail => mail.id === selectedMail.value?.id)
+
+    if (index === -1) {
+      selectedMail.value = props.mails[0]
+    } else if (index < props.mails.length - 1) {
+      selectedMail.value = props.mails[index + 1]
+    }
+  },
+  arrowup: () => {
+    const index = props.mails.findIndex(mail => mail.id === selectedMail.value?.id)
+
+    if (index === -1) {
+      selectedMail.value = props.mails[props.mails.length - 1]
+    } else if (index > 0) {
+      selectedMail.value = props.mails[index - 1]
+    }
+  }
+})
+
+function formatMailListDate(date: string) {
+  const currentDate = new Date(date)
+
+  return isToday(currentDate)
+    ? format(currentDate, 'HH:mm', { locale: dateFnsLocale.value })
+    : format(currentDate, 'dd MMM', { locale: dateFnsLocale.value })
+}
+</script>
+
+<template>
+  <div class="overflow-y-auto divide-y divide-default">
+    <div
+      v-for="(mail, index) in mails"
+      :key="index"
+      :ref="(element) => { mailsRefs[mail.id] = element as Element | null }"
+    >
+      <div
+        class="p-4 sm:px-6 text-sm cursor-pointer border-l-2 transition-colors"
+        :class="[
+          mail.unread ? 'text-highlighted' : 'text-toned',
+          selectedMail && selectedMail.id === mail.id
+            ? 'border-primary bg-primary/10'
+            : 'border-bg hover:border-primary hover:bg-primary/5'
+        ]"
+        @click="selectedMail = mail"
+      >
+        <div class="flex items-center justify-between" :class="[mail.unread && 'font-semibold']">
+          <div class="flex items-center gap-3">
+            {{ mail.from.name }}
+
+            <UChip v-if="mail.unread" />
+          </div>
+
+          <span>{{ formatMailListDate(mail.date) }}</span>
+        </div>
+        <p class="truncate" :class="[mail.unread && 'font-semibold']">
+          {{ mail.subject }}
+        </p>
+        <p class="text-dimmed line-clamp-1">
+          {{ mail.body }}
+        </p>
+      </div>
+    </div>
+  </div>
+</template>
