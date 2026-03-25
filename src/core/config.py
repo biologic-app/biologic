@@ -15,8 +15,8 @@ class Settings(BaseSettings):
     docs_url: str | None = "/docs"
     openapi_url: str = "/openapi.json"
     is_dev: bool = True
-    database_url: str = "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/biologic"
-    alembic_database_url: str = "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/biologic"
+    database_url: str = "postgresql+asyncpg://biologic:biologic@127.0.0.1:5432/biologic"
+    alembic_database_url: str = "postgresql+asyncpg://biologic:biologic@127.0.0.1:5432/biologic"
     plugins_dir: Path = APP_DIR / "plugins"
     jwt_secret_key: str = "change-me-local-jwt-secret"
     jwt_algorithm: str = "HS256"
