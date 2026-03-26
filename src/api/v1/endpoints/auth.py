@@ -27,7 +27,7 @@ def _set_auth_cookies(response: Response, settings: Settings, tokens: AuthTokenB
         httponly=True,
         secure=secure,
         samesite=settings.auth_cookie_samesite,
-        max_age=token_ttl_seconds(timedelta(minutes=settings.access_token_ttl_minutes)),
+        max_age=token_ttl_seconds(timedelta(minutes=settings.access_token_ttl_seconds)),
         path=settings.auth_cookie_path,
         domain=settings.auth_cookie_domain,
     )
@@ -37,7 +37,7 @@ def _set_auth_cookies(response: Response, settings: Settings, tokens: AuthTokenB
         httponly=True,
         secure=secure,
         samesite=settings.auth_cookie_samesite,
-        max_age=token_ttl_seconds(timedelta(days=settings.refresh_token_ttl_days)),
+        max_age=token_ttl_seconds(timedelta(days=settings.refresh_token_ttl_seconds)),
         path=settings.auth_cookie_path,
         domain=settings.auth_cookie_domain,
     )

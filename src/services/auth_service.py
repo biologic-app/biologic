@@ -52,8 +52,8 @@ class AuthService:
     def __init__(self, repository: AuthRepository, settings: Settings) -> None:
         self._repository = repository
         self._settings = settings
-        self._access_ttl = timedelta(minutes=settings.access_token_ttl_minutes)
-        self._refresh_ttl = timedelta(days=settings.refresh_token_ttl_days)
+        self._access_ttl = timedelta(seconds=settings.access_token_ttl_seconds)
+        self._refresh_ttl = timedelta(seconds=settings.refresh_token_ttl_seconds)
 
     def _map_resource(self, resource: str) -> str:
         return self._resource_map.get(resource, resource.replace("_", "-"))

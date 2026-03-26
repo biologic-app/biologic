@@ -4,8 +4,8 @@ from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-CORE_DIR = Path(__file__).resolve().parent
-APP_DIR = CORE_DIR.parent
+APP_DIR = Path(__file__).resolve().parents[1]
+BASE_DIR = APP_DIR.parent
 
 
 class Settings(BaseSettings):
@@ -20,8 +20,8 @@ class Settings(BaseSettings):
     plugins_dir: Path = APP_DIR / "plugins"
     jwt_secret_key: str = "change-me-local-jwt-secret"
     jwt_algorithm: str = "HS256"
-    access_token_ttl_minutes: int = 15
-    refresh_token_ttl_days: int = 30
+    access_token_ttl_seconds: int = 40
+    refresh_token_ttl_seconds: int = 60
     access_cookie_name: str = "access_token"
     refresh_cookie_name: str = "refresh_token"
     auth_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     auth_cookie_path: str = "/"
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=f"{BASE_DIR}.env",
         env_prefix="APP_",
         extra="ignore",
     )
