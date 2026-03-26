@@ -1,8 +1,7 @@
 import { defineStore } from 'pinia'
 import * as authApi from './auth.api'
 import type { Permission } from '@/shared/types/permissions'
-import type { AuthUser } from './auth.api'
-import { login } from '@/modules/auth/auth.api'
+import type { AuthUser } from '@/shared/types/auth'
 
 interface AuthState {
   user: AuthUser | null
@@ -33,10 +32,10 @@ export const useAuthStore = defineStore('auth', {
       this.loading = false
       this.initialized = true
     },
-    async login(username: string, password: string) {
+    async login(loginValue: string, password: string) {
       this.loading = true
       try {
-        const response = await login(username, password)
+        const response = await authApi.login(loginValue, password)
         this.setSession(response.user, response.permissions)
       } finally {
         this.loading = false

@@ -1,18 +1,7 @@
-import { useApi } from '@/shared/api/client'
-import type { ApiError } from '@/shared/types/api'
+import { apiRequest } from '@/shared/api/client.api'
 import type { NamedRef } from '@/shared/types/api'
 import type { Action, Permission, Resource } from '@/shared/types/permissions'
-
-export interface AuthUser {
-  id: string
-  login: string
-  email: string
-  fullName: string
-  role: string
-  status: string
-  department: NamedRef
-  deletedAt: string | null
-}
+import type { AuthUser } from '@/shared/types/auth'
 
 export interface AuthResponse {
   user: AuthUser
@@ -34,16 +23,12 @@ interface BackendAuthEnvelope {
     access_expires_at: string
     refresh_expires_at: string | null
   }
-  meta: {
-    timestamp: string
-    request_id: string | null
-    version: string
-    operation: string | null
-  }
 }
 
 const knownResources: Resource[] = [
   'dashboard',
+  'customers',
+  'inbox',
   'directions',
   'samples',
   'sample-targets',
@@ -67,18 +52,15 @@ const knownResources: Resource[] = [
 const knownActions: Action[] = ['view', 'create', 'edit', 'delete']
 
 const mapResource = (resource: string): Resource | null => {
-  const normalized = resource
-    .trim()
-    .toLowerCase()
-    .replace(/_/g, '-')
+  const normalized = resource.trim().toLowerCase().replace(/_/g, '-')
   const mapped = normalized === 'roles' || normalized === 'role-permissions' ? 'user-types' : normalized
-  return knownResources.includes(mapped as Resource) ? mapped as Resource : null
+  return knownResources.includes(mapped as Resource) ? (mapped as Resource) : null
 }
 
 const mapAction = (action: string): Action | null => {
   const normalized = action.trim().toLowerCase()
   const mapped = normalized === 'read' ? 'view' : normalized === 'update' ? 'edit' : normalized
-  return knownActions.includes(mapped as Action) ? mapped as Action : null
+  return knownActions.includes(mapped as Action) ? (mapped as Action) : null
 }
 
 const mapPermissions = (permissions: Array<{ resource: string; action: string }>): Permission[] => {
@@ -87,13 +69,10 @@ const mapPermissions = (permissions: Array<{ resource: string; action: string }>
   permissions.forEach((permission) => {
     const resource = mapResource(permission.resource)
     const action = mapAction(permission.action)
-
     if (!resource || !action) {
       return
     }
-
-    const key = `${resource}:${action}`
-    normalized.set(key, { resource, action })
+    normalized.set(`${resource}:${action}`, { resource, action })
   })
 
   if (!normalized.has('dashboard:view')) {
@@ -123,50 +102,19 @@ const mapSession = (payload: BackendAuthEnvelope['data']): AuthResponse => ({
   permissions: mapPermissions(payload.permissions || [])
 })
 
-const unwrap = async <T>(request: {
-  data: { value: T | null }
-  error: { value: unknown }
-  execute: (throwOnFailed?: boolean) => Promise<unknown>
-}): Promise<T> => {
-  await request.execute()
-
-  if (request.error.value) {
-    throw request.error.value as ApiError
-  }
-
-  if (!request.data.value) {
-    throw {
-      status: 0,
-      message: 'Empty response'
-    } satisfies ApiError
-  }
-
-  return request.data.value
-}
-
 export const login = async (loginValue: string, password: string) => {
-  const request = useApi('/auth/login', { immediate: false })
-    .post({ username: loginValue, password })
-    .json<BackendAuthEnvelope>()
-
-  const response = await unwrap(request)
-
+  const response = await apiRequest<BackendAuthEnvelope>('/auth/login', {
+    method: 'POST',
+    body: { username: loginValue, password }
+  })
   return mapSession(response.data)
 }
 
 export const logout = async () => {
-  const request = useApi('/auth/logout', { immediate: false })
-    .post()
-    .json<{ meta: unknown }>()
-
-  await unwrap(request)
+  await apiRequest<{ meta: unknown }>('/auth/logout', { method: 'POST' })
 }
 
 export const me = async () => {
-  const request = useApi('/auth/me', { immediate: false })
-    .get()
-    .json<BackendAuthEnvelope>()
-
-  const response = await unwrap(request)
+  const response = await apiRequest<BackendAuthEnvelope>('/auth/me', { method: 'GET' })
   return mapSession(response.data)
 }

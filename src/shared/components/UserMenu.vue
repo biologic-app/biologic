@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
 import type { DropdownMenuItem } from '@nuxt/ui'
 import { useColorMode } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { useLocale } from '@/shared/composables/useLocale'
+import { useAuthStore } from '@/modules/auth'
+import { useRouter } from 'vue-router'
 
 defineProps<{
   collapsed?: boolean
@@ -14,17 +16,19 @@ const appConfig = useAppConfig()
 const toast = useToast()
 const { t } = useI18n()
 const { locale } = useLocale()
+const auth = useAuthStore()
+const router = useRouter()
 
 const colors = ['red', 'orange', 'amber', 'yellow', 'lime', 'green', 'emerald', 'teal', 'cyan', 'sky', 'blue', 'indigo', 'violet', 'purple', 'fuchsia', 'pink', 'rose']
 const neutrals = ['slate', 'gray', 'zinc', 'neutral', 'stone']
 
-const user = ref({
-  name: 'Tminww',
+const user = computed(() => ({
+  name: auth.user?.fullName || auth.user?.login || 'User',
   avatar: {
     src: 'https://github.com/benjamincanac.png',
-    alt: 'Tminww'
+    alt: auth.user?.fullName || auth.user?.login || 'User'
   }
-})
+}))
 
 const items = computed<DropdownMenuItem[][]>(() => ([[{
   type: 'label',
@@ -121,8 +125,9 @@ const items = computed<DropdownMenuItem[][]>(() => ([[{
 }], [{
   label: t('userMenu.logout'),
   icon: 'i-lucide-log-out',
-  to: '/login',
-  onSelect: () => {
+  onSelect: async () => {
+    await auth.logout()
+    await router.push({ name: 'login' })
     toast.add({
       title: t('userMenu.logoutTitle'),
       description: t('userMenu.logoutDescription'),
