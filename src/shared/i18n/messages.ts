@@ -38,17 +38,14 @@ export const messages = {
       heroDescription:
         "Единое рабочее пространство для сотрудников: мгновенный доступ к базе образцов, исследованиям, журналам исследований, уведомлениям и настройкам.",
       username: "Логин",
-      usernameDescription: "Введите корпоративный логин.",
       usernamePlaceholder: "Введите логин",
       password: "Пароль",
-      passwordDescription: "Проверьте формат пароля перед отправкой формы.",
       passwordPlaceholder: "Введите пароль",
       passwordStrengthIdle: "Введите пароль",
       passwordStrengthWeak: "Слабый пароль",
       passwordStrengthMedium: "Средний пароль",
       passwordStrengthStrong: "Надёжный пароль",
-      passwordRequirementsTitle: "Пароль должен содержать:",
-      passwordRequirementsAriaLabel: "Требования к паролю",
+      passwordRequirementsTitle: "Он должен содержать:",
       passwordRequirementMet: "Требование выполнено",
       passwordRequirementNotMet: "Требование не выполнено",
       passwordRequirements: {
@@ -170,6 +167,59 @@ export const messages = {
         paid: "Оплачено",
         failed: "Ошибка",
         refunded: "Возврат",
+      },
+    },
+    tour: {
+      actions: {
+        next: "Далее",
+        previous: "Назад",
+        done: "Готово",
+      },
+      menu: {
+        title: "Туры",
+        tooltip: "Интерактивный тур",
+        startBase: "Пройти базовый тур",
+        openWhatsNew: "Посмотреть нововведения",
+        replayWhatsNew: "Повторить обзор нововведений",
+        noWhatsNew: "Новых туров пока нет",
+      },
+      dashboard: {
+        base: {
+          title: "Добро пожаловать в dashboard",
+          menuLabel: "Базовый тур по dashboard",
+          intro:
+            "Это короткий обзор основных точек входа. Его можно повторно запускать из меню туров.",
+          notificationsTitle: "Уведомления",
+          notificationsDescription:
+            "Здесь открываются системные уведомления и быстрые сигналы по работе лаборатории.",
+          rangeTitle: "Диапазон дат",
+          rangeDescription:
+            "Фильтруйте статистику за нужный период и быстро переключайтесь между готовыми интервалами.",
+          periodTitle: "Гранулярность графика",
+          periodDescription:
+            "Переключайте агрегацию показателей по дням, неделям и месяцам.",
+          quickActionsTitle: "Быстрые действия",
+          quickActionsDescription:
+            "Используйте это меню для перехода к частым сценариям без возврата в боковую навигацию.",
+          tourMenuTitle: "Меню туров",
+          tourMenuDescription:
+            "Здесь можно заново пройти базовый тур и открыть обзор новых возможностей после релизов.",
+        },
+        whatsNew: {
+          title: "Что нового в dashboard",
+          menuLabel: "Нововведения 2026.03",
+          intro:
+            "В интерфейсе появился отдельный центр туров и обновлённый обзор ключевых блоков dashboard.",
+          menuTitle: "Центр туров",
+          menuDescription:
+            "Компас показывает непросмотренные туры и позволяет вручную запускать базовый сценарий или нововведения.",
+          statsTitle: "Карточки показателей",
+          statsDescription:
+            "Верхние KPI помогают быстро оценить загрузку, критические результаты и среднее время обработки.",
+          chartTitle: "Основной график",
+          chartDescription:
+            "График теперь удобно связывать с диапазоном и шагом агрегации, чтобы отслеживать динамику без перехода в отчёты.",
+        },
       },
     },
     inbox: {
@@ -490,6 +540,59 @@ export const messages = {
         paid: "Paid",
         failed: "Failed",
         refunded: "Refunded",
+      },
+    },
+    tour: {
+      actions: {
+        next: "Next",
+        previous: "Back",
+        done: "Done",
+      },
+      menu: {
+        title: "Tours",
+        tooltip: "Interactive tour",
+        startBase: "Start base tour",
+        openWhatsNew: "See what's new",
+        replayWhatsNew: "Replay what's new",
+        noWhatsNew: "No new tours yet",
+      },
+      dashboard: {
+        base: {
+          title: "Welcome to the dashboard",
+          menuLabel: "Base dashboard tour",
+          intro:
+            "This is a short overview of the main entry points. You can replay it any time from the tours menu.",
+          notificationsTitle: "Notifications",
+          notificationsDescription:
+            "Open system alerts and quick signals for ongoing laboratory work from here.",
+          rangeTitle: "Date range",
+          rangeDescription:
+            "Filter the dashboard by period and switch between predefined ranges.",
+          periodTitle: "Chart granularity",
+          periodDescription:
+            "Switch the aggregation between daily, weekly, and monthly views.",
+          quickActionsTitle: "Quick actions",
+          quickActionsDescription:
+            "Use this menu to jump into frequent workflows without going back to the sidebar.",
+          tourMenuTitle: "Tours menu",
+          tourMenuDescription:
+            "Replay the base tour here or open walkthroughs for new functionality after releases.",
+        },
+        whatsNew: {
+          title: "What's new in the dashboard",
+          menuLabel: "Updates 2026.03",
+          intro:
+            "The interface now includes a dedicated tours entry point and an updated walkthrough for key dashboard areas.",
+          menuTitle: "Tours hub",
+          menuDescription:
+            "The compass shows unseen tours and lets you manually start the base tour or update walkthroughs.",
+          statsTitle: "KPI cards",
+          statsDescription:
+            "The top KPI cards help you assess workload, critical results, and average turnaround time at a glance.",
+          chartTitle: "Main chart",
+          chartDescription:
+            "The chart now pairs well with range and aggregation controls so you can track trends without leaving the dashboard.",
+        },
       },
     },
     inbox: {

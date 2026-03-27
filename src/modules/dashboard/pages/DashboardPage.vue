@@ -1,33 +1,39 @@
 <script setup lang="ts">
-import { computed, ref, shallowRef } from 'vue'
-import { sub } from 'date-fns'
-import type { DropdownMenuItem } from '@nuxt/ui'
-import { useI18n } from 'vue-i18n'
-import { useDashboardShell } from '@/shared/composables/useDashboardShell'
-import HomeChart from '@/modules/dashboard/components/HomeChart.vue'
-import HomeDateRangePicker from '@/modules/dashboard/components/HomeDateRangePicker.vue'
-import HomePeriodSelect from '@/modules/dashboard/components/HomePeriodSelect.vue'
-import HomeStats from '@/modules/dashboard/components/HomeStats.vue'
-import type { Period, Range } from '@/modules/dashboard/types'
+import { computed, ref, shallowRef } from "vue";
+import { sub } from "date-fns";
+import type { DropdownMenuItem } from "@nuxt/ui";
+import { useI18n } from "vue-i18n";
+import { useDashboardShell } from "@/shared/composables/useDashboardShell";
+import TourMenu from "@/shared/components/TourMenu.vue";
+import HomeChart from "@/modules/dashboard/components/HomeChart.vue";
+import HomeDateRangePicker from "@/modules/dashboard/components/HomeDateRangePicker.vue";
+import HomePeriodSelect from "@/modules/dashboard/components/HomePeriodSelect.vue";
+import HomeStats from "@/modules/dashboard/components/HomeStats.vue";
+import type { Period, Range } from "@/modules/dashboard/types";
 
-const { isNotificationsSlideoverOpen } = useDashboardShell()
-const { t } = useI18n()
+const { isNotificationsSlideoverOpen } = useDashboardShell();
+const { t } = useI18n();
 
-const items = computed<DropdownMenuItem[][]>(() => [[{
-  label: t('dashboard.newMail'),
-  icon: 'i-lucide-send',
-  to: '/inbox'
-}, {
-  label: t('dashboard.newCustomer'),
-  icon: 'i-lucide-user-plus',
-  to: '/customers'
-}]])
+const items = computed<DropdownMenuItem[][]>(() => [
+  [
+    {
+      label: t("dashboard.newMail"),
+      icon: "i-lucide-send",
+      to: "/inbox",
+    },
+    {
+      label: t("dashboard.newCustomer"),
+      icon: "i-lucide-user-plus",
+      to: "/customers",
+    },
+  ],
+]);
 
 const range = shallowRef<Range>({
   start: sub(new Date(), { days: 14 }),
-  end: new Date()
-})
-const period = ref<Period>('daily')
+  end: new Date(),
+});
+const period = ref<Period>("daily");
 </script>
 
 <template>
@@ -39,8 +45,9 @@ const period = ref<Period>('daily')
         </template>
 
         <template #right>
-          <UTooltip :text="t('dashboard.notifications')" :shortcuts="['N']">
+          <UTooltip :text="t('dashboard.notifications')" :kbds="['N']">
             <UButton
+              data-tour="dashboard-notifications"
               color="neutral"
               variant="ghost"
               square
@@ -53,24 +60,39 @@ const period = ref<Period>('daily')
           </UTooltip>
           <UDropdownMenu :items="items">
             <UTooltip :text="t('dashboard.quickActions')">
-              <UButton icon="i-lucide-plus" size="md" class="rounded-full" />
+              <UButton
+                data-tour="dashboard-quick-actions"
+                icon="i-lucide-plus"
+                size="md"
+                variant="subtle"
+                class="rounded-full"
+              />
             </UTooltip>
           </UDropdownMenu>
+          <TourMenu scope="dashboard" />
         </template>
       </UDashboardNavbar>
 
       <UDashboardToolbar>
         <template #left>
-          <HomeDateRangePicker v-model="range" class="-ms-1" />
+          <HomeDateRangePicker
+            v-model="range"
+            data-tour="dashboard-range"
+            class="-ms-1"
+          />
 
-          <HomePeriodSelect v-model="period" :range="range" />
+          <HomePeriodSelect
+            v-model="period"
+            data-tour="dashboard-period"
+            :range="range"
+          />
         </template>
       </UDashboardToolbar>
     </template>
 
     <template #body>
-      <HomeStats :period="period" :range="range" />
-      <HomeChart :period="period" :range="range" />
+      <HomeStats data-tour="dashboard-stats" :period="period" :range="range" />
+      <HomeChart data-tour="dashboard-chart" :period="period" :range="range" />
     </template>
   </UDashboardPanel>
 </template>

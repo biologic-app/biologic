@@ -23,11 +23,29 @@
 
 .driver-popover.biologic-tour {
   --tour-popover-bg: light-dark(#ffffff, oklch(22% 0.02 264));
-  --tour-popover-text: light-dark(var(--color-neutral-900), var(--color-neutral-50));
-  --tour-popover-muted: light-dark(var(--color-neutral-600), var(--color-neutral-300));
-  --tour-popover-border: color-mix(in oklab, var(--ui-primary) 18%, transparent);
-  --tour-button-bg: color-mix(in oklab, var(--ui-primary) 14%, var(--tour-popover-bg));
-  --tour-button-bg-hover: color-mix(in oklab, var(--ui-primary) 22%, var(--tour-popover-bg));
+  --tour-popover-text: light-dark(
+    var(--color-neutral-900),
+    var(--color-neutral-50)
+  );
+  --tour-popover-muted: light-dark(
+    var(--color-neutral-600),
+    var(--color-neutral-300)
+  );
+  --tour-popover-border: color-mix(
+    in oklab,
+    var(--ui-primary) 18%,
+    transparent
+  );
+  --tour-button-bg: color-mix(
+    in oklab,
+    var(--ui-primary) 14%,
+    var(--tour-popover-bg)
+  );
+  --tour-button-bg-hover: color-mix(
+    in oklab,
+    var(--ui-primary) 22%,
+    var(--tour-popover-bg)
+  );
 
   color: var(--tour-popover-text);
   background: var(--tour-popover-bg);
@@ -43,9 +61,9 @@
   font-family: var(--font-sans);
 }
 
-.driver-popover.biologic-tour .driver-popover-arrow {
-  border-color: var(--tour-popover-bg);
-}
+/* .driver-popover.biologic-tour .driver-popover-arrow {
+  display: none !important;
+} */
 
 .driver-popover.biologic-tour .driver-popover-title {
   color: var(--tour-popover-text);
@@ -60,6 +78,9 @@
 
 .driver-popover.biologic-tour .driver-popover-close-btn {
   color: var(--tour-popover-muted);
+
+  padding: 0.5rem;
+  font-size: 1.5rem;
 }
 
 .driver-popover.biologic-tour .driver-popover-close-btn:hover,
@@ -72,7 +93,7 @@
   background: var(--tour-button-bg);
   color: var(--tour-popover-text);
   border: 1px solid var(--tour-popover-border);
-  border-radius: 999px;
+  border-radius: 0.75rem;
   padding: 0.45rem 0.8rem;
   font-size: 0.8rem;
   font-weight: 600;
