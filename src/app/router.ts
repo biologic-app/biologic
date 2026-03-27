@@ -17,6 +17,7 @@ import LoginPage from '@/modules/auth/pages/LoginPage.vue'
 import ForbiddenPage from '@/modules/auth/pages/ForbiddenPage.vue'
 import UsersPage from '@/modules/admin/pages/UsersPage.vue'
 import UserTypesPage from '@/modules/user-types/pages/UserTypesPage.vue'
+import { useAuthStore } from '@/modules/auth'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -60,19 +61,19 @@ export const router = createRouter({
           path: 'dashboard',
           name: 'dashboard',
           component: DashboardPage,
-          meta: { requiresAuth: true, resource: 'dashboard', action: 'view' }
+          meta: { public: true }
         },
         {
           path: 'customers',
           name: 'customers',
           component: CustomersPage,
-          meta: { requiresAuth: true, resource: 'customers', action: 'view' }
+          meta: { public: true }
         },
         {
           path: 'inbox',
           name: 'inbox',
           component: InboxPage,
-          meta: { requiresAuth: true, resource: 'inbox', action: 'view' }
+          meta: { public: true }
         },
         {
           path: 'directions',
