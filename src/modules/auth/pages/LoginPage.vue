@@ -42,8 +42,8 @@ const schema = computed(() =>
       .min(8)
       .max(128)
       .regex(/\d/, { message: "digit" })
-      .regex(/[a-z]/, { message: "lowercase" })
-      .regex(/[A-Z]/, { message: "uppercase" }),
+      .regex(/[a-z]/, { message: "lowercase" }),
+    // .regex(/[A-Z]/, { message: "uppercase" }),
     remember: z.boolean().default(false),
   }),
 );
@@ -205,7 +205,7 @@ async function onSubmit(event: FormSubmitEvent<LoginSchema>) {
                       type="button"
                       color="neutral"
                       variant="link"
-                      size="sm"
+                      size="md"
                       :icon="showPassword ? 'i-lucide-eye-off' : 'i-lucide-eye'"
                       @click="showPassword = !showPassword"
                     />
@@ -213,7 +213,7 @@ async function onSubmit(event: FormSubmitEvent<LoginSchema>) {
                 </UInput>
               </div>
             </UFormField>
-            <div class="rounded-2xl border border-default/70 bg-muted/40 p-4">
+            <div class="rounded-2xl border border-default/70 bg-muted/40 p-3">
               <div class="space-y-3">
                 <UProgress
                   :color="passwordColor"
@@ -231,10 +231,7 @@ async function onSubmit(event: FormSubmitEvent<LoginSchema>) {
                   {{ t("login.passwordRequirementsTitle") }}
                 </p>
 
-                <ul
-                  class="space-y-1.5"
-                  :aria-label="t('login.passwordRequirementsAriaLabel')"
-                >
+                <ul class="space-y-1">
                   <li
                     v-for="(requirement, index) in passwordStrength"
                     :key="index"
