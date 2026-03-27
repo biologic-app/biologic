@@ -1,35 +1,37 @@
 <script setup lang="ts">
-import { computed, ref, reactive } from 'vue'
-import * as z from 'zod'
-import type { FormSubmitEvent } from '@nuxt/ui'
-import { useI18n } from 'vue-i18n'
+import { computed, ref, reactive } from "vue";
+import * as z from "zod";
+import type { FormSubmitEvent } from "@nuxt/ui";
+import { useI18n } from "vue-i18n";
 
-const { t } = useI18n()
+const { t } = useI18n();
 
 type Schema = {
-  name: string
-  email: string
-}
+  name: string;
+  email: string;
+};
 
-const schema = computed(() => z.object({
-  name: z.string().min(2, t('validation.tooShort')),
-  email: z.string().email(t('validation.invalidEmail'))
-}))
-const open = ref(false)
+const schema = computed(() =>
+  z.object({
+    name: z.string().min(2, t("validation.tooShort")),
+    email: z.string().email(t("validation.invalidEmail")),
+  }),
+);
+const open = ref(false);
 
 const state = reactive<Partial<Schema>>({
-  name: '',
-  email: ''
-})
+  name: "",
+  email: "",
+});
 
-const toast = useToast()
+const toast = useToast();
 async function onSubmit(event: FormSubmitEvent<Schema>) {
   toast.add({
-    title: t('common.success'),
-    description: t('validation.customerAdded', { name: event.data.name }),
-    color: 'success'
-  })
-  open.value = false
+    title: t("common.success"),
+    description: t("validation.customerAdded", { name: event.data.name }),
+    color: "success",
+  });
+  open.value = false;
 }
 </script>
 
@@ -39,8 +41,7 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
     :title="t('customers.create.title')"
     :description="t('customers.create.description')"
   >
-    <UButton :label="t('customers.create.button')" icon="i-lucide-plus" />
-
+    <slot></slot>
     <template #body>
       <UForm
         :schema="schema"
@@ -48,10 +49,18 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
         class="space-y-4"
         @submit="onSubmit"
       >
-        <UFormField :label="t('customers.create.name')" placeholder="John Doe" name="name">
+        <UFormField
+          :label="t('customers.create.name')"
+          placeholder="John Doe"
+          name="name"
+        >
           <UInput v-model="state.name" class="w-full" />
         </UFormField>
-        <UFormField :label="t('customers.create.email')" placeholder="john.doe@example.com" name="email">
+        <UFormField
+          :label="t('customers.create.email')"
+          placeholder="john.doe@example.com"
+          name="email"
+        >
           <UInput v-model="state.email" class="w-full" />
         </UFormField>
         <div class="flex justify-end gap-2">
