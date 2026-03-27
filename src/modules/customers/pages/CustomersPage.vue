@@ -122,7 +122,7 @@ const columns = computed<TableColumn<User>[]>(() => [
     header: ({ table: currentTable }) =>
       h(UCheckbox, {
         ui: {
-          base: "rounded-sm ring ring-inset ring-inverted/10 overflow-hidden focus-visible:outline-2 focus-visible:outline-offset-2",
+          base: "rounded-sm ring ring-inset ring-inverted/40 overflow-hidden focus-visible:outline-2 focus-visible:outline-offset-2",
         },
         modelValue: currentTable.getIsSomePageRowsSelected()
           ? "indeterminate"
@@ -134,7 +134,7 @@ const columns = computed<TableColumn<User>[]>(() => [
     cell: ({ row }) =>
       h(UCheckbox, {
         ui: {
-          base: "rounded-sm ring ring-inset ring-inverted/10 overflow-hidden focus-visible:outline-2 focus-visible:outline-offset-2",
+          base: "rounded-sm ring ring-inset ring-inverted/40 overflow-hidden focus-visible:outline-2 focus-visible:outline-offset-2",
         },
 
         modelValue: row.getIsSelected(),
