@@ -9,66 +9,31 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
-const {
-  onboardingTour,
-  whatsNewTours,
-  hasUnseenTours,
-  startAutostart,
-  startLatestWhatsNew,
-  startOnboarding,
-  startTour,
-} = useTours(props.scope);
+const { tour, hasUnseenTour, startAutostart, startBaseTour, startWhatsNew } =
+  useTours(props.scope);
 
 const items = computed<DropdownMenuItem[][]>(() => {
-  const primaryItems: DropdownMenuItem[] = [];
-  const whatsNewItems: DropdownMenuItem[] = [];
   const labelGroup: DropdownMenuItem[] = [
     {
       type: "label",
       label: t("tour.menu.title"),
     },
   ];
-
-  if (onboardingTour.value) {
-    primaryItems.push({
+  const actionItems: DropdownMenuItem[] = [
+    {
       label: t("tour.menu.startBase"),
       icon: "i-lucide-play-circle",
-      onSelect: () => startOnboarding(),
-    });
-  }
-
-  whatsNewTours.value.forEach((tour) => {
-    whatsNewItems.push({
-      label: tour.menuLabelText,
-      icon: tour.seen ? "i-lucide-sparkles" : "i-lucide-badge-plus",
-      onSelect: () => startTour(tour.id),
-    });
-  });
-
-  if (whatsNewTours.value.length) {
-    primaryItems.push({
-      label: hasUnseenTours.value
-        ? t("tour.menu.openWhatsNew")
-        : t("tour.menu.replayWhatsNew"),
+      onSelect: () => startBaseTour(),
+    },
+    {
+      label: t("tour.menu.openWhatsNew"),
       icon: "i-lucide-sparkles",
-      onSelect: () => startLatestWhatsNew(),
-    });
-  }
+      onSelect: () => startWhatsNew(),
+    },
+  ];
 
-  return [
-    labelGroup,
-    primaryItems,
-    whatsNewItems.length
-      ? whatsNewItems
-      : [
-          {
-            label: t("tour.menu.noWhatsNew"),
-            icon: "i-lucide-check",
-            disabled: true,
-          },
-        ],
-  ].filter((group) => group.length);
-});
+  return tour.value ? [labelGroup, actionItems] : [labelGroup];
+})
 
 onMounted(() => {
   void startAutostart();
@@ -90,7 +55,7 @@ onMounted(() => {
           square
         />
         <span
-          v-if="hasUnseenTours"
+          v-if="hasUnseenTour"
           class="absolute right-2 top-2 size-2 rounded-full bg-[var(--ui-primary)] ring-2 ring-default"
         />
       </span>

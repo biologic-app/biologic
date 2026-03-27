@@ -105,12 +105,14 @@ const isMobile = breakpoints.smaller('lg')
       </template>
 
       <template #right>
-        <UTabs
-          v-model="selectedTab"
-          :items="tabItems"
-          :content="false"
-          size="xs"
-        />
+        <div data-tour="inbox-tabs">
+          <UTabs
+            v-model="selectedTab"
+            :items="tabItems"
+            :content="false"
+            size="xs"
+          />
+        </div>
       </template>
     </UDashboardNavbar>
 

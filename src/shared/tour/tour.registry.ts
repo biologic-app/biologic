@@ -3,25 +3,30 @@ import { i18n } from '@/shared/i18n'
 
 const t = (key: string) => i18n.global.t(key).toString()
 
+function getBaseIntro(role: string) {
+  return role === 'admin'
+    ? t('tour.dashboard.base.adminIntro')
+    : t('tour.dashboard.base.intro')
+}
+
 export const tourRegistry: TourDefinition[] = [
   {
     id: 'dashboard-base',
     scope: 'dashboard',
-    kind: 'onboarding',
     version: '1',
     priority: 200,
     autostart: true,
     completionScope: 'role',
-    title: () => t('tour.dashboard.base.title'),
-    menuLabel: () => t('tour.dashboard.base.menuLabel'),
-    steps: () => [
+    steps: (context) => [
       {
+        routeName: 'dashboard',
         popover: {
           title: t('tour.dashboard.base.title'),
-          description: t('tour.dashboard.base.intro')
+          description: getBaseIntro(context.user.role)
         }
       },
       {
+        routeName: 'dashboard',
         element: '[data-tour="dashboard-notifications"]',
         popover: {
           title: t('tour.dashboard.base.notificationsTitle'),
@@ -31,6 +36,7 @@ export const tourRegistry: TourDefinition[] = [
         }
       },
       {
+        routeName: 'dashboard',
         element: '[data-tour="dashboard-range"]',
         popover: {
           title: t('tour.dashboard.base.rangeTitle'),
@@ -40,6 +46,7 @@ export const tourRegistry: TourDefinition[] = [
         }
       },
       {
+        routeName: 'dashboard',
         element: '[data-tour="dashboard-period"]',
         popover: {
           title: t('tour.dashboard.base.periodTitle'),
@@ -49,6 +56,7 @@ export const tourRegistry: TourDefinition[] = [
         }
       },
       {
+        routeName: 'dashboard',
         element: '[data-tour="dashboard-quick-actions"]',
         popover: {
           title: t('tour.dashboard.base.quickActionsTitle'),
@@ -58,58 +66,33 @@ export const tourRegistry: TourDefinition[] = [
         }
       },
       {
+        routeName: 'customers',
+        element: '[data-tour="customers-create"]',
+        popover: {
+          title: t('tour.dashboard.base.customersTitle'),
+          description: t('tour.dashboard.base.customersDescription'),
+          side: 'bottom',
+          align: 'start'
+        }
+      },
+      {
+        routeName: 'inbox',
+        element: '[data-tour="inbox-tabs"]',
+        popover: {
+          title: t('tour.dashboard.base.inboxTitle'),
+          description: t('tour.dashboard.base.inboxDescription'),
+          side: 'bottom',
+          align: 'end'
+        }
+      },
+      {
+        routeName: 'dashboard',
         element: '[data-tour="dashboard-tour-menu"]',
         popover: {
           title: t('tour.dashboard.base.tourMenuTitle'),
           description: t('tour.dashboard.base.tourMenuDescription'),
           side: 'bottom',
           align: 'end'
-        }
-      }
-    ]
-  },
-  {
-    id: 'dashboard-whats-new-2026-03',
-    scope: 'dashboard',
-    kind: 'whats-new',
-    version: '2026.03',
-    priority: 100,
-    autostart: true,
-    completionScope: 'user',
-    title: () => t('tour.dashboard.whatsNew.title'),
-    menuLabel: () => t('tour.dashboard.whatsNew.menuLabel'),
-    steps: () => [
-      {
-        popover: {
-          title: t('tour.dashboard.whatsNew.title'),
-          description: t('tour.dashboard.whatsNew.intro')
-        }
-      },
-      {
-        element: '[data-tour="dashboard-tour-menu"]',
-        popover: {
-          title: t('tour.dashboard.whatsNew.menuTitle'),
-          description: t('tour.dashboard.whatsNew.menuDescription'),
-          side: 'bottom',
-          align: 'end'
-        }
-      },
-      {
-        element: '[data-tour="dashboard-stats"]',
-        popover: {
-          title: t('tour.dashboard.whatsNew.statsTitle'),
-          description: t('tour.dashboard.whatsNew.statsDescription'),
-          side: 'top',
-          align: 'center'
-        }
-      },
-      {
-        element: '[data-tour="dashboard-chart"]',
-        popover: {
-          title: t('tour.dashboard.whatsNew.chartTitle'),
-          description: t('tour.dashboard.whatsNew.chartDescription'),
-          side: 'top',
-          align: 'center'
         }
       }
     ]

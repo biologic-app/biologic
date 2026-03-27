@@ -179,16 +179,15 @@ export const messages = {
         title: "Туры",
         tooltip: "Интерактивный тур",
         startBase: "Пройти базовый тур",
-        openWhatsNew: "Посмотреть нововведения",
-        replayWhatsNew: "Повторить обзор нововведений",
-        noWhatsNew: "Новых туров пока нет",
+        openWhatsNew: "Что нового",
       },
       dashboard: {
         base: {
           title: "Добро пожаловать в dashboard",
-          menuLabel: "Базовый тур по dashboard",
           intro:
             "Это короткий обзор основных точек входа. Его можно повторно запускать из меню туров.",
+          adminIntro:
+            "Это короткий обзор основных точек входа для администратора. Его можно повторно запускать из меню туров.",
           notificationsTitle: "Уведомления",
           notificationsDescription:
             "Здесь открываются системные уведомления и быстрые сигналы по работе лаборатории.",
@@ -201,24 +200,15 @@ export const messages = {
           quickActionsTitle: "Быстрые действия",
           quickActionsDescription:
             "Используйте это меню для перехода к частым сценариям без возврата в боковую навигацию.",
+          customersTitle: "Карточка пациентов",
+          customersDescription:
+            "Следующий шаг тура открывает список пациентов. Здесь можно быстро перейти к созданию новой записи.",
+          inboxTitle: "Входящие сообщения",
+          inboxDescription:
+            "После пациентов тур переходит во входящие, где доступны вкладки и работа с системными уведомлениями.",
           tourMenuTitle: "Меню туров",
           tourMenuDescription:
-            "Здесь можно заново пройти базовый тур и открыть обзор новых возможностей после релизов.",
-        },
-        whatsNew: {
-          title: "Что нового в dashboard",
-          menuLabel: "Нововведения 2026.03",
-          intro:
-            "В интерфейсе появился отдельный центр туров и обновлённый обзор ключевых блоков dashboard.",
-          menuTitle: "Центр туров",
-          menuDescription:
-            "Компас показывает непросмотренные туры и позволяет вручную запускать базовый сценарий или нововведения.",
-          statsTitle: "Карточки показателей",
-          statsDescription:
-            "Верхние KPI помогают быстро оценить загрузку, критические результаты и среднее время обработки.",
-          chartTitle: "Основной график",
-          chartDescription:
-            "График теперь удобно связывать с диапазоном и шагом агрегации, чтобы отслеживать динамику без перехода в отчёты.",
+            "Здесь можно заново пройти базовый тур. Пункт «Что нового» сейчас запускает тот же сценарий.",
         },
       },
     },
@@ -552,16 +542,15 @@ export const messages = {
         title: "Tours",
         tooltip: "Interactive tour",
         startBase: "Start base tour",
-        openWhatsNew: "See what's new",
-        replayWhatsNew: "Replay what's new",
-        noWhatsNew: "No new tours yet",
+        openWhatsNew: "What's new",
       },
       dashboard: {
         base: {
           title: "Welcome to the dashboard",
-          menuLabel: "Base dashboard tour",
           intro:
             "This is a short overview of the main entry points. You can replay it any time from the tours menu.",
+          adminIntro:
+            "This is a short overview of the main entry points for administrators. You can replay it any time from the tours menu.",
           notificationsTitle: "Notifications",
           notificationsDescription:
             "Open system alerts and quick signals for ongoing laboratory work from here.",
@@ -574,24 +563,15 @@ export const messages = {
           quickActionsTitle: "Quick actions",
           quickActionsDescription:
             "Use this menu to jump into frequent workflows without going back to the sidebar.",
+          customersTitle: "Patients workspace",
+          customersDescription:
+            "The next tour step opens the patients list. From there you can quickly jump into creating a new record.",
+          inboxTitle: "Inbox",
+          inboxDescription:
+            "After patients, the tour moves to inbox where tabs and system messages are available.",
           tourMenuTitle: "Tours menu",
           tourMenuDescription:
-            "Replay the base tour here or open walkthroughs for new functionality after releases.",
-        },
-        whatsNew: {
-          title: "What's new in the dashboard",
-          menuLabel: "Updates 2026.03",
-          intro:
-            "The interface now includes a dedicated tours entry point and an updated walkthrough for key dashboard areas.",
-          menuTitle: "Tours hub",
-          menuDescription:
-            "The compass shows unseen tours and lets you manually start the base tour or update walkthroughs.",
-          statsTitle: "KPI cards",
-          statsDescription:
-            "The top KPI cards help you assess workload, critical results, and average turnaround time at a glance.",
-          chartTitle: "Main chart",
-          chartDescription:
-            "The chart now pairs well with range and aggregation controls so you can track trends without leaving the dashboard.",
+            "Replay the base tour here. The “What's new” item currently launches the same walkthrough.",
         },
       },
     },

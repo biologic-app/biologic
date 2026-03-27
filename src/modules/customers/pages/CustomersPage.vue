@@ -121,6 +121,9 @@ const columns = computed<TableColumn<User>[]>(() => [
     enableHiding: false,
     header: ({ table: currentTable }) =>
       h(UCheckbox, {
+        ui: {
+          base: "rounded-sm ring ring-inset ring-inverted/10 overflow-hidden focus-visible:outline-2 focus-visible:outline-offset-2",
+        },
         modelValue: currentTable.getIsSomePageRowsSelected()
           ? "indeterminate"
           : currentTable.getIsAllPageRowsSelected(),
@@ -130,6 +133,10 @@ const columns = computed<TableColumn<User>[]>(() => [
       }),
     cell: ({ row }) =>
       h(UCheckbox, {
+        ui: {
+          base: "rounded-sm ring ring-inset ring-inverted/10 overflow-hidden focus-visible:outline-2 focus-visible:outline-offset-2",
+        },
+
         modelValue: row.getIsSelected(),
         "onUpdate:modelValue": (value: boolean | "indeterminate") =>
           row.toggleSelected(!!value),
@@ -215,12 +222,15 @@ const tableMeta: TableMeta<User> = {
     tr: (row: Row<User>) => {
       const statusClass =
         {
-          subscribed: "bg-success/15 dark:bg-success/15 hover:bg-success/10",
-          unsubscribed: "bg-error/15 dark:bg-error/15 hover:bg-error/10",
-          bounced: "bg-warning/15 dark:bg-warning/15 hover:bg-warning/10",
+          subscribed:
+            "hover:bg-success/10 bg-gradient-to-r from-success/40 to-transparent to-[30%]",
+          unsubscribed:
+            "hover:bg-error/10 bg-gradient-to-r from-error/40 to-transparent to-[30%]",
+          bounced:
+            "hover:bg-warning/10 bg-gradient-to-r from-warning/40 to-transparent to-[30%]",
         }[row.original.status] ?? "";
 
-      return row.getIsSelected() ? `${statusClass}` : statusClass;
+      return row.getIsSelected() ? "" : statusClass;
     },
   },
 };
@@ -265,6 +275,7 @@ const pagination = ref({ pageIndex: 0, pageSize: 500 });
             <CustomersAddModal>
               <UButton
                 :label="t('customers.create.button')"
+                data-tour="customers-create"
                 color="primary"
                 icon="i-lucide-plus"
               />
@@ -415,7 +426,10 @@ const pagination = ref({ pageIndex: 0, pageSize: 500 });
         :meta="tableMeta"
         :loading="isFetching"
         sticky
-        size="sm"
+        :ui="{
+          th: 'px-6 py-1.5 text-sm text-highlighted text-left font-semibold',
+          td: 'px-6 py-1.5 text-sm text-muted whitespace-nowrap',
+        }"
       />
       <div class="flex justify-end border-t border-default py-4 pr-4">
         <UButton

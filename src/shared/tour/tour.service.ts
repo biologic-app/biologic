@@ -1,8 +1,9 @@
 import { driver } from 'driver.js'
-import type { Config, DriveStep, Driver } from 'driver.js'
+import type { Config, Driver } from 'driver.js'
+import { router } from '@/app/router'
 import { tourRegistry } from '@/shared/tour/tour.registry'
 import { hasSeenTour, markTourSeen } from '@/shared/tour/tour.storage'
-import type { ResolvedTour, TourContext, TourDefinition, TourScope } from '@/shared/tour/types'
+import type { AppTourStep, ResolvedTour, TourContext, TourDefinition, TourScope } from '@/shared/tour/types'
 import { i18n } from '@/shared/i18n'
 
 const attemptedAutostarts = new Set<string>()
@@ -34,8 +35,20 @@ function isTourAvailable(tour: TourDefinition, context: TourContext, scope: Tour
   return tour.isAvailable ? tour.isAvailable(context) : true
 }
 
-function resolveElement(step: DriveStep) {
+function isCurrentRoute(step: AppTourStep) {
+  if (!step.routeName) {
+    return true
+  }
+
+  return router.currentRoute.value.name === step.routeName
+}
+
+function resolveElement(step: AppTourStep) {
   if (!step.element || typeof document === 'undefined') {
+    return true
+  }
+
+  if (!isCurrentRoute(step)) {
     return true
   }
 
@@ -50,7 +63,7 @@ function resolveElement(step: DriveStep) {
   return Boolean(step.element)
 }
 
-function resolveSteps(steps: DriveStep[]) {
+function resolveSteps(steps: AppTourStep[]) {
   return steps.filter((step) => resolveElement(step))
 }
 
@@ -64,6 +77,72 @@ function waitForFrame() {
       window.requestAnimationFrame(() => resolve())
     })
   })
+}
+
+async function ensureRoute(step: AppTourStep | undefined) {
+  if (!step?.routeName || router.currentRoute.value.name === step.routeName) {
+    return
+  }
+
+  await router.push({ name: step.routeName })
+  await waitForFrame()
+  await waitForFrame()
+}
+
+async function waitForStepElement(step: AppTourStep | undefined, attempts = 40) {
+  if (!step?.element || typeof document === 'undefined') {
+    return
+  }
+
+  for (let index = 0; index < attempts; index += 1) {
+    if (typeof step.element === 'string' && document.querySelector(step.element)) {
+      return
+    }
+
+    if (typeof step.element === 'function' && step.element()) {
+      return
+    }
+
+    if (typeof step.element !== 'string' && typeof step.element !== 'function' && step.element) {
+      return
+    }
+
+    await waitForFrame()
+  }
+}
+
+function getNavigationHandler(direction: 'next' | 'previous', steps: AppTourStep[], index: number, instance: Driver) {
+  return async () => {
+    const targetIndex = direction === 'next' ? index + 1 : index - 1
+    const targetStep = steps[targetIndex]
+    if (!targetStep) {
+      if (direction === 'next') {
+        instance.destroy()
+      }
+      return
+    }
+
+    await ensureRoute(targetStep)
+    await waitForStepElement(targetStep)
+
+    if (direction === 'next') {
+      instance.moveNext()
+      return
+    }
+
+    instance.movePrevious()
+  }
+}
+
+function prepareSteps(steps: AppTourStep[], instance: Driver): AppTourStep[] {
+  return steps.map((step, index) => ({
+    ...step,
+    popover: {
+      ...step.popover,
+      onNextClick: getNavigationHandler('next', steps, index, instance),
+      onPrevClick: getNavigationHandler('previous', steps, index, instance)
+    }
+  }))
 }
 
 function createDriverConfig(): Config {
@@ -92,18 +171,24 @@ export function getResolvedTours(scope: TourScope, context: TourContext): Resolv
       return {
         ...tour,
         key,
-        seen: hasSeenTour(context.user.id, key),
-        titleText: tour.title(context),
-        menuLabelText: tour.menuLabel(context)
+        seen: hasSeenTour(context.user.id, key)
       }
     })
     .sort((left, right) => right.priority - left.priority)
 }
 
-export async function startResolvedTour(tour: ResolvedTour, context: TourContext) {
-  await waitForFrame()
+export function getPrimaryTour(scope: TourScope, context: TourContext) {
+  return getResolvedTours(scope, context)[0] || null
+}
 
-  const steps = resolveSteps(tour.steps(context))
+export async function startResolvedTour(tour: ResolvedTour, context: TourContext) {
+  const baseSteps = resolveSteps(tour.steps(context))
+  const firstStep = baseSteps[0]
+  await ensureRoute(firstStep)
+  await waitForStepElement(firstStep)
+
+  const instance = driver(createDriverConfig())
+  const steps = prepareSteps(baseSteps, instance)
   if (!steps.length) {
     return false
   }
@@ -113,7 +198,6 @@ export async function startResolvedTour(tour: ResolvedTour, context: TourContext
     activeRun.driver.destroy()
   }
 
-  const instance = driver(createDriverConfig())
   const run = {
     driver: instance,
     persistOnDestroy: true
@@ -130,7 +214,6 @@ export async function startResolvedTour(tour: ResolvedTour, context: TourContext
           key: tour.key,
           tourId: tour.id,
           scope: tour.scope,
-          kind: tour.kind,
           version: tour.version,
           roleKey: tour.completionScope === 'role' ? context.user.role : null,
           seenAt: new Date().toISOString()
@@ -156,9 +239,22 @@ export async function startTourById(scope: TourScope, tourId: string, context: T
   return startResolvedTour(tour, context)
 }
 
-export async function startAutostartTour(scope: TourScope, context: TourContext) {
-  const tour = getResolvedTours(scope, context).find((item) => item.autostart && !item.seen)
+export async function startPrimaryTour(scope: TourScope, context: TourContext) {
+  const tour = getPrimaryTour(scope, context)
   if (!tour) {
+    return false
+  }
+
+  return startResolvedTour(tour, context)
+}
+
+export async function startAutostartTour(scope: TourScope, context: TourContext) {
+  const tour = getPrimaryTour(scope, context)
+  if (!tour) {
+    return false
+  }
+
+  if (!tour.autostart || tour.seen) {
     return false
   }
 

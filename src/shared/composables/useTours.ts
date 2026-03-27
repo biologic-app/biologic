@@ -1,6 +1,6 @@
 import { computed } from 'vue'
 import { useAuthStore } from '@/modules/auth'
-import { getResolvedTours, startAutostartTour, startTourById } from '@/shared/tour/tour.service'
+import { getPrimaryTour, startAutostartTour, startPrimaryTour } from '@/shared/tour/tour.service'
 import type { TourContext, TourScope } from '@/shared/tour/types'
 
 export function useTours(scope: TourScope) {
@@ -18,42 +18,26 @@ export function useTours(scope: TourScope) {
     }
   })
 
-  const tours = computed(() => {
+  const tour = computed(() => {
     if (!context.value) {
-      return []
+      return null
     }
 
-    return getResolvedTours(scope, context.value)
+    return getPrimaryTour(scope, context.value)
   })
 
-  const onboardingTour = computed(() => tours.value.find((tour) => tour.kind === 'onboarding') || null)
-  const whatsNewTours = computed(() => tours.value.filter((tour) => tour.kind === 'whats-new'))
-  const unseenTours = computed(() => tours.value.filter((tour) => !tour.seen))
-  const hasUnseenTours = computed(() => unseenTours.value.length > 0)
+  const hasUnseenTour = computed(() => Boolean(tour.value && !tour.value.seen))
 
-  async function startTour(tourId: string) {
+  async function startBaseTour() {
     if (!context.value) {
       return false
     }
 
-    return startTourById(scope, tourId, context.value)
+    return startPrimaryTour(scope, context.value)
   }
 
-  async function startOnboarding() {
-    if (!onboardingTour.value) {
-      return false
-    }
-
-    return startTour(onboardingTour.value.id)
-  }
-
-  async function startLatestWhatsNew() {
-    const target = whatsNewTours.value.find((tour) => !tour.seen) || whatsNewTours.value[0]
-    if (!target) {
-      return false
-    }
-
-    return startTour(target.id)
+  async function startWhatsNew() {
+    return startBaseTour()
   }
 
   async function startAutostart() {
@@ -65,14 +49,10 @@ export function useTours(scope: TourScope) {
   }
 
   return {
-    tours,
-    onboardingTour,
-    whatsNewTours,
-    unseenTours,
-    hasUnseenTours,
-    startTour,
-    startOnboarding,
-    startLatestWhatsNew,
+    tour,
+    hasUnseenTour,
+    startBaseTour,
+    startWhatsNew,
     startAutostart
   }
 }
