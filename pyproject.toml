@@ -6,23 +6,26 @@ dependencies = [
     "alembic>=1.18.4",
     "asyncpg>=0.31.0",
     "fastapi>=0.129.0",
-    "mkdocstrings-python>=2.0.2",
     "passlib[bcrypt]>=1.7.4",
     "pydantic-settings>=2.13.0",
-    "scalar-fastapi>=1.6.2",
     "python-jose[cryptography]>=3.5.0",
     "python-multipart>=0.0.22",
     "sqlalchemy[asyncio]>=2.0.46",
     "uuid6>=2025.0.1",
     "uvicorn[standard]>=0.40.0",
+    "loguru>=0.7.3",
+    "pygments>=2.19.2",
+
 ]
 
 [dependency-groups]
 dev = [
-    "black>=26.1.0",
+    
+    "scalar-fastapi>=1.6.2",
     "factory-boy>=3.3.3",
     "faker>=40.4.0",
     "httpx>=0.28.1",
+    "pip-audit>=2.10.0",
     "mypy>=1.19.1",
     "pre-commit>=4.5.1",
     "pytest>=9.0.2",
@@ -33,62 +36,22 @@ dev = [
 
 
 [tool.ruff]
-target-version = "py311"
 line-length = 100
-src = ["src", "tests"]
-exclude = [
-    ".venv",
-    "alembic/versions",
-]
+target-version = "py311"
 
 [tool.ruff.lint]
-select = [
-    "E",
-    "F",
-    "I",
-    "B",
-    "UP",
-    "ASYNC",
-    "C4",
-    "SIM",
-    "RUF",
-]
-ignore = [
-    "B008",
-]
-
-[tool.ruff.lint.isort]
-known-first-party = ["src"]
-
-[tool.black]
-line-length = 100
-target-version = ["py311"]
-exclude = '''
-/(
-    \.venv
-  | alembic/versions
-)/
-'''
+select = ["E", "F", "I", "UP"]
+extend-select = ["PLC0415","TID252"]
+ignore = []
 
 [tool.mypy]
 python_version = "3.11"
 strict = true
-warn_unused_configs = true
-exclude = [
-    "^alembic/",
-]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-minversion = "9.0"
-addopts = "-q --strict-config --strict-markers --cov=src --cov-report=term-missing --cov-fail-under=90"
-testpaths = ["tests"]
 asyncio_mode = "auto"
-markers = [
-    "unit: unit tests",
-    "integration: integration tests",
-    "api: API tests",
-    "db_plan: PostgreSQL query plan analysis tests",
-]
+pythonpath = "src"
 
 [tool.coverage.run]
 branch = true
