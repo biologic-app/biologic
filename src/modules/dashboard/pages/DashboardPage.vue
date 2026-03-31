@@ -58,6 +58,8 @@ const period = ref<Period>("daily");
               </UChip>
             </UButton>
           </UTooltip>
+
+          <TourMenu scope="dashboard" />
           <UDropdownMenu :items="items">
             <UTooltip :text="t('dashboard.quickActions')">
               <UButton
@@ -69,7 +71,6 @@ const period = ref<Period>("daily");
               />
             </UTooltip>
           </UDropdownMenu>
-          <TourMenu scope="dashboard" />
         </template>
       </UDashboardNavbar>
 

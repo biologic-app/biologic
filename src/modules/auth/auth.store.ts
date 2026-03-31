@@ -1,71 +1,67 @@
-import { defineStore } from 'pinia'
-import * as authApi from './auth.api'
-import type { Permission } from '@/shared/types/permissions'
-import type { AuthUser } from '@/shared/types/auth'
+import { defineStore } from "pinia";
+import * as authApi from "./auth.api";
+import type { Permission } from "@/shared/types/permissions";
+import type { AuthUser } from "@/shared/types/auth";
+import { AuthState } from "./types";
 
-interface AuthState {
-  user: AuthUser | null
-  permissions: Permission[]
-  loading: boolean
-  initialized: boolean
-}
-
-export const useAuthStore = defineStore('auth', {
+export const useAuthStore = defineStore("auth", {
   state: (): AuthState => ({
     user: null,
     permissions: [],
     loading: false,
-    initialized: false
+    initialized: false,
   }),
   getters: {
-    isAuthenticated: (state) => !!state.user
+    isAuthenticated: (state) => !!state.user,
   },
   actions: {
     setSession(user: AuthUser, permissions: Permission[]) {
-      this.user = user
-      this.permissions = permissions
-      this.initialized = true
+      this.user = user;
+      this.permissions = permissions;
+      this.initialized = true;
     },
     clearSession() {
-      this.user = null
-      this.permissions = []
-      this.loading = false
-      this.initialized = true
+      this.user = null;
+      this.permissions = [];
+      this.loading = false;
+      this.initialized = true;
     },
     async login(loginValue: string, password: string) {
-      this.loading = true
+      this.loading = true;
       try {
-        const response = await authApi.login(loginValue, password)
-        this.setSession(response.user, response.permissions)
+        const response = await authApi.login(loginValue, password);
+        this.setSession(response.user, response.permissions);
       } finally {
-        this.loading = false
+        this.loading = false;
       }
     },
     async logout() {
-      this.loading = true
+      this.loading = true;
       try {
-        await authApi.logout()
+        await authApi.logout();
       } finally {
-        this.clearSession()
-        this.loading = false
+        this.clearSession();
+        this.loading = false;
       }
     },
     async restoreSession() {
-      this.loading = true
+      this.loading = true;
       try {
-        const response = await authApi.me()
-        this.setSession(response.user, response.permissions)
+        const response = await authApi.me();
+        this.setSession(response.user, response.permissions);
       } catch (error: any) {
-        this.clearSession()
+        this.clearSession();
       } finally {
-        this.loading = false
+        this.loading = false;
       }
     },
     logoutLocal() {
-      this.clearSession()
+      this.clearSession();
     },
     can(resource: string, action: string) {
-      return this.permissions.some((perm) => perm.resource === resource && perm.action === action)
-    }
-  }
-})
+      return this.permissions.some(
+        (perm) => perm.resource === resource && perm.action === action,
+      );
+    },
+  },
+});

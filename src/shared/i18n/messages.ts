@@ -1,3 +1,5 @@
+import { tooltip } from "@unovis/ts/components/tooltip/style";
+
 export const messages = {
   ru: {
     app: {
@@ -41,19 +43,6 @@ export const messages = {
       usernamePlaceholder: "Введите логин",
       password: "Пароль",
       passwordPlaceholder: "Введите пароль",
-      passwordStrengthIdle: "Введите пароль",
-      passwordStrengthWeak: "Слабый пароль",
-      passwordStrengthMedium: "Средний пароль",
-      passwordStrengthStrong: "Надёжный пароль",
-      passwordRequirementsTitle: "Он должен содержать:",
-      passwordRequirementMet: "Требование выполнено",
-      passwordRequirementNotMet: "Требование не выполнено",
-      passwordRequirements: {
-        length: "Не менее 8 символов",
-        number: "Хотя бы 1 цифра",
-        lowercase: "Хотя бы 1 строчная буква",
-        uppercase: "Хотя бы 1 заглавная буква",
-      },
       showPassword: "Показать пароль",
       hidePassword: "Скрыть пароль",
       remember: "Запомнить меня",
@@ -83,6 +72,7 @@ export const messages = {
       home: "Главная",
       inbox: "Входящие",
       customers: "Пациенты",
+      directions: "Направления",
       requests: "Заявки",
       requestsAll: "Все заявки",
       requestsNew: "Новая заявка",
@@ -170,46 +160,37 @@ export const messages = {
       },
     },
     tour: {
-      actions: {
-        next: "Далее",
-        previous: "Назад",
-        done: "Готово",
-      },
-      menu: {
-        title: "Туры",
-        tooltip: "Интерактивный тур",
-        startBase: "Пройти базовый тур",
-        openWhatsNew: "Что нового",
-      },
-      dashboard: {
-        base: {
-          title: "Добро пожаловать в dashboard",
-          intro:
-            "Это короткий обзор основных точек входа. Его можно повторно запускать из меню туров.",
-          adminIntro:
-            "Это короткий обзор основных точек входа для администратора. Его можно повторно запускать из меню туров.",
-          notificationsTitle: "Уведомления",
-          notificationsDescription:
-            "Здесь открываются системные уведомления и быстрые сигналы по работе лаборатории.",
-          rangeTitle: "Диапазон дат",
-          rangeDescription:
-            "Фильтруйте статистику за нужный период и быстро переключайтесь между готовыми интервалами.",
-          periodTitle: "Гранулярность графика",
-          periodDescription:
-            "Переключайте агрегацию показателей по дням, неделям и месяцам.",
-          quickActionsTitle: "Быстрые действия",
-          quickActionsDescription:
-            "Используйте это меню для перехода к частым сценариям без возврата в боковую навигацию.",
-          customersTitle: "Карточка пациентов",
-          customersDescription:
-            "Следующий шаг тура открывает список пациентов. Здесь можно быстро перейти к созданию новой записи.",
-          inboxTitle: "Входящие сообщения",
-          inboxDescription:
-            "После пациентов тур переходит во входящие, где доступны вкладки и работа с системными уведомлениями.",
-          tourMenuTitle: "Меню туров",
-          tourMenuDescription:
-            "Здесь можно заново пройти базовый тур. Пункт «Что нового» сейчас запускает тот же сценарий.",
-        },
+      next: "Далее",
+      previous: "Назад",
+      done: "Готово",
+      tooltip: "Интерактивный тур",
+      base: {
+        title: "Добро пожаловать в dashboard",
+        intro:
+          "Это короткий обзор основных точек входа. Его можно повторно запускать из меню туров.",
+        adminIntro:
+          "Это короткий обзор основных точек входа для администратора. Его можно повторно запускать из меню туров.",
+        notificationsTitle: "Уведомления",
+        notificationsDescription:
+          "Здесь открываются системные уведомления и быстрые сигналы по работе лаборатории.",
+        rangeTitle: "Диапазон дат",
+        rangeDescription:
+          "Фильтруйте статистику за нужный период и быстро переключайтесь между готовыми интервалами.",
+        periodTitle: "Гранулярность графика",
+        periodDescription:
+          "Переключайте агрегацию показателей по дням, неделям и месяцам.",
+        quickActionsTitle: "Быстрые действия",
+        quickActionsDescription:
+          "Используйте это меню для перехода к частым сценариям без возврата в боковую навигацию.",
+        customersTitle: "Карточка пациентов",
+        customersDescription:
+          "Следующий шаг тура открывает список пациентов. Здесь можно быстро перейти к созданию новой записи.",
+        inboxTitle: "Входящие сообщения",
+        inboxDescription:
+          "После пациентов тур переходит во входящие, где доступны вкладки и работа с системными уведомлениями.",
+        tourMenuTitle: "Меню туров",
+        tourMenuDescription:
+          "Здесь можно заново пройти базовый тур. Пункт «Что нового» сейчас запускает тот же сценарий.",
       },
     },
     inbox: {
