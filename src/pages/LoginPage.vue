@@ -4,12 +4,11 @@ import { useRouter } from "vue-router";
 import * as z from "zod";
 import type { AuthFormField, FormSubmitEvent } from "@nuxt/ui";
 import { useI18n } from "vue-i18n";
-import LoginControls from "../components/LoginControls.vue";
-import LoginHero from "../components/LoginHero.vue";
+import { LoginControls, LoginHero, useAuth } from "@/modules/auth";
+import {} from "@/modules/auth";
 import type { ApiError } from "@/shared/types/api";
-import { useAuthStore } from "../auth.store";
 
-const auth = useAuthStore();
+const auth = useAuth();
 const router = useRouter();
 const toast = useToast();
 const { t } = useI18n();

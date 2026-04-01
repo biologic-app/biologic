@@ -4,7 +4,7 @@ import { sub } from "date-fns";
 import type { DropdownMenuItem } from "@nuxt/ui";
 import { useI18n } from "vue-i18n";
 import { useDashboardShell } from "@/shared/composables/useDashboardShell";
-import TourMenu from "@/shared/components/TourMenu.vue";
+import TourMenu from "@/shared/ui/TourMenu.vue";
 import HomeChart from "@/modules/dashboard/components/HomeChart.vue";
 import HomeDateRangePicker from "@/modules/dashboard/components/HomeDateRangePicker.vue";
 import HomePeriodSelect from "@/modules/dashboard/components/HomePeriodSelect.vue";

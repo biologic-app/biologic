@@ -432,12 +432,6 @@ const pagination = ref({ pageIndex: 0, pageSize: 500 });
         }"
       />
       <div class="flex justify-end border-t border-default py-4 pr-4">
-        <UButton
-          color="neutral"
-          variant="subtle"
-          icon="i-lucide-refresh-cw"
-          label="Обновить"
-        />
         <UPagination
           :page="(table?.tableApi?.getState().pagination.pageIndex || 0) + 1"
           :items-per-page="table?.tableApi?.getState().pagination.pageSize"

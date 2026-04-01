@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 
-const { t } = useI18n()
+const { t } = useI18n();
 
 const error = computed(() => ({
   statusCode: 404,
-  statusMessage: t('errors.notFound.title'),
-  message: t('errors.notFound.description')
-}))
+  statusMessage: t("errors.notFound.title"),
+  message: t("errors.notFound.description"),
+}));
 </script>
 
 <template>
@@ -18,8 +18,7 @@ const error = computed(() => ({
       size: 'xl',
       icon: 'i-lucide-arrow-left',
       class: 'rounded-full',
-      to: '/'
-
+      to: '/',
     }"
     :error="error"
     :ui="{

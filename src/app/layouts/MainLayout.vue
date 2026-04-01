@@ -3,14 +3,14 @@ import { computed, ref } from "vue";
 import { useStorage } from "@vueuse/core";
 import type { NavigationMenuItem } from "@nuxt/ui";
 import { useI18n } from "vue-i18n";
-import NotificationsSlideover from "@/shared/components/NotificationsSlideover.vue";
-import UserMenu from "@/shared/components/UserMenu.vue";
-import { useAuthStore } from "@/modules/auth";
+import NotificationsSlideover from "@/shared/ui/NotificationsSlideover.vue";
+import UserMenu from "@/shared/ui/UserMenu.vue";
+import { useAuth } from "@/modules/auth";
 import { useRouter } from "vue-router";
 
 const toast = useToast();
 const { t } = useI18n();
-const auth = useAuthStore();
+const auth = useAuth();
 const router = useRouter();
 
 const open = ref(false);
