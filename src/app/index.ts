@@ -18,8 +18,5 @@ setApiHooks({
   onUnauthorized: () => {
     const auth = useAuth();
     auth.logoutLocal();
-    if (router.currentRoute.value.name !== "login") {
-      router.push({ name: "login" });
-    }
   },
 });

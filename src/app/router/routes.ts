@@ -1,4 +1,3 @@
-import { crudModules } from "@/shared/config/crud-modules";
 import { RouteRecordRaw } from "vue-router";
 
 export const routes: RouteRecordRaw[] = [
@@ -38,9 +37,8 @@ export const routes: RouteRecordRaw[] = [
       {
         name: "directions",
         path: "/directions",
-        props: { config: crudModules.directions },
-        meta: { requiresAuth: true, resource: "directions", action: "view" },
-        component: () => import("@/pages/CrudModulePage.vue"),
+        meta: { requiresAuth: false },
+        component: () => import("@/pages/DirectionsPage.vue"),
       },
       {
         path: "/customers",
@@ -53,6 +51,45 @@ export const routes: RouteRecordRaw[] = [
         name: "inbox",
         meta: { requiresAuth: false },
         component: () => import("@/pages/InboxPage.vue"),
+      },
+      {
+        path: "/research",
+        name: "research",
+        meta: { requiresAuth: false },
+        component: () => import("@/pages/ResearchPage.vue"),
+      },
+      {
+        path: "/workflows",
+        name: "workflows",
+        meta: { requiresAuth: false },
+        component: () => import("@/pages/UserFlowsPage.vue"),
+      },
+      {
+        path: "/settings",
+        component: () => import("@/modules/settings/pages/SettingsLayoutPage.vue"),
+        meta: { requiresAuth: false },
+        children: [
+          {
+            path: "",
+            name: "settings",
+            component: () => import("@/modules/settings/pages/SettingsIndexPage.vue"),
+          },
+          {
+            path: "members",
+            name: "settings-members",
+            component: () => import("@/modules/settings/pages/SettingsMembersPage.vue"),
+          },
+          {
+            path: "notifications",
+            name: "settings-notifications",
+            component: () => import("@/modules/settings/pages/SettingsNotificationsPage.vue"),
+          },
+          {
+            path: "security",
+            name: "settings-security",
+            component: () => import("@/modules/settings/pages/SettingsSecurityPage.vue"),
+          },
+        ],
       },
     ],
   },

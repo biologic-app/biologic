@@ -1,17 +1,22 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useStorage } from "@vueuse/core";
-import type { NavigationMenuItem } from "@nuxt/ui";
+import type {
+  CommandPaletteGroup,
+  CommandPaletteItem,
+  NavigationMenuItem,
+} from "@nuxt/ui";
 import { useI18n } from "vue-i18n";
 import NotificationsSlideover from "@/shared/ui/NotificationsSlideover.vue";
+import RoleSwitcher from "@/modules/workflows/components/RoleSwitcher.vue";
 import UserMenu from "@/shared/ui/UserMenu.vue";
 import { useAuth } from "@/modules/auth";
-import { useRouter } from "vue-router";
+import { useWorkflowRole } from "@/modules/workflows/useWorkflowRole";
 
 const toast = useToast();
 const { t } = useI18n();
 const auth = useAuth();
-const router = useRouter();
+const { selectedRole } = useWorkflowRole();
 
 const open = ref(false);
 const unreadNotifications = ref(4);
@@ -39,6 +44,22 @@ const links = computed<NavigationMenuItem[][]>(() => [
       label: t("nav.customers"),
       icon: "i-lucide-users",
       to: { name: "customers" },
+      onSelect: () => {
+        open.value = false;
+      },
+    },
+    {
+      label: t("nav.research"),
+      icon: "i-lucide-flask-conical",
+      to: { name: "research" },
+      onSelect: () => {
+        open.value = false;
+      },
+    },
+    {
+      label: t("nav.workflows"),
+      icon: "i-lucide-git-branch",
+      to: { name: "workflows" },
       onSelect: () => {
         open.value = false;
       },
@@ -103,7 +124,6 @@ const links = computed<NavigationMenuItem[][]>(() => [
       icon: "i-lucide-log-out",
       onSelect: async () => {
         await auth.logout();
-        await router.push({ name: "login" });
         toast.add({
           title: t("userMenu.logoutTitle"),
           description: t("userMenu.logoutDescription"),
@@ -114,30 +134,25 @@ const links = computed<NavigationMenuItem[][]>(() => [
   ],
 ]);
 
-const groups = computed(() => [
+const groups = computed<CommandPaletteGroup<CommandPaletteItem>[]>(() => [
   {
     id: "links",
     label: t("layout.goTo"),
-    items: links.value.flat() as undefined[],
+    items: links.value.flat() as CommandPaletteItem[],
   },
   {
     id: "quick-actions",
     label: t("layout.quickActions"),
     items: [
+      ...selectedRole.value.actions.map((action) => ({
+        label: action.label,
+        icon: action.icon,
+        to: action.route,
+      })),
       {
-        label: t("layout.createOrder"),
-        icon: "i-lucide-plus",
-        to: "/orders/new",
-      },
-      {
-        label: t("layout.importData"),
-        icon: "i-lucide-plus",
-        to: "/import",
-      },
-      {
-        label: t("layout.exportData"),
-        icon: "i-lucide-plus",
-        to: "/export",
+        label: "Потоки ролей",
+        icon: "i-lucide-git-branch",
+        to: "/workflows",
       },
     ],
   },
@@ -189,6 +204,8 @@ if (cookie.value !== "accepted") {
           :collapsed="collapsed"
           class="bg-transparent ring-default"
         />
+
+        <RoleSwitcher :collapsed="collapsed" />
 
         <UNavigationMenu
           :collapsed="collapsed"

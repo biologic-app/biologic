@@ -5,7 +5,6 @@ import { useColorMode } from "@vueuse/core";
 import { useI18n } from "vue-i18n";
 import { useLocale } from "@/shared/composables/useLocale";
 import { useAuth } from "@/modules/auth";
-import { useRouter } from "vue-router";
 
 defineProps<{
   collapsed?: boolean;
@@ -17,7 +16,6 @@ const toast = useToast();
 const { t } = useI18n();
 const { locale } = useLocale();
 const auth = useAuth();
-const router = useRouter();
 
 const colors = [
   "red",
@@ -167,7 +165,6 @@ const items = computed<DropdownMenuItem[][]>(() => [
       icon: "i-lucide-log-out",
       onSelect: async () => {
         await auth.logout();
-        await router.push({ name: "login" });
         toast.add({
           title: t("userMenu.logoutTitle"),
           description: t("userMenu.logoutDescription"),

@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
-import type { DropdownMenuItem } from "@nuxt/ui";
+import { onMounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { useTours } from "@/shared/composables/useTours";
 
@@ -9,8 +8,7 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
-const { tour, hasUnseenTour, startAutostart, startBaseTour, startWhatsNew } =
-  useTours(props.scope);
+const { hasUnseenTour, startAutostart, startBaseTour } = useTours(props.scope);
 
 onMounted(() => {
   void startAutostart();

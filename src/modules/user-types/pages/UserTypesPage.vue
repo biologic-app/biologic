@@ -2,7 +2,7 @@
 import { computed, h, onMounted, reactive, ref, resolveComponent, watch } from 'vue'
 import type { TableColumn as NuxtTableColumn } from '@nuxt/ui'
 import { apiCreateRequest, apiReadListRequest, apiReadRequest, apiRequest, apiUpdateRequest } from '@/shared/api/client.api'
-import PermissionEditor from '@/shared/components/PermissionEditor.vue'
+import PermissionEditor from '@/shared/ui/PermissionEditor.vue'
 import { useCrudDialog } from '@/shared/composables/useCrudDialog'
 import { useOptimistic } from '@/shared/composables/useOptimistic'
 import { usePermission } from '@/shared/composables/usePermission'

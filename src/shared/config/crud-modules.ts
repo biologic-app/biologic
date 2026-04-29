@@ -1,4 +1,4 @@
-import type { CrudModuleConfig } from '@/shared/pages/CrudModulePage.vue'
+import type { CrudModuleConfig } from '@/pages/CrudModulePage.vue'
 
 const textFilter = () => ({ value: '', matchMode: 'contains' })
 const dateFilter = () => ({ value: [null, null], matchMode: 'between' })
@@ -251,7 +251,7 @@ export const crudModules: Record<string, CrudModuleConfig> = {
         header: 'Фамилия / Отчество',
         sortable: true,
         filter: { type: 'text', placeholder: 'Фамилия / Отчество' },
-        body: (row) => [row.last_name, row.patronymic].filter(Boolean).join(' ') || '-'
+        body: (row: Record<string, unknown>) => [row.last_name, row.patronymic].filter(Boolean).join(' ') || '-'
       },
       { field: 'updated_at', header: 'Обновлено', sortable: true, filter: { type: 'dateRange' } }
     ],

@@ -17,7 +17,7 @@ import {
   apiUpdateRequest,
   loadReferenceOptions,
 } from "@/shared/api/client.api";
-import PermissionEditor from "@/shared/components/PermissionEditor.vue";
+import PermissionEditor from "@/shared/ui/PermissionEditor.vue";
 import { useCrudDialog } from "@/shared/composables/useCrudDialog";
 import { useOptimistic } from "@/shared/composables/useOptimistic";
 import { usePermission } from "@/shared/composables/usePermission";
@@ -26,10 +26,10 @@ import type {
   Permission,
   PermissionOverride,
 } from "@/shared/types/permissions";
-import { useAuthStore } from "@/modules/auth/composables/useAuth";
+import { useAuth } from "@/modules/auth/composables/useAuth";
 
 const toast = useToast();
-const auth = useAuthStore();
+const auth = useAuth();
 const { can } = usePermission();
 type UserRow = { id: string | number; [key: string]: any };
 
