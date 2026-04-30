@@ -18,6 +18,12 @@ import {
   loadReferenceOptions,
 } from "@/shared/api/client.api";
 import PermissionEditor from "@/shared/ui/PermissionEditor.vue";
+import CrudTableEmptyState from "@/shared/ui/CrudTableEmptyState.vue";
+import CrudTableShell from "@/shared/ui/CrudTableShell.vue";
+import CrudFilterControls from "@/shared/ui/CrudFilterControls.vue";
+import CrudSearchControl from "@/shared/ui/CrudSearchControl.vue";
+import { borderedCrudTableUi } from "@/shared/ui/table";
+import AccessNavigation from "@/modules/access/components/AccessNavigation.vue";
 import { useCrudDialog } from "@/shared/composables/useCrudDialog";
 import { useOptimistic } from "@/shared/composables/useOptimistic";
 import { usePermission } from "@/shared/composables/usePermission";
@@ -87,6 +93,10 @@ const table = useServerTable<UserRow>(
 );
 
 const filters = reactive(JSON.parse(JSON.stringify(table.filters.value)));
+const filtersOpen = ref(false);
+const columnVisibility = ref<Record<string, boolean>>({});
+const rowSelection = ref<Record<string, boolean>>({});
+const pageSizeItems = [20, 30, 50, 100];
 
 const syncFilters = () => {
   Object.entries(table.filters.value).forEach(([key, value]) => {
@@ -168,8 +178,30 @@ watch(
 const uiColumns = computed<NuxtTableColumn<UserRow>[]>(() => {
   const UButton = resolveComponent("UButton");
   const UBadge = resolveComponent("UBadge");
+  const UCheckbox = resolveComponent("UCheckbox");
 
   return [
+    {
+      id: "select",
+      enableSorting: false,
+      enableHiding: false,
+      header: ({ table: currentTable }) =>
+        h(UCheckbox, {
+          modelValue: currentTable.getIsSomePageRowsSelected()
+            ? "indeterminate"
+            : currentTable.getIsAllPageRowsSelected(),
+          "onUpdate:modelValue": (value: boolean | "indeterminate") =>
+            currentTable.toggleAllPageRowsSelected(!!value),
+          ariaLabel: "Выбрать всех пользователей",
+        }),
+      cell: ({ row }) =>
+        h(UCheckbox, {
+          modelValue: row.getIsSelected(),
+          "onUpdate:modelValue": (value: boolean | "indeterminate") =>
+            row.toggleSelected(!!value),
+          ariaLabel: "Выбрать пользователя",
+        }),
+    },
     {
       accessorKey: "id",
       header: "ID",
@@ -222,7 +254,7 @@ const uiColumns = computed<NuxtTableColumn<UserRow>[]>(() => {
         h(
           UBadge,
           {
-            color: row.original.is_registrar ? "success" : "neutral",
+            color: "neutral",
             variant: "subtle",
           },
           () => (row.original.is_registrar ? "Да" : "Нет"),
@@ -230,6 +262,7 @@ const uiColumns = computed<NuxtTableColumn<UserRow>[]>(() => {
     },
     {
       id: "actions",
+      enableHiding: false,
       header: "Действия",
       cell: ({ row }) =>
         h("div", { class: "flex justify-end gap-1" }, [
@@ -271,6 +304,35 @@ const applyFilters = (debounceGlobal = false) => {
   table.updateFilters(JSON.parse(JSON.stringify(filters)), debounceGlobal);
 };
 
+const resetFilters = () => {
+  Object.keys(table.filters.value).forEach((key) => {
+    filters[key] = { value: Array.isArray(table.filters.value[key].value) ? [] : "", matchMode: table.filters.value[key].matchMode };
+  });
+  filters.updated_at = { value: [null, null], matchMode: "between" };
+  filters.is_registrar = { value: [], matchMode: "in" };
+  applyFilters();
+};
+
+const paginationPage = computed({
+  get: () => table.pagination.value.page + 1,
+  set: (value: number) => table.setPage(value - 1),
+});
+
+const activeFilterCount = computed(() =>
+  (Object.entries(filters) as Array<[string, { value: unknown }]>).filter(([key, filter]) => {
+    if (key === "global") {
+      return false;
+    }
+
+    const value = filter.value;
+    if (Array.isArray(value)) {
+      return value.some((item) => item !== null && item !== "");
+    }
+
+    return value !== null && value !== undefined && value !== "";
+  }).length,
+);
+
 const removeItem = async (row: UserRow) => {
   if (!window.confirm(`Удалить пользователя ${row.username}?`)) {
     return;
@@ -288,6 +350,69 @@ const removeItem = async (row: UserRow) => {
     });
   }
 };
+
+const selectedRows = computed(() =>
+  Object.keys(rowSelection.value)
+    .filter((key) => rowSelection.value[key])
+    .map((key) => table.data.value[Number(key)])
+    .filter(Boolean),
+);
+
+const selectedCount = computed(() => selectedRows.value.length);
+
+const deleteSelected = async () => {
+  if (!selectedRows.value.length) {
+    return;
+  }
+
+  if (!window.confirm(`Удалить выбранных пользователей (${selectedRows.value.length})?`)) {
+    return;
+  }
+
+  const rows = [...selectedRows.value];
+  const ids = rows.map((row) => row.id);
+  const previous = [...table.data.value];
+  table.data.value = table.data.value.filter((row) => !ids.includes(row.id));
+
+  try {
+    await Promise.all(rows.map((row) => apiRequest(`/users/${row.id}`, { method: "DELETE" })));
+    rowSelection.value = {};
+  } catch (error: any) {
+    table.data.value = previous;
+    toast.add({
+      title: "Не удалось удалить пользователей",
+      description: error?.message || "Попробуйте ещё раз",
+      color: "error",
+    });
+  }
+};
+
+const columnLabels: Record<string, string> = {
+  id: "ID",
+  username: "Логин",
+  first_name: "Имя",
+  last_name: "Фамилия / Отчество",
+  "role.name": "Роль",
+  "lab.name": "Лаборатория",
+  is_registrar: "Регистратор",
+};
+
+const columnMenuItems = computed(() =>
+  Object.entries(columnLabels).map(([key, label]) => ({
+    label,
+    type: "checkbox" as const,
+    checked: columnVisibility.value[key] !== false,
+    onUpdateChecked(checked: boolean) {
+      columnVisibility.value = {
+        ...columnVisibility.value,
+        [key]: checked,
+      };
+    },
+    onSelect(event?: Event) {
+      event?.preventDefault();
+    },
+  })),
+);
 
 const onSave = async () => {
   if (formRef.value && !formRef.value.reportValidity()) {
@@ -379,7 +504,7 @@ onMounted(async () => {
 <template>
   <UDashboardPanel id="users">
     <template #header>
-      <UDashboardNavbar title="Пользователи">
+      <UDashboardNavbar title="Доступ">
         <template #leading>
           <UDashboardSidebarCollapse />
         </template>
@@ -394,59 +519,117 @@ onMounted(async () => {
       </UDashboardNavbar>
 
       <UDashboardToolbar>
+        <AccessNavigation />
+      </UDashboardToolbar>
+
+      <UDashboardToolbar>
         <template #left>
-          <UInput
-            v-model="filters.global.value"
-            icon="i-lucide-search"
-            class="w-full lg:w-80"
-            placeholder="Поиск пользователя"
-            @update:model-value="applyFilters(true)"
-          />
+          <div class="flex w-full flex-col gap-3 lg:flex-row lg:items-center">
+            <CrudSearchControl
+              v-model="filters.global.value"
+              placeholder="Поиск пользователя"
+              @update:model-value="applyFilters(true)"
+            />
+            <CrudFilterControls
+              :active-count="activeFilterCount"
+              :open="filtersOpen"
+              @toggle="filtersOpen = !filtersOpen"
+              @clear="resetFilters"
+            />
+          </div>
+        </template>
+        <template #right>
+          <div class="flex flex-wrap items-center gap-2">
+            <UButton
+              v-if="selectedCount"
+              color="error"
+              variant="subtle"
+              icon="i-lucide-trash"
+              label="Удалить"
+              @click="deleteSelected"
+            >
+              <template #trailing>
+                <UKbd>{{ selectedCount }}</UKbd>
+              </template>
+            </UButton>
+            <UButton
+              color="neutral"
+              variant="subtle"
+              icon="i-lucide-refresh-cw"
+              label="Обновить"
+              @click="table.refresh()"
+            />
+            <UDropdownMenu
+              :items="columnMenuItems"
+              :content="{ align: 'end' }"
+            >
+              <UButton
+                label="Столбцы"
+                color="neutral"
+                variant="subtle"
+                trailing-icon="i-lucide-settings-2"
+              />
+            </UDropdownMenu>
+          </div>
         </template>
       </UDashboardToolbar>
     </template>
 
     <template #body>
-      <div class="grid gap-3 lg:grid-cols-4">
-        <UInput
-          v-model="filters.username.value"
-          placeholder="Логин"
-          @update:model-value="applyFilters()"
-        />
-        <UInput
-          v-model="filters.code.value"
-          placeholder="Код"
-          @update:model-value="applyFilters()"
-        />
-        <UInput
-          v-model="filters['role.name'].value"
-          placeholder="Роль"
-          @update:model-value="applyFilters()"
-        />
-        <UInput
-          v-model="filters['lab.name'].value"
-          placeholder="Лаборатория"
-          @update:model-value="applyFilters()"
-        />
-      </div>
+      <CrudTableShell
+        :filters-open="filtersOpen"
+        :total="table.total.value"
+        :page="paginationPage"
+        :page-size="table.pagination.value.size"
+        :page-size-items="pageSizeItems"
+        @update:page="paginationPage = $event"
+        @update:page-size="table.setPageSize($event)"
+      >
+        <template #filters>
+          <div class="grid gap-3 border-t border-default pt-3 lg:grid-cols-4">
+            <UInput
+              v-model="filters.username.value"
+              placeholder="Логин"
+              @update:model-value="applyFilters()"
+            />
+            <UInput
+              v-model="filters.code.value"
+              placeholder="Код"
+              @update:model-value="applyFilters()"
+            />
+            <UInput
+              v-model="filters['role.name'].value"
+              placeholder="Роль"
+              @update:model-value="applyFilters()"
+            />
+            <UInput
+              v-model="filters['lab.name'].value"
+              placeholder="Лаборатория"
+              @update:model-value="applyFilters()"
+            />
+          </div>
+        </template>
 
-      <UTable
-        :data="table.data.value"
-        :columns="uiColumns"
-        :loading="table.loading.value"
-        sticky
-        class="max-h-[calc(100vh-20rem)]"
-      />
-
-      <div class="flex justify-end">
-        <UPagination
-          :page="table.pagination.value.page + 1"
-          :items-per-page="table.pagination.value.size"
-          :total="table.total.value"
-          show-edges
-          @update:page="table.setPage($event - 1)"
-        />
-      </div>
+        <template #table>
+          <UTable
+            v-model:column-visibility="columnVisibility"
+            v-model:row-selection="rowSelection"
+            :data="table.data.value"
+            :columns="uiColumns"
+            :loading="table.loading.value"
+            sticky
+            class="h-full"
+            :ui="borderedCrudTableUi"
+          >
+            <template #empty>
+              <CrudTableEmptyState
+                title="Пользователи не найдены"
+                description="Измените фильтры или создайте нового пользователя."
+              />
+            </template>
+          </UTable>
+        </template>
+      </CrudTableShell>
     </template>
   </UDashboardPanel>
 

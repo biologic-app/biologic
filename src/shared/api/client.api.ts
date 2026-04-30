@@ -6,6 +6,7 @@ import type {
   ApiUpdateResponse,
   ApiViewResponse
 } from '@/shared/types/api'
+import { getMockListResponse, getMockReadResponse } from '@/shared/api/mock-data'
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
 const apiPrefixRaw = import.meta.env.VITE_API_PREFIX || '/api/v1'
@@ -187,12 +188,12 @@ export const apiRequest = async <T>(
 export const apiReadListRequest = async <T>(
   path: string,
   options: Omit<RequestInit, 'body'> & { params?: Record<string, any>; body?: any } = {}
-) => apiRequest<ApiViewResponse<T>>(path, options)
+) => getMockListResponse<T>(path, options.params) ?? apiRequest<ApiViewResponse<T>>(path, options)
 
 export const apiReadRequest = async <T>(
   path: string,
   options: Omit<RequestInit, 'body'> & { params?: Record<string, any>; body?: any } = {}
-) => apiRequest<ApiReadResponse<T>>(path, options)
+) => getMockReadResponse<T>(path) ?? apiRequest<ApiReadResponse<T>>(path, options)
 
 export const apiCreateRequest = async <T>(
   path: string,

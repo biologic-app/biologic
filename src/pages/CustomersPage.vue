@@ -2,12 +2,14 @@
 import { useTemplateRef, h, ref, computed, watch, resolveComponent } from "vue";
 import type { DropdownMenuItem, TableColumn } from "@nuxt/ui";
 import type { TableMeta, Row } from "@tanstack/vue-table";
-import { useFetch } from "@vueuse/core";
 import { getPaginationRowModel, type Row as TRow } from "@tanstack/table-core";
 import { useI18n } from "vue-i18n";
 import CustomersAddModal from "@/modules/customers/components/CustomersAddModal.vue";
 import CustomersDeleteModal from "@/modules/customers/components/CustomersDeleteModal.vue";
 import CustomersFilterModal from "@/modules/customers/components/CustomersFilterModal.vue";
+import { createMockCustomers } from "@/shared/api/mock-data";
+import CrudTableEmptyState from "@/shared/ui/CrudTableEmptyState.vue";
+import { borderedCrudTableUi } from "@/shared/ui/table";
 import type { User } from "@/shared/types";
 
 const UAvatar = resolveComponent("UAvatar");
@@ -22,11 +24,8 @@ const { t } = useI18n();
 
 const columnVisibility = ref();
 const rowSelection = ref({ 1: true });
-
-const { data, isFetching } = useFetch(
-  "https://dashboard-template.nuxt.dev/api/customers",
-  { initialData: [] },
-).json<User[]>();
+const data = ref<User[]>(createMockCustomers());
+const isFetching = ref(false);
 
 const items: DropdownMenuItem[] = [
   {
@@ -255,6 +254,10 @@ watch(
 );
 
 const pagination = ref({ pageIndex: 0, pageSize: 500 });
+
+const updatePage = (page: number) => {
+  table.value?.tableApi?.setPageIndex(page - 1);
+};
 </script>
 
 <template>
@@ -426,17 +429,21 @@ const pagination = ref({ pageIndex: 0, pageSize: 500 });
         :meta="tableMeta"
         :loading="isFetching"
         sticky
-        :ui="{
-          th: 'px-6 py-1.5 text-sm text-highlighted text-left font-semibold',
-          td: 'px-6 py-1.5 text-sm text-muted whitespace-nowrap',
-        }"
-      />
+        :ui="borderedCrudTableUi"
+      >
+        <template #empty>
+          <CrudTableEmptyState
+            title="Пациенты не найдены"
+            description="Измените фильтры или добавьте нового пациента."
+          />
+        </template>
+      </UTable>
       <div class="flex justify-end border-t border-default py-4 pr-4">
         <UPagination
           :page="(table?.tableApi?.getState().pagination.pageIndex || 0) + 1"
           :items-per-page="table?.tableApi?.getState().pagination.pageSize"
           :total="table?.tableApi?.getFilteredRowModel().rows.length"
-          @update:page="(p) => table?.tableApi?.setPageIndex(p - 1)"
+          @update:page="updatePage"
         />
       </div>
     </template>

@@ -60,7 +60,7 @@ export const useServerTable = <T>(
   const data = ref<T[]>([])
   const total = ref(0)
   const loading = ref(false)
-  const pagination = ref({ page: 0, size: options.initialPageSize ?? 15 })
+  const pagination = ref({ page: 0, size: options.initialPageSize ?? 20 })
   const sorting = ref({
     field: options.initialSort?.field ?? '',
     order: options.initialSort?.order ?? 1

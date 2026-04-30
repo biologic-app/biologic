@@ -403,7 +403,7 @@ export const crudModules: Record<string, CrudModuleConfig> = {
   conclusions: {
     resource: 'conclusions',
     title: 'Заключения',
-    description: 'Заключения и их статусы.',
+    description: 'Справочник предопределённых формулировок заключений.',
     endpoint: '/conclusions',
     include: 'conclusion_status',
     presetKey: 'conclusions',
@@ -416,12 +416,12 @@ export const crudModules: Record<string, CrudModuleConfig> = {
     },
     columns: [
       { field: 'id', header: 'ID', sortable: true },
-      { field: 'comment', header: 'Комментарий', sortable: true, filter: { type: 'text', placeholder: 'Комментарий' } },
+      { field: 'comment', header: 'Формулировка', sortable: true, filter: { type: 'text', placeholder: 'Формулировка' } },
       { field: 'conclusion_status.name', header: 'Статус заключения', sortable: true, filter: { type: 'text', placeholder: 'Статус' } },
       { field: 'updated_at', header: 'Обновлено', sortable: true, filter: { type: 'dateRange' } }
     ],
     fields: [
-      { key: 'comment', label: 'Комментарий', type: 'textarea' },
+      { key: 'comment', label: 'Формулировка', type: 'textarea', required: true },
       { key: 'conclusion_status_id', label: 'Статус заключения', type: 'select', source: '/conclusion_statuses', required: true }
     ]
   },

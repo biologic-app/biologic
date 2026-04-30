@@ -15,7 +15,9 @@ import type { TableFilters } from "@/shared/types/table";
 import type { FormField } from "@/shared/types/form";
 import type { Resource } from "@/shared/types/permissions";
 import type { TableColumn } from "@/shared/types/table";
+import CrudTableEmptyState from "@/shared/ui/CrudTableEmptyState.vue";
 import CrudFormModal from "@/shared/ui/CrudFormModal.vue";
+import { borderedCrudTableUi } from "@/shared/ui/table";
 import { useCrudDialog } from "@/shared/composables/useCrudDialog";
 import { useOptimistic } from "@/shared/composables/useOptimistic";
 import { usePermission } from "@/shared/composables/usePermission";
@@ -74,7 +76,7 @@ const table = useServerTable<CrudRow>(
   {
     presetKey: props.config.presetKey,
     filters: props.config.initialFilters,
-    initialPageSize: props.config.pageSize ?? 15,
+    initialPageSize: props.config.pageSize ?? 20,
   },
 );
 
@@ -90,7 +92,7 @@ const optimistic = useOptimistic<CrudRow>();
 const saving = ref(false);
 const formFields = ref<FormField[]>([]);
 const presetName = ref("");
-const pageSizeItems = [15, 30, 50, 100];
+const pageSizeItems = [20, 30, 50, 100];
 const filters = reactive<TableFilters>(
   JSON.parse(JSON.stringify(props.config.initialFilters)),
 );
@@ -507,15 +509,22 @@ const createDisabled = computed(() => !can(props.config.resource, "create"));
         </div>
       </div>
 
-      <div class="rounded-2xl border border-default bg-default">
+      <div>
         <UTable
           :data="table.data.value"
           :columns="uiColumns"
           :loading="table.loading.value"
           sticky
           class="max-h-[calc(100vh-24rem)]"
-          empty="Нет данных"
-        />
+          :ui="borderedCrudTableUi"
+        >
+          <template #empty>
+            <CrudTableEmptyState
+              title="Нет записей"
+              :description="`В таблице «${config.title}» пока нет данных.`"
+            />
+          </template>
+        </UTable>
       </div>
 
       <div class="flex justify-end">

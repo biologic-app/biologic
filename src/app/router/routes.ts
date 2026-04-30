@@ -65,6 +65,28 @@ export const routes: RouteRecordRaw[] = [
         component: () => import("@/pages/UserFlowsPage.vue"),
       },
       {
+        path: "/dictionaries/:module?",
+        name: "dictionaries",
+        meta: { requiresAuth: false },
+        component: () => import("@/modules/dictionaries/pages/DictionariesPage.vue"),
+      },
+      {
+        path: "/access",
+        redirect: { name: "access-users" },
+      },
+      {
+        path: "/access/users",
+        name: "access-users",
+        meta: { requiresAuth: false },
+        component: () => import("@/modules/admin/pages/UsersPage.vue"),
+      },
+      {
+        path: "/access/roles",
+        name: "access-roles",
+        meta: { requiresAuth: false },
+        component: () => import("@/modules/user-types/pages/UserTypesPage.vue"),
+      },
+      {
         path: "/settings",
         component: () => import("@/modules/settings/pages/SettingsLayoutPage.vue"),
         meta: { requiresAuth: false },

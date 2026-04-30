@@ -12,6 +12,8 @@ import RoleSwitcher from "@/modules/workflows/components/RoleSwitcher.vue";
 import UserMenu from "@/shared/ui/UserMenu.vue";
 import { useAuth } from "@/modules/auth";
 import { useWorkflowRole } from "@/modules/workflows/useWorkflowRole";
+import { dictionaryItems } from "@/modules/dictionaries/config";
+import { accessItems } from "@/modules/access/config";
 
 const toast = useToast();
 const { t } = useI18n();
@@ -70,6 +72,39 @@ const links = computed<NavigationMenuItem[][]>(() => [
       to: { name: "directions" },
       type: "trigger",
       defaultOpen: false,
+    },
+    {
+      label: t("nav.dictionaries"),
+      icon: "i-lucide-library",
+      to: { name: "dictionaries" },
+      type: "trigger",
+      defaultOpen: false,
+      children: dictionaryItems.map((item) => ({
+        label: item.label,
+        icon: item.icon,
+        to:
+          item.key === "statuses"
+            ? "/dictionaries/statuses"
+            : `/dictionaries/${item.key}`,
+        onSelect: () => {
+          open.value = false;
+        },
+      })),
+    },
+    {
+      label: t("nav.access"),
+      icon: "i-lucide-shield-check",
+      to: { name: "access-users" },
+      type: "trigger",
+      defaultOpen: false,
+      children: accessItems.map((item) => ({
+        label: item.label,
+        icon: item.icon,
+        to: item.to,
+        onSelect: () => {
+          open.value = false;
+        },
+      })),
     },
     {
       label: t("nav.settings"),
