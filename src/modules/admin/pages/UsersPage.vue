@@ -2,13 +2,14 @@
 import {
   computed,
   h,
+  nextTick,
   onMounted,
   reactive,
   ref,
   resolveComponent,
   watch,
 } from "vue";
-import type { TableColumn as NuxtTableColumn } from "@nuxt/ui";
+import type { DropdownMenuItem, TableColumn as NuxtTableColumn } from "@nuxt/ui";
 import {
   apiCreateRequest,
   apiReadListRequest,
@@ -18,19 +19,20 @@ import {
   loadReferenceOptions,
 } from "@/shared/api/client.api";
 import PermissionEditor from "@/shared/ui/PermissionEditor.vue";
+import CrudDataTable from "@/shared/ui/CrudDataTable.vue";
 import CrudTableEmptyState from "@/shared/ui/CrudTableEmptyState.vue";
-import CrudTableShell from "@/shared/ui/CrudTableShell.vue";
 import CrudFilterControls from "@/shared/ui/CrudFilterControls.vue";
 import CrudFilterModal from "@/shared/ui/CrudFilterModal.vue";
 import CrudSearchControl from "@/shared/ui/CrudSearchControl.vue";
 import ConfirmDialog from "@/shared/ui/ConfirmDialog.vue";
-import { borderedCrudTableUi } from "@/shared/ui/table";
-import { createActionColumn } from "@/shared/ui/table-actions";
+import RowContextMenu from "@/shared/ui/RowContextMenu.vue";
+import { createSkeletonRows, isSkeletonRow, renderSkeletonCell } from "@/shared/ui/table";
 import AccessNavigation from "@/modules/access/components/AccessNavigation.vue";
 import { useCrudDialog } from "@/shared/composables/useCrudDialog";
 import { useOptimistic } from "@/shared/composables/useOptimistic";
 import { usePermission } from "@/shared/composables/usePermission";
 import { useServerTable } from "@/shared/composables/useServerTable";
+import { useTableColumnVisibility } from "@/shared/composables/useTableSettings";
 import type {
   Permission,
   PermissionOverride,
@@ -97,6 +99,7 @@ const form = reactive({
   is_branch_head: false,
   password_hash: "",
 });
+const tableSettingsKey = "table-settings:access:users:v2";
 
 const table = useServerTable<UserRow>(
   (params) =>
@@ -110,6 +113,7 @@ const table = useServerTable<UserRow>(
   {
     mode: "infinite",
     presetKey: "users",
+    settingsKey: tableSettingsKey,
     filters: {
       global: { value: "", matchMode: "contains" },
       username: { value: "", matchMode: "contains" },
@@ -126,8 +130,16 @@ const table = useServerTable<UserRow>(
 
 const filters = reactive(JSON.parse(JSON.stringify(table.filters.value)));
 const filterModalOpen = ref(false);
-const columnVisibility = ref<Record<string, boolean>>({});
+const columnVisibility = useTableColumnVisibility(tableSettingsKey);
 const rowSelection = ref<Record<string, boolean>>({});
+const contextRow = ref<UserRow | null>(null);
+const contextMenuOpen = ref(false);
+const contextMenuPosition = ref({ x: 0, y: 0 });
+const skeletonRows = createSkeletonRows<UserRow>(17);
+
+const tableRows = computed(() =>
+  table.loading.value ? skeletonRows : table.data.value,
+);
 
 const syncFilters = () => {
   Object.entries(table.filters.value).forEach(([key, value]) => {
@@ -209,34 +221,13 @@ watch(
 const uiColumns = computed<NuxtTableColumn<UserRow>[]>(() => {
   const UButton = resolveComponent("UButton");
   const UBadge = resolveComponent("UBadge");
-  const UCheckbox = resolveComponent("UCheckbox");
 
   return [
     {
-      id: "select",
-      enableSorting: false,
-      enableHiding: false,
-      header: ({ table: currentTable }) =>
-        h(UCheckbox, {
-          modelValue: currentTable.getIsSomePageRowsSelected()
-            ? "indeterminate"
-            : currentTable.getIsAllPageRowsSelected(),
-          "onUpdate:modelValue": (value: boolean | "indeterminate") =>
-            currentTable.toggleAllPageRowsSelected(!!value),
-          ariaLabel: "Выбрать всех пользователей",
-        }),
-      cell: ({ row }) =>
-        h(UCheckbox, {
-          modelValue: row.getIsSelected(),
-          "onUpdate:modelValue": (value: boolean | "indeterminate") =>
-            row.toggleSelected(!!value),
-          ariaLabel: "Выбрать пользователя",
-        }),
-    },
-    {
       accessorKey: "id",
       header: "ID",
-      cell: ({ row }) => row.original.id,
+      cell: ({ row }) =>
+        isSkeletonRow(row.original) ? renderSkeletonCell("id", 0) : row.original.id,
     },
     {
       accessorKey: "username",
@@ -253,17 +244,22 @@ const uiColumns = computed<NuxtTableColumn<UserRow>[]>(() => {
                 : "i-lucide-arrow-down-wide-narrow",
           onClick: () => table.setSort("username"),
         }),
-      cell: ({ row }) => row.original.username,
+      cell: ({ row }) =>
+        isSkeletonRow(row.original) ? renderSkeletonCell("username", 1) : row.original.username,
     },
     {
       accessorKey: "first_name",
       header: "Имя",
-      cell: ({ row }) => row.original.first_name || "-",
+      cell: ({ row }) =>
+        isSkeletonRow(row.original) ? renderSkeletonCell("first_name", 2) : row.original.first_name || "-",
     },
     {
       accessorKey: "last_name",
       header: "Фамилия / Отчество",
       cell: ({ row }) =>
+        isSkeletonRow(row.original)
+          ? renderSkeletonCell("last_name", 3)
+          :
         [row.original.last_name, row.original.patronymic]
           .filter(Boolean)
           .join(" ") || "-",
@@ -271,17 +267,22 @@ const uiColumns = computed<NuxtTableColumn<UserRow>[]>(() => {
     {
       accessorKey: "role.name",
       header: "Роль",
-      cell: ({ row }) => row.original.role?.name || "-",
+      cell: ({ row }) =>
+        isSkeletonRow(row.original) ? renderSkeletonCell("role.name", 4) : row.original.role?.name || "-",
     },
     {
       accessorKey: "lab.name",
       header: "Лаборатория",
-      cell: ({ row }) => row.original.lab?.name || "-",
+      cell: ({ row }) =>
+        isSkeletonRow(row.original) ? renderSkeletonCell("lab.name", 5) : row.original.lab?.name || "-",
     },
     {
       accessorKey: "is_registrar",
       header: "Регистратор",
       cell: ({ row }) =>
+        isSkeletonRow(row.original)
+          ? renderSkeletonCell("is_registrar", 6)
+          :
         h(
           UBadge,
           {
@@ -291,11 +292,7 @@ const uiColumns = computed<NuxtTableColumn<UserRow>[]>(() => {
           () => (row.original.is_registrar ? "Да" : "Нет"),
         ),
     },
-    createActionColumn<UserRow>("users", {
-      onView: (row) => dialog.openView(row),
-      onEdit: (row) => dialog.openEdit(row),
-      onDelete: (row) => removeItem(row),
-    }),
+    { id: "actions", header: "Действия", meta: { class: { td: "w-auto min-w-[56px] text-right" } } },
   ];
 });
 
@@ -428,6 +425,49 @@ const deleteSelected = async () => {
   };
 };
 
+const getRowActionItems = (row: UserRow): DropdownMenuItem[] => [
+  { label: "Просмотр", icon: "i-lucide-eye", onSelect: () => dialog.openView(row) },
+  {
+    label: "Редактировать",
+    icon: can("users", "edit") ? "i-lucide-pencil" : "i-lucide-lock",
+    disabled: !can("users", "edit"),
+    onSelect: () => dialog.openEdit(row),
+  },
+  {
+    label: "Удалить",
+    icon: can("users", "delete") ? "i-lucide-trash-2" : "i-lucide-lock",
+    color: "error",
+    disabled: !can("users", "delete"),
+    onSelect: () => removeItem(row),
+  },
+];
+
+const handleRowSelect = (_event: Event, row: { original: UserRow }) => {
+  if (isSkeletonRow(row.original)) {
+    return;
+  }
+
+  dialog.openView(row.original);
+};
+
+const contextMenuItems = computed(() =>
+  contextRow.value ? getRowActionItems(contextRow.value) : [],
+);
+
+const handleRowContextmenu = async (event: Event, row: { original: UserRow }) => {
+  event.preventDefault();
+  if (isSkeletonRow(row.original)) {
+    return;
+  }
+
+  const mouseEvent = event as MouseEvent;
+  contextRow.value = row.original;
+  contextMenuOpen.value = false;
+  contextMenuPosition.value = { x: mouseEvent.clientX, y: mouseEvent.clientY };
+  await nextTick();
+  contextMenuOpen.value = true;
+};
+
 const columnLabels: Record<string, string> = {
   id: "ID",
   username: "Логин",
@@ -436,6 +476,7 @@ const columnLabels: Record<string, string> = {
   "role.name": "Роль",
   "lab.name": "Лаборатория",
   is_registrar: "Регистратор",
+  actions: "Действия",
 };
 
 const columnMenuItems = computed(() =>
@@ -642,46 +683,57 @@ onMounted(async () => {
         </div>
       </CrudFilterModal>
 
-      <CrudTableShell
-        mode="infinite"
+      <CrudDataTable
+        v-model:column-visibility="columnVisibility"
+        v-model:row-selection="rowSelection"
+        :data="tableRows"
+        :columns="uiColumns"
         :total="table.total.value"
+        :loading="table.loading.value"
         :loading-more="table.loadingMore.value"
         :has-more="table.hasMore.value"
+        selectable
         @load-more="table.loadMore()"
+        @row-select="handleRowSelect"
+        @row-contextmenu="handleRowContextmenu"
       >
-        <template #table>
-          <UTable
-            v-model:column-visibility="columnVisibility"
-            v-model:row-selection="rowSelection"
-            :data="table.data.value"
-            :columns="uiColumns"
-            :loading="table.loading.value"
-            sticky
-            :ui="borderedCrudTableUi"
-          >
-            <template #body-bottom>
-              <tr v-if="!table.loadingMore.value && !table.hasMore.value && table.total.value > 0" class="bg-default">
-                <td :colspan="uiColumns.length" class="border-r border-b border-default px-6 py-3 text-center text-xs text-dimmed">
-                  Всего записей: {{ table.total.value }}
-                </td>
-              </tr>
-            </template>
-            <template #empty>
-              <CrudTableEmptyState
-                :title="activeFilterCount ? 'Ничего не найдено' : 'Пользователи не найдены'"
-                :description="activeFilterCount
-                  ? 'Нет пользователей, соответствующих фильтрам. Измените условия поиска.'
-                  : 'Измените фильтры или создайте нового пользователя.'"
-                :filtered="activeFilterCount > 0"
-                :error="table.error.value"
-                error-description="Не удалось загрузить пользователей. Проверьте подключение или повторите попытку позже."
-                @clear-filters="resetFilters"
-                @retry="table.refresh()"
-              />
-            </template>
-          </UTable>
+        <template #before-table>
+          <RowContextMenu
+            v-model:open="contextMenuOpen"
+            :items="contextMenuItems"
+            :x="contextMenuPosition.x"
+            :y="contextMenuPosition.y"
+          />
         </template>
-      </CrudTableShell>
+        <template #actions-cell="{ row }">
+          <USkeleton v-if="isSkeletonRow(row.original)" class="ml-auto h-4 w-8" />
+          <UDropdownMenu
+            v-else
+            :content="{ align: 'end' }"
+            :items="getRowActionItems(row.original)"
+          >
+            <UButton
+              icon="i-lucide-ellipsis-vertical"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+            />
+          </UDropdownMenu>
+        </template>
+        <template #empty>
+          <CrudTableEmptyState
+            :title="activeFilterCount ? 'Ничего не найдено' : 'Пользователи не найдены'"
+            :description="activeFilterCount
+              ? 'Нет пользователей, соответствующих фильтрам. Измените условия поиска.'
+              : 'Измените фильтры или создайте нового пользователя.'"
+            :filtered="activeFilterCount > 0"
+            :error="table.error.value"
+            error-description="Не удалось загрузить пользователей. Проверьте подключение или повторите попытку позже."
+            @clear-filters="resetFilters"
+            @retry="table.refresh()"
+          />
+        </template>
+      </CrudDataTable>
     </template>
   </UDashboardPanel>
 

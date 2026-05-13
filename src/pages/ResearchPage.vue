@@ -4,6 +4,7 @@ import type { DropdownMenuItem, TableColumn } from '@nuxt/ui'
 import { useI18n } from 'vue-i18n'
 import { useResearchSamples } from '@/modules/research/composables/useResearchSamples'
 import { useServerTable } from '@/shared/composables/useServerTable'
+import { usePersistedTableSetting, useTableColumnVisibility } from '@/shared/composables/useTableSettings'
 import CrudDataTable from '@/shared/ui/CrudDataTable.vue'
 import CrudSearchControl from '@/shared/ui/CrudSearchControl.vue'
 import CrudFilterControls from '@/shared/ui/CrudFilterControls.vue'
@@ -25,8 +26,9 @@ type QuickFilter = 'all' | 'active' | 'completed' | 'urgent'
 const { t } = useI18n()
 const { samples } = useResearchSamples()
 const toast = useToast()
+const tableSettingsKey = 'table-settings:research'
 
-const searchQuery = ref('')
+const searchQuery = usePersistedTableSetting(tableSettingsKey, 'query', '')
 const quickFilter = ref<QuickFilter>('all')
 const sortKey = ref<SortKey>('updatedAt')
 const selectedSample = ref<ResearchSample | null>(null)
@@ -34,7 +36,7 @@ const detailOpen = ref(false)
 const closeModalOpen = ref(false)
 const resultModalOpen = ref(false)
 const assignModalOpen = ref(false)
-const columnVisibility = ref<Record<string, boolean>>({})
+const columnVisibility = useTableColumnVisibility(tableSettingsKey, { actions: false })
 const contextRow = ref<ResearchSample | null>(null)
 const contextMenuOpen = ref(false)
 const contextMenuPosition = ref({ x: 0, y: 0 })
@@ -45,13 +47,6 @@ const assignForm = reactive({ indicator: '', lab: '' })
 const closeForm = reactive({ verdict: '' })
 
 const activeStatuses: ResearchStatus[] = ['registered', 'inProgress', 'review']
-
-const quickFilterItems = computed(() => [
-  { label: t('research.filters.all'), value: 'all', color: 'neutral' as const },
-  { label: t('research.filters.active'), value: 'active', color: 'success' as const },
-  { label: t('research.filters.completed'), value: 'completed', color: 'neutral' as const },
-  { label: t('research.filters.urgent'), value: 'urgent', color: 'error' as const },
-])
 
 const filteredSamples = computed<ResearchSample[]>(() => {
   const q = searchQuery.value.trim().toLocaleLowerCase()
@@ -110,7 +105,7 @@ const table = useServerTable<ResearchSample>(
       },
     }
   },
-  { mode: 'infinite', initialPageSize: 30 }
+  { mode: 'infinite', initialPageSize: 30, settingsKey: tableSettingsKey }
 )
 
 const tableRows = computed(() =>
@@ -271,20 +266,6 @@ const interpretationItems = [
             </UDropdownMenu>
           </div>
         </template>
-      </UDashboardToolbar>
-
-      <UDashboardToolbar>
-        <div class="flex w-full items-center gap-1 overflow-x-auto rounded-lg bg-elevated p-1">
-          <UButton v-for="item in quickFilterItems" :key="item.value" size="xs" :color="item.color"
-            :variant="quickFilter === item.value ? 'solid' : 'ghost'" class="shrink-0"
-            :label="item.label" @click="quickFilter = item.value as QuickFilter" />
-        </div>
-        <div class="flex items-center gap-2">
-          <span class="text-xs text-muted">Сортировка:</span>
-          <USelectMenu :model-value="sortKey"
-            :items="[{ label: t('research.sort.updatedAt'), value: 'updatedAt' }, { label: t('research.sort.registeredAt'), value: 'registeredAt' }, { label: t('research.sort.code'), value: 'code' }]"
-            value-key="value" label-key="label" @update:model-value="sortKey = $event as SortKey" />
-        </div>
       </UDashboardToolbar>
     </template>
 

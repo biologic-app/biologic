@@ -90,7 +90,7 @@ watch(moduleKey, () => {
 </script>
 
 <template>
-  <UDashboardPanel id="dictionaries">
+  <UDashboardPanel id="dictionaries" :ui="{ body: 'min-h-0 overflow-hidden' }">
     <template #header>
       <UDashboardNavbar title="Справочники">
         <template #leading>
@@ -112,6 +112,14 @@ watch(moduleKey, () => {
 
       <UDashboardToolbar>
         <UNavigationMenu :items="dictionaryLinks" highlight class="-mx-1 flex-1" />
+      </UDashboardToolbar>
+
+      <UDashboardToolbar v-if="showStatusNavigation">
+        <UNavigationMenu
+          :items="statusLinks"
+          highlight
+          class="-mx-1 flex-1"
+        />
       </UDashboardToolbar>
 
       <UDashboardToolbar>
@@ -166,14 +174,7 @@ watch(moduleKey, () => {
     </template>
 
     <template #body>
-      <div class="flex min-h-full w-full flex-col gap-4">
-        <UNavigationMenu
-          v-if="showStatusNavigation"
-          :items="statusLinks"
-          highlight
-          class="-mx-1"
-        />
-
+      <div class="flex min-h-0 w-full flex-1 flex-col gap-4">
         <DictionaryCrudContent
           ref="crudContent"
           :key="moduleKey"

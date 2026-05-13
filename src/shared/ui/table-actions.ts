@@ -2,6 +2,7 @@ import { h, resolveComponent } from "vue";
 import type { TableColumn } from "@nuxt/ui";
 import type { Resource } from "@/shared/types/permissions";
 import { usePermission } from "@/shared/composables/usePermission";
+import { isSkeletonRow, renderSkeletonCell } from "@/shared/ui/table";
 
 export interface ActionColumnHandlers<T = any> {
   onView: (row: T) => void;
@@ -20,7 +21,6 @@ export function createActionColumn<T = any>(
 
   return {
     id: "actions",
-    enableHiding: false,
     header: "Действия",
     meta: { class: { td: "w-auto min-w-[56px] text-right" } },
     cell: ({ row }: { row: { original: T } }) => {
@@ -28,6 +28,9 @@ export function createActionColumn<T = any>(
       const UDropdownMenu = resolveComponent("UDropdownMenu");
 
       const item = row.original;
+      if (isSkeletonRow(item)) {
+        return renderSkeletonCell("actions");
+      }
 
       const menuItems = [
         {

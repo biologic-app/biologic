@@ -8,6 +8,7 @@ export interface ServerTableOptions {
   initialSort?: { field: string; order: 1 | -1 }
   filters?: TableFilters
   presetKey?: string
+  settingsKey?: string
   mode?: 'paginated' | 'infinite'
   minimumLoadingMs?: number
 }
@@ -29,6 +30,13 @@ export const TABLE_PRESETS_KEY: InjectionKey<TablePresetsApi> = Symbol('tablePre
 const cloneFilters = (filters: TableFilters) => {
   const entries = Object.entries(filters).map(([key, meta]) => [key, { ...meta }])
   return Object.fromEntries(entries) as TableFilters
+}
+
+interface TableSettings {
+  filters?: TableFilters
+  sorting?: { field: string; order: 1 | -1 }
+  pageSize?: number
+  columnVisibility?: Record<string, boolean>
 }
 
 const buildPresetKey = (key?: string) =>
@@ -55,6 +63,46 @@ const persistPresets = (key: string, presets: TablePreset[]) => {
   localStorage.setItem(key, JSON.stringify(presets))
 }
 
+const loadTableSettings = (key?: string): TableSettings => {
+  if (!key || typeof window === 'undefined') {
+    return {}
+  }
+
+  try {
+    const raw = localStorage.getItem(key)
+    return raw ? (JSON.parse(raw) as TableSettings) : {}
+  } catch {
+    return {}
+  }
+}
+
+const persistTableSettings = (key: string | undefined, patch: TableSettings) => {
+  if (!key || typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    const current = loadTableSettings(key)
+    localStorage.setItem(key, JSON.stringify({ ...current, ...patch }))
+  } catch {
+    // Ignore storage errors so table interaction is not blocked.
+  }
+}
+
+const mergeStoredFilters = (initialFilters: TableFilters, storedFilters?: TableFilters) => {
+  if (!storedFilters) {
+    return initialFilters
+  }
+
+  const next = cloneFilters(initialFilters)
+  Object.entries(storedFilters).forEach(([key, meta]) => {
+    if (key in next) {
+      next[key] = { ...next[key], ...meta }
+    }
+  })
+  return next
+}
+
 const wait = (ms: number) =>
   new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -64,23 +112,23 @@ export const useServerTable = <T>(
 ) => {
   const isInfinite = options.mode === 'infinite'
   const minimumLoadingMs = options.minimumLoadingMs ?? 350
+  const tableSettings = loadTableSettings(options.settingsKey)
+  const initialFilters = options.filters ?? {
+    global: { value: '', matchMode: 'contains' }
+  }
   const data = ref<T[]>([])
   const total = ref(0)
   const loading = ref(true)
   const error = ref(false)
   const loadingMore = ref(false)
-  const pagination = ref({ page: 0, size: options.initialPageSize ?? 20 })
+  const pagination = ref({ page: 0, size: tableSettings.pageSize ?? options.initialPageSize ?? 20 })
   const cursor = ref<string | null>(null)
   const nextCursor = ref<string | null>(null)
   const sorting = ref({
-    field: options.initialSort?.field ?? '',
-    order: options.initialSort?.order ?? 1
+    field: tableSettings.sorting?.field ?? options.initialSort?.field ?? '',
+    order: tableSettings.sorting?.order ?? options.initialSort?.order ?? 1
   })
-  const filters = ref<TableFilters>(
-    options.filters ?? {
-      global: { value: '', matchMode: 'contains' }
-    }
-  )
+  const filters = ref<TableFilters>(mergeStoredFilters(initialFilters, tableSettings.filters))
   const lastGlobalValue = ref(filters.value.global?.value ?? '')
   const presetKey = buildPresetKey(options.presetKey)
   const presets = ref<TablePreset[]>([])
@@ -108,6 +156,7 @@ export const useServerTable = <T>(
     }
 
     filters.value = cloneFilters(preset.filters)
+    persistTableSettings(options.settingsKey, { filters: cloneFilters(filters.value) })
     lastGlobalValue.value = filters.value.global?.value ?? ''
     pagination.value.page = 0
     cursor.value = null
@@ -255,6 +304,7 @@ export const useServerTable = <T>(
   const setPageSize = (size: number) => {
     pagination.value.page = 0
     pagination.value.size = size
+    persistTableSettings(options.settingsKey, { pageSize: size })
     cursor.value = null
     nextCursor.value = null
     fetch()
@@ -267,6 +317,7 @@ export const useServerTable = <T>(
       sorting.value.field = field
       sorting.value.order = 1
     }
+    persistTableSettings(options.settingsKey, { sorting: { ...sorting.value } })
     cursor.value = null
     nextCursor.value = null
     fetch()
@@ -276,6 +327,7 @@ export const useServerTable = <T>(
     const prevGlobal = lastGlobalValue.value
     const nextGlobal = nextFilters.global?.value ?? ''
     filters.value = nextFilters
+    persistTableSettings(options.settingsKey, { filters: cloneFilters(filters.value) })
     lastGlobalValue.value = nextGlobal
     pagination.value.page = 0
     cursor.value = null

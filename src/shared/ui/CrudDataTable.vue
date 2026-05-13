@@ -115,7 +115,7 @@ const visibleColumnCount = computed(() =>
         v-model:row-selection="rowSelection"
         :data="data"
         :columns="tableColumns"
-        :loading="false"
+        :loading="loading"
         :on-select="(event: Event, row: { original: TRow }) =>
           emit('rowSelect', event, row)"
         :on-contextmenu="(event: Event, row: { original: TRow }) =>

@@ -4,6 +4,7 @@ import type { DropdownMenuItem } from "@nuxt/ui";
 import { useColorMode } from "@vueuse/core";
 import { useI18n } from "vue-i18n";
 import { useLocale } from "@/shared/composables/useLocale";
+import { useAppearanceSettings } from "@/shared/composables/useAppearanceSettings";
 import { useAuth } from "@/modules/auth";
 
 defineProps<{
@@ -15,6 +16,12 @@ const appConfig = useAppConfig();
 const toast = useToast();
 const { t } = useI18n();
 const { locale } = useLocale();
+const {
+  font,
+  fontSize,
+  fontOptions,
+  fontSizeOptions,
+} = useAppearanceSettings();
 const auth = useAuth();
 
 const colors = [
@@ -157,6 +164,32 @@ const items = computed<DropdownMenuItem[][]>(() => [
           },
         },
       ],
+    },
+    {
+      label: t("userMenu.font"),
+      icon: "i-lucide-type",
+      children: fontOptions.map((option) => ({
+        label: option.label,
+        type: "checkbox",
+        checked: font.value === option.value,
+        onSelect(e: Event) {
+          e.preventDefault();
+          font.value = option.value;
+        },
+      })),
+    },
+    {
+      label: t("userMenu.fontSize"),
+      icon: "i-lucide-text-cursor-input",
+      children: fontSizeOptions.map((option) => ({
+        label: option.label,
+        type: "checkbox",
+        checked: fontSize.value === option.value,
+        onSelect(e: Event) {
+          e.preventDefault();
+          fontSize.value = option.value;
+        },
+      })),
     },
   ],
   [

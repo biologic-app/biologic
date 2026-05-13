@@ -17,11 +17,17 @@ import type { Resource } from "@/shared/types/permissions";
 import type { TableColumn } from "@/shared/types/table";
 import CrudTableEmptyState from "@/shared/ui/CrudTableEmptyState.vue";
 import CrudFormModal from "@/shared/ui/CrudFormModal.vue";
-import { borderedCrudTableUi } from "@/shared/ui/table";
+import {
+  borderedCrudTableUi,
+  createSkeletonRows,
+  isSkeletonRow,
+  renderSkeletonCell,
+} from "@/shared/ui/table";
 import { createActionColumn } from "@/shared/ui/table-actions";
 import { useCrudDialog } from "@/shared/composables/useCrudDialog";
 import { useOptimistic } from "@/shared/composables/useOptimistic";
 import { usePermission } from "@/shared/composables/usePermission";
+import { useTableColumnVisibility } from "@/shared/composables/useTableSettings";
 import {
   TABLE_PRESETS_KEY,
   useServerTable,
@@ -61,10 +67,10 @@ const props = defineProps<{
 
 const UButton = resolveComponent("UButton");
 const UBadge = resolveComponent("UBadge");
-const UTooltip = resolveComponent("UTooltip");
 
 const toast = useToast();
 const { can } = usePermission();
+const tableSettingsKey = `table-settings:crud:${props.config.presetKey}`;
 const table = useServerTable<CrudRow>(
   (params) =>
     apiReadListRequest<CrudRow>(props.config.endpoint, {
@@ -76,6 +82,7 @@ const table = useServerTable<CrudRow>(
     }),
   {
     presetKey: props.config.presetKey,
+    settingsKey: tableSettingsKey,
     filters: props.config.initialFilters,
     initialPageSize: props.config.pageSize ?? 20,
   },
@@ -94,8 +101,14 @@ const saving = ref(false);
 const formFields = ref<FormField[]>([]);
 const presetName = ref("");
 const pageSizeItems = [20, 30, 50, 100];
+const columnVisibility = useTableColumnVisibility(tableSettingsKey, { actions: false });
+const skeletonRows = createSkeletonRows<CrudRow>(12);
 const filters = reactive<TableFilters>(
   JSON.parse(JSON.stringify(props.config.initialFilters)),
+);
+
+const tableRows = computed(() =>
+  table.loading.value ? skeletonRows : table.data.value,
 );
 
 const syncFilters = () => {
@@ -139,63 +152,6 @@ onMounted(async () => {
 formFields.value = props.config.fields.map((field) => ({ ...field }));
 
 const uiColumns = computed(() => {
-  const actionColumn: NuxtTableColumn<CrudRow> = {
-    id: "actions",
-    header: "Действия",
-    cell: ({ row }) => {
-      const item = row.original as CrudRow;
-
-      const viewButton = h(UButton, {
-        color: "neutral",
-        variant: "ghost",
-        icon: "i-lucide-eye",
-        onClick: () => dialog.openView(item),
-      });
-
-      const editButton = h(
-        UTooltip as any,
-        {
-          text: can(props.config.resource, "edit")
-            ? "Редактировать"
-            : "Нет прав",
-        },
-        () =>
-          h(UButton, {
-            color: "neutral",
-            variant: "ghost",
-            icon: can(props.config.resource, "edit")
-              ? "i-lucide-pencil"
-              : "i-lucide-lock",
-            disabled: !can(props.config.resource, "edit"),
-            onClick: () => dialog.openEdit(item),
-          }),
-      );
-
-      const deleteButton = h(
-        UTooltip as any,
-        { text: can(props.config.resource, "delete") ? "Удалить" : "Нет прав" },
-        () =>
-          h(UButton, {
-            color: "error",
-            variant: "ghost",
-            icon: can(props.config.resource, "delete")
-              ? "i-lucide-trash-2"
-              : "i-lucide-lock",
-            disabled: !can(props.config.resource, "delete"),
-            onClick: () => confirmDelete(item),
-          }),
-      );
-
-      return h("div", { class: "flex items-center justify-end gap-1" }, [
-        viewButton,
-        editButton,
-        deleteButton,
-      ]);
-    },
-    meta: { class: { td: "w-[140px] text-right" } },
-  };
-
-
   const actionColumn = createActionColumn<CrudRow>(props.config.resource, {
     onView: (item) => dialog.openView(item),
     onEdit: (item) => dialog.openEdit(item),
@@ -224,6 +180,10 @@ const uiColumns = computed(() => {
         }),
       cell: ({ row }: { row: TableRow<CrudRow> }) => {
         const rowItem = row.original as CrudRow;
+        if (isSkeletonRow(rowItem)) {
+          return renderSkeletonCell(column.field);
+        }
+
         if (column.body) {
           return column.body(rowItem);
         }
@@ -518,7 +478,8 @@ const createDisabled = computed(() => !can(props.config.resource, "create"));
 
       <div>
         <UTable
-          :data="table.data.value"
+          v-model:column-visibility="columnVisibility"
+          :data="tableRows"
           :columns="uiColumns"
           :loading="table.loading.value"
           sticky

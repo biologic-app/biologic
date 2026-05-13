@@ -2,6 +2,7 @@
 import { computed, h, nextTick, ref, resolveComponent, watch, onMounted } from "vue";
 import type { DropdownMenuItem, TableColumn } from "@nuxt/ui";
 import { useServerTable } from "@/shared/composables/useServerTable";
+import { usePersistedTableSetting, useTableColumnVisibility } from "@/shared/composables/useTableSettings";
 
 import CrudTableShell from "@/shared/ui/CrudTableShell.vue";
 import CrudSearchControl from "@/shared/ui/CrudSearchControl.vue";
@@ -41,6 +42,7 @@ interface Direction {
 }
 
 const toast = useToast();
+const tableSettingsKey = "table-settings:directions";
 
 // Mock data
 const allDirections = ref<Direction[]>([
@@ -60,26 +62,18 @@ const allDirections = ref<Direction[]>([
 
 type DirectionFilter = "all" | "draft" | "registered" | "in_progress" | "completed";
 
-const query = ref("");
+const query = usePersistedTableSetting(tableSettingsKey, "query", "");
 const selectedFilter = ref<DirectionFilter>("all");
 const selectedDirection = ref<Direction | null>(null);
 const detailOpen = ref(false);
 const importOpen = ref(false);
 const createOpen = ref(false);
 const protocolOpen = ref(false);
-const columnVisibility = ref<Record<string, boolean>>({});
+const columnVisibility = useTableColumnVisibility(tableSettingsKey, { actions: false });
 const contextRow = ref<Direction | null>(null);
 const contextMenuOpen = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
 const skeletonRows = createSkeletonRows<Direction>(17);
-
-const filterItems = computed(() => [
-  { label: "Все", value: "all" },
-  { label: "Draft", value: "draft" },
-  { label: "Registered", value: "registered" },
-  { label: "В работе", value: "in_progress" },
-  { label: "Завершено", value: "completed" },
-]);
 
 // Filter and search
 const filteredDirections = computed(() => {
@@ -127,7 +121,7 @@ const table = useServerTable<Direction>(
       },
     };
   },
-  { mode: "infinite", initialPageSize: 30 }
+  { mode: "infinite", initialPageSize: 30, settingsKey: tableSettingsKey }
 );
 
 const tableRows = computed(() =>
@@ -362,20 +356,6 @@ const handleRowContextmenu = async (event: Event, row: { original: Direction }) 
           </div>
         </template>
       </UDashboardToolbar>
-
-      <UDashboardToolbar>
-        <div class="flex w-full items-center gap-1 overflow-x-auto rounded-lg bg-elevated p-1">
-          <UButton
-            v-for="item in filterItems"
-            :key="item.value"
-            size="xs"
-            :variant="selectedFilter === item.value ? 'solid' : 'ghost'"
-            class="shrink-0"
-            :label="item.label"
-            @click="selectedFilter = item.value as DirectionFilter"
-          />
-        </div>
-      </UDashboardToolbar>
     </template>
 
     <template #body>
@@ -397,7 +377,7 @@ const handleRowContextmenu = async (event: Event, row: { original: Direction }) 
             v-model:column-visibility="columnVisibility"
             :data="tableRows"
             :columns="directionColumns"
-            :loading="false"
+            :loading="table.loading.value"
             :on-select="handleRowSelect"
             :on-contextmenu="handleRowContextmenu"
             sticky

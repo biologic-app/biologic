@@ -29,6 +29,7 @@ import {
 import { useCrudDialog } from "@/shared/composables/useCrudDialog";
 import { useOptimistic } from "@/shared/composables/useOptimistic";
 import { usePermission } from "@/shared/composables/usePermission";
+import { useTableColumnVisibility } from "@/shared/composables/useTableSettings";
 import {
   TABLE_PRESETS_KEY,
   useServerTable,
@@ -72,6 +73,7 @@ const UBadge = resolveComponent("UBadge");
 const toast = useToast();
 const { can } = usePermission();
 const filterModalOpen = ref(false);
+const tableSettingsKey = `table-settings:dictionaries:${props.config.presetKey}:${JSON.stringify(props.requestParams ?? {})}`;
 
 const confirmDialog = ref<{ open: boolean; title: string; description: string; onConfirm: () => void }>({
   open: false,
@@ -113,6 +115,7 @@ const table = useServerTable<CrudRow>(
   {
     mode: "infinite",
     presetKey: props.config.presetKey,
+    settingsKey: tableSettingsKey,
     filters: props.config.initialFilters,
     initialPageSize: props.config.pageSize ?? 20,
   },
@@ -131,7 +134,7 @@ const saving = ref(false);
 const formFields = ref<FormField[]>(
   props.config.fields.map((field) => ({ ...field })),
 );
-const columnVisibility = ref<Record<string, boolean>>({});
+const columnVisibility = useTableColumnVisibility(tableSettingsKey, { actions: false });
 const rowSelection = ref<Record<string, boolean>>({});
 const contextRow = ref<CrudRow | null>(null);
 const contextMenuOpen = ref(false);
