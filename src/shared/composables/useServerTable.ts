@@ -1,4 +1,4 @@
-import { onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import type { Ref, InjectionKey } from 'vue'
 import type { ApiViewResponse } from '@/shared/types/api'
 import type { TableFilters } from '@/shared/types/table'
@@ -8,6 +8,8 @@ export interface ServerTableOptions {
   initialSort?: { field: string; order: 1 | -1 }
   filters?: TableFilters
   presetKey?: string
+  mode?: 'paginated' | 'infinite'
+  minimumLoadingMs?: number
 }
 
 export interface TablePreset {
@@ -53,14 +55,23 @@ const persistPresets = (key: string, presets: TablePreset[]) => {
   localStorage.setItem(key, JSON.stringify(presets))
 }
 
+const wait = (ms: number) =>
+  new Promise((resolve) => setTimeout(resolve, ms))
+
 export const useServerTable = <T>(
   apiFn: (params: Record<string, any>) => Promise<ApiViewResponse<T>>,
   options: ServerTableOptions = {}
 ) => {
+  const isInfinite = options.mode === 'infinite'
+  const minimumLoadingMs = options.minimumLoadingMs ?? 350
   const data = ref<T[]>([])
   const total = ref(0)
-  const loading = ref(false)
+  const loading = ref(true)
+  const error = ref(false)
+  const loadingMore = ref(false)
   const pagination = ref({ page: 0, size: options.initialPageSize ?? 20 })
+  const cursor = ref<string | null>(null)
+  const nextCursor = ref<string | null>(null)
   const sorting = ref({
     field: options.initialSort?.field ?? '',
     order: options.initialSort?.order ?? 1
@@ -73,6 +84,11 @@ export const useServerTable = <T>(
   const lastGlobalValue = ref(filters.value.global?.value ?? '')
   const presetKey = buildPresetKey(options.presetKey)
   const presets = ref<TablePreset[]>([])
+
+  const hasMore = computed(() => {
+    if (!isInfinite) return false
+    return nextCursor.value !== null || data.value.length < total.value
+  })
 
   const savePreset = (name: string) => {
     if (!name.trim()) {
@@ -94,6 +110,8 @@ export const useServerTable = <T>(
     filters.value = cloneFilters(preset.filters)
     lastGlobalValue.value = filters.value.global?.value ?? ''
     pagination.value.page = 0
+    cursor.value = null
+    nextCursor.value = null
     fetch()
   }
 
@@ -124,11 +142,16 @@ export const useServerTable = <T>(
       }
     })
 
+    const offset = isInfinite ? Number(cursor.value ?? 0) : pagination.value.page * pagination.value.size
     const params: Record<string, any> = {
-      offset: pagination.value.page * pagination.value.size,
+      offset,
       limit: pagination.value.size,
       sort_by: sorting.value.field,
       sort_order: sorting.value.order === -1 ? 'desc' : 'asc'
+    }
+
+    if (isInfinite && cursor.value) {
+      params.cursor = cursor.value
     }
 
     const global = filters.value.global?.value ?? ''
@@ -154,25 +177,86 @@ export const useServerTable = <T>(
 
   const fetch = async () => {
     loading.value = true
+    loadingMore.value = false
+    error.value = false
+    if (!(isInfinite && cursor.value)) {
+      data.value = [] as typeof data.value
+    }
     try {
+      await nextTick() // let skeleton render before (potentially sync) API call
+      const startedAt = performance.now()
       const response = await apiFn(buildParams())
-      data.value = response.items
+      const remainingDelay = minimumLoadingMs - (performance.now() - startedAt)
+      if (remainingDelay > 0) {
+        await wait(remainingDelay)
+      }
+      if (isInfinite && cursor.value) {
+        data.value = [...data.value, ...response.items] as typeof data.value
+      } else {
+        data.value = response.items as typeof data.value
+      }
       total.value = response.meta.total
+      const derivedNextCursor =
+        response.meta.offset + response.meta.limit < response.meta.total
+          ? String(response.meta.offset + response.meta.limit)
+          : null
+      nextCursor.value = response.meta.nextCursor ?? derivedNextCursor
+    } catch {
+      error.value = true
     } finally {
       loading.value = false
     }
   }
 
-  const refresh = () => fetch()
+  const refresh = () => {
+    pagination.value.page = 0
+    cursor.value = null
+    nextCursor.value = null
+    fetch()
+  }
+
+  const loadMore = async () => {
+    if (!isInfinite || !hasMore.value || loading.value || loadingMore.value) return
+    loadingMore.value = true
+    pagination.value.page += 1
+    const previousCursor = cursor.value
+    cursor.value = nextCursor.value
+    error.value = false
+    try {
+      const startedAt = performance.now()
+      const response = await apiFn(buildParams())
+      const remainingDelay = minimumLoadingMs - (performance.now() - startedAt)
+      if (remainingDelay > 0) {
+        await wait(remainingDelay)
+      }
+      data.value = [...data.value, ...response.items] as typeof data.value
+      total.value = response.meta.total
+      const derivedNextCursor =
+        response.meta.offset + response.meta.limit < response.meta.total
+          ? String(response.meta.offset + response.meta.limit)
+          : null
+      nextCursor.value = response.meta.nextCursor ?? derivedNextCursor
+    } catch {
+      pagination.value.page -= 1
+      cursor.value = previousCursor
+      error.value = true
+    } finally {
+      loadingMore.value = false
+    }
+  }
 
   const setPage = (page: number) => {
     pagination.value.page = page
+    cursor.value = null
+    nextCursor.value = null
     fetch()
   }
 
   const setPageSize = (size: number) => {
     pagination.value.page = 0
     pagination.value.size = size
+    cursor.value = null
+    nextCursor.value = null
     fetch()
   }
 
@@ -183,7 +267,8 @@ export const useServerTable = <T>(
       sorting.value.field = field
       sorting.value.order = 1
     }
-
+    cursor.value = null
+    nextCursor.value = null
     fetch()
   }
 
@@ -193,6 +278,8 @@ export const useServerTable = <T>(
     filters.value = nextFilters
     lastGlobalValue.value = nextGlobal
     pagination.value.page = 0
+    cursor.value = null
+    nextCursor.value = null
 
     if (debounceGlobal && nextGlobal !== prevGlobal) {
       debounceFetch()
@@ -210,11 +297,15 @@ export const useServerTable = <T>(
     data,
     total,
     loading,
+    loadingMore,
+    error,
+    hasMore,
     pagination,
     sorting,
     filters,
     fetch,
     refresh,
+    loadMore,
     setPage,
     setPageSize,
     setSort,

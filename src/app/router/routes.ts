@@ -59,10 +59,10 @@ export const routes: RouteRecordRaw[] = [
         component: () => import("@/pages/ResearchPage.vue"),
       },
       {
-        path: "/workflows",
-        name: "workflows",
+        path: "/samples",
+        name: "samples",
         meta: { requiresAuth: false },
-        component: () => import("@/pages/UserFlowsPage.vue"),
+        component: () => import("@/pages/SamplesPage.vue"),
       },
       {
         path: "/dictionaries/:module?",
@@ -85,33 +85,6 @@ export const routes: RouteRecordRaw[] = [
         name: "access-roles",
         meta: { requiresAuth: false },
         component: () => import("@/modules/user-types/pages/UserTypesPage.vue"),
-      },
-      {
-        path: "/settings",
-        component: () => import("@/modules/settings/pages/SettingsLayoutPage.vue"),
-        meta: { requiresAuth: false },
-        children: [
-          {
-            path: "",
-            name: "settings",
-            component: () => import("@/modules/settings/pages/SettingsIndexPage.vue"),
-          },
-          {
-            path: "members",
-            name: "settings-members",
-            component: () => import("@/modules/settings/pages/SettingsMembersPage.vue"),
-          },
-          {
-            path: "notifications",
-            name: "settings-notifications",
-            component: () => import("@/modules/settings/pages/SettingsNotificationsPage.vue"),
-          },
-          {
-            path: "security",
-            name: "settings-security",
-            component: () => import("@/modules/settings/pages/SettingsSecurityPage.vue"),
-          },
-        ],
       },
     ],
   },

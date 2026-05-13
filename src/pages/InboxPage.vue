@@ -6,8 +6,6 @@ import { useI18n } from 'vue-i18n'
 import InboxList from '@/modules/inbox/components/InboxList.vue'
 import InboxMail from '@/modules/inbox/components/InboxMail.vue'
 import { useSystemMessages } from '@/modules/inbox/composables/useSystemMessages'
-import { useWorkflowMock, type WorkflowAlert } from '@/modules/workflows/useWorkflowMock'
-import { useWorkflowRole } from '@/modules/workflows/useWorkflowRole'
 import type { Mail } from '@/shared/types'
 
 const { t } = useI18n()
@@ -22,10 +20,6 @@ const selectedTab = ref('all')
 const route = useRoute()
 const router = useRouter()
 const { mails, unreadMails } = useSystemMessages()
-const { hideAlert, visibleAlerts } = useWorkflowMock()
-const { selectedRoleKey } = useWorkflowRole()
-const selectedAlert = ref<WorkflowAlert | null>(null)
-const alertMode = computed(() => ['sanitary_inspector', 'branch_chief'].includes(selectedRoleKey.value))
 
 const filteredMails = computed(() => {
   if (selectedTab.value === 'unread') {
@@ -93,15 +87,6 @@ watch([mails, () => route.query.id], () => {
 const breakpoints = useBreakpoints(breakpointsTailwind)
 const isMobile = breakpoints.smaller('lg')
 
-function openAlert(alert: WorkflowAlert) {
-  selectedAlert.value = alert
-  router.replace({ query: { ...route.query, entity_type: alert.entityType, entity_id: String(alert.entityId) } })
-}
-
-function hideSelectedAlert(alert: WorkflowAlert) {
-  hideAlert(alert)
-  selectedAlert.value = null
-}
 </script>
 
 <template>
@@ -117,7 +102,7 @@ function hideSelectedAlert(alert: WorkflowAlert) {
         <UDashboardSidebarCollapse />
       </template>
       <template #trailing>
-        <UBadge :label="alertMode ? visibleAlerts.length : filteredMails.length" variant="subtle" />
+        <UBadge :label="filteredMails.length" variant="subtle" />
       </template>
 
       <template #right>
@@ -132,62 +117,14 @@ function hideSelectedAlert(alert: WorkflowAlert) {
       </template>
     </UDashboardNavbar>
 
-    <div v-if="alertMode" class="flex-1 overflow-y-auto divide-y divide-default">
-      <button
-        v-for="alert in visibleAlerts"
-        :key="alert.id"
-        type="button"
-        class="block w-full border-l-2 p-4 text-left text-sm transition-colors sm:px-6"
-        :class="selectedAlert?.id === alert.id ? 'border-primary bg-primary/10' : 'border-transparent hover:border-primary hover:bg-primary/5'"
-        @click="openAlert(alert)"
-      >
-        <div class="flex items-start justify-between gap-3">
-          <div class="min-w-0">
-            <p class="truncate font-semibold text-highlighted">
-              {{ alert.title }}
-            </p>
-            <p class="mt-1 text-xs text-muted">
-              {{ alert.entityType }} #{{ alert.entityId }}
-            </p>
-          </div>
-          <UBadge :label="alert.severity" :color="alert.severity === 'critical' ? 'error' : alert.severity === 'warning' ? 'warning' : 'info'" variant="subtle" />
-        </div>
-      </button>
-    </div>
-
     <InboxList
-      v-else
       :model-value="selectedMail"
       :mails="filteredMails"
       @update:model-value="setSelectedMail"
     />
   </UDashboardPanel>
 
-  <UDashboardPanel v-if="alertMode && selectedAlert" id="alerts-detail" class="hidden lg:flex">
-    <UDashboardNavbar :title="selectedAlert.title" :toggle="false" />
-    <template #body>
-      <div class="mx-auto flex w-full max-w-3xl flex-col gap-4">
-        <UAlert
-          icon="i-lucide-siren"
-          :color="selectedAlert.severity === 'critical' ? 'error' : 'warning'"
-          variant="subtle"
-          :title="selectedAlert.title"
-          :description="`Событие связано с ${selectedAlert.entityType} #${selectedAlert.entityId}. Переход выполняется через entity_type + entity_id.`"
-        />
-        <div class="flex gap-2">
-          <UButton :to="selectedAlert.entityType === 'protocol' ? '/directions?protocol=ready' : `/directions?id=${selectedAlert.entityId}`" icon="i-lucide-arrow-up-right" label="Открыть сущность" />
-          <UButton
-            icon="i-lucide-eye-off"
-            label="Скрыть"
-            color="neutral"
-            variant="outline"
-            @click="hideSelectedAlert(selectedAlert)"
-          />
-        </div>
-      </div>
-    </template>
-  </UDashboardPanel>
-  <InboxMail v-else-if="selectedMail" :mail="selectedMail" @close="setSelectedMail(null)" />
+  <InboxMail v-if="selectedMail" :mail="selectedMail" @close="setSelectedMail(null)" />
   <div v-else class="hidden lg:flex flex-1 flex-col items-center justify-center gap-3">
     <UIcon name="i-lucide-inbox" class="size-32 text-dimmed" />
     <p class="text-sm text-muted">

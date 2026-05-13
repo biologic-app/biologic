@@ -34,6 +34,8 @@ export interface ApiViewResponse<T> {
     total: number
     offset: number
     limit: number
+    nextCursor?: string | null
+    hasMore?: boolean
   }
 }
 

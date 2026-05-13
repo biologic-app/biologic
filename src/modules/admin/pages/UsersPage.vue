@@ -21,8 +21,11 @@ import PermissionEditor from "@/shared/ui/PermissionEditor.vue";
 import CrudTableEmptyState from "@/shared/ui/CrudTableEmptyState.vue";
 import CrudTableShell from "@/shared/ui/CrudTableShell.vue";
 import CrudFilterControls from "@/shared/ui/CrudFilterControls.vue";
+import CrudFilterModal from "@/shared/ui/CrudFilterModal.vue";
 import CrudSearchControl from "@/shared/ui/CrudSearchControl.vue";
+import ConfirmDialog from "@/shared/ui/ConfirmDialog.vue";
 import { borderedCrudTableUi } from "@/shared/ui/table";
+import { createActionColumn } from "@/shared/ui/table-actions";
 import AccessNavigation from "@/modules/access/components/AccessNavigation.vue";
 import { useCrudDialog } from "@/shared/composables/useCrudDialog";
 import { useOptimistic } from "@/shared/composables/useOptimistic";
@@ -37,6 +40,34 @@ import { useAuth } from "@/modules/auth/composables/useAuth";
 const toast = useToast();
 const auth = useAuth();
 const { can } = usePermission();
+
+const confirmDialog = ref<{ open: boolean; title: string; description: string; onConfirm: () => void }>({
+  open: false,
+  title: "",
+  description: "",
+  onConfirm: () => {},
+});
+
+const deleting = ref(false);
+const isFullscreen = ref(false);
+const pendingUndo = ref<Array<{ item: UserRow; timeout: ReturnType<typeof setTimeout> }>>([]);
+
+function undoDelete(undoEntry: { item: UserRow; timeout: ReturnType<typeof setTimeout> }) {
+  clearTimeout(undoEntry.timeout);
+  pendingUndo.value = pendingUndo.value.filter((e) => e !== undoEntry);
+  table.data.value = [undoEntry.item, ...table.data.value];
+  apiCreateRequest<UserRow>("/users", {
+    method: "POST",
+    body: undoEntry.item,
+  }).catch(() => {
+    table.data.value = table.data.value.filter((row) => row.id !== undoEntry.item.id);
+    toast.add({
+      title: "Не удалось восстановить пользователя",
+      color: "error",
+    });
+  });
+}
+
 type UserRow = { id: string | number; [key: string]: any };
 
 const dialog = useCrudDialog<UserRow>("users");
@@ -77,6 +108,7 @@ const table = useServerTable<UserRow>(
       },
     }),
   {
+    mode: "infinite",
     presetKey: "users",
     filters: {
       global: { value: "", matchMode: "contains" },
@@ -93,10 +125,9 @@ const table = useServerTable<UserRow>(
 );
 
 const filters = reactive(JSON.parse(JSON.stringify(table.filters.value)));
-const filtersOpen = ref(false);
+const filterModalOpen = ref(false);
 const columnVisibility = ref<Record<string, boolean>>({});
 const rowSelection = ref<Record<string, boolean>>({});
-const pageSizeItems = [20, 30, 50, 100];
 
 const syncFilters = () => {
   Object.entries(table.filters.value).forEach(([key, value]) => {
@@ -260,34 +291,11 @@ const uiColumns = computed<NuxtTableColumn<UserRow>[]>(() => {
           () => (row.original.is_registrar ? "Да" : "Нет"),
         ),
     },
-    {
-      id: "actions",
-      enableHiding: false,
-      header: "Действия",
-      cell: ({ row }) =>
-        h("div", { class: "flex justify-end gap-1" }, [
-          h(UButton, {
-            color: "neutral",
-            variant: "ghost",
-            icon: "i-lucide-eye",
-            onClick: () => dialog.openView(row.original),
-          }),
-          h(UButton, {
-            color: "neutral",
-            variant: "ghost",
-            icon: can("users", "edit") ? "i-lucide-pencil" : "i-lucide-lock",
-            disabled: !can("users", "edit"),
-            onClick: () => dialog.openEdit(row.original),
-          }),
-          h(UButton, {
-            color: "error",
-            variant: "ghost",
-            icon: can("users", "delete") ? "i-lucide-trash-2" : "i-lucide-lock",
-            disabled: !can("users", "delete"),
-            onClick: () => removeItem(row.original),
-          }),
-        ]),
-    },
+    createActionColumn<UserRow>("users", {
+      onView: (row) => dialog.openView(row),
+      onEdit: (row) => dialog.openEdit(row),
+      onDelete: (row) => removeItem(row),
+    }),
   ];
 });
 
@@ -313,11 +321,6 @@ const resetFilters = () => {
   applyFilters();
 };
 
-const paginationPage = computed({
-  get: () => table.pagination.value.page + 1,
-  set: (value: number) => table.setPage(value - 1),
-});
-
 const activeFilterCount = computed(() =>
   (Object.entries(filters) as Array<[string, { value: unknown }]>).filter(([key, filter]) => {
     if (key === "global") {
@@ -334,21 +337,46 @@ const activeFilterCount = computed(() =>
 );
 
 const removeItem = async (row: UserRow) => {
-  if (!window.confirm(`Удалить пользователя ${row.username}?`)) {
-    return;
-  }
-
-  const rollback = optimistic.removeItem(table.data, row.id);
-  try {
-    await apiRequest(`/users/${row.id}`, { method: "DELETE" });
-  } catch (error: any) {
-    rollback();
-    toast.add({
-      title: "Не удалось удалить пользователя",
-      description: error?.message || "Попробуйте ещё раз",
-      color: "error",
-    });
-  }
+  confirmDialog.value = {
+    open: true,
+    title: "Удалить пользователя",
+    description: `Вы уверены, что хотите удалить пользователя ${row.username}? Это действие нельзя отменить.`,
+    async onConfirm() {
+      deleting.value = true;
+      const deletedRow = { ...table.data.value.find((r) => r.id === row.id) || row };
+      const rollback = optimistic.removeItem(table.data, row.id);
+      try {
+        await apiRequest(`/users/${row.id}`, { method: "DELETE" });
+        const timeout = setTimeout(() => {
+          pendingUndo.value = pendingUndo.value.filter((e) => e.item.id !== row.id);
+        }, 8000);
+        const undoEntry = { item: deletedRow, timeout };
+        pendingUndo.value.push(undoEntry);
+        toast.add({
+          title: "Пользователь удалён",
+          description: "Пользователь будет удалён безвозвратно через 8 секунд.",
+          color: "success",
+          icon: "i-lucide-circle-check",
+          actions: [{
+            label: "Отменить",
+            icon: "i-lucide-undo-2",
+            onClick: () => undoDelete(undoEntry),
+          }],
+          duration: 8000,
+        });
+      } catch (error: any) {
+        rollback();
+        toast.add({
+          title: "Не удалось удалить пользователя",
+          description: error?.message || "Попробуйте ещё раз",
+          color: "error",
+        });
+      } finally {
+        deleting.value = false;
+        confirmDialog.value.open = false;
+      }
+    },
+  };
 };
 
 const selectedRows = computed(() =>
@@ -365,26 +393,39 @@ const deleteSelected = async () => {
     return;
   }
 
-  if (!window.confirm(`Удалить выбранных пользователей (${selectedRows.value.length})?`)) {
-    return;
-  }
+  confirmDialog.value = {
+    open: true,
+    title: "Удалить пользователей",
+    description: `Вы уверены, что хотите удалить ${selectedRows.value.length} пользователей? Это действие нельзя отменить.`,
+    async onConfirm() {
+      deleting.value = true;
 
-  const rows = [...selectedRows.value];
-  const ids = rows.map((row) => row.id);
-  const previous = [...table.data.value];
-  table.data.value = table.data.value.filter((row) => !ids.includes(row.id));
+      const rows = [...selectedRows.value];
+      const ids = rows.map((row) => row.id);
+      const previous = [...table.data.value];
+      table.data.value = table.data.value.filter((row) => !ids.includes(row.id));
 
-  try {
-    await Promise.all(rows.map((row) => apiRequest(`/users/${row.id}`, { method: "DELETE" })));
-    rowSelection.value = {};
-  } catch (error: any) {
-    table.data.value = previous;
-    toast.add({
-      title: "Не удалось удалить пользователей",
-      description: error?.message || "Попробуйте ещё раз",
-      color: "error",
-    });
-  }
+      try {
+        await Promise.all(rows.map((row) => apiRequest(`/users/${row.id}`, { method: "DELETE" })));
+        rowSelection.value = {};
+        toast.add({
+          title: "Пользователи удалены",
+          color: "success",
+          icon: "i-lucide-circle-check",
+        });
+      } catch (error: any) {
+        table.data.value = previous;
+        toast.add({
+          title: "Не удалось удалить пользователей",
+          description: error?.message || "Попробуйте ещё раз",
+          color: "error",
+        });
+      } finally {
+        deleting.value = false;
+        confirmDialog.value.open = false;
+      }
+    },
+  };
 };
 
 const columnLabels: Record<string, string> = {
@@ -532,8 +573,7 @@ onMounted(async () => {
             />
             <CrudFilterControls
               :active-count="activeFilterCount"
-              :open="filtersOpen"
-              @toggle="filtersOpen = !filtersOpen"
+              @open="filterModalOpen = true"
               @clear="resetFilters"
             />
           </div>
@@ -541,7 +581,7 @@ onMounted(async () => {
         <template #right>
           <div class="flex flex-wrap items-center gap-2">
             <UButton
-              v-if="selectedCount"
+              v-show="selectedCount"
               color="error"
               variant="subtle"
               icon="i-lucide-trash"
@@ -576,40 +616,39 @@ onMounted(async () => {
     </template>
 
     <template #body>
-      <CrudTableShell
-        :filters-open="filtersOpen"
-        :total="table.total.value"
-        :page="paginationPage"
-        :page-size="table.pagination.value.size"
-        :page-size-items="pageSizeItems"
-        @update:page="paginationPage = $event"
-        @update:page-size="table.setPageSize($event)"
+      <CrudFilterModal
+        v-model:open="filterModalOpen"
+        :active-count="activeFilterCount"
+        @apply="applyFilters()"
+        @reset="resetFilters()"
       >
-        <template #filters>
-          <div class="grid gap-3 border-t border-default pt-3 lg:grid-cols-4">
-            <UInput
-              v-model="filters.username.value"
-              placeholder="Логин"
-              @update:model-value="applyFilters()"
-            />
-            <UInput
-              v-model="filters.code.value"
-              placeholder="Код"
-              @update:model-value="applyFilters()"
-            />
-            <UInput
-              v-model="filters['role.name'].value"
-              placeholder="Роль"
-              @update:model-value="applyFilters()"
-            />
-            <UInput
-              v-model="filters['lab.name'].value"
-              placeholder="Лаборатория"
-              @update:model-value="applyFilters()"
-            />
-          </div>
-        </template>
+        <div class="grid gap-3 md:grid-cols-2">
+          <UInput
+            v-model="filters.username.value"
+            placeholder="Логин"
+          />
+          <UInput
+            v-model="filters.code.value"
+            placeholder="Код"
+          />
+          <UInput
+            v-model="filters['role.name'].value"
+            placeholder="Роль"
+          />
+          <UInput
+            v-model="filters['lab.name'].value"
+            placeholder="Лаборатория"
+          />
+        </div>
+      </CrudFilterModal>
 
+      <CrudTableShell
+        mode="infinite"
+        :total="table.total.value"
+        :loading-more="table.loadingMore.value"
+        :has-more="table.hasMore.value"
+        @load-more="table.loadMore()"
+      >
         <template #table>
           <UTable
             v-model:column-visibility="columnVisibility"
@@ -618,13 +657,26 @@ onMounted(async () => {
             :columns="uiColumns"
             :loading="table.loading.value"
             sticky
-            class="h-full"
             :ui="borderedCrudTableUi"
           >
+            <template #body-bottom>
+              <tr v-if="!table.loadingMore.value && !table.hasMore.value && table.total.value > 0" class="bg-default">
+                <td :colspan="uiColumns.length" class="border-r border-b border-default px-6 py-3 text-center text-xs text-dimmed">
+                  Всего записей: {{ table.total.value }}
+                </td>
+              </tr>
+            </template>
             <template #empty>
               <CrudTableEmptyState
-                title="Пользователи не найдены"
-                description="Измените фильтры или создайте нового пользователя."
+                :title="activeFilterCount ? 'Ничего не найдено' : 'Пользователи не найдены'"
+                :description="activeFilterCount
+                  ? 'Нет пользователей, соответствующих фильтрам. Измените условия поиска.'
+                  : 'Измените фильтры или создайте нового пользователя.'"
+                :filtered="activeFilterCount > 0"
+                :error="table.error.value"
+                error-description="Не удалось загрузить пользователей. Проверьте подключение или повторите попытку позже."
+                @clear-filters="resetFilters"
+                @retry="table.refresh()"
               />
             </template>
           </UTable>
@@ -635,16 +687,23 @@ onMounted(async () => {
 
   <UModal
     :open="dialog.visible.value"
-    :title="
-      dialog.mode.value === 'create'
-        ? 'Создать пользователя'
-        : dialog.mode.value === 'edit'
-          ? 'Редактировать пользователя'
-          : 'Просмотр пользователя'
-    "
-    :ui="{ content: 'max-w-6xl' }"
+    :ui="{ content: isFullscreen ? 'max-w-full sm:h-[95vh]' : 'max-w-6xl' }"
     @update:open="dialog.visible.value = $event"
   >
+    <template #header>
+      <div class="flex items-center justify-between gap-3 w-full">
+        <span class="text-lg font-semibold text-highlighted">
+          {{ dialog.mode.value === 'create' ? 'Создать пользователя' : dialog.mode.value === 'edit' ? 'Редактировать пользователя' : 'Просмотр пользователя' }}
+        </span>
+        <UButton
+          :icon="isFullscreen ? 'i-lucide-minimize-2' : 'i-lucide-maximize-2'"
+          color="neutral"
+          variant="ghost"
+          size="sm"
+          @click="isFullscreen = !isFullscreen"
+        />
+      </div>
+    </template>
     <template #body>
       <UTabs v-model="activeTab" :items="tabItems" :content="false" />
 
@@ -773,4 +832,15 @@ onMounted(async () => {
       </div>
     </template>
   </UModal>
+
+  <ConfirmDialog
+    v-model:open="confirmDialog.open"
+    :title="confirmDialog.title"
+    :description="confirmDialog.description"
+    :loading="deleting"
+    confirm-color="error"
+    confirm-label="Удалить"
+    confirm-icon="i-lucide-trash-2"
+    @confirm="confirmDialog.onConfirm"
+  />
 </template>

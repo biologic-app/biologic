@@ -25,7 +25,6 @@ export const messages = {
     validation: {
       tooShort: "Слишком короткое значение",
       invalidEmail: "Некорректный email",
-      settingsUpdated: "Настройки обновлены.",
       customerAdded: "Новый пациент {name} добавлен",
     },
     login: {
@@ -36,7 +35,7 @@ export const messages = {
         "Используйте учетные данные для доступа к панели управления и модулям лаборатории",
       heroTitle: "Все лабораторные процессы — в едином интерфейсе.",
       heroDescription:
-        "Единое рабочее пространство для сотрудников: мгновенный доступ к базе образцов, исследованиям, журналам исследований, уведомлениям и настройкам.",
+        "Единое рабочее пространство для сотрудников: мгновенный доступ к базе образцов, исследованиям, журналам исследований и уведомлениям.",
       username: "Логин",
       usernamePlaceholder: "Введите логин",
       password: "Пароль",
@@ -71,7 +70,6 @@ export const messages = {
       inbox: "Входящие",
       customers: "Пациенты",
       research: "Исследования",
-      workflows: "Потоки ролей",
       directions: "Направления",
       requests: "Заявки",
       requestsAll: "Все заявки",
@@ -90,10 +88,6 @@ export const messages = {
       dictionariesReferences: "Нормы и референсы",
       dictionariesOrganizations: "Организации / клиенты",
       access: "Доступ",
-      settings: "Настройки",
-      settingsUsers: "Пользователи и роли",
-      settingsBranches: "Филиалы и подразделения",
-      settingsSystem: "Параметры системы",
       documentation: "Документация",
     },
     layout: {
@@ -329,74 +323,6 @@ export const messages = {
         description: "Вы уверены? Это действие нельзя отменить.",
       },
     },
-    settings: {
-      title: "Настройки",
-      general: "Общие",
-      members: "Участники",
-      notifications: "Уведомления",
-      security: "Безопасность",
-      documentation: "Документация",
-      profile: {
-        title: "Профиль",
-        description: "Эти данные будут отображаться публично.",
-        name: "Имя",
-        nameDescription:
-          "Будет использоваться в квитанциях, счетах и другой коммуникации.",
-        email: "Email",
-        emailDescription:
-          "Используется для входа, писем и обновлений продукта.",
-        username: "Имя пользователя",
-        usernameDescription: "Ваш уникальный логин и адрес профиля.",
-        avatar: "Аватар",
-        avatarDescription: "JPG, GIF или PNG. Максимум 1 МБ.",
-        bio: "О себе",
-        bioDescription: "Краткое описание профиля. Ссылки будут активными.",
-      },
-      membersPage: {
-        title: "Участники",
-        description:
-          "Приглашайте новых участников по адресу электронной почты.",
-        invite: "Пригласить",
-        search: "Поиск участников",
-      },
-      memberList: {
-        edit: "Изменить участника",
-        remove: "Удалить участника",
-        member: "Участник",
-        owner: "Владелец",
-      },
-      notificationsPage: {
-        channelsTitle: "Каналы уведомлений",
-        channelsDescription: "Куда мы можем отправлять уведомления?",
-        email: "Email",
-        emailDescription: "Получать ежедневную сводку по почте.",
-        desktop: "Рабочий стол",
-        desktopDescription: "Получать уведомления на рабочем столе.",
-        updatesTitle: "Обновления аккаунта",
-        updatesDescription: "Получайте обновления о Nuxt UI.",
-        weeklyDigest: "Еженедельная сводка",
-        weeklyDigestDescription: "Получать еженедельную сводку новостей.",
-        productUpdates: "Обновления продукта",
-        productUpdatesDescription:
-          "Получать ежемесячное письмо со всеми новыми возможностями.",
-        importantUpdates: "Важные обновления",
-        importantUpdatesDescription:
-          "Получать письма о важных обновлениях: безопасность, обслуживание и другое.",
-      },
-      securityPage: {
-        passwordTitle: "Пароль",
-        passwordDescription:
-          "Подтвердите текущий пароль перед установкой нового.",
-        currentPassword: "Текущий пароль",
-        newPassword: "Новый пароль",
-        deleteAccount: "Удалить аккаунт",
-        accountTitle: "Аккаунт",
-        accountDescription:
-          "Если вы больше не хотите пользоваться сервисом, можно удалить аккаунт здесь. Это действие необратимо. Все связанные данные будут удалены навсегда.",
-        minLength: "Минимум 8 символов",
-        passwordsDifferent: "Пароли должны отличаться",
-      },
-    },
   },
   en: {
     app: {
@@ -424,7 +350,6 @@ export const messages = {
     validation: {
       tooShort: "Too short",
       invalidEmail: "Invalid email",
-      settingsUpdated: "Your settings have been updated.",
       customerAdded: "New patient {name} added",
     },
     login: {
@@ -435,7 +360,7 @@ export const messages = {
         "Use your corporate account to open the operator dashboard and internal laboratory modules.",
       heroTitle: "Laboratory operations in one interface.",
       heroDescription:
-        "A Nuxt UI sign-in screen for internal users with fast access to notifications, patients, settings, and process journals.",
+        "A Nuxt UI sign-in screen for internal users with fast access to notifications, patients, and process journals.",
       username: "Username",
       usernameDescription: "Enter your corporate username.",
       usernamePlaceholder: "operator",
@@ -506,10 +431,6 @@ export const messages = {
       dictionariesReferences: "Norms and references",
       dictionariesOrganizations: "Organizations / clients",
       access: "Access",
-      settings: "Settings",
-      settingsUsers: "Users and roles",
-      settingsBranches: "Branches and departments",
-      settingsSystem: "System settings",
       documentation: "Documentation",
     },
     layout: {
@@ -759,74 +680,6 @@ export const messages = {
       deleteDialog: {
         title: "Delete entries ({count})",
         description: "Are you sure? This action cannot be undone.",
-      },
-    },
-    settings: {
-      title: "Settings",
-      general: "General",
-      members: "Members",
-      notifications: "Notifications",
-      security: "Security",
-      documentation: "Documentation",
-      profile: {
-        title: "Profile",
-        description: "This information will be displayed publicly.",
-        name: "Name",
-        nameDescription:
-          "Will appear on receipts, invoices, and other communication.",
-        email: "Email",
-        emailDescription:
-          "Used to sign in, for email receipts and product updates.",
-        username: "Username",
-        usernameDescription: "Your unique login and profile URL.",
-        avatar: "Avatar",
-        avatarDescription: "JPG, GIF or PNG. 1MB max.",
-        bio: "Bio",
-        bioDescription:
-          "Brief description for your profile. URLs are hyperlinked.",
-      },
-      membersPage: {
-        title: "Members",
-        description: "Invite new members by email address.",
-        invite: "Invite people",
-        search: "Search members",
-      },
-      memberList: {
-        edit: "Edit member",
-        remove: "Remove member",
-        member: "Member",
-        owner: "Owner",
-      },
-      notificationsPage: {
-        channelsTitle: "Notification channels",
-        channelsDescription: "Where can we notify you?",
-        email: "Email",
-        emailDescription: "Receive a daily email digest.",
-        desktop: "Desktop",
-        desktopDescription: "Receive desktop notifications.",
-        updatesTitle: "Account updates",
-        updatesDescription: "Receive updates about Nuxt UI.",
-        weeklyDigest: "Weekly digest",
-        weeklyDigestDescription: "Receive a weekly digest of news.",
-        productUpdates: "Product updates",
-        productUpdatesDescription:
-          "Receive a monthly email with all new features and updates.",
-        importantUpdates: "Important updates",
-        importantUpdatesDescription:
-          "Receive emails about important updates like security fixes, maintenance, and more.",
-      },
-      securityPage: {
-        passwordTitle: "Password",
-        passwordDescription:
-          "Confirm your current password before setting a new one.",
-        currentPassword: "Current password",
-        newPassword: "New password",
-        deleteAccount: "Delete account",
-        accountTitle: "Account",
-        accountDescription:
-          "No longer want to use our service? You can delete your account here. This action is not reversible. All information related to this account will be deleted permanently.",
-        minLength: "Must be at least 8 characters",
-        passwordsDifferent: "Passwords must be different",
       },
     },
   },

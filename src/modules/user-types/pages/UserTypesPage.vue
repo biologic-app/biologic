@@ -6,7 +6,10 @@ import PermissionEditor from '@/shared/ui/PermissionEditor.vue'
 import CrudTableEmptyState from '@/shared/ui/CrudTableEmptyState.vue'
 import CrudTableShell from '@/shared/ui/CrudTableShell.vue'
 import CrudFilterControls from '@/shared/ui/CrudFilterControls.vue'
+import CrudFilterModal from '@/shared/ui/CrudFilterModal.vue'
 import CrudSearchControl from '@/shared/ui/CrudSearchControl.vue'
+import ConfirmDialog from '@/shared/ui/ConfirmDialog.vue'
+import { createActionColumn } from '@/shared/ui/table-actions'
 import { borderedCrudTableUi } from '@/shared/ui/table'
 import AccessNavigation from '@/modules/access/components/AccessNavigation.vue'
 import { useCrudDialog } from '@/shared/composables/useCrudDialog'
@@ -18,6 +21,34 @@ import type { Permission } from '@/shared/types/permissions'
 
 const toast = useToast()
 const { can } = usePermission()
+
+const confirmDialog = ref<{ open: boolean; title: string; description: string; onConfirm: () => void }>({
+  open: false,
+  title: "",
+  description: "",
+  onConfirm: () => {},
+});
+
+const deleting = ref(false)
+const isFullscreen = ref(false)
+const pendingUndo = ref<Array<{ item: RoleRow; timeout: ReturnType<typeof setTimeout> }>>([]);
+
+function undoDelete(undoEntry: { item: RoleRow; timeout: ReturnType<typeof setTimeout> }) {
+  clearTimeout(undoEntry.timeout);
+  pendingUndo.value = pendingUndo.value.filter((e) => e !== undoEntry);
+  table.data.value = [undoEntry.item, ...table.data.value];
+  apiCreateRequest<RoleRow>("/roles", {
+    method: "POST",
+    body: undoEntry.item,
+  }).catch(() => {
+    table.data.value = table.data.value.filter((row) => row.id !== undoEntry.item.id);
+    toast.add({
+      title: "Не удалось восстановить роль",
+      color: "error",
+    });
+  });
+}
+
 type RoleRow = { id: string | number; [key: string]: any }
 
 const dialog = useCrudDialog<RoleRow>('user-types')
@@ -35,6 +66,7 @@ const form = reactive({
 const table = useServerTable<RoleRow>(
   (params) => apiReadListRequest<RoleRow>('/roles', { method: 'GET', params }),
   {
+    mode: 'infinite',
     presetKey: 'user-types',
     filters: {
       global: { value: '', matchMode: 'contains' },
@@ -46,10 +78,9 @@ const table = useServerTable<RoleRow>(
 )
 
 const filters = reactive(JSON.parse(JSON.stringify(table.filters.value)))
-const filtersOpen = ref(false)
+const filterModalOpen = ref(false)
 const columnVisibility = ref<Record<string, boolean>>({})
 const rowSelection = ref<Record<string, boolean>>({})
-const pageSizeItems = [20, 30, 50, 100]
 
 const syncFilters = () => {
   Object.entries(table.filters.value).forEach(([key, value]) => {
@@ -179,42 +210,27 @@ const uiColumns = computed<NuxtTableColumn<RoleRow>[]>(() => {
       header: 'Права',
       cell: ({ row }) => {
         const summary = row.original.permissionsSummary || { view: 0, create: 0, edit: 0, delete: 0 }
-        return h('div', { class: 'flex flex-wrap gap-1' }, [
-          h(UBadge, { color: 'neutral', variant: 'subtle' }, () => `V ${summary.view}`),
-          h(UBadge, { color: 'neutral', variant: 'subtle' }, () => `C ${summary.create}`),
-          h(UBadge, { color: 'neutral', variant: 'subtle' }, () => `E ${summary.edit}`),
-          h(UBadge, { color: 'neutral', variant: 'subtle' }, () => `D ${summary.delete}`)
-        ])
+        const UTooltip = resolveComponent('UTooltip')
+        const badges = [
+          { key: 'view', short: 'V', label: 'Просмотр' },
+          { key: 'create', short: 'C', label: 'Создание' },
+          { key: 'edit', short: 'E', label: 'Редактирование' },
+          { key: 'delete', short: 'D', label: 'Удаление' },
+        ]
+        return h('div', { class: 'flex flex-wrap gap-1' },
+          badges.map(({ key, short, label }) =>
+            h(UTooltip, { text: `${label}: ${summary[key as keyof typeof summary]}` }, () =>
+              h(UBadge, { color: 'neutral', variant: 'subtle' }, () => `${short} ${summary[key as keyof typeof summary]}`)
+            )
+          )
+        )
       }
     },
-    {
-      id: 'actions',
-      enableHiding: false,
-      header: 'Действия',
-      cell: ({ row }) =>
-        h('div', { class: 'flex justify-end gap-1' }, [
-          h(UButton, {
-            color: 'neutral',
-            variant: 'ghost',
-            icon: 'i-lucide-eye',
-            onClick: () => dialog.openView(row.original)
-          }),
-          h(UButton, {
-            color: 'neutral',
-            variant: 'ghost',
-            icon: can('user-types', 'edit') ? 'i-lucide-pencil' : 'i-lucide-lock',
-            disabled: !can('user-types', 'edit'),
-            onClick: () => dialog.openEdit(row.original)
-          }),
-          h(UButton, {
-            color: 'error',
-            variant: 'ghost',
-            icon: can('user-types', 'delete') ? 'i-lucide-trash-2' : 'i-lucide-lock',
-            disabled: !can('user-types', 'delete'),
-            onClick: () => removeItem(row.original)
-          })
-        ])
-    }
+    createActionColumn<RoleRow>('user-types', {
+      onView: (row) => dialog.openView(row),
+      onEdit: (row) => dialog.openEdit(row),
+      onDelete: (row) => removeItem(row),
+    })
   ]
 })
 
@@ -239,11 +255,6 @@ const resetFilters = () => {
   applyFilters()
 }
 
-const paginationPage = computed({
-  get: () => table.pagination.value.page + 1,
-  set: (value: number) => table.setPage(value - 1)
-})
-
 const activeFilterCount = computed(() =>
   (Object.entries(filters) as Array<[string, { value: unknown }]>).filter(([key, filter]) => {
     if (key === 'global') {
@@ -260,20 +271,45 @@ const activeFilterCount = computed(() =>
 )
 
 const removeItem = async (row: RoleRow) => {
-  if (!window.confirm(`Удалить роль ${row.name}?`)) {
-    return
-  }
-
-  const rollback = optimistic.removeItem(table.data, row.id)
-  try {
-    await apiRequest(`/roles/${row.id}`, { method: 'DELETE' })
-  } catch (error: any) {
-    rollback()
-    toast.add({
-      title: 'Не удалось удалить роль',
-      description: error?.message || 'Попробуйте ещё раз',
-      color: 'error'
-    })
+  confirmDialog.value = {
+    open: true,
+    title: "Удалить роль",
+    description: `Вы уверены, что хотите удалить роль "${row.name}"? Это действие нельзя отменить.`,
+    async onConfirm() {
+      deleting.value = true
+      const deletedRow = { ...table.data.value.find((r) => r.id === row.id) || row }
+      const rollback = optimistic.removeItem(table.data, row.id)
+      try {
+        await apiRequest(`/roles/${row.id}`, { method: 'DELETE' })
+        const timeout = setTimeout(() => {
+          pendingUndo.value = pendingUndo.value.filter((e) => e.item.id !== row.id)
+        }, 8000)
+        const undoEntry = { item: deletedRow, timeout }
+        pendingUndo.value.push(undoEntry)
+        toast.add({
+          title: 'Роль удалена',
+          description: 'Роль будет удалена безвозвратно через 8 секунд.',
+          color: 'success',
+          icon: 'i-lucide-circle-check',
+          actions: [{
+            label: 'Отменить',
+            icon: 'i-lucide-undo-2',
+            onClick: () => undoDelete(undoEntry),
+          }],
+          duration: 8000,
+        })
+      } catch (error: any) {
+        rollback()
+        toast.add({
+          title: 'Не удалось удалить роль',
+          description: error?.message || 'Попробуйте ещё раз',
+          color: 'error'
+        })
+      } finally {
+        deleting.value = false
+        confirmDialog.value.open = false
+      }
+    },
   }
 }
 
@@ -291,25 +327,38 @@ const deleteSelected = async () => {
     return
   }
 
-  if (!window.confirm(`Удалить выбранные роли (${selectedRows.value.length})?`)) {
-    return
-  }
+  confirmDialog.value = {
+    open: true,
+    title: "Удалить роли",
+    description: `Вы уверены, что хотите удалить ${selectedRows.value.length} ролей? Это действие нельзя отменить.`,
+    async onConfirm() {
+      deleting.value = true
 
-  const rows = [...selectedRows.value]
-  const ids = rows.map((row) => row.id)
-  const previous = [...table.data.value]
-  table.data.value = table.data.value.filter((row) => !ids.includes(row.id))
+      const rows = [...selectedRows.value]
+      const ids = rows.map((row) => row.id)
+      const previous = [...table.data.value]
+      table.data.value = table.data.value.filter((row) => !ids.includes(row.id))
 
-  try {
-    await Promise.all(rows.map((row) => apiRequest(`/roles/${row.id}`, { method: 'DELETE' })))
-    rowSelection.value = {}
-  } catch (error: any) {
-    table.data.value = previous
-    toast.add({
-      title: 'Не удалось удалить роли',
-      description: error?.message || 'Попробуйте ещё раз',
-      color: 'error'
-    })
+      try {
+        await Promise.all(rows.map((row) => apiRequest(`/roles/${row.id}`, { method: 'DELETE' })))
+        rowSelection.value = {}
+        toast.add({
+          title: 'Роли удалены',
+          color: 'success',
+          icon: 'i-lucide-circle-check',
+        })
+      } catch (error: any) {
+        table.data.value = previous
+        toast.add({
+          title: 'Не удалось удалить роли',
+          description: error?.message || 'Попробуйте ещё раз',
+          color: 'error'
+        })
+      } finally {
+        deleting.value = false
+        confirmDialog.value.open = false
+      }
+    },
   }
 }
 
@@ -441,8 +490,7 @@ onMounted(() => {
             />
             <CrudFilterControls
               :active-count="activeFilterCount"
-              :open="filtersOpen"
-              @toggle="filtersOpen = !filtersOpen"
+              @open="filterModalOpen = true"
               @clear="resetFilters"
             />
           </div>
@@ -450,7 +498,7 @@ onMounted(() => {
         <template #right>
           <div class="flex flex-wrap items-center gap-2">
             <UButton
-              v-if="selectedCount"
+              v-show="selectedCount"
               color="error"
               variant="subtle"
               icon="i-lucide-trash"
@@ -485,48 +533,47 @@ onMounted(() => {
     </template>
 
     <template #body>
-      <CrudTableShell
-        :filters-open="filtersOpen"
-        :total="table.total.value"
-        :page="paginationPage"
-        :page-size="table.pagination.value.size"
-        :page-size-items="pageSizeItems"
-        @update:page="paginationPage = $event"
-        @update:page-size="table.setPageSize($event)"
+      <CrudFilterModal
+        v-model:open="filterModalOpen"
+        :active-count="activeFilterCount"
+        @apply="applyFilters()"
+        @reset="resetFilters()"
       >
-        <template #filters>
-          <div class="grid gap-3 border-t border-default pt-3 md:grid-cols-3">
+        <div class="grid gap-3 md:grid-cols-3">
+          <UInput
+            v-model="filters.key.value"
+            placeholder="Ключ"
+          />
+          <UInput
+            v-model="filters.name.value"
+            placeholder="Название"
+          />
+          <div class="grid gap-2 sm:grid-cols-2">
             <UInput
-              v-model="filters.key.value"
-              placeholder="Ключ"
-              @update:model-value="applyFilters()"
+              :model-value="filters.updated_at.value?.[0] || ''"
+              type="date"
+              @update:model-value="
+                filters.updated_at.value = [$event || null, filters.updated_at.value?.[1] || null]
+              "
             />
             <UInput
-              v-model="filters.name.value"
-              placeholder="Название"
-              @update:model-value="applyFilters()"
+              :model-value="filters.updated_at.value?.[1] || ''"
+              type="date"
+              @update:model-value="
+                filters.updated_at.value = [filters.updated_at.value?.[0] || null, $event || null]
+              "
             />
-            <div class="grid gap-2 sm:grid-cols-2">
-              <UInput
-                :model-value="filters.updated_at.value?.[0] || ''"
-                type="date"
-                @update:model-value="
-                  filters.updated_at.value = [$event || null, filters.updated_at.value?.[1] || null];
-                  applyFilters()
-                "
-              />
-              <UInput
-                :model-value="filters.updated_at.value?.[1] || ''"
-                type="date"
-                @update:model-value="
-                  filters.updated_at.value = [filters.updated_at.value?.[0] || null, $event || null];
-                  applyFilters()
-                "
-              />
-            </div>
           </div>
-        </template>
+        </div>
+      </CrudFilterModal>
 
+      <CrudTableShell
+        mode="infinite"
+        :total="table.total.value"
+        :loading-more="table.loadingMore.value"
+        :has-more="table.hasMore.value"
+        @load-more="table.loadMore()"
+      >
         <template #table>
           <UTable
             v-model:column-visibility="columnVisibility"
@@ -535,13 +582,26 @@ onMounted(() => {
             :columns="uiColumns"
             :loading="table.loading.value"
             sticky
-            class="h-full"
             :ui="borderedCrudTableUi"
           >
+            <template #body-bottom>
+              <tr v-if="!table.loadingMore.value && !table.hasMore.value && table.total.value > 0" class="bg-default">
+                <td :colspan="uiColumns.length" class="border-r border-b border-default px-6 py-3 text-center text-xs text-dimmed">
+                  Всего записей: {{ table.total.value }}
+                </td>
+              </tr>
+            </template>
             <template #empty>
               <CrudTableEmptyState
-                title="Роли не найдены"
-                description="Измените фильтры или создайте новую роль."
+                :title="activeFilterCount ? 'Ничего не найдено' : 'Роли не найдены'"
+                :description="activeFilterCount
+                  ? 'Нет ролей, соответствующих фильтрам. Измените условия поиска.'
+                  : 'Измените фильтры или создайте новую роль.'"
+                :filtered="activeFilterCount > 0"
+                :error="table.error.value"
+                error-description="Не удалось загрузить роли. Проверьте подключение или повторите попытку позже."
+                @clear-filters="resetFilters"
+                @retry="table.refresh()"
               />
             </template>
           </UTable>
@@ -552,16 +612,23 @@ onMounted(() => {
 
   <UModal
     :open="dialog.visible.value"
-    :title="
-      dialog.mode.value === 'create'
-        ? 'Создать роль'
-        : dialog.mode.value === 'edit'
-          ? 'Редактировать роль'
-          : 'Просмотр роли'
-    "
-    :ui="{ content: 'max-w-5xl' }"
+    :ui="{ content: isFullscreen ? 'max-w-full sm:h-[95vh]' : 'max-w-6xl' }"
     @update:open="dialog.visible.value = $event"
   >
+    <template #header>
+      <div class="flex items-center justify-between gap-3 w-full">
+        <span class="text-lg font-semibold text-highlighted">
+          {{ dialog.mode.value === 'create' ? 'Создать роль' : dialog.mode.value === 'edit' ? 'Редактировать роль' : 'Просмотр роли' }}
+        </span>
+        <UButton
+          :icon="isFullscreen ? 'i-lucide-minimize-2' : 'i-lucide-maximize-2'"
+          color="neutral"
+          variant="ghost"
+          size="sm"
+          @click="isFullscreen = !isFullscreen"
+        />
+      </div>
+    </template>
     <template #body>
       <UTabs v-model="activeTab" :items="tabItems" :content="false" />
 
@@ -599,4 +666,15 @@ onMounted(() => {
       </div>
     </template>
   </UModal>
+
+  <ConfirmDialog
+    v-model:open="confirmDialog.open"
+    :title="confirmDialog.title"
+    :description="confirmDialog.description"
+    :loading="deleting"
+    confirm-color="error"
+    confirm-label="Удалить"
+    confirm-icon="i-lucide-trash-2"
+    @confirm="confirmDialog.onConfirm"
+  />
 </template>

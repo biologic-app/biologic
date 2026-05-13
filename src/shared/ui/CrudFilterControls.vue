@@ -2,20 +2,18 @@
 withDefaults(
   defineProps<{
     activeCount?: number;
-    open?: boolean;
     label?: string;
     clearTooltip?: string;
   }>(),
   {
     activeCount: 0,
-    open: false,
     label: "Фильтр",
     clearTooltip: "Сбросить фильтры",
   },
 );
 
 const emit = defineEmits<{
-  (event: "toggle"): void;
+  (event: "open"): void;
   (event: "clear"): void;
 }>();
 </script>
@@ -26,8 +24,8 @@ const emit = defineEmits<{
       :label="label"
       color="neutral"
       variant="subtle"
-      :icon="open ? 'i-lucide-chevron-up' : 'i-lucide-filter'"
-      @click="emit('toggle')"
+      icon="i-lucide-filter"
+      @click="emit('open')"
     >
       <template v-if="activeCount > 0" #trailing>
         <UKbd>{{ activeCount }}</UKbd>

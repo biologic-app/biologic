@@ -1,98 +1,27 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
-import type { NavigationMenuItem } from "@nuxt/ui";
-import {
-  defaultDictionaryKey,
-  dictionaryItems,
-  getDictionaryConfig,
-  getDictionaryItem,
-  isDictionaryKey,
-  statusDictionaryItems,
-} from "@/modules/dictionaries/config";
+import { computed, ref } from "vue";
 import DictionaryCrudContent from "@/modules/dictionaries/pages/DictionaryCrudContent.vue";
 import { usePermission } from "@/shared/composables/usePermission";
 import CrudFilterControls from "@/shared/ui/CrudFilterControls.vue";
 import CrudSearchControl from "@/shared/ui/CrudSearchControl.vue";
+import { crudModules } from "@/shared/config/crud-modules";
 
-const route = useRoute();
-const router = useRouter();
 const { can } = usePermission();
 const crudContent = ref<InstanceType<typeof DictionaryCrudContent> | null>(null);
 const tableSearch = ref("");
 const refreshToken = ref(0);
 const resetToken = ref(0);
 
-const moduleKey = computed(() => {
-  const rawModule = route.params.module;
-  const key = Array.isArray(rawModule) ? rawModule[0] : rawModule;
-  return key || defaultDictionaryKey;
-});
+const selectedConfig = crudModules.samples;
 
-const selectedItem = computed(
-  () => getDictionaryItem(moduleKey.value) || dictionaryItems[0],
-);
-
-const selectedConfig = computed(() => getDictionaryConfig(selectedItem.value));
-
-const dictionaryLinks = computed<NavigationMenuItem[][]>(() => [
-  dictionaryItems.map((item) => ({
-    label: item.label,
-    icon: item.icon,
-    to:
-      item.key === "statuses"
-        ? "/dictionaries/statuses"
-        : `/dictionaries/${item.key}`,
-    active:
-      item.key === "statuses"
-        ? selectedItem.value.configKey === "statuses"
-        : selectedItem.value.key === item.key,
-    exact: true,
-  })),
-]);
-
-const statusLinks = computed<NavigationMenuItem[][]>(() => [
-  statusDictionaryItems.map((item) => ({
-    label: item.label,
-    icon: item.icon,
-    to: `/dictionaries/${item.key}`,
-    exact: true,
-  })),
-]);
-
-const showStatusNavigation = computed(
-  () => selectedItem.value.configKey === "statuses",
-);
-
-const createDisabled = computed(() => !can(selectedConfig.value.resource, "create"));
-const activeFilterCount = computed(
-  () => crudContent.value?.activeFilterCount || 0,
-);
-
-watch(
-  moduleKey,
-  (key) => {
-    if (!isDictionaryKey(key)) {
-      router.replace(`/dictionaries/${defaultDictionaryKey}`);
-      return;
-    }
-
-    if (key === "statuses") {
-      router.replace(`/dictionaries/${statusDictionaryItems[0].key}`);
-    }
-  },
-  { immediate: true },
-);
-
-watch(moduleKey, () => {
-
-});
+const createDisabled = !can(selectedConfig.resource, "create");
+const activeFilterCount = computed(() => crudContent.value?.activeFilterCount || 0);
 </script>
 
 <template>
-  <UDashboardPanel id="dictionaries">
+  <UDashboardPanel id="samples" :ui="{ body: 'min-h-0 overflow-hidden' }">
     <template #header>
-      <UDashboardNavbar title="Справочники">
+      <UDashboardNavbar title="Образцы">
         <template #leading>
           <UDashboardSidebarCollapse />
         </template>
@@ -111,15 +40,11 @@ watch(moduleKey, () => {
       </UDashboardNavbar>
 
       <UDashboardToolbar>
-        <UNavigationMenu :items="dictionaryLinks" highlight class="-mx-1 flex-1" />
-      </UDashboardToolbar>
-
-      <UDashboardToolbar>
         <template #left>
           <div class="flex w-full flex-col gap-3 lg:flex-row lg:items-center">
             <CrudSearchControl
               v-model="tableSearch"
-              placeholder="Поиск по справочнику"
+              placeholder="Поиск по образцам"
             />
             <CrudFilterControls
               :active-count="activeFilterCount"
@@ -166,19 +91,10 @@ watch(moduleKey, () => {
     </template>
 
     <template #body>
-      <div class="flex min-h-full w-full flex-col gap-4">
-        <UNavigationMenu
-          v-if="showStatusNavigation"
-          :items="statusLinks"
-          highlight
-          class="-mx-1"
-        />
-
+      <div class="flex h-full min-h-0 w-full flex-col">
         <DictionaryCrudContent
           ref="crudContent"
-          :key="moduleKey"
           :config="selectedConfig"
-          :request-params="selectedItem.requestParams"
           :search="tableSearch"
           :refresh-token="refreshToken"
           :reset-token="resetToken"

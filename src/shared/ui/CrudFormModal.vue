@@ -20,6 +20,7 @@ const emit = defineEmits<{
 
 const formRef = ref<HTMLFormElement | null>(null)
 const form = reactive<Record<string, any>>({})
+const isFullscreen = ref(false)
 
 const normalizedFields = computed(() =>
   props.fields.map((field) => ({
@@ -118,11 +119,22 @@ const onFileChange = (key: string, event: Event) => {
 <template>
   <UModal
     :open="open"
-    :title="title"
     :dismissible="!loading"
-    :ui="{ content: 'max-w-3xl' }"
+    :ui="{ content: isFullscreen ? 'max-w-full sm:h-[95vh]' : 'max-w-3xl' }"
     @update:open="emit('update:open', $event)"
   >
+    <template #header>
+      <div class="flex items-center justify-between gap-3 w-full">
+        <span class="text-lg font-semibold text-highlighted">{{ title }}</span>
+        <UButton
+          :icon="isFullscreen ? 'i-lucide-minimize-2' : 'i-lucide-maximize-2'"
+          color="neutral"
+          variant="ghost"
+          size="sm"
+          @click="isFullscreen = !isFullscreen"
+        />
+      </div>
+    </template>
     <template #body>
       <form ref="formRef" class="grid gap-4 md:grid-cols-2" @submit.prevent="submit">
         <div

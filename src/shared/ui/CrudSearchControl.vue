@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ref, onMounted } from "vue";
+
 defineOptions({
   inheritAttrs: false,
 });
@@ -11,6 +13,12 @@ defineProps<{
 const emit = defineEmits<{
   (event: "update:modelValue", value: string): void;
 }>();
+
+const inputRef = ref<InstanceType<typeof import("@nuxt/ui").UInput> | null>(null);
+
+onMounted(() => {
+  inputRef.value?.$el?.querySelector("input")?.focus();
+});
 </script>
 
 <template>
@@ -24,6 +32,7 @@ const emit = defineEmits<{
     />
 
     <UInput
+      ref="inputRef"
       :model-value="modelValue"
       v-bind="$attrs"
       :placeholder="placeholder"

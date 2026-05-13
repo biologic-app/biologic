@@ -2,6 +2,7 @@
 import {
   computed,
   h,
+  nextTick,
   onMounted,
   provide,
   reactive,
@@ -9,14 +10,24 @@ import {
   resolveComponent,
   watch,
 } from "vue";
-import type { TableColumn as NuxtTableColumn, TableRow } from "@nuxt/ui";
+import type { DropdownMenuItem, TableColumn as NuxtTableColumn, TableRow } from "@nuxt/ui";
 import type { CrudModuleConfig } from "@/pages/CrudModulePage.vue";
 import type { FormField } from "@/shared/types/form";
 import type { TableFilters } from "@/shared/types/table";
 import CrudFormModal from "@/shared/ui/CrudFormModal.vue";
 import CrudTableEmptyState from "@/shared/ui/CrudTableEmptyState.vue";
+import CrudTableLoadingRows from "@/shared/ui/CrudTableLoadingRows.vue";
 import CrudTableShell from "@/shared/ui/CrudTableShell.vue";
-import { borderedCrudTableUi } from "@/shared/ui/table";
+import CrudFilterModal from "@/shared/ui/CrudFilterModal.vue";
+import ConfirmDialog from "@/shared/ui/ConfirmDialog.vue";
+import RowContextMenu from "@/shared/ui/RowContextMenu.vue";
+import {
+  borderedCrudTableUi,
+  createSkeletonRows,
+  isSkeletonRow,
+  renderSkeletonCell,
+} from "@/shared/ui/table";
+
 import { useCrudDialog } from "@/shared/composables/useCrudDialog";
 import { useOptimistic } from "@/shared/composables/useOptimistic";
 import { usePermission } from "@/shared/composables/usePermission";
@@ -43,7 +54,6 @@ const props = defineProps<{
   config: CrudModuleConfig;
   requestParams?: Record<string, string>;
   search?: string;
-  filtersOpen?: boolean;
   refreshToken?: number;
   resetToken?: number;
 }>();
@@ -54,6 +64,35 @@ const UCheckbox = resolveComponent("UCheckbox");
 
 const toast = useToast();
 const { can } = usePermission();
+const filterModalOpen = ref(false);
+
+const confirmDialog = ref<{ open: boolean; title: string; description: string; onConfirm: () => void }>({
+  open: false,
+  title: "",
+  description: "",
+  onConfirm: () => {},
+});
+
+const deleting = ref(false);
+const pendingUndo = ref<Array<{ item: CrudRow; timeout: ReturnType<typeof setTimeout> }>>([]);
+
+function undoDelete(undoEntry: { item: CrudRow; timeout: ReturnType<typeof setTimeout> }) {
+  clearTimeout(undoEntry.timeout);
+  pendingUndo.value = pendingUndo.value.filter((e) => e !== undoEntry);
+  table.data.value = [undoEntry.item, ...table.data.value];
+  apiCreateRequest<CrudRow>(props.config.endpoint, {
+    method: "POST",
+    body: { ...props.requestParams, ...undoEntry.item },
+  }).catch(() => {
+    table.data.value = table.data.value.filter((row) => row.id !== undoEntry.item.id);
+    toast.add({
+      title: "Не удалось восстановить запись",
+      color: "error",
+      icon: "i-lucide-circle-alert",
+    });
+  });
+}
+
 const table = useServerTable<CrudRow>(
   (params) =>
     apiReadListRequest<CrudRow>(props.config.endpoint, {
@@ -65,6 +104,7 @@ const table = useServerTable<CrudRow>(
       },
     }),
   {
+    mode: "infinite",
     presetKey: props.config.presetKey,
     filters: props.config.initialFilters,
     initialPageSize: props.config.pageSize ?? 20,
@@ -86,9 +126,16 @@ const formFields = ref<FormField[]>(
 );
 const columnVisibility = ref<Record<string, boolean>>({});
 const rowSelection = ref<Record<string, boolean>>({});
-const pageSizeItems = [20, 30, 50, 100];
+const contextRow = ref<CrudRow | null>(null);
+const contextMenuOpen = ref(false);
+const contextMenuPosition = ref({ x: 0, y: 0 });
+const skeletonRows = createSkeletonRows<CrudRow>(17);
 const filters = reactive<TableFilters>(
   JSON.parse(JSON.stringify(props.config.initialFilters)),
+);
+
+const tableRows = computed(() =>
+  table.loading.value ? skeletonRows : table.data.value,
 );
 
 const syncFilters = () => {
@@ -165,65 +212,26 @@ const uiColumns = computed(() => {
           currentTable.toggleAllPageRowsSelected(!!value),
         ariaLabel: "Выбрать все строки",
       }),
-    cell: ({ row }) =>
-      h(UCheckbox, {
+    cell: ({ row }) => {
+      if (isSkeletonRow(row.original)) {
+        return renderSkeletonCell("select");
+      }
+
+      return h(UCheckbox, {
         modelValue: row.getIsSelected(),
         "onUpdate:modelValue": (value: boolean | "indeterminate") =>
           row.toggleSelected(!!value),
         ariaLabel: "Выбрать строку",
-      }),
-  };
-
-  const actionColumn: NuxtTableColumn<CrudRow> = {
-    id: "actions",
-    enableHiding: false,
-    header: "Действия",
-    cell: ({ row }) => {
-      const item = row.original as CrudRow;
-
-      const viewButton = h(UButton, {
-        color: "neutral",
-        variant: "ghost",
-        icon: "i-lucide-eye",
-        onClick: () => dialog.openView(item),
       });
-
-      const editButton = h(UButton, {
-        color: "neutral",
-        variant: "ghost",
-        icon: can(props.config.resource, "edit")
-          ? "i-lucide-pencil"
-          : "i-lucide-lock",
-        title: can(props.config.resource, "edit")
-          ? "Редактировать"
-          : "Нет прав",
-        disabled: !can(props.config.resource, "edit"),
-        onClick: () => dialog.openEdit(item),
-      });
-
-      const deleteButton = h(UButton, {
-        color: "error",
-        variant: "ghost",
-        icon: can(props.config.resource, "delete")
-          ? "i-lucide-trash-2"
-          : "i-lucide-lock",
-        title: can(props.config.resource, "delete") ? "Удалить" : "Нет прав",
-        disabled: !can(props.config.resource, "delete"),
-        onClick: () => confirmDelete(item),
-      });
-
-      return h("div", { class: "flex items-center justify-end gap-1" }, [
-        viewButton,
-        editButton,
-        deleteButton,
-      ]);
     },
-    meta: { class: { td: "w-[140px] text-right" } },
   };
+
+
+  const actionColumn = { id: "actions", header: "Действия", meta: { class: { td: "w-auto min-w-[56px] text-right" } } };
 
   return [
     selectColumn,
-    ...props.config.columns.map((column) => ({
+    ...props.config.columns.map((column, columnIndex) => ({
       id: column.field,
       accessorKey: column.field,
       header: () =>
@@ -245,6 +253,10 @@ const uiColumns = computed(() => {
         }),
       cell: ({ row }: { row: TableRow<CrudRow> }) => {
         const rowItem = row.original as CrudRow;
+        if (isSkeletonRow(rowItem)) {
+          return renderSkeletonCell(column.field, columnIndex);
+        }
+
         if (column.body) {
           return column.body(rowItem);
         }
@@ -340,25 +352,52 @@ const onSave = async (payload: Record<string, unknown>) => {
 };
 
 const confirmDelete = async (row: CrudRow) => {
-  if (!window.confirm(`Удалить запись ${row.id}?`)) {
-    return;
-  }
+  confirmDialog.value = {
+    open: true,
+    title: "Удалить запись",
+    description: `Вы уверены, что хотите удалить запись ${row.id}? Это действие нельзя отменить.`,
+    async onConfirm() {
+      deleting.value = true;
+      const deletedRow = { ...table.data.value.find((r) => r.id === row.id) || row };
+      const rollback = optimistic.removeItem(table.data, row.id);
 
-  const rollback = optimistic.removeItem(table.data, row.id);
-
-  try {
-    await apiRequest(`${props.config.endpoint}/${row.id}`, {
-      method: "DELETE",
-    });
-  } catch (error: unknown) {
-    rollback();
-    toast.add({
-      title: "Не удалось удалить",
-      description: errorMessage(error),
-      color: "error",
-      icon: "i-lucide-circle-alert",
-    });
-  }
+      try {
+        await apiRequest(`${props.config.endpoint}/${row.id}`, {
+          method: "DELETE",
+        });
+        const timeout = setTimeout(() => {
+          pendingUndo.value = pendingUndo.value.filter((e) => e.item.id !== row.id);
+        }, 8000);
+        const undoEntry = { item: deletedRow, timeout };
+        pendingUndo.value.push(undoEntry);
+        toast.add({
+          title: "Запись удалена",
+          description: "Запись будет удалена безвозвратно через 8 секунд.",
+          color: "success",
+          icon: "i-lucide-circle-check",
+          actions: [
+            {
+              label: "Отменить",
+              icon: "i-lucide-undo-2",
+              onClick: () => undoDelete(undoEntry),
+            },
+          ],
+          duration: 8000,
+        });
+      } catch (error: unknown) {
+        rollback();
+        toast.add({
+          title: "Не удалось удалить",
+          description: errorMessage(error),
+          color: "error",
+          icon: "i-lucide-circle-alert",
+        });
+      } finally {
+        deleting.value = false;
+        confirmDialog.value.open = false;
+      }
+    },
+  };
 };
 
 const selectedRows = computed(() =>
@@ -375,37 +414,97 @@ const deleteSelected = async () => {
     return;
   }
 
-  if (!window.confirm(`Удалить выбранные записи (${selectedRows.value.length})?`)) {
+  confirmDialog.value = {
+    open: true,
+    title: "Удалить выбранные записи",
+    description: `Вы уверены, что хотите удалить ${selectedRows.value.length} записей? Это действие нельзя отменить.`,
+    async onConfirm() {
+      deleting.value = true;
+
+      const rows = [...selectedRows.value];
+      const ids = rows.map((row) => row.id);
+      const previous = [...table.data.value];
+      table.data.value = table.data.value.filter((row) => !ids.includes(row.id));
+
+      try {
+        await Promise.all(
+          rows.map((row) =>
+            apiRequest(`${props.config.endpoint}/${row.id}`, { method: "DELETE" }),
+          ),
+        );
+        rowSelection.value = {};
+        toast.add({
+          title: "Записи удалены",
+          color: "success",
+          icon: "i-lucide-circle-check",
+        });
+      } catch (error: unknown) {
+        table.data.value = previous;
+        toast.add({
+          title: "Не удалось удалить выбранные записи",
+          description: errorMessage(error),
+          color: "error",
+          icon: "i-lucide-circle-alert",
+        });
+      } finally {
+        deleting.value = false;
+        confirmDialog.value.open = false;
+      }
+    },
+  };
+};
+
+const getRowActionItems = (row: CrudRow): DropdownMenuItem[] => [
+  { label: "Просмотр", icon: "i-lucide-eye", onSelect: () => dialog.openView(row) },
+  { label: "Редактировать", icon: "i-lucide-pencil", onSelect: () => dialog.openEdit(row) },
+  { label: "Удалить", icon: "i-lucide-trash-2", color: "error", onSelect: () => confirmDelete(row) },
+];
+
+const handleRowSelect = (_event: Event, row: { original: CrudRow }) => {
+  if (isSkeletonRow(row.original)) {
     return;
   }
 
-  const rows = [...selectedRows.value];
-  const ids = rows.map((row) => row.id);
-  const previous = [...table.data.value];
-  table.data.value = table.data.value.filter((row) => !ids.includes(row.id));
-
-  try {
-    await Promise.all(
-      rows.map((row) =>
-        apiRequest(`${props.config.endpoint}/${row.id}`, { method: "DELETE" }),
-      ),
-    );
-    rowSelection.value = {};
-  } catch (error: unknown) {
-    table.data.value = previous;
-    toast.add({
-      title: "Не удалось удалить выбранные записи",
-      description: errorMessage(error),
-      color: "error",
-      icon: "i-lucide-circle-alert",
-    });
-  }
+  dialog.openView(row.original);
 };
 
-const paginationPage = computed({
-  get: () => table.pagination.value.page + 1,
-  set: (value: number) => table.setPage(value - 1),
-});
+const contextMenuItems = computed(() =>
+  contextRow.value ? getRowActionItems(contextRow.value) : [],
+);
+
+const handleRowContextmenu = async (event: Event, row: { original: CrudRow }) => {
+  event.preventDefault();
+  if (isSkeletonRow(row.original)) {
+    return;
+  }
+
+  const mouseEvent = event as MouseEvent;
+  contextRow.value = row.original;
+  contextMenuOpen.value = false;
+  contextMenuPosition.value = { x: mouseEvent.clientX, y: mouseEvent.clientY };
+  await nextTick();
+  contextMenuOpen.value = true;
+};
+
+const getColumnKey = (column: NuxtTableColumn<CrudRow>) => {
+  if ("id" in column && typeof column.id === "string") {
+    return column.id;
+  }
+  if ("accessorKey" in column && typeof column.accessorKey === "string") {
+    return column.accessorKey;
+  }
+  return "";
+};
+
+const visibleColumnCount = computed(() =>
+  Math.max(
+    1,
+    uiColumns.value.filter((column) => {
+      const key = getColumnKey(column);
+      return !key || columnVisibility.value[key] !== false;
+    }).length,
+  ),
+);
 
 const createDisabled = computed(() => !can(props.config.resource, "create"));
 const activeFilterCount = computed(() =>
@@ -439,6 +538,20 @@ const columnMenuItems = computed(() =>
         event?.preventDefault();
       },
     })),
+    {
+      label: "Действия",
+      type: "checkbox" as const,
+      checked: columnVisibility.value.actions !== false,
+      onUpdateChecked(checked: boolean) {
+        columnVisibility.value = {
+          ...columnVisibility.value,
+          actions: checked,
+        };
+      },
+      onSelect(event?: Event) {
+        event?.preventDefault();
+      },
+    },
   ],
 );
 
@@ -455,97 +568,133 @@ defineExpose({
   selectedCount,
   deleteSelected,
   columnMenuItems,
+  filterModalOpen,
 });
 </script>
 
 <template>
-  <CrudTableShell
-    :filters-open="props.filtersOpen"
-    :total="table.total.value"
-    :page="paginationPage"
-    :page-size="table.pagination.value.size"
-    :page-size-items="pageSizeItems"
-    @update:page="paginationPage = $event"
-    @update:page-size="table.setPageSize($event)"
+  <CrudFilterModal
+    v-model:open="filterModalOpen"
+    :active-count="activeFilterCount"
+    @apply="applyFilters()"
+    @reset="resetFilters()"
   >
-    <template #filters>
-      <div class="grid gap-3 border-t border-default pt-3 md:grid-cols-2 xl:grid-cols-3">
+    <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <div
+        v-for="column in config.columns.filter((column) => column.filter)"
+        :key="column.field"
+        class="grid gap-2"
+      >
+        <label class="text-sm font-medium text-toned">
+          {{ column.header }}
+        </label>
+
         <div
-          v-for="column in config.columns.filter((column) => column.filter)"
-          :key="column.field"
-          class="grid gap-2"
+          v-if="column.filter?.type === 'dateRange'"
+          class="grid gap-2 sm:grid-cols-2"
         >
-          <label class="text-sm font-medium text-toned">
-            {{ column.header }}
-          </label>
-
-          <div
-            v-if="column.filter?.type === 'dateRange'"
-            class="grid gap-2 sm:grid-cols-2"
-          >
-            <UInput
-              :model-value="filters[column.field].value?.[0] || ''"
-              type="date"
-              @update:model-value="
-                filters[column.field].value = [
-                  $event || null,
-                  filters[column.field].value?.[1] || null,
-                ];
-                applyFilters();
-              "
-            />
-            <UInput
-              :model-value="filters[column.field].value?.[1] || ''"
-              type="date"
-              @update:model-value="
-                filters[column.field].value = [
-                  filters[column.field].value?.[0] || null,
-                  $event || null,
-                ];
-                applyFilters();
-              "
-            />
-          </div>
-
-          <USelectMenu
-            v-else-if="column.filter?.type === 'multiSelect'"
-            :model-value="filters[column.field].value || []"
-            :items="column.filter?.options || []"
-            value-key="value"
-            label-key="label"
-            multiple
-            clear
+          <UInput
+            :model-value="filters[column.field].value?.[0] || ''"
+            type="date"
             @update:model-value="
-              filters[column.field].value = $event;
-              applyFilters();
+              filters[column.field].value = [
+                $event || null,
+                filters[column.field].value?.[1] || null,
+              ]
             "
           />
-
           <UInput
-            v-else
-            v-model="filters[column.field].value"
-            :placeholder="column.filter?.placeholder || column.header"
-            @update:model-value="applyFilters()"
+            :model-value="filters[column.field].value?.[1] || ''"
+            type="date"
+            @update:model-value="
+              filters[column.field].value = [
+                filters[column.field].value?.[0] || null,
+                $event || null,
+              ]
+            "
           />
         </div>
-      </div>
-    </template>
 
+        <USelectMenu
+          v-else-if="column.filter?.type === 'multiSelect'"
+          :model-value="filters[column.field].value || []"
+          :items="column.filter?.options || []"
+          value-key="value"
+          label-key="label"
+          multiple
+          clear
+          @update:model-value="
+            filters[column.field].value = $event
+          "
+        />
+
+        <UInput
+          v-else
+          v-model="filters[column.field].value"
+          :placeholder="column.filter?.placeholder || column.header"
+        />
+      </div>
+    </div>
+  </CrudFilterModal>
+
+  <CrudTableShell
+    mode="infinite"
+    :total="table.total.value"
+    :loading-more="table.loadingMore.value"
+    :has-more="!table.loading.value && table.hasMore.value"
+    @load-more="table.loadMore()"
+  >
     <template #table>
+      <RowContextMenu
+        v-model:open="contextMenuOpen"
+        :items="contextMenuItems"
+        :x="contextMenuPosition.x"
+        :y="contextMenuPosition.y"
+      />
       <UTable
         v-model:column-visibility="columnVisibility"
         v-model:row-selection="rowSelection"
-        :data="table.data.value"
+        :data="tableRows"
         :columns="uiColumns"
-        :loading="table.loading.value"
+        :loading="false"
+        :on-select="handleRowSelect"
+        :on-contextmenu="handleRowContextmenu"
         sticky
-        class="h-full"
         :ui="borderedCrudTableUi"
       >
+        <template #body-bottom>
+          <tr v-if="!table.loading.value && table.loadingMore.value" class="border-b border-default">
+            <td :colspan="visibleColumnCount" class="border-r border-b border-default p-0">
+              <CrudTableLoadingRows compact :columns="visibleColumnCount" />
+            </td>
+          </tr>
+          <tr v-else-if="!table.loading.value && !table.hasMore.value && table.total.value > 0" class="bg-default">
+            <td :colspan="visibleColumnCount" class="border-r border-b border-default px-6 py-3 text-center text-xs text-dimmed">
+              Всего записей: {{ table.total.value }}
+            </td>
+          </tr>
+        </template>
+        <template #actions-cell="{ row }">
+          <USkeleton v-if="isSkeletonRow(row.original)" class="ml-auto h-4 w-8" />
+          <UDropdownMenu
+            v-else
+            :content="{ align: 'end' }"
+            :items="getRowActionItems(row.original)"
+          >
+            <UButton icon="i-lucide-ellipsis-vertical" color="neutral" variant="ghost" size="sm" />
+          </UDropdownMenu>
+        </template>
         <template #empty>
           <CrudTableEmptyState
-            title="Нет записей"
-            :description="`В справочнике «${config.title}» пока нет данных.`"
+            :title="activeFilterCount ? 'Ничего не найдено' : 'Нет записей'"
+            :description="activeFilterCount
+              ? `В справочнике «${config.title}» нет записей, соответствующих фильтрам.`
+              : `В справочнике «${config.title}» пока нет данных. Создайте первую запись.`"
+            :filtered="activeFilterCount > 0"
+            :error="table.error.value"
+            error-description="Не удалось загрузить данные. Проверьте подключение или повторите попытку позже."
+            @clear-filters="resetFilters"
+            @retry="table.refresh()"
           />
         </template>
       </UTable>
@@ -567,5 +716,16 @@ defineExpose({
     :read-only="dialog.readOnly.value"
     :loading="saving"
     @save="onSave"
+  />
+
+  <ConfirmDialog
+    v-model:open="confirmDialog.open"
+    :title="confirmDialog.title"
+    :description="confirmDialog.description"
+    :loading="deleting"
+    confirm-color="error"
+    confirm-label="Удалить"
+    confirm-icon="i-lucide-trash-2"
+    @confirm="confirmDialog.onConfirm"
   />
 </template>

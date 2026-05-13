@@ -11,7 +11,6 @@ const _useDashboardShell = () => {
     h: () => router.push('/dashboard'),
     i: () => router.push('/inbox'),
     c: () => router.push('/customers'),
-    s: () => router.push('/settings'),
     n: () => {
       isNotificationsSlideoverOpen.value = !isNotificationsSlideoverOpen.value
     }

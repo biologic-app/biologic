@@ -8,17 +8,14 @@ import type {
 } from "@nuxt/ui";
 import { useI18n } from "vue-i18n";
 import NotificationsSlideover from "@/shared/ui/NotificationsSlideover.vue";
-import RoleSwitcher from "@/modules/workflows/components/RoleSwitcher.vue";
 import UserMenu from "@/shared/ui/UserMenu.vue";
 import { useAuth } from "@/modules/auth";
-import { useWorkflowRole } from "@/modules/workflows/useWorkflowRole";
 import { dictionaryItems } from "@/modules/dictionaries/config";
 import { accessItems } from "@/modules/access/config";
 
 const toast = useToast();
 const { t } = useI18n();
 const auth = useAuth();
-const { selectedRole } = useWorkflowRole();
 
 const open = ref(false);
 const unreadNotifications = ref(4);
@@ -59,19 +56,19 @@ const links = computed<NavigationMenuItem[][]>(() => [
       },
     },
     {
-      label: t("nav.workflows"),
-      icon: "i-lucide-git-branch",
-      to: { name: "workflows" },
-      onSelect: () => {
-        open.value = false;
-      },
-    },
-    {
       label: t("nav.directions"),
       icon: "i-lucide-book-copy",
       to: { name: "directions" },
       type: "trigger",
       defaultOpen: false,
+    },
+    {
+      label: t("nav.samples"),
+      icon: "i-lucide-vial",
+      to: { name: "samples" },
+      onSelect: () => {
+        open.value = false;
+      },
     },
     {
       label: t("nav.dictionaries"),
@@ -106,43 +103,6 @@ const links = computed<NavigationMenuItem[][]>(() => [
         },
       })),
     },
-    {
-      label: t("nav.settings"),
-      icon: "i-lucide-settings",
-      to: { name: "settings" },
-      type: "trigger",
-      defaultOpen: false,
-      children: [
-        {
-          label: t("settings.general"),
-          to: { name: "settings" },
-          onSelect: () => {
-            open.value = false;
-          },
-        },
-        {
-          label: t("settings.members"),
-          to: { name: "settings-members" },
-          onSelect: () => {
-            open.value = false;
-          },
-        },
-        {
-          label: t("settings.notifications"),
-          to: { name: "settings-notifications" },
-          onSelect: () => {
-            open.value = false;
-          },
-        },
-        {
-          label: t("settings.security"),
-          to: { name: "settings-security" },
-          onSelect: () => {
-            open.value = false;
-          },
-        },
-      ],
-    },
   ],
   [
     {
@@ -174,22 +134,6 @@ const groups = computed<CommandPaletteGroup<CommandPaletteItem>[]>(() => [
     id: "links",
     label: t("layout.goTo"),
     items: links.value.flat() as CommandPaletteItem[],
-  },
-  {
-    id: "quick-actions",
-    label: t("layout.quickActions"),
-    items: [
-      ...selectedRole.value.actions.map((action) => ({
-        label: action.label,
-        icon: action.icon,
-        to: action.route,
-      })),
-      {
-        label: "Потоки ролей",
-        icon: "i-lucide-git-branch",
-        to: "/workflows",
-      },
-    ],
   },
 ]);
 
@@ -239,8 +183,6 @@ if (cookie.value !== "accepted") {
           :collapsed="collapsed"
           class="bg-transparent ring-default"
         />
-
-        <RoleSwitcher :collapsed="collapsed" />
 
         <UNavigationMenu
           :collapsed="collapsed"

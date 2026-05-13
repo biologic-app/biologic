@@ -18,6 +18,7 @@ import type { TableColumn } from "@/shared/types/table";
 import CrudTableEmptyState from "@/shared/ui/CrudTableEmptyState.vue";
 import CrudFormModal from "@/shared/ui/CrudFormModal.vue";
 import { borderedCrudTableUi } from "@/shared/ui/table";
+import { createActionColumn } from "@/shared/ui/table-actions";
 import { useCrudDialog } from "@/shared/composables/useCrudDialog";
 import { useOptimistic } from "@/shared/composables/useOptimistic";
 import { usePermission } from "@/shared/composables/usePermission";
@@ -194,9 +195,15 @@ const uiColumns = computed(() => {
     meta: { class: { td: "w-[140px] text-right" } },
   };
 
+
+  const actionColumn = createActionColumn<CrudRow>(props.config.resource, {
+    onView: (item) => dialog.openView(item),
+    onEdit: (item) => dialog.openEdit(item),
+    onDelete: (item) => confirmDelete(item),
+  });
+
   return [
     ...props.config.columns.map((column) => ({
-      id: column.field,
       accessorKey: column.field,
       header: () =>
         h(UButton, {

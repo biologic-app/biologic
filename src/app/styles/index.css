@@ -4,6 +4,16 @@
 @import "./tour.css";
 @import "@fontsource-variable/onest/wght.css";
 
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  overflow: hidden;
+}
+
 @theme static {
   --font-sans: "Onest Variable", sans-serif;
 

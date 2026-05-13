@@ -3,6 +3,7 @@ export type Resource =
   | "customers"
   | "inbox"
   | "directions"
+  | "research"
   | "samples"
   | "sample-targets"
   | "protocols"

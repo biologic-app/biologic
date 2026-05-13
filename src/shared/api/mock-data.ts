@@ -77,7 +77,10 @@ const getPathValue = (row: MockRow, path: string) =>
     return undefined;
   }, row);
 
-const meta = (total: number, offset: number, limit: number) => ({
+const meta = (total: number, offset: number, limit: number) => {
+  const nextOffset = offset + limit;
+  const hasMore = nextOffset < total;
+  return {
   timestamp: new Date().toISOString(),
   requestId: "mock-data",
   version: "mock",
@@ -87,7 +90,10 @@ const meta = (total: number, offset: number, limit: number) => ({
   total,
   offset,
   limit,
-});
+  nextCursor: hasMore ? String(nextOffset) : null,
+  hasMore,
+  };
+};
 
 const formatStatusContext = (value: unknown) => {
   if (value === "directions") {
@@ -397,7 +403,7 @@ export const getMockListResponse = <T>(
   }
 
   const filtered = applySort(applyFilters(rows, params), params);
-  const offset = Number(params.offset ?? 0);
+  const offset = Number(params.cursor ?? params.offset ?? 0);
   const limit = Number(params.limit ?? 20);
   const items = filtered.slice(offset, offset + limit);
 

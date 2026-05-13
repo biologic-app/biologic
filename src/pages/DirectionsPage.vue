@@ -1,30 +1,77 @@
 <script setup lang="ts">
-import { format } from "date-fns";
-import type { StepperItem, TabsItem } from "@nuxt/ui";
-import { computed, ref, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
-import { useWorkflowRole } from "@/modules/workflows/useWorkflowRole";
-import { useWorkflowMock, type WorkflowDirection, type WorkflowSample } from "@/modules/workflows/useWorkflowMock";
+import { computed, h, nextTick, ref, resolveComponent, watch, onMounted } from "vue";
+import type { DropdownMenuItem, TableColumn } from "@nuxt/ui";
+import { useServerTable } from "@/shared/composables/useServerTable";
 
-const route = useRoute();
-const router = useRouter();
+import CrudTableShell from "@/shared/ui/CrudTableShell.vue";
+import CrudSearchControl from "@/shared/ui/CrudSearchControl.vue";
+import CrudFilterControls from "@/shared/ui/CrudFilterControls.vue";
+import CrudTableEmptyState from "@/shared/ui/CrudTableEmptyState.vue";
+import CrudTableLoadingRows from "@/shared/ui/CrudTableLoadingRows.vue";
+import RowContextMenu from "@/shared/ui/RowContextMenu.vue";
+import {
+  borderedCrudTableUi,
+  createSkeletonRows,
+  isSkeletonRow,
+  renderSkeletonCell,
+} from "@/shared/ui/table";
+import DirectionDetailModal from "@/modules/directions/components/DirectionDetailModal.vue";
+
+interface DirectionSample {
+  id: number;
+  code: string;
+  type: string;
+  lab: string;
+  status: "pending" | "registered" | "analyzed" | "completed" | "rejected";
+  deadline: string;
+}
+
+interface Direction {
+  id: number;
+  number: string;
+  object: string;
+  doctor: string;
+  branch: string;
+  status: "draft" | "registered" | "in_progress" | "completed";
+  urgency: "normal" | "urgent";
+  protocol: "missing" | "draft" | "issued";
+  collectedAt: string;
+  deadline: string;
+  samples: DirectionSample[];
+}
+
 const toast = useToast();
-const { selectedMode, selectedRole, selectedRoleKey } = useWorkflowRole();
-const { addDirection, directions, issueProtocol, registerDirection, updateSample } = useWorkflowMock();
+
+// Mock data
+const allDirections = ref<Direction[]>([
+  {
+    id: 1, number: "DIR-2024-001", object: "ООО «Агрокомплекс»", doctor: "Анна Смирнова",
+    branch: "Центральный филиал", status: "in_progress", urgency: "normal", protocol: "draft",
+    collectedAt: "2024-03-15T10:30:00", deadline: "2024-03-22T10:30:00",
+    samples: [
+      { id: 1, code: "SMP-001", type: "Смыв", lab: "Микробиология", status: "analyzed", deadline: "2024-03-22T10:30:00" },
+      { id: 2, code: "SMP-002", type: "Смыв", lab: "Микробиология", status: "registered", deadline: "2024-03-22T10:30:00" },
+      { id: 3, code: "SMP-003", type: "Сыворотка", lab: "Биохимия", status: "pending", deadline: "2024-03-22T10:30:00" },
+    ],
+  },
+  { id: 2, number: "DIR-2024-002", object: "ИП «Иванов»", doctor: "Петр Васильев", branch: "Северный филиал", status: "draft", urgency: "urgent", protocol: "missing", collectedAt: "2024-03-16T14:00:00", deadline: "2024-03-23T14:00:00", samples: [{ id: 4, code: "SMP-004", type: "Кровь", lab: "Гематология", status: "pending", deadline: "2024-03-23T14:00:00" }] },
+  { id: 3, number: "DIR-2024-003", object: "ЗАО «Медсервис»", doctor: "Анна Смирнова", branch: "Центральный филиал", status: "completed", urgency: "normal", protocol: "issued", collectedAt: "2024-03-10T09:00:00", deadline: "2024-03-17T09:00:00", samples: [{ id: 5, code: "SMP-005", type: "Моча", lab: "Биохимия", status: "completed", deadline: "2024-03-17T09:00:00" }, { id: 6, code: "SMP-006", type: "Кровь", lab: "Гематология", status: "completed", deadline: "2024-03-17T09:00:00" }] },
+]);
 
 type DirectionFilter = "all" | "draft" | "registered" | "in_progress" | "completed";
 
 const query = ref("");
 const selectedFilter = ref<DirectionFilter>("all");
-const selectedDirection = ref<WorkflowDirection | null>(directions.value[0] ?? null);
+const selectedDirection = ref<Direction | null>(null);
+const detailOpen = ref(false);
 const importOpen = ref(false);
 const createOpen = ref(false);
 const protocolOpen = ref(false);
-const activeDirectionTab = ref<"samples" | "history">("samples");
-
-const readonlyMode = computed(() => selectedMode.value === "readonly");
-const canEditDirections = computed(() => selectedRoleKey.value === "registrar");
-const canSeeProtocol = computed(() => ["registrar", "sanitary_inspector", "branch_chief"].includes(selectedRoleKey.value));
+const columnVisibility = ref<Record<string, boolean>>({});
+const contextRow = ref<Direction | null>(null);
+const contextMenuOpen = ref(false);
+const contextMenuPosition = ref({ x: 0, y: 0 });
+const skeletonRows = createSkeletonRows<Direction>(17);
 
 const filterItems = computed(() => [
   { label: "Все", value: "all" },
@@ -34,657 +81,388 @@ const filterItems = computed(() => [
   { label: "Завершено", value: "completed" },
 ]);
 
+// Filter and search
 const filteredDirections = computed(() => {
   const normalizedQuery = query.value.trim().toLocaleLowerCase();
-
-  return directions.value.filter((direction) => {
+  return allDirections.value.filter((direction) => {
     const matchesFilter = selectedFilter.value === "all" || direction.status === selectedFilter.value;
     const matchesQuery = !normalizedQuery
       || direction.number.toLocaleLowerCase().includes(normalizedQuery)
       || direction.object.toLocaleLowerCase().includes(normalizedQuery)
       || direction.doctor.toLocaleLowerCase().includes(normalizedQuery)
       || direction.branch.toLocaleLowerCase().includes(normalizedQuery);
-
-    if (selectedRoleKey.value === "sanitary_inspector" && direction.doctor !== "Анна Смирнова") {
-      return false;
-    }
-
     return matchesFilter && matchesQuery;
   });
 });
 
-const statusColors: Record<WorkflowDirection["status"], "neutral" | "primary" | "info" | "success"> = {
-  draft: "neutral",
-  registered: "primary",
-  in_progress: "info",
-  completed: "success",
-};
-
-const sampleStatusColors: Record<WorkflowSample["status"], "neutral" | "primary" | "info" | "success" | "error"> = {
-  pending: "neutral",
-  registered: "primary",
-  analyzed: "info",
-  completed: "success",
-  rejected: "error",
-};
-
-const directionStatusLabels: Record<WorkflowDirection["status"], string> = {
-  draft: "Черновик",
-  registered: "Зарегистрировано",
-  in_progress: "В работе",
-  completed: "Завершено",
-};
-
-const sampleStatusLabels: Record<WorkflowSample["status"], string> = {
-  pending: "Ожидает",
-  registered: "Зарегистрирован",
-  analyzed: "Проанализирован",
-  completed: "Завершён",
-  rejected: "Брак",
-};
-
-const directionTabs = computed<TabsItem[]>(() => [
-  {
-    label: "Образцы",
-    icon: "i-lucide-vial",
-    value: "samples",
+const table = useServerTable<Direction>(
+  async (params) => {
+    const offset = Number(params.cursor ?? params.offset ?? 0);
+    const limit = Number(params.limit ?? 30);
+    const sorted = [...filteredDirections.value].sort((a, b) => {
+      const field = String(params.sort_by || "");
+      if (!field) return 0;
+      const order = params.sort_order === "desc" ? -1 : 1;
+      const left = a[field as keyof Direction];
+      const right = b[field as keyof Direction];
+      return String(left ?? "").localeCompare(String(right ?? ""), "ru") * order;
+    });
+    const items = sorted.slice(offset, offset + limit);
+    const nextOffset = offset + limit;
+    const hasMore = nextOffset < sorted.length;
+    return {
+      items,
+      meta: {
+        timestamp: new Date().toISOString(),
+        requestId: "directions-local",
+        version: "mock",
+        includesRequested: [],
+        includesApplied: [],
+        includesAllowed: [],
+        total: sorted.length,
+        offset,
+        limit,
+        nextCursor: hasMore ? String(nextOffset) : null,
+        hasMore,
+      },
+    };
   },
-  {
-    label: "История",
-    icon: "i-lucide-history",
-    value: "history",
-  },
-]);
+  { mode: "infinite", initialPageSize: 30 }
+);
 
-const directionHistoryItems = computed<StepperItem[]>(() => {
-  if (!selectedDirection.value) return [];
+const tableRows = computed(() =>
+  table.loading.value ? skeletonRows : table.data.value,
+);
 
-  const direction = selectedDirection.value;
-  const items: StepperItem[] = [
-    {
-      title: "Создано направление",
-      description: `${formatDate(direction.collectedAt)} · ${direction.doctor}\nОбъект и образцы внесены в направление.`,
-      icon: "i-lucide-file-plus-2",
-      value: 1,
-    },
-    {
-      title: "Доставлено в приёмку",
-      description: `${formatDate(direction.collectedAt)} · Регистратор\nОбразцы ожидают регистрации.`,
-      icon: "i-lucide-truck",
-      value: 2,
-    },
-  ];
+// Initial fetch in onMounted so skeleton renders first
+onMounted(() => { table.fetch() })
 
-  if (["registered", "in_progress", "completed"].includes(direction.status)) {
-    items.push({
-      title: "Образцы зарегистрированы",
-      description: `${formatDate(direction.collectedAt)} · Регистратор\nНаправление передано в лаборатории.`,
-      icon: "i-lucide-clipboard-check",
-      value: 3,
-    });
-  }
-
-  if (["in_progress", "completed"].includes(direction.status)) {
-    items.push({
-      title: "Лабораторная работа",
-      description: `${formatDate(direction.deadline)} · Лаборатория\nИсследования выполняются по назначенным целям.`,
-      icon: "i-lucide-flask-conical",
-      value: 4,
-    });
-  }
-
-  if (direction.status === "completed") {
-    items.push({
-      title: "Направление завершено",
-      description: `${formatDate(direction.deadline)} · ${direction.protocol === "issued" ? "Протокол выпущен" : "Протокол готовится"}`,
-      icon: "i-lucide-circle-check",
-      value: 5,
-    });
-  }
-
-  return items;
+// Sync filtered data into the table
+watch([query, selectedFilter], () => {
+  table.refresh();
 });
 
-function formatDate(date: string) {
-  return format(new Date(date), "dd.MM.yyyy HH:mm");
-}
+const statusColors: Record<string, "neutral" | "primary" | "info" | "success"> = {
+  draft: "neutral", registered: "primary", in_progress: "info", completed: "success",
+};
 
-function selectDirection(direction: WorkflowDirection) {
+const directionStatusLabels: Record<string, string> = {
+  draft: "Черновик", registered: "Зарегистрировано", in_progress: "В работе", completed: "Завершено",
+};
+
+function openDetail(direction: Direction) {
   selectedDirection.value = direction;
-  router.replace({ query: { ...route.query, id: String(direction.id) } });
+  detailOpen.value = true;
 }
 
 function createDirection() {
-  addDirection();
-  selectedDirection.value = directions.value[0] ?? null;
+  const nextId = Math.max(...allDirections.value.map((d) => d.id)) + 1;
+  const newDirection: Direction = {
+    id: nextId, number: `DIR-2024-${String(nextId).padStart(3, "0")}`,
+    object: "Новый объект", doctor: "Анна Смирнова", branch: "Центральный филиал",
+    status: "draft", urgency: "normal", protocol: "missing",
+    collectedAt: new Date().toISOString(), deadline: new Date(Date.now() + 7 * 86400000).toISOString(), samples: [],
+  };
+  allDirections.value = [newDirection, ...allDirections.value];
   createOpen.value = false;
+  selectedDirection.value = newDirection;
+  detailOpen.value = true;
   toast.add({ title: "Направление создано", color: "success" });
 }
 
 function importDirection() {
-  addDirection();
-  selectedDirection.value = directions.value[0] ?? null;
+  const nextId = Math.max(...allDirections.value.map((d) => d.id)) + 1;
+  const newDirection: Direction = {
+    id: nextId, number: `DIR-2024-${String(nextId).padStart(3, "0")}`,
+    object: "Импортированный объект", doctor: "Анна Смирнова", branch: "Центральный филиал",
+    status: "draft", urgency: "normal", protocol: "missing",
+    collectedAt: new Date().toISOString(), deadline: new Date(Date.now() + 7 * 86400000).toISOString(), samples: [],
+  };
+  allDirections.value = [newDirection, ...allDirections.value];
   importOpen.value = false;
+  selectedDirection.value = newDirection;
+  detailOpen.value = true;
   toast.add({ title: "Импорт создан как draft", color: "success" });
 }
 
 function registerSelectedDirection() {
   if (!selectedDirection.value) return;
-  registerDirection(selectedDirection.value);
+  selectedDirection.value.status = "registered";
   toast.add({ title: "Направление зарегистрировано", color: "success" });
-}
-
-function setSampleStatus(sample: WorkflowSample, status: WorkflowSample["status"]) {
-  updateSample(sample, status);
-  toast.add({ title: status === "rejected" ? "Образец отклонён" : "Образец принят", color: status === "rejected" ? "warning" : "success" });
 }
 
 function issueSelectedProtocol() {
   if (!selectedDirection.value) return;
-  issueProtocol(selectedDirection.value);
+  selectedDirection.value.protocol = "issued";
   protocolOpen.value = false;
   toast.add({ title: "Протокол выпущен", color: "success" });
 }
 
-watch(() => route.query.id, (rawId) => {
-  const id = typeof rawId === "string" ? Number(rawId) : Number.NaN;
-  if (!Number.isFinite(id)) return;
-  selectedDirection.value = directions.value.find((direction) => direction.id === id) ?? selectedDirection.value;
-}, { immediate: true });
+function handleSampleAction(sample: DirectionSample, action: "accept" | "reject") {
+  if (action === "accept") {
+    sample.status = "registered";
+    toast.add({ title: "Образец принят", color: "success" });
+  } else {
+    sample.status = "rejected";
+    toast.add({ title: "Образец отклонён", color: "warning" });
+  }
+}
 
-watch(selectedRoleKey, () => {
-  selectedDirection.value = filteredDirections.value[0] ?? null;
-});
+const columnMenuItems = computed(() => [
+  { field: 'number', header: 'Номер' },
+  { field: 'object', header: 'Объект' },
+  { field: 'doctor', header: 'Врач' },
+  { field: 'branch', header: 'Филиал' },
+  { field: 'status', header: 'Статус' },
+  { field: 'urgency', header: 'Срочность' },
+  { field: 'actions', header: 'Действия' },
+].map(col => ({
+  label: col.header,
+  type: 'checkbox' as const,
+  checked: columnVisibility.value[col.field] !== false,
+  onUpdateChecked(checked: boolean) {
+    columnVisibility.value = {
+      ...columnVisibility.value,
+      [col.field]: checked,
+    }
+  },
+  onSelect(event?: Event) {
+    event?.preventDefault()
+  },
+})))
+
+// Table columns
+const UBadge = resolveComponent("UBadge");
+const UButton = resolveComponent("UButton");
+
+function sortableHeader(label: string, field: string) {
+  return h(UButton, {
+    color: "neutral",
+    variant: "ghost",
+    label,
+    icon:
+      table.sorting.value.field !== field
+        ? "i-lucide-arrow-up-down"
+        : table.sorting.value.order === 1
+          ? "i-lucide-arrow-up-narrow-wide"
+          : "i-lucide-arrow-down-wide-narrow",
+    class: "-mx-2.5",
+    onClick: () => table.setSort(field),
+  });
+}
+
+const directionColumns = computed<TableColumn<Direction>[]>(() => [
+  { accessorKey: "number", header: () => sortableHeader("Номер", "number"), cell: ({ row }) => isSkeletonRow(row.original) ? renderSkeletonCell("number", 0) : h("span", { class: "font-semibold text-highlighted" }, row.original.number) },
+  { accessorKey: "object", header: () => sortableHeader("Объект", "object"), cell: ({ row }) => isSkeletonRow(row.original) ? renderSkeletonCell("object", 1) : row.original.object },
+  { accessorKey: "doctor", header: () => sortableHeader("Врач", "doctor"), cell: ({ row }) => isSkeletonRow(row.original) ? renderSkeletonCell("doctor", 2) : row.original.doctor },
+  { accessorKey: "branch", header: () => sortableHeader("Филиал", "branch"), cell: ({ row }) => isSkeletonRow(row.original) ? renderSkeletonCell("branch", 3) : row.original.branch },
+  { accessorKey: "status", header: () => sortableHeader("Статус", "status"), cell: ({ row }) => isSkeletonRow(row.original) ? renderSkeletonCell("status", 4) : h(UBadge, { color: statusColors[row.original.status], variant: "subtle", label: directionStatusLabels[row.original.status] }) },
+  { accessorKey: "urgency", header: () => sortableHeader("Срочность", "urgency"), cell: ({ row }) => isSkeletonRow(row.original) ? renderSkeletonCell("urgency", 5) : h(UBadge, { color: row.original.urgency === "urgent" ? "warning" : "neutral", variant: "subtle", label: row.original.urgency === "urgent" ? "Срочно" : "Обычно" }) },
+  { id: 'actions', header: 'Действия', meta: { class: { td: 'w-auto min-w-[56px] text-right' } } },
+]);
+
+const getColumnKey = (column: TableColumn<Direction>) => {
+  if ("id" in column && typeof column.id === "string") {
+    return column.id;
+  }
+  if ("accessorKey" in column && typeof column.accessorKey === "string") {
+    return column.accessorKey;
+  }
+  return "";
+};
+
+const visibleColumnCount = computed(() =>
+  Math.max(
+    1,
+    directionColumns.value.filter((column) => {
+      const key = getColumnKey(column);
+      return !key || columnVisibility.value[key] !== false;
+    }).length,
+  ),
+);
+
+const getRowActionItems = (direction: Direction): DropdownMenuItem[] => [
+  { label: "Просмотр", icon: "i-lucide-eye", onSelect: () => openDetail(direction) },
+];
+
+const handleRowSelect = (_event: Event, row: { original: Direction }) => {
+  if (isSkeletonRow(row.original)) {
+    return;
+  }
+
+  openDetail(row.original);
+};
+
+const contextMenuItems = computed(() =>
+  contextRow.value ? getRowActionItems(contextRow.value) : [],
+);
+
+const handleRowContextmenu = async (event: Event, row: { original: Direction }) => {
+  event.preventDefault();
+  if (isSkeletonRow(row.original)) {
+    return;
+  }
+
+  const mouseEvent = event as MouseEvent;
+  contextRow.value = row.original;
+  contextMenuOpen.value = false;
+  contextMenuPosition.value = { x: mouseEvent.clientX, y: mouseEvent.clientY };
+  await nextTick();
+  contextMenuOpen.value = true;
+};
 </script>
 
 <template>
-  <UDashboardPanel
-    id="directions-list"
-    :default-size="32"
-    :min-size="24"
-    :max-size="42"
-    resizable
-  >
+  <UDashboardPanel id="directions" :ui="{ body: 'min-h-0 overflow-hidden' }">
     <template #header>
       <UDashboardNavbar title="Направления">
         <template #leading>
           <UDashboardSidebarCollapse />
         </template>
         <template #right>
-          <UBadge :label="selectedRole.shortName" color="primary" variant="subtle" />
-          <UBadge :label="readonlyMode ? 'read-only' : 'editable'" color="neutral" variant="outline" />
+          <UButton icon="i-lucide-upload" label="Импорт" color="primary" size="sm" @click="importOpen = true" />
+          <UButton icon="i-lucide-plus" label="Создать" color="neutral" variant="outline" size="sm" class="ml-2" @click="createOpen = true" />
         </template>
       </UDashboardNavbar>
 
       <UDashboardToolbar>
-        <div class="flex w-full flex-col gap-3">
-          <UFieldGroup class="w-full">
-            <UInput
+        <template #left>
+          <div class="flex w-full flex-col gap-3 lg:flex-row lg:items-center">
+            <CrudSearchControl
               v-model="query"
-              icon="i-lucide-search"
-              placeholder="Номер, объект, врач или филиал"
-              class="min-w-0 flex-1"
+              placeholder="Поиск по направлениям"
             />
-            <USelect
-              v-model="selectedFilter"
-              :items="filterItems"
-              value-key="value"
-              class="w-36"
-            />
-          </UFieldGroup>
-
-          <div v-if="canEditDirections" class="flex gap-2">
-            <UButton
-              icon="i-lucide-upload"
-              label="Импорт"
-              color="primary"
-              size="sm"
-              @click="importOpen = true"
-            />
-            <UButton
-              icon="i-lucide-plus"
-              label="Создать"
-              color="neutral"
-              variant="outline"
-              size="sm"
-              @click="createOpen = true"
+            <CrudFilterControls
+              :active-count="selectedFilter !== 'all' ? 1 : 0"
+              @open="selectedFilter = 'all'"
+              @clear="selectedFilter = 'all'"
             />
           </div>
+        </template>
+        <template #right>
+          <div class="flex flex-wrap items-center gap-2">
+            <UButton
+              color="neutral"
+              variant="subtle"
+              icon="i-lucide-refresh-cw"
+              label="Обновить"
+              @click="table.refresh()"
+            />
+            <UDropdownMenu
+              :items="columnMenuItems"
+              :content="{ align: 'end' }"
+            >
+              <UButton
+                label="Столбцы"
+                color="neutral"
+                variant="subtle"
+                trailing-icon="i-lucide-settings-2"
+              />
+            </UDropdownMenu>
+          </div>
+        </template>
+      </UDashboardToolbar>
+
+      <UDashboardToolbar>
+        <div class="flex w-full items-center gap-1 overflow-x-auto rounded-lg bg-elevated p-1">
+          <UButton
+            v-for="item in filterItems"
+            :key="item.value"
+            size="xs"
+            :variant="selectedFilter === item.value ? 'solid' : 'ghost'"
+            class="shrink-0"
+            :label="item.label"
+            @click="selectedFilter = item.value as DirectionFilter"
+          />
         </div>
       </UDashboardToolbar>
     </template>
 
-    <div class="flex-1 overflow-y-auto divide-y divide-default">
-      <button
-        v-for="direction in filteredDirections"
-        :key="direction.id"
-        type="button"
-        class="block w-full border-l-2 p-4 text-left transition-colors sm:px-6"
-        :class="selectedDirection?.id === direction.id ? 'border-primary bg-primary/10' : 'border-transparent hover:border-primary hover:bg-primary/5'"
-        @click="selectDirection(direction)"
+    <template #body>
+      <CrudTableShell
+        mode="infinite"
+        :total="table.total.value"
+        :loading-more="table.loadingMore.value"
+        :has-more="!table.loading.value && table.hasMore.value"
+        @load-more="table.loadMore()"
       >
-        <div class="flex items-start justify-between gap-3">
-          <div class="min-w-0">
-            <div class="flex items-center gap-2">
-              <p class="truncate text-sm font-semibold text-highlighted">
-                {{ direction.number }}
-              </p>
-              <UBadge
-                v-if="direction.urgency === 'urgent'"
-                label="Срочно"
-                color="warning"
-                variant="subtle"
-                size="xs"
-              />
-            </div>
-            <p class="truncate text-sm text-toned">
-              {{ direction.object }}
-            </p>
-            <p class="truncate text-xs text-muted">
-              {{ direction.doctor }} · {{ direction.branch }}
-            </p>
-          </div>
-          <UBadge :color="statusColors[direction.status]" :label="direction.status" variant="subtle" />
-        </div>
-        <div class="mt-3 flex items-center justify-between gap-2 text-xs text-muted">
-          <span>{{ direction.samples.length }} образца</span>
-          <span>{{ formatDate(direction.deadline) }}</span>
-        </div>
-      </button>
-
-      <div v-if="!filteredDirections.length" class="p-10 text-center text-sm text-muted">
-        Направления не найдены.
-      </div>
-    </div>
-  </UDashboardPanel>
-
-  <UDashboardPanel v-if="selectedDirection" id="directions-detail" class="hidden lg:flex">
-    <template #header>
-      <UDashboardNavbar :title="selectedDirection.number" :toggle="false">
-        <template #right>
-          <UBadge :color="statusColors[selectedDirection.status]" :label="selectedDirection.status" variant="subtle" />
-        </template>
-      </UDashboardNavbar>
-
-      <div class="border-b border-default px-4 pt-5 sm:px-6">
-        <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div class="min-w-0">
-            <div class="flex flex-wrap items-center gap-2">
-              <UBadge
-                :color="statusColors[selectedDirection.status]"
-                variant="solid"
-                size="sm"
-                class="uppercase"
-                :label="directionStatusLabels[selectedDirection.status]"
-              />
-              <span class="text-xs font-medium text-muted">
-                ID: {{ selectedDirection.number }}
-              </span>
-            </div>
-
-            <h2 class="mt-2 truncate text-2xl font-semibold text-highlighted">
-              {{ selectedDirection.object }}
-            </h2>
-
-            <p class="mt-1 truncate text-sm text-muted">
-              {{ selectedDirection.doctor }} · {{ selectedDirection.branch }}
-            </p>
-
-            <div class="mt-3 flex flex-wrap items-center gap-2">
-              <UBadge
-                color="neutral"
-                variant="outline"
-                :label="`Отбор: ${formatDate(selectedDirection.collectedAt)}`"
-              />
-              <UBadge
-                color="neutral"
-                variant="outline"
-                :label="`Дедлайн: ${formatDate(selectedDirection.deadline)}`"
-              />
-              <UBadge
-                :color="selectedDirection.protocol === 'missing' ? 'neutral' : 'success'"
-                variant="subtle"
-                :label="`Протокол: ${selectedDirection.protocol}`"
-              />
-            </div>
-          </div>
-
-          <div class="flex shrink-0 flex-wrap gap-2">
-            <UButton
-              icon="i-lucide-printer"
-              label="Печать"
-              color="neutral"
-              variant="outline"
-            />
-            <UButton
-              v-if="canEditDirections && selectedDirection.status === 'draft'"
-              icon="i-lucide-clipboard-check"
-              label="Зарегистрировать"
-              color="primary"
-              @click="registerSelectedDirection"
-            />
-            <UButton
-              v-if="canSeeProtocol && selectedDirection.protocol !== 'missing'"
-              icon="i-lucide-file-check-2"
-              label="Протокол"
-              color="neutral"
-              variant="outline"
-              @click="protocolOpen = true"
-            />
-          </div>
-        </div>
-
-        <UTabs
-          v-model="activeDirectionTab"
-          :items="directionTabs"
-          variant="link"
-          :content="false"
-          class="mt-5"
-        />
-      </div>
-    </template>
-
-    <template #body>
-      <div class="mx-auto flex w-full max-w-7xl flex-col gap-5">
-        <div v-if="activeDirectionTab === 'samples'" class="flex min-w-0 flex-col gap-5">
-          <section>
-            <h2 class="mb-3 text-xl font-semibold text-highlighted">
-              Направление
-            </h2>
-
-            <div class="overflow-hidden rounded-lg border border-default">
-              <dl class="grid text-sm sm:grid-cols-2">
-                <div class="grid grid-cols-[10rem_minmax(0,1fr)] border-b border-default sm:border-e">
-                  <dt class="bg-elevated/60 px-3 py-2 font-medium text-highlighted">
-                    Номер
-                  </dt>
-                  <dd class="px-3 py-2 text-muted">
-                    {{ selectedDirection.number }}
-                  </dd>
-                </div>
-                <div class="grid grid-cols-[10rem_minmax(0,1fr)] border-b border-default">
-                  <dt class="bg-elevated/60 px-3 py-2 font-medium text-highlighted">
-                    Год
-                  </dt>
-                  <dd class="px-3 py-2 text-muted">
-                    {{ new Date(selectedDirection.collectedAt).getFullYear() }}
-                  </dd>
-                </div>
-                <div class="grid grid-cols-[10rem_minmax(0,1fr)] border-b border-default sm:border-e">
-                  <dt class="bg-elevated/60 px-3 py-2 font-medium text-highlighted">
-                    Время отбора
-                  </dt>
-                  <dd class="px-3 py-2 text-muted">
-                    {{ formatDate(selectedDirection.collectedAt) }}
-                  </dd>
-                </div>
-                <div class="grid grid-cols-[10rem_minmax(0,1fr)] border-b border-default">
-                  <dt class="bg-elevated/60 px-3 py-2 font-medium text-highlighted">
-                    Время доставки
-                  </dt>
-                  <dd class="px-3 py-2 text-muted">
-                    {{ formatDate(selectedDirection.collectedAt) }}
-                  </dd>
-                </div>
-                <div class="grid grid-cols-[10rem_minmax(0,1fr)] border-b border-default sm:border-e">
-                  <dt class="bg-elevated/60 px-3 py-2 font-medium text-highlighted">
-                    Санитарный врач
-                  </dt>
-                  <dd class="px-3 py-2 text-muted">
-                    {{ selectedDirection.doctor }}
-                  </dd>
-                </div>
-                <div class="grid grid-cols-[10rem_minmax(0,1fr)] border-b border-default">
-                  <dt class="bg-elevated/60 px-3 py-2 font-medium text-highlighted">
-                    Объект
-                  </dt>
-                  <dd class="px-3 py-2 text-muted">
-                    {{ selectedDirection.object }}
-                  </dd>
-                </div>
-                <div class="grid grid-cols-[10rem_minmax(0,1fr)] border-b border-default sm:border-e">
-                  <dt class="bg-elevated/60 px-3 py-2 font-medium text-highlighted">
-                    Статус
-                  </dt>
-                  <dd class="px-3 py-2">
-                    <UBadge
-                      :color="statusColors[selectedDirection.status]"
-                      :label="directionStatusLabels[selectedDirection.status]"
-                      variant="subtle"
-                    />
-                  </dd>
-                </div>
-                <div class="grid grid-cols-[10rem_minmax(0,1fr)] border-b border-default">
-                  <dt class="bg-elevated/60 px-3 py-2 font-medium text-highlighted">
-                    Завершено
-                  </dt>
-                  <dd class="px-3 py-2 text-muted">
-                    {{ selectedDirection.status === 'completed' ? 'Да' : 'Нет' }}
-                  </dd>
-                </div>
-                <div class="grid grid-cols-[10rem_minmax(0,1fr)] sm:border-e">
-                  <dt class="bg-elevated/60 px-3 py-2 font-medium text-highlighted">
-                    Время выпуска
-                  </dt>
-                  <dd class="px-3 py-2 text-muted">
-                    {{ selectedDirection.protocol === 'issued' ? formatDate(selectedDirection.deadline) : 'Не выпущено' }}
-                  </dd>
-                </div>
-                <div class="grid grid-cols-[10rem_minmax(0,1fr)]">
-                  <dt class="bg-elevated/60 px-3 py-2 font-medium text-highlighted">
-                    Протокол
-                  </dt>
-                  <dd class="px-3 py-2">
-                    <UBadge
-                      :color="selectedDirection.protocol === 'missing' ? 'neutral' : 'success'"
-                      :label="selectedDirection.protocol"
-                      variant="subtle"
-                    />
-                  </dd>
-                </div>
-              </dl>
-            </div>
-          </section>
-
-          <section>
-            <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div class="flex items-center gap-2">
-                <UIcon name="i-lucide-vial" class="size-4 text-muted" />
-                <h3 class="text-sm font-semibold text-highlighted">
-                  Зарегистрированные образцы для направления
-                </h3>
-              </div>
-              <UBadge
-                :label="`${selectedDirection.samples.length} образца`"
-                color="neutral"
-                variant="subtle"
-              />
-            </div>
-
-            <div class="overflow-x-auto rounded-lg border border-default">
-              <table class="min-w-[980px] w-full border-collapse text-sm">
-                <thead class="bg-elevated text-left text-xs font-medium uppercase text-muted">
-                  <tr>
-                    <th class="border-b border-default px-3 py-2">
-                      №
-                    </th>
-                    <th class="border-b border-default px-3 py-2">
-                      Тип образца
-                    </th>
-                    <th class="border-b border-default px-3 py-2">
-                      Наименование
-                    </th>
-                    <th class="border-b border-default px-3 py-2">
-                      Цель исследования
-                    </th>
-                    <th class="border-b border-default px-3 py-2">
-                      Завершено
-                    </th>
-                    <th class="border-b border-default px-3 py-2">
-                      Результат
-                    </th>
-                    <th class="border-b border-default px-3 py-2">
-                      Время выпуска
-                    </th>
-                    <th class="border-b border-default px-3 py-2 text-right">
-                      Действия
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr
-                    v-for="sample in selectedDirection.samples"
-                    :key="sample.id"
-                    class="border-b border-default last:border-b-0 odd:bg-elevated/35"
-                  >
-                    <td class="px-3 py-2 align-top font-mono text-xs text-muted">
-                      {{ sample.code }}
-                    </td>
-                    <td class="px-3 py-2 align-top text-muted">
-                      {{ sample.type }}
-                    </td>
-                    <td class="px-3 py-2 align-top">
-                      <p class="font-medium text-highlighted">
-                        {{ selectedDirection.object }}
-                      </p>
-                      <p class="text-xs text-muted">
-                        {{ sample.lab }}
-                      </p>
-                    </td>
-                    <td class="px-3 py-2 align-top text-muted">
-                      {{ sample.lab }}
-                    </td>
-                    <td class="px-3 py-2 align-top text-muted">
-                      {{ ['completed', 'rejected'].includes(sample.status) ? 'Да' : 'Нет' }}
-                    </td>
-                    <td class="px-3 py-2 align-top">
-                      <UBadge
-                        :color="sampleStatusColors[sample.status]"
-                        :label="sampleStatusLabels[sample.status]"
-                        variant="subtle"
-                      />
-                    </td>
-                    <td class="px-3 py-2 align-top text-muted">
-                      {{ formatDate(sample.deadline) }}
-                    </td>
-                    <td class="px-3 py-2 align-top">
-                      <div class="flex justify-end gap-1">
-                        <UButton
-                          icon="i-lucide-search"
-                          color="neutral"
-                          variant="ghost"
-                          size="sm"
-                        />
-                        <UButton
-                          v-if="canEditDirections && sample.status === 'pending'"
-                          icon="i-lucide-check"
-                          color="primary"
-                          variant="ghost"
-                          size="sm"
-                          @click="setSampleStatus(sample, 'registered')"
-                        />
-                        <UButton
-                          v-if="canEditDirections && sample.status === 'pending'"
-                          icon="i-lucide-x"
-                          color="error"
-                          variant="ghost"
-                          size="sm"
-                          @click="setSampleStatus(sample, 'rejected')"
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </section>
-        </div>
-
-        <section v-else class="rounded-lg border border-default p-4">
-          <div class="mb-3 flex items-center gap-2">
-            <UIcon name="i-lucide-history" class="size-4 text-muted" />
-            <h3 class="text-sm font-semibold text-highlighted">
-              История направления
-            </h3>
-          </div>
-
-          <UStepper
-            orientation="vertical"
-            :items="directionHistoryItems"
-            :default-value="directionHistoryItems.length"
-            disabled
-            class="w-full"
-            :ui="{
-              item: 'items-start',
-              title: 'text-sm font-semibold text-highlighted',
-              description: 'whitespace-pre-line text-xs leading-5 text-muted',
-              separator: 'min-h-8'
-            }"
+        <template #table>
+          <RowContextMenu
+            v-model:open="contextMenuOpen"
+            :items="contextMenuItems"
+            :x="contextMenuPosition.x"
+            :y="contextMenuPosition.y"
           />
-        </section>
-      </div>
+          <UTable
+            v-model:column-visibility="columnVisibility"
+            :data="tableRows"
+            :columns="directionColumns"
+            :loading="false"
+            :on-select="handleRowSelect"
+            :on-contextmenu="handleRowContextmenu"
+            sticky
+            :ui="{
+              ...borderedCrudTableUi,
+              tbody: 'cursor-pointer',
+            }"
+          >
+            <template #body-bottom>
+              <tr v-if="!table.loading.value && table.loadingMore.value" class="border-b border-default">
+                <td :colspan="visibleColumnCount" class="border-r border-b border-default p-0">
+                  <CrudTableLoadingRows compact :columns="visibleColumnCount" />
+                </td>
+              </tr>
+              <tr v-else-if="!table.loading.value && !table.hasMore.value && table.total.value > 0" class="bg-default">
+                <td :colspan="visibleColumnCount" class="border-r border-b border-default px-6 py-3 text-center text-xs text-dimmed">
+                  Всего записей: {{ table.total.value }}
+                </td>
+              </tr>
+            </template>
+            <template #actions-cell="{ row }">
+              <USkeleton v-if="isSkeletonRow(row.original)" class="ml-auto h-4 w-8" />
+              <UDropdownMenu
+                v-else
+                :content="{ align: 'end' }"
+                :items="getRowActionItems(row.original)"
+              >
+                <UButton icon="i-lucide-ellipsis-vertical" color="neutral" variant="ghost" size="sm" />
+              </UDropdownMenu>
+            </template>
+            <template #empty>
+              <CrudTableEmptyState
+                title="Направления не найдены"
+                description="Измените фильтры или создайте новое направление."
+              />
+            </template>
+          </UTable>
+        </template>
+      </CrudTableShell>
     </template>
   </UDashboardPanel>
 
-  <div v-else class="hidden flex-1 flex-col items-center justify-center gap-3 lg:flex">
-    <UIcon name="i-lucide-book-copy" class="size-28 text-dimmed" />
-    <p class="text-sm text-muted">
-      Выберите направление.
-    </p>
-  </div>
+  <DirectionDetailModal
+    v-model:open="detailOpen"
+    :direction="selectedDirection"
+    @register="registerSelectedDirection"
+    @protocol="protocolOpen = true"
+    @sample-action="handleSampleAction"
+  />
 
+  <!-- Import Modal -->
   <UModal v-model:open="importOpen" title="Импорт направления" description="Файл будет разобран в preview, затем создан draft.">
-    <template #body>
-      <UFileUpload label="Загрузить файл направления" description="PDF, XLSX или XML" class="w-full" />
-    </template>
-    <template #footer>
-      <UButton
-        label="Отмена"
-        color="neutral"
-        variant="ghost"
-        @click="importOpen = false"
-      />
-      <UButton label="Создать draft" icon="i-lucide-upload" @click="importDirection" />
-    </template>
+    <template #body><UFileUpload label="Загрузить файл направления" description="PDF, XLSX или XML" class="w-full" /></template>
+    <template #footer><UButton label="Отмена" color="neutral" variant="ghost" @click="importOpen = false" /><UButton label="Создать draft" icon="i-lucide-upload" @click="importDirection" /></template>
   </UModal>
 
+  <!-- Create Modal -->
   <UModal v-model:open="createOpen" title="Создание направления" description="V1 создаёт mock draft, совместимый с будущим API.">
-    <template #body>
-      <div class="grid gap-3 sm:grid-cols-2">
-        <UInput model-value="Новый объект" placeholder="Объект" />
-        <UInput model-value="Анна Смирнова" placeholder="Врач" />
-        <UInput model-value="Смыв" placeholder="Тип образца" />
-        <USelect model-value="normal" :items="[{ label: 'Обычная', value: 'normal' }, { label: 'Срочная', value: 'urgent' }]" value-key="value" />
-      </div>
-    </template>
-    <template #footer>
-      <UButton
-        label="Отмена"
-        color="neutral"
-        variant="ghost"
-        @click="createOpen = false"
-      />
-      <UButton label="Создать" icon="i-lucide-plus" @click="createDirection" />
-    </template>
+    <template #body><div class="grid gap-3 sm:grid-cols-2"><UInput model-value="Новый объект" placeholder="Объект" /><UInput model-value="Анна Смирнова" placeholder="Врач" /><UInput model-value="Смыв" placeholder="Тип образца" /><USelect model-value="normal" :items="[{ label: 'Обычная', value: 'normal' }, { label: 'Срочная', value: 'urgent' }]" value-key="value" /></div></template>
+    <template #footer><UButton label="Отмена" color="neutral" variant="ghost" @click="createOpen = false" /><UButton label="Создать" icon="i-lucide-plus" @click="createDirection" /></template>
   </UModal>
 
+  <!-- Protocol Modal -->
   <UModal v-model:open="protocolOpen" title="Протокол" description="Закрытые образцы собраны в протокол с заключением.">
-    <template #body>
-      <UTextarea model-value="Заключение: показатели в пределах допустимых значений." autoresize class="w-full" />
-    </template>
-    <template #footer>
-      <UButton
-        label="Закрыть"
-        color="neutral"
-        variant="ghost"
-        @click="protocolOpen = false"
-      />
-      <UButton
-        v-if="canEditDirections && selectedDirection?.protocol !== 'issued'"
-        label="Выпустить"
-        icon="i-lucide-file-check-2"
-        @click="issueSelectedProtocol"
-      />
-    </template>
+    <template #body><UTextarea model-value="Заключение: показатели в пределах допустимых значений." autoresize class="w-full" /></template>
+    <template #footer><UButton label="Закрыть" color="neutral" variant="ghost" @click="protocolOpen = false" /><UButton v-if="selectedDirection?.protocol !== 'issued'" label="Выпустить" icon="i-lucide-file-check-2" @click="issueSelectedProtocol" /></template>
   </UModal>
 </template>
