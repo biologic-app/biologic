@@ -4,11 +4,10 @@ import type { DropdownMenuItem, TableColumn } from '@nuxt/ui'
 import { useI18n } from 'vue-i18n'
 import { useResearchSamples } from '@/modules/research/composables/useResearchSamples'
 import { useServerTable } from '@/shared/composables/useServerTable'
-import CrudTableShell from '@/shared/ui/CrudTableShell.vue'
+import CrudDataTable from '@/shared/ui/CrudDataTable.vue'
 import CrudSearchControl from '@/shared/ui/CrudSearchControl.vue'
 import CrudFilterControls from '@/shared/ui/CrudFilterControls.vue'
 import CrudTableEmptyState from '@/shared/ui/CrudTableEmptyState.vue'
-import CrudTableLoadingRows from '@/shared/ui/CrudTableLoadingRows.vue'
 import RowContextMenu from '@/shared/ui/RowContextMenu.vue'
 import {
   borderedCrudTableUi,
@@ -202,26 +201,6 @@ const columnMenuItems = computed(() => [
   }
 }))
 
-const getColumnKey = (column: TableColumn<ResearchSample>) => {
-  if ('id' in column && typeof column.id === 'string') {
-    return column.id
-  }
-  if ('accessorKey' in column && typeof column.accessorKey === 'string') {
-    return column.accessorKey
-  }
-  return ''
-}
-
-const visibleColumnCount = computed(() =>
-  Math.max(
-    1,
-    uiColumns.value.filter((column) => {
-      const key = getColumnKey(column)
-      return !key || columnVisibility.value[key] !== false
-    }).length,
-  ),
-)
-
 const getRowActionItems = (sample: ResearchSample): DropdownMenuItem[] => [
   { label: 'Просмотр', icon: 'i-lucide-eye', onSelect: () => openDetail(sample) },
 ]
@@ -310,49 +289,49 @@ const interpretationItems = [
     </template>
 
     <template #body>
-      <CrudTableShell ref="shellRef" mode="infinite" :total="table.total.value"
-        :loading-more="table.loadingMore.value" :has-more="!table.loading.value && table.hasMore.value" @load-more="table.loadMore()">
-        <template #table>
+      <CrudDataTable
+        v-model:column-visibility="columnVisibility"
+        :data="tableRows"
+        :columns="uiColumns"
+        :total="table.total.value"
+        :loading="table.loading.value"
+        :loading-more="table.loadingMore.value"
+        :has-more="table.hasMore.value"
+        :table-ui="{ ...borderedCrudTableUi, tbody: 'cursor-pointer' }"
+        @load-more="table.loadMore()"
+        @row-select="handleRowSelect"
+        @row-contextmenu="handleRowContextmenu"
+      >
+        <template #before-table>
           <RowContextMenu
             v-model:open="contextMenuOpen"
             :items="contextMenuItems"
             :x="contextMenuPosition.x"
             :y="contextMenuPosition.y"
           />
-          <UTable v-model:column-visibility="columnVisibility" :data="tableRows"
-            :columns="uiColumns" :loading="false" :on-select="handleRowSelect" :on-contextmenu="handleRowContextmenu" sticky
-            :ui="{ ...borderedCrudTableUi, tbody: 'cursor-pointer' }">
-            <template #body-bottom>
-              <tr v-if="!table.loading.value && table.loadingMore.value" class="border-b border-default">
-                <td :colspan="visibleColumnCount" class="border-r border-b border-default p-0">
-                  <CrudTableLoadingRows compact :columns="visibleColumnCount" />
-                </td>
-              </tr>
-              <tr v-else-if="!table.loading.value && !table.hasMore.value && table.total.value > 0" class="bg-default">
-                <td :colspan="visibleColumnCount" class="border-r border-b border-default px-6 py-3 text-center text-xs text-dimmed">
-                  Всего записей: {{ table.total.value }}
-                </td>
-              </tr>
-            </template>
-            <template #actions-cell="{ row }">
-              <USkeleton v-if="isSkeletonRow(row.original)" class="ml-auto h-4 w-8" />
-              <UDropdownMenu
-                v-else
-                :content="{ align: 'end' }"
-                :items="getRowActionItems(row.original)"
-              >
-                <UButton icon="i-lucide-ellipsis-vertical" color="neutral" variant="ghost" size="sm" />
-              </UDropdownMenu>
-            </template>
-            <template #empty>
-              <CrudTableEmptyState
-                :title="t('research.empty')"
-                description="Измените фильтры или обновите очередь исследований."
-              />
-            </template>
-          </UTable>
         </template>
-      </CrudTableShell>
+        <template #actions-cell="{ row }">
+          <USkeleton v-if="isSkeletonRow(row.original)" class="ml-auto h-4 w-8" />
+          <UDropdownMenu
+            v-else
+            :content="{ align: 'end' }"
+            :items="getRowActionItems(row.original)"
+          >
+            <UButton
+              icon="i-lucide-ellipsis-vertical"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+            />
+          </UDropdownMenu>
+        </template>
+        <template #empty>
+          <CrudTableEmptyState
+            :title="t('research.empty')"
+            description="Измените фильтры или обновите очередь исследований."
+          />
+        </template>
+      </CrudDataTable>
     </template>
   </UDashboardPanel>
 

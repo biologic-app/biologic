@@ -15,14 +15,12 @@ import type { CrudModuleConfig } from "@/pages/CrudModulePage.vue";
 import type { FormField } from "@/shared/types/form";
 import type { TableFilters } from "@/shared/types/table";
 import CrudFormModal from "@/shared/ui/CrudFormModal.vue";
+import CrudDataTable from "@/shared/ui/CrudDataTable.vue";
 import CrudTableEmptyState from "@/shared/ui/CrudTableEmptyState.vue";
-import CrudTableLoadingRows from "@/shared/ui/CrudTableLoadingRows.vue";
-import CrudTableShell from "@/shared/ui/CrudTableShell.vue";
 import CrudFilterModal from "@/shared/ui/CrudFilterModal.vue";
 import ConfirmDialog from "@/shared/ui/ConfirmDialog.vue";
 import RowContextMenu from "@/shared/ui/RowContextMenu.vue";
 import {
-  borderedCrudTableUi,
   createSkeletonRows,
   isSkeletonRow,
   renderSkeletonCell,
@@ -50,17 +48,26 @@ type CrudRow = {
   [key: string]: unknown;
 };
 
-const props = defineProps<{
-  config: CrudModuleConfig;
-  requestParams?: Record<string, string>;
-  search?: string;
-  refreshToken?: number;
-  resetToken?: number;
-}>();
+const props = withDefaults(
+  defineProps<{
+    config: CrudModuleConfig;
+    requestParams?: Record<string, string>;
+    search?: string;
+    refreshToken?: number;
+    resetToken?: number;
+    selectable?: boolean;
+  }>(),
+  {
+    requestParams: undefined,
+    search: undefined,
+    refreshToken: undefined,
+    resetToken: undefined,
+    selectable: true,
+  },
+);
 
 const UButton = resolveComponent("UButton");
 const UBadge = resolveComponent("UBadge");
-const UCheckbox = resolveComponent("UCheckbox");
 
 const toast = useToast();
 const { can } = usePermission();
@@ -199,38 +206,9 @@ onMounted(async () => {
 });
 
 const uiColumns = computed(() => {
-  const selectColumn: NuxtTableColumn<CrudRow> = {
-    id: "select",
-    enableSorting: false,
-    enableHiding: false,
-    header: ({ table: currentTable }) =>
-      h(UCheckbox, {
-        modelValue: currentTable.getIsSomePageRowsSelected()
-          ? "indeterminate"
-          : currentTable.getIsAllPageRowsSelected(),
-        "onUpdate:modelValue": (value: boolean | "indeterminate") =>
-          currentTable.toggleAllPageRowsSelected(!!value),
-        ariaLabel: "Выбрать все строки",
-      }),
-    cell: ({ row }) => {
-      if (isSkeletonRow(row.original)) {
-        return renderSkeletonCell("select");
-      }
-
-      return h(UCheckbox, {
-        modelValue: row.getIsSelected(),
-        "onUpdate:modelValue": (value: boolean | "indeterminate") =>
-          row.toggleSelected(!!value),
-        ariaLabel: "Выбрать строку",
-      });
-    },
-  };
-
-
   const actionColumn = { id: "actions", header: "Действия", meta: { class: { td: "w-auto min-w-[56px] text-right" } } };
 
   return [
-    selectColumn,
     ...props.config.columns.map((column, columnIndex) => ({
       id: column.field,
       accessorKey: column.field,
@@ -486,26 +464,6 @@ const handleRowContextmenu = async (event: Event, row: { original: CrudRow }) =>
   contextMenuOpen.value = true;
 };
 
-const getColumnKey = (column: NuxtTableColumn<CrudRow>) => {
-  if ("id" in column && typeof column.id === "string") {
-    return column.id;
-  }
-  if ("accessorKey" in column && typeof column.accessorKey === "string") {
-    return column.accessorKey;
-  }
-  return "";
-};
-
-const visibleColumnCount = computed(() =>
-  Math.max(
-    1,
-    uiColumns.value.filter((column) => {
-      const key = getColumnKey(column);
-      return !key || columnVisibility.value[key] !== false;
-    }).length,
-  ),
-);
-
 const createDisabled = computed(() => !can(props.config.resource, "create"));
 const activeFilterCount = computed(() =>
   Object.entries(filters).filter(([key, filter]) => {
@@ -637,69 +595,57 @@ defineExpose({
     </div>
   </CrudFilterModal>
 
-  <CrudTableShell
-    mode="infinite"
+  <CrudDataTable
+    v-model:column-visibility="columnVisibility"
+    v-model:row-selection="rowSelection"
+    :data="tableRows"
+    :columns="uiColumns"
     :total="table.total.value"
+    :loading="table.loading.value"
     :loading-more="table.loadingMore.value"
-    :has-more="!table.loading.value && table.hasMore.value"
+    :has-more="table.hasMore.value"
+    :selectable="selectable"
     @load-more="table.loadMore()"
+    @row-select="handleRowSelect"
+    @row-contextmenu="handleRowContextmenu"
   >
-    <template #table>
+    <template #before-table>
       <RowContextMenu
         v-model:open="contextMenuOpen"
         :items="contextMenuItems"
         :x="contextMenuPosition.x"
         :y="contextMenuPosition.y"
       />
-      <UTable
-        v-model:column-visibility="columnVisibility"
-        v-model:row-selection="rowSelection"
-        :data="tableRows"
-        :columns="uiColumns"
-        :loading="false"
-        :on-select="handleRowSelect"
-        :on-contextmenu="handleRowContextmenu"
-        sticky
-        :ui="borderedCrudTableUi"
-      >
-        <template #body-bottom>
-          <tr v-if="!table.loading.value && table.loadingMore.value" class="border-b border-default">
-            <td :colspan="visibleColumnCount" class="border-r border-b border-default p-0">
-              <CrudTableLoadingRows compact :columns="visibleColumnCount" />
-            </td>
-          </tr>
-          <tr v-else-if="!table.loading.value && !table.hasMore.value && table.total.value > 0" class="bg-default">
-            <td :colspan="visibleColumnCount" class="border-r border-b border-default px-6 py-3 text-center text-xs text-dimmed">
-              Всего записей: {{ table.total.value }}
-            </td>
-          </tr>
-        </template>
-        <template #actions-cell="{ row }">
-          <USkeleton v-if="isSkeletonRow(row.original)" class="ml-auto h-4 w-8" />
-          <UDropdownMenu
-            v-else
-            :content="{ align: 'end' }"
-            :items="getRowActionItems(row.original)"
-          >
-            <UButton icon="i-lucide-ellipsis-vertical" color="neutral" variant="ghost" size="sm" />
-          </UDropdownMenu>
-        </template>
-        <template #empty>
-          <CrudTableEmptyState
-            :title="activeFilterCount ? 'Ничего не найдено' : 'Нет записей'"
-            :description="activeFilterCount
-              ? `В справочнике «${config.title}» нет записей, соответствующих фильтрам.`
-              : `В справочнике «${config.title}» пока нет данных. Создайте первую запись.`"
-            :filtered="activeFilterCount > 0"
-            :error="table.error.value"
-            error-description="Не удалось загрузить данные. Проверьте подключение или повторите попытку позже."
-            @clear-filters="resetFilters"
-            @retry="table.refresh()"
-          />
-        </template>
-      </UTable>
     </template>
-  </CrudTableShell>
+    <template #actions-cell="{ row }">
+      <USkeleton v-if="isSkeletonRow(row.original)" class="ml-auto h-4 w-8" />
+      <UDropdownMenu
+        v-else
+        :content="{ align: 'end' }"
+        :items="getRowActionItems(row.original)"
+      >
+        <UButton
+          icon="i-lucide-ellipsis-vertical"
+          color="neutral"
+          variant="ghost"
+          size="sm"
+        />
+      </UDropdownMenu>
+    </template>
+    <template #empty>
+      <CrudTableEmptyState
+        :title="activeFilterCount ? 'Ничего не найдено' : 'Нет записей'"
+        :description="activeFilterCount
+          ? `В справочнике «${config.title}» нет записей, соответствующих фильтрам.`
+          : `В справочнике «${config.title}» пока нет данных. Создайте первую запись.`"
+        :filtered="activeFilterCount > 0"
+        :error="table.error.value"
+        error-description="Не удалось загрузить данные. Проверьте подключение или повторите попытку позже."
+        @clear-filters="resetFilters"
+        @retry="table.refresh()"
+      />
+    </template>
+  </CrudDataTable>
 
   <CrudFormModal
     v-model:open="dialog.visible.value"
