@@ -46,7 +46,7 @@ class ValidationError(AppError):
             status_code=422,
             title="Validation failed",
             detail=detail,
-            type_uri="https://example.local/problems/validation-error",
+            type_uri="https://api.example.com/errors/validation",
             extra={"errors": [], **dict(extra or {})},
         )
 

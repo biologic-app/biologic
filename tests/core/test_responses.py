@@ -46,3 +46,21 @@ def test_list_response_meta_contains_include_fields() -> None:
     assert payload["items"] == [{"id": "abc"}]
     assert payload["meta"]["includes_requested"] == ["status"]
     assert payload["meta"]["includes_allowed"] == ["status", "lab"]
+
+
+def test_list_response_meta_defaults_timestamp_and_serializes_request_id() -> None:
+    response = ListResponse[dict[str, str]](
+        items=[],
+        meta=PageMeta(
+            request_id=UUID("00000000-0000-0000-0000-000000000002"),
+            total=0,
+            offset=0,
+            limit=50,
+            has_more=False,
+        ),
+    )
+
+    payload = response.model_dump(mode="json")
+
+    assert payload["meta"]["timestamp"].endswith("Z")
+    assert payload["meta"]["request_id"] == "00000000-0000-0000-0000-000000000002"

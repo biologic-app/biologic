@@ -1,16 +1,11 @@
-from datetime import UTC, datetime
 from typing import Generic, TypeVar
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_serializer
 
-from src.core.pagination import PageMeta
+from src.core.pagination import PageMeta, utc_now_iso
 
 T = TypeVar("T")
-
-
-def utc_now_iso() -> str:
-    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 class ResponseMeta(BaseModel):

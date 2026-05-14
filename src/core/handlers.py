@@ -60,7 +60,7 @@ async def validation_error_handler(request: Request, exc: Exception) -> JSONResp
         status_code=422,
         title="Validation failed",
         detail="One or more request fields are invalid.",
-        type_uri="https://example.local/problems/validation-error",
+        type_uri="https://api.example.com/errors/validation",
         extra={"errors": errors},
     )
 
