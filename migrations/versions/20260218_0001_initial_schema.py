@@ -7,7 +7,7 @@ Create Date: 2026-02-18 00:00:00.000000
 
 from alembic import op
 
-from src.models import Base
+from src.infrastructure.db.models import Base
 
 # revision identifiers, used by Alembic.
 revision = "20260218_0001"
