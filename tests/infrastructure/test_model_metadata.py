@@ -8,3 +8,13 @@ def test_mvp_workflow_fields_exist_on_models() -> None:
     assert "protocol_id" in Sample.__table__.columns
     assert "lab_id" in Research.__table__.columns
     assert "issued_at" in Protocol.__table__.columns
+
+
+def test_research_lab_id_metadata() -> None:
+    column = Research.__table__.columns["lab_id"]
+
+    assert column.nullable is True
+    assert {fk.constraint.name for fk in column.foreign_keys} == {
+        "fk_research_lab_id_labs_id",
+    }
+    assert "research_research_lab_id" in {idx.name for idx in Research.__table__.indexes}

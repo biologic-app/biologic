@@ -52,10 +52,12 @@ def upgrade() -> None:
         END $$;
         """
     )
+    op.execute("CREATE INDEX IF NOT EXISTS research_research_lab_id ON research (lab_id)")
 
 
 def downgrade() -> None:
     op.execute("ALTER TABLE research DROP CONSTRAINT IF EXISTS fk_research_lab_id_labs_id")
+    op.execute("DROP INDEX IF EXISTS research_research_lab_id")
     op.execute("ALTER TABLE research DROP COLUMN IF EXISTS lab_id")
     op.execute("ALTER TABLE samples DROP COLUMN IF EXISTS verdict")
     op.execute("ALTER TABLE samples DROP COLUMN IF EXISTS deadline")

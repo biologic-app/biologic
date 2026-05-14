@@ -635,6 +635,7 @@ class Research(Base):
     __table_args__ = (
         Index("research_research_sample_id", "sample_id"),
         Index("research_research_research_goal_id", "research_goal_id"),
+        Index("research_research_lab_id", "lab_id"),
         Index("research_research_status_id", "status_id"),
         Index("research_research_received_at", "received_at"),
         Index("research_research_completed_at", "completed_at"),
