@@ -1,0 +1,1 @@
+"""Laboratory workflow bounded context."""
