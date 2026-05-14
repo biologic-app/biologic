@@ -47,7 +47,18 @@ class ValidationError(AppError):
             title="Validation failed",
             detail=detail,
             type_uri="https://example.local/problems/validation-error",
-            extra=extra,
+            extra={"errors": [], **dict(extra or {})},
+        )
+
+
+class DomainConflictError(AppError):
+    def __init__(self, *, code: str, detail: str) -> None:
+        super().__init__(
+            status_code=409,
+            title="Conflict",
+            detail=detail,
+            type_uri=f"https://api.example.com/errors/{code.replace('_', '-')}",
+            extra={"errors": [], "code": code},
         )
 
 

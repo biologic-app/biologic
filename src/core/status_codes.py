@@ -1,0 +1,23 @@
+DIRECTION_DRAFT = "draft"
+DIRECTION_REGISTERED = "registered"
+DIRECTION_IN_PROGRESS = "in_progress"
+DIRECTION_PARTIALLY_COMPLETED = "partially_completed"
+DIRECTION_COMPLETED = "completed"
+
+SAMPLE_PENDING = "pending"
+SAMPLE_REGISTERED = "registered"
+SAMPLE_IN_PROGRESS = "in_progress"
+SAMPLE_ANALYZED = "analyzed"
+SAMPLE_COMPLETED = "completed"
+SAMPLE_REJECTED = "rejected"
+
+RESEARCH_DRAFT = "draft"
+RESEARCH_ORDERED = "ordered"
+RESEARCH_IN_PROGRESS = "in_progress"
+RESEARCH_COMPLETED = "completed"
+RESEARCH_REJECTED = "rejected"
+
+TEST_QUEUED = "queued"
+TEST_IN_PROGRESS = "in_progress"
+TEST_COMPLETED = "completed"
+TEST_REJECTED = "rejected"
