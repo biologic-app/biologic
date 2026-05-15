@@ -12,7 +12,7 @@
 
 ## Execution Checkpoint
 
-Last updated: 2026-05-14.
+Last updated: 2026-05-15.
 
 Completed and committed:
 
@@ -30,15 +30,18 @@ Completed and committed:
   - Notes: `Research.lab_id` is nullable in model and migration until a later backfill; `samples.protocol_id` and `protocols.issued_at` already existed and were not duplicated.
 - [x] Task 5: Implement Laboratory Workflow Domain Status Policies.
   - Commit: `21768a1 feat: add workflow status policies`
-- [ ] Task 6: Add Application DTOs And Repository Protocols.
+- [x] Task 6: Add Application DTOs And Repository Protocols.
   - Commit: `6b1cb02 feat: add workflow application ports`
-  - Status: implementation and spec review completed; code quality review was interrupted and must be rerun before Task 7.
+  - Fix included in: `e5dba4e feat: add workflow command endpoint shell`
+  - Notes: tightened application timestamp DTOs to timezone-aware datetimes.
+- [x] Task 7: Implement First Workflow Command End-To-End.
+  - Commit: `e5dba4e feat: add workflow command endpoint shell`
+  - Notes: added command service, FastAPI endpoint shell, dependency override tests, and explicit repository placeholder errors.
 
 Resume from:
 
-1. Re-run Task 6 code quality review for commit `6b1cb02`.
-2. If approved, mark Task 6 complete.
-3. Continue with Task 7: Implement First Workflow Command End-To-End.
+1. Continue with Task 8: Implement Generic CRUD Foundation For Resource Screens.
+2. Keep unrelated legacy tracked deletions untouched unless explicitly requested.
 
 Known workspace state:
 
