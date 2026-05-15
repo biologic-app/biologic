@@ -1,0 +1,1 @@
+"""Catalog CRUD application services."""
