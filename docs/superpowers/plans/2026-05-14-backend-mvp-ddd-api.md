@@ -37,10 +37,16 @@ Completed and committed:
 - [x] Task 7: Implement First Workflow Command End-To-End.
   - Commit: `e5dba4e feat: add workflow command endpoint shell`
   - Notes: added command service, FastAPI endpoint shell, dependency override tests, and explicit repository placeholder errors.
+- [x] Task 8: Implement Generic CRUD Foundation For Resource Screens.
+  - Commit: `ebdc60d feat: add catalog crud foundation`
+  - Notes: added CRUD registry and `/api/v1/branches` placeholder route returning explicit repository-not-wired conflict.
+- [x] Task 9: Wire Access Control Context For Permission And Scope Checks.
+  - Commit: `28041c0 feat: add access control policy shell`
+  - Notes: added MVP role permission map, permission checker port, actor header dependency, and policy tests.
 
 Resume from:
 
-1. Continue with Task 8: Implement Generic CRUD Foundation For Resource Screens.
+1. Continue with Task 10: Implement Workflow Commands In Persistence.
 2. Keep unrelated legacy tracked deletions untouched unless explicitly requested.
 
 Known workspace state:
