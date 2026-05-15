@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
@@ -16,8 +17,8 @@ class WorkflowRepository(Protocol):
         self,
         sample_id: UUID,
         actor_id: UUID,
-        received_at: str,
-        deadline: str | None,
+        received_at: datetime,
+        deadline: datetime | None,
     ) -> CommandResult: ...
 
     async def reject_sample(
