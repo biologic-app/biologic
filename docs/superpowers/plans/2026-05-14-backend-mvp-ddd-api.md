@@ -46,8 +46,47 @@ Completed and committed:
 
 Resume from:
 
-1. Continue with Task 10: Implement Workflow Commands In Persistence.
-2. Keep unrelated legacy tracked deletions untouched unless explicitly requested.
+1. Continue with Task 10, `RegisterSample` slice, from the current uncommitted worktree.
+2. Fix the `RegisterSample` review findings listed below before committing it.
+3. Keep unrelated legacy tracked deletions untouched unless explicitly requested.
+
+Task 10 progress:
+
+- [x] `RegisterDirection`
+  - Commit: `e555b91 feat: implement direction register command`
+  - Notes: implemented persistence status transition, readiness validation, `ChangeLog`, captured `DirectionRegistered` event, fake-session tests, and opt-in `APP_TEST_DATABASE_URL` Postgres integration test.
+- [ ] `RegisterSample`
+  - Status: implementation is present but uncommitted; spec/code review requested changes.
+  - Uncommitted files:
+    - `src/contexts/laboratory_workflow/application/commands.py`
+    - `src/contexts/laboratory_workflow/infrastructure/repositories.py`
+    - `src/contexts/laboratory_workflow/presentation/router.py`
+    - `src/contexts/laboratory_workflow/presentation/schemas.py`
+    - `tests/api/test_workflow_commands.py`
+    - `tests/contexts/laboratory_workflow/application/test_register_sample.py`
+    - `tests/contexts/laboratory_workflow/infrastructure/test_register_sample_repository.py`
+  - Passing checks before review:
+    - `uv run pytest tests/contexts/laboratory_workflow/application/test_register_sample.py tests/contexts/laboratory_workflow/infrastructure/test_register_sample_repository.py tests/api/test_workflow_commands.py -v` -> `9 passed, 1 skipped`
+    - `uv run ruff check ...changed files...` -> passed
+    - focused `uv run mypy --strict ...` for application/infrastructure changed files -> passed; broader presentation/API mypy still hits known `src/core/config.py` baseline.
+  - Required fixes before commit:
+    - `RegisterSampleRequest` must reject naive datetimes at the FastAPI request layer; current route can turn naive `received_at` into a plain Pydantic `ValidationError` and return `500` instead of stable `422`.
+    - Add API test for naive `received_at`/`deadline`.
+    - Replace hardcoded omitted-deadline calculation (`received_at + 2 days`) with an explicit deadline policy/port or agreed policy object; current test locks in the hardcoded helper.
+    - Update opt-in Postgres test so it selects existing seeded `sample_statuses` by code instead of inserting duplicate unique `pending` / `registered` codes into a migrated DB.
+    - Real Postgres integration remains skipped locally because `APP_TEST_DATABASE_URL` is not configured.
+- [ ] `RejectSample`
+- [ ] `AssignResearchToSample`
+- [ ] `ConfirmResearch`
+- [ ] `StartResearch`
+- [ ] `StartTest`
+- [ ] `CompleteTest`
+- [ ] `RequeueTest`
+- [ ] `RejectTest`
+- [ ] `CloseSample`
+- [ ] `CreateProtocol`
+- [ ] `UpdateProtocol`
+- [ ] `IssueProtocol`
 
 Known workspace state:
 
