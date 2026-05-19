@@ -9,6 +9,7 @@ from src.contexts.laboratory_workflow.application.dto import (
     CommandResult,
     RegisterDirectionInput,
     RegisterSampleInput,
+    RejectSampleInput,
 )
 from src.contexts.laboratory_workflow.presentation.router import get_workflow_command_service
 from src.core.config import get_settings
@@ -27,6 +28,13 @@ class FakeWorkflowCommandService:
             id=command.sample_id,
             status_id=UUID("00000000-0000-0000-0000-000000000004"),
             updated_at=datetime(2026, 5, 14, 11, 0, tzinfo=UTC),
+        )
+
+    async def reject_sample(self, command: RejectSampleInput) -> CommandResult:
+        return CommandResult(
+            id=command.sample_id,
+            status_id=UUID("00000000-0000-0000-0000-000000000006"),
+            updated_at=datetime(2026, 5, 14, 12, 0, tzinfo=UTC),
         )
 
 
@@ -157,5 +165,39 @@ def test_register_sample_rejects_naive_deadline(monkeypatch: MonkeyPatch) -> Non
         payload = response.json()
         assert payload["status"] == 422
         assert "timestamp must be timezone-aware" in str(payload)
+    finally:
+        get_settings.cache_clear()
+
+
+def test_reject_sample_command_response_shape(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setenv("APP_DATABASE_URL", "postgresql+asyncpg://user:pass@localhost:5432/test")
+    monkeypatch.setenv("APP_JWT_SECRET_KEY", "test-secret")
+    monkeypatch.setenv("APP_AUTH_COOKIE_SECURE", "false")
+    monkeypatch.setenv("APP_AUTH_COOKIE_DOMAIN", "localhost")
+    get_settings.cache_clear()
+
+    try:
+        app = create_app()
+        app.dependency_overrides[get_workflow_command_service] = (
+            lambda: FakeWorkflowCommandService()
+        )
+        client = TestClient(app)
+
+        response = client.post(
+            "/api/v1/samples/00000000-0000-0000-0000-000000000005/reject",
+            json={
+                "actor_id": "00000000-0000-0000-0000-000000000003",
+                "reason": "Container damaged",
+            },
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["data"] == {
+            "id": "00000000-0000-0000-0000-000000000005",
+            "status_id": "00000000-0000-0000-0000-000000000006",
+            "updated_at": "2026-05-14T12:00:00Z",
+        }
+        assert payload["meta"]["operation"] == "samples.reject"
     finally:
         get_settings.cache_clear()

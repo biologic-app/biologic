@@ -12,7 +12,7 @@ from src.contexts.laboratory_workflow.domain.status_policy import (
     ensure_allowed_transition,
 )
 from src.core.errors import DomainConflictError, NotFoundError
-from src.core.status_codes import DIRECTION_REGISTERED, SAMPLE_REGISTERED
+from src.core.status_codes import DIRECTION_REGISTERED, SAMPLE_REGISTERED, SAMPLE_REJECTED
 from src.infrastructure.db.models import (
     ChangeLog,
     Direction,
@@ -289,10 +289,60 @@ class SqlAlchemyWorkflowRepository:
         actor_id: UUID,
         reason: str,
     ) -> CommandResult:
-        raise DomainConflictError(
-            code="workflow_command_not_implemented",
-            detail="Reject sample persistence is not wired yet.",
+        now = datetime.now(UTC)
+        result = await self.session.execute(
+            select(Sample)
+            .where(Sample.id == sample_id, Sample.deleted_at.is_(None))
+            .with_for_update(),
         )
+        sample = result.scalar_one_or_none()
+        if sample is None:
+            raise NotFoundError("Sample was not found.")
+
+        current_status_code = await self._sample_status_code(sample.status_id)
+        try:
+            ensure_allowed_transition("samples", current_status_code, SAMPLE_REJECTED)
+        except InvalidStatusTransition as exc:
+            raise DomainConflictError(
+                code=exc.code,
+                detail=(
+                    "Sample can be rejected only from pending status. "
+                    f"Current status is {current_status_code}."
+                ),
+            ) from exc
+
+        target_status_id = await self._sample_status_id(SAMPLE_REJECTED)
+        sample.status_id = target_status_id
+        sample.updated_by = actor_id
+        sample.updated_at = now
+        self.events.append(
+            StatusChanged(
+                entity_type="samples",
+                entity_id=sample_id,
+                event_type="SampleRejected",
+                from_code=current_status_code,
+                to_code=SAMPLE_REJECTED,
+                reason=reason,
+            ),
+        )
+        self.session.add(
+            ChangeLog(
+                entity_type="samples",
+                entity_id=sample_id,
+                action="sample_rejected",
+                actor_id=actor_id,
+                snapshot={"status_code": SAMPLE_REJECTED, "reason": reason},
+                diff={
+                    "status_code": {
+                        "from": current_status_code,
+                        "to": SAMPLE_REJECTED,
+                    },
+                    "reason": reason,
+                },
+            ),
+        )
+        await self.session.commit()
+        return CommandResult(id=sample_id, status_id=target_status_id, updated_at=now)
 
     async def assign_research(
         self,

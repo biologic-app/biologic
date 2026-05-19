@@ -23,3 +23,8 @@ class RegisterSampleRequest(BaseModel):
             msg = "timestamp must be timezone-aware"
             raise ValueError(msg)
         return value
+
+
+class RejectSampleRequest(BaseModel):
+    actor_id: UUID
+    reason: str

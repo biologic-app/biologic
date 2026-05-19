@@ -2,6 +2,7 @@ from src.contexts.laboratory_workflow.application.dto import (
     CommandResult,
     RegisterDirectionInput,
     RegisterSampleInput,
+    RejectSampleInput,
 )
 from src.contexts.laboratory_workflow.application.ports import WorkflowRepository
 
@@ -23,4 +24,11 @@ class WorkflowCommandService:
             actor_id=command.actor_id,
             received_at=command.received_at,
             deadline=command.deadline,
+        )
+
+    async def reject_sample(self, command: RejectSampleInput) -> CommandResult:
+        return await self.repository.reject_sample(
+            sample_id=command.sample_id,
+            actor_id=command.actor_id,
+            reason=command.reason,
         )

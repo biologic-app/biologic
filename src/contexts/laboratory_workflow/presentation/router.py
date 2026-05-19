@@ -9,6 +9,7 @@ from src.contexts.laboratory_workflow.application.dto import (
     CommandResult,
     RegisterDirectionInput,
     RegisterSampleInput,
+    RejectSampleInput,
 )
 from src.contexts.laboratory_workflow.infrastructure.repositories import (
     SqlAlchemyWorkflowRepository,
@@ -16,6 +17,7 @@ from src.contexts.laboratory_workflow.infrastructure.repositories import (
 from src.contexts.laboratory_workflow.presentation.schemas import (
     RegisterDirectionRequest,
     RegisterSampleRequest,
+    RejectSampleRequest,
 )
 from src.core.database import get_db_session
 from src.core.responses import ResponseMeta, SingleResponse
@@ -60,3 +62,19 @@ async def register_sample(
         ),
     )
     return SingleResponse(data=result, meta=ResponseMeta(operation="samples.register"))
+
+
+@router.post("/samples/{sample_id}/reject")
+async def reject_sample(
+    sample_id: UUID,
+    request: RejectSampleRequest,
+    service: Annotated[WorkflowCommandService, Depends(get_workflow_command_service)],
+) -> SingleResponse[CommandResult]:
+    result = await service.reject_sample(
+        RejectSampleInput(
+            sample_id=sample_id,
+            actor_id=request.actor_id,
+            reason=request.reason,
+        ),
+    )
+    return SingleResponse(data=result, meta=ResponseMeta(operation="samples.reject"))
