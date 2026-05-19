@@ -8,11 +8,15 @@ from src.contexts.laboratory_workflow.application.commands import WorkflowComman
 from src.contexts.laboratory_workflow.application.dto import (
     CommandResult,
     RegisterDirectionInput,
+    RegisterSampleInput,
 )
 from src.contexts.laboratory_workflow.infrastructure.repositories import (
     SqlAlchemyWorkflowRepository,
 )
-from src.contexts.laboratory_workflow.presentation.schemas import RegisterDirectionRequest
+from src.contexts.laboratory_workflow.presentation.schemas import (
+    RegisterDirectionRequest,
+    RegisterSampleRequest,
+)
 from src.core.database import get_db_session
 from src.core.responses import ResponseMeta, SingleResponse
 
@@ -39,3 +43,20 @@ async def register_direction(
         ),
     )
     return SingleResponse(data=result, meta=ResponseMeta(operation="directions.register"))
+
+
+@router.post("/samples/{sample_id}/register")
+async def register_sample(
+    sample_id: UUID,
+    request: RegisterSampleRequest,
+    service: Annotated[WorkflowCommandService, Depends(get_workflow_command_service)],
+) -> SingleResponse[CommandResult]:
+    result = await service.register_sample(
+        RegisterSampleInput(
+            sample_id=sample_id,
+            actor_id=request.actor_id,
+            received_at=request.received_at,
+            deadline=request.deadline,
+        ),
+    )
+    return SingleResponse(data=result, meta=ResponseMeta(operation="samples.register"))

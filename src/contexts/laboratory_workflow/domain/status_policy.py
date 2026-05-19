@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 
 
 @dataclass(frozen=True)
@@ -7,6 +8,11 @@ class InvalidStatusTransition(Exception):
     from_code: str
     to_code: str
     code: str = "invalid_status_transition"
+
+
+class SampleDeadlinePolicy:
+    def calculate(self, received_at: datetime) -> datetime:
+        return received_at + timedelta(days=2)
 
 
 ALLOWED_TRANSITIONS: dict[str, set[tuple[str, str]]] = {

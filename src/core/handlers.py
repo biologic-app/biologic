@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from typing import Any
 
 from fastapi import HTTPException, Request
@@ -53,7 +54,7 @@ async def app_error_handler(request: Request, exc: Exception) -> JSONResponse:
 async def validation_error_handler(request: Request, exc: Exception) -> JSONResponse:
     errors: list[Any] = []
     if isinstance(exc, RequestValidationError):
-        errors = list(exc.errors())
+        errors = _json_safe_validation_errors(exc.errors())
 
     return problem_response(
         request=request,
@@ -63,6 +64,24 @@ async def validation_error_handler(request: Request, exc: Exception) -> JSONResp
         type_uri="https://api.example.com/errors/validation",
         extra={"errors": errors},
     )
+
+
+def _json_safe_validation_errors(errors: Sequence[Any]) -> list[Any]:
+    safe_errors: list[Any] = []
+    for error in errors:
+        if not isinstance(error, dict):
+            safe_errors.append(error)
+            continue
+
+        safe_error = dict(error)
+        ctx = safe_error.get("ctx")
+        if isinstance(ctx, dict):
+            safe_error["ctx"] = {
+                key: str(value) if isinstance(value, Exception) else value
+                for key, value in ctx.items()
+            }
+        safe_errors.append(safe_error)
+    return safe_errors
 
 
 async def http_error_handler(request: Request, exc: Exception) -> JSONResponse:
