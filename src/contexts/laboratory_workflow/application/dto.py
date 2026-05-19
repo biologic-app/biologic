@@ -54,9 +54,50 @@ class AssignResearchInput(BaseModel):
     comment: str | None = None
 
 
+class ResearchCommandInput(BaseModel):
+    research_id: UUID
+    actor_id: UUID
+    reason: str | None = None
+
+
+class TestCommandInput(BaseModel):
+    test_id: UUID
+    actor_id: UUID
+    reason: str | None = None
+
+
 class CompleteTestInput(BaseModel):
     test_id: UUID
     actor_id: UUID
     value: str
     norm: str | None = None
     comment: str | None = None
+
+
+class CloseSampleInput(BaseModel):
+    sample_id: UUID
+    actor_id: UUID
+    verdict: str
+    comment: str | None = None
+
+
+class CreateProtocolInput(BaseModel):
+    actor_id: UUID
+    sample_ids: list[UUID]
+    protocol_type_id: UUID | None = None
+    conclusion_id: UUID | None = None
+    copies: int | None = None
+
+
+class UpdateProtocolInput(BaseModel):
+    protocol_id: UUID
+    actor_id: UUID
+    protocol_type_id: UUID | None = None
+    conclusion_id: UUID | None = None
+    copies: int | None = None
+
+
+class IssueProtocolInput(BaseModel):
+    protocol_id: UUID
+    actor_id: UUID
+    issued_at: datetime | None = None

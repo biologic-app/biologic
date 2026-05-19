@@ -44,3 +44,67 @@ class WorkflowRepository(Protocol):
         norm: str | None,
         comment: str | None,
     ) -> CommandResult: ...
+
+    async def confirm_research(
+        self,
+        research_id: UUID,
+        actor_id: UUID,
+    ) -> CommandResult: ...
+
+    async def start_research(
+        self,
+        research_id: UUID,
+        actor_id: UUID,
+    ) -> CommandResult: ...
+
+    async def start_test(
+        self,
+        test_id: UUID,
+        actor_id: UUID,
+    ) -> CommandResult: ...
+
+    async def requeue_test(
+        self,
+        test_id: UUID,
+        actor_id: UUID,
+    ) -> CommandResult: ...
+
+    async def reject_test(
+        self,
+        test_id: UUID,
+        actor_id: UUID,
+        reason: str,
+    ) -> CommandResult: ...
+
+    async def close_sample(
+        self,
+        sample_id: UUID,
+        actor_id: UUID,
+        verdict: str,
+        comment: str | None,
+    ) -> CommandResult: ...
+
+    async def create_protocol(
+        self,
+        actor_id: UUID,
+        sample_ids: list[UUID],
+        protocol_type_id: UUID | None,
+        conclusion_id: UUID | None,
+        copies: int | None,
+    ) -> CommandResult: ...
+
+    async def update_protocol(
+        self,
+        protocol_id: UUID,
+        actor_id: UUID,
+        protocol_type_id: UUID | None,
+        conclusion_id: UUID | None,
+        copies: int | None,
+    ) -> CommandResult: ...
+
+    async def issue_protocol(
+        self,
+        protocol_id: UUID,
+        actor_id: UUID,
+        issued_at: datetime | None,
+    ) -> CommandResult: ...
