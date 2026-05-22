@@ -8,7 +8,6 @@ APP_DIR = Path(__file__).resolve().parents[1]
 BASE_DIR = APP_DIR.parent
 
 
-
 class Settings(BaseSettings):
     app_name: str = "Biologic System Backend API"
     api_v1_prefix: str = "/api/v1"
@@ -16,16 +15,16 @@ class Settings(BaseSettings):
     docs_url: str | None = "/docs"
     openapi_url: str = "/openapi.json"
     is_dev: bool = True
-    database_url: str 
-    jwt_secret_key: str 
+    database_url: str
+    jwt_secret_key: str
     jwt_algorithm: str = "HS256"
     access_token_ttl_seconds: int = 40
     refresh_token_ttl_seconds: int = 60
     access_cookie_name: str = "access_cookie"
     refresh_cookie_name: str = "refresh_cookie"
     auth_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
-    auth_cookie_secure: bool 
-    auth_cookie_domain: str 
+    auth_cookie_secure: bool
+    auth_cookie_domain: str
     auth_cookie_path: str = "/"
 
     @property
@@ -41,4 +40,4 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    return Settings()  # type: ignore[call-arg]

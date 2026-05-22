@@ -39,9 +39,12 @@ def upgrade() -> None:
         UPDATE roles
         SET scope_type = CASE
             WHEN key = 'admin' THEN 'global'::role_scope_type
-            WHEN key IN ('registrar', 'branch_chief', 'branch_head') THEN 'own_branch'::role_scope_type
-            WHEN key IN ('lab_chief', 'lab_head', 'lab_doctor', 'doctor', 'laborant') THEN 'own_lab'::role_scope_type
-            WHEN key IN ('sanitary_inspector', 'sanitary_doctor') THEN 'own_objects'::role_scope_type
+            WHEN key IN ('registrar', 'branch_chief', 'branch_head')
+              THEN 'own_branch'::role_scope_type
+            WHEN key IN ('lab_chief', 'lab_head', 'lab_doctor', 'doctor', 'laborant')
+              THEN 'own_lab'::role_scope_type
+            WHEN key IN ('sanitary_inspector', 'sanitary_doctor')
+              THEN 'own_objects'::role_scope_type
             ELSE 'global'::role_scope_type
         END
         WHERE scope_type IS NULL;

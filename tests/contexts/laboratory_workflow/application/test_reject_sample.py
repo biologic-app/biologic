@@ -2,32 +2,15 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 import pytest
+from fakes import WorkflowRepositoryFake
 
 from src.contexts.laboratory_workflow.application.commands import WorkflowCommandService
 from src.contexts.laboratory_workflow.application.dto import CommandResult, RejectSampleInput
-from src.contexts.laboratory_workflow.application.ports import WorkflowRepository
 
 
-class FakeWorkflowRepository(WorkflowRepository):
+class FakeWorkflowRepository(WorkflowRepositoryFake):
     def __init__(self) -> None:
         self.called_with: tuple[UUID, UUID, str] | None = None
-
-    async def register_direction(
-        self,
-        direction_id: UUID,
-        actor_id: UUID,
-        comment: str | None,
-    ) -> CommandResult:
-        raise AssertionError("register_direction should not be called")
-
-    async def register_sample(
-        self,
-        sample_id: UUID,
-        actor_id: UUID,
-        received_at: datetime,
-        deadline: datetime | None,
-    ) -> CommandResult:
-        raise AssertionError("register_sample should not be called")
 
     async def reject_sample(
         self,
@@ -41,25 +24,6 @@ class FakeWorkflowRepository(WorkflowRepository):
             status_id=UUID("00000000-0000-0000-0000-000000000002"),
             updated_at=datetime(2026, 5, 14, 10, 0, tzinfo=UTC),
         )
-
-    async def assign_research(
-        self,
-        sample_id: UUID,
-        actor_id: UUID,
-        research_goal_id: UUID,
-        comment: str | None,
-    ) -> CommandResult:
-        raise AssertionError("assign_research should not be called")
-
-    async def complete_test(
-        self,
-        test_id: UUID,
-        actor_id: UUID,
-        value: str,
-        norm: str | None,
-        comment: str | None,
-    ) -> CommandResult:
-        raise AssertionError("complete_test should not be called")
 
 
 @pytest.mark.asyncio

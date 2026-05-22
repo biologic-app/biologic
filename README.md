@@ -44,16 +44,20 @@ Build docs strictly:
 make docs-build
 ```
 
-## Docker (dev)
+## Local PostgreSQL (dev)
 
-Run API + PostgreSQL 15 + Alembic migrations:
+Start PostgreSQL 15:
 
 ```bash
-docker compose up --build
+docker compose up -d postgres
 ```
 
-Services:
+Apply migrations and seed a small test dataset:
 
-- API: `http://127.0.0.1:8080`
-- Health: `http://127.0.0.1:8080/api/v1/health`
-- PostgreSQL 15: `127.0.0.1:5432`
+```bash
+uv run alembic upgrade head
+make seed-data
+```
+
+Local defaults are documented in `.env.example`; `.env` points the app at
+PostgreSQL 15 on `127.0.0.1:5433`.

@@ -1,7 +1,118 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
+
+
+class StrictRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class DirectionCreateRequest(StrictRequest):
+    year_no: int
+    base_no: int | None = None
+    is_done: bool | None = None
+    is_urgent: bool | None = None
+    doctor_id: UUID | None = None
+    object_id: UUID | None = None
+    sampled_at: datetime | None = None
+    received_at: datetime | None = None
+    completed_at: datetime | None = None
+    import_warnings: dict[str, object] | None = None
+
+
+class DirectionUpdateRequest(StrictRequest):
+    year_no: int | None = None
+    base_no: int | None = None
+    is_done: bool | None = None
+    is_urgent: bool | None = None
+    doctor_id: UUID | None = None
+    object_id: UUID | None = None
+    sampled_at: datetime | None = None
+    received_at: datetime | None = None
+    completed_at: datetime | None = None
+    import_warnings: dict[str, object] | None = None
+    status_id: UUID | None = None
+
+
+class SampleCreateRequest(StrictRequest):
+    month_no: int | None = None
+    name: str
+    alternate_name: str | None = None
+    mass: str | None = None
+    target_description: str | None = None
+    comment: str | None = None
+    section: str | None = None
+    delivery: str | None = None
+    nomenclature_code: str | None = None
+    batch_code: str | None = None
+    supplier: str | None = None
+    is_urgent: bool | None = None
+    is_done: bool | None = None
+    sample_type_id: UUID | None = None
+    direction_id: UUID | None = None
+    protocol_id: UUID | None = None
+    sampled_at: datetime | None = None
+    received_at: datetime | None = None
+    completed_at: datetime | None = None
+    deadline: datetime | None = None
+    verdict: str | None = None
+
+
+class SampleUpdateRequest(StrictRequest):
+    month_no: int | None = None
+    name: str | None = None
+    alternate_name: str | None = None
+    mass: str | None = None
+    target_description: str | None = None
+    comment: str | None = None
+    section: str | None = None
+    delivery: str | None = None
+    nomenclature_code: str | None = None
+    batch_code: str | None = None
+    supplier: str | None = None
+    is_urgent: bool | None = None
+    is_done: bool | None = None
+    sample_type_id: UUID | None = None
+    direction_id: UUID | None = None
+    protocol_id: UUID | None = None
+    sampled_at: datetime | None = None
+    received_at: datetime | None = None
+    completed_at: datetime | None = None
+    deadline: datetime | None = None
+    verdict: str | None = None
+    status_id: UUID | None = None
+
+
+class ResearchCreateRequest(StrictRequest):
+    sample_id: UUID
+    research_goal_id: UUID
+    lab_id: UUID | None = None
+    comment: str | None = None
+    recommendation: str | None = None
+    received_at: datetime | None = None
+    completed_at: datetime | None = None
+
+
+class ResearchUpdateRequest(StrictRequest):
+    sample_id: UUID | None = None
+    research_goal_id: UUID | None = None
+    lab_id: UUID | None = None
+    comment: str | None = None
+    recommendation: str | None = None
+    received_at: datetime | None = None
+    completed_at: datetime | None = None
+    status_id: UUID | None = None
+
+
+class TestUpdateRequest(StrictRequest):
+    value: str | None = None
+    comment: str | None = None
+    norm: str | None = None
+    is_active: bool | None = None
+    research_id: UUID | None = None
+    indicator_id: UUID | None = None
+    status_id: UUID | None = None
 
 
 class RegisterDirectionRequest(BaseModel):

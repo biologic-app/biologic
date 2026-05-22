@@ -1,3 +1,7 @@
+from typing import cast
+
+from sqlalchemy import Table
+
 from src.infrastructure.db.models import Direction, Protocol, Research, Sample
 
 
@@ -11,10 +15,13 @@ def test_mvp_workflow_fields_exist_on_models() -> None:
 
 
 def test_research_lab_id_metadata() -> None:
-    column = Research.__table__.columns["lab_id"]
+    table = cast(Table, Research.__table__)
+    column = table.columns["lab_id"]
 
     assert column.nullable is True
-    assert {fk.constraint.name for fk in column.foreign_keys} == {
-        "fk_research_lab_id_labs_id",
-    }
-    assert "research_research_lab_id" in {idx.name for idx in Research.__table__.indexes}
+    constraint_names = set()
+    for foreign_key in column.foreign_keys:
+        assert foreign_key.constraint is not None
+        constraint_names.add(foreign_key.constraint.name)
+    assert constraint_names == {"fk_research_lab_id_labs_id"}
+    assert "research_research_lab_id" in {idx.name for idx in table.indexes}

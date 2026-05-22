@@ -1,9 +1,11 @@
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from src.core.responses import ResponseMeta, SingleResponse
+from src.core.pagination import PageMeta, PaginationParams
+from src.core.responses import ListResponse, ResponseMeta, SingleResponse
 
 router = APIRouter(tags=["notifications"])
 
@@ -15,6 +17,25 @@ class AlertCommandRequest(BaseModel):
 class AlertCommandResult(BaseModel):
     id: UUID | None = None
     affected: int = 0
+
+
+def _meta(params: PaginationParams) -> PageMeta:
+    return PageMeta(
+        total=0,
+        offset=params.offset,
+        limit=params.limit,
+        has_more=False,
+        includes_requested=params.includes_requested,
+        includes_applied=[],
+        includes_allowed=[],
+    )
+
+
+@router.get("/alerts")
+async def list_alerts(
+    params: Annotated[PaginationParams, Depends()],
+) -> ListResponse[dict[str, object]]:
+    return ListResponse(items=[], meta=_meta(params))
 
 
 @router.post("/alerts/{alert_id}/mark-read")

@@ -6,7 +6,7 @@ from typing import Any, Literal, cast
 from uuid import UUID
 
 import bcrypt
-from jose import JWTError, jwt  # type: ignore[import-untyped]
+from jose import JWTError, jwt
 
 from src.core.config import Settings
 

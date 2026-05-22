@@ -185,7 +185,8 @@ def upgrade() -> None:
     )
     op.execute("CREATE INDEX IF NOT EXISTS research_research_sample_id ON research (sample_id)")
     op.execute(
-        "CREATE INDEX IF NOT EXISTS research_research_research_goal_id ON research (research_goal_id)"
+        "CREATE INDEX IF NOT EXISTS research_research_research_goal_id "
+        "ON research (research_goal_id)"
     )
     op.execute("CREATE INDEX IF NOT EXISTS research_research_status_id ON research (status_id)")
     op.execute("CREATE INDEX IF NOT EXISTS research_research_received_at ON research (received_at)")
@@ -300,17 +301,31 @@ def upgrade() -> None:
             ALTER TABLE tests DROP CONSTRAINT IF EXISTS fk_tests_status_id_statuses_id;
             ALTER TABLE tests DROP CONSTRAINT IF EXISTS fk_tests_status_id_test_statuses_id;
 
-            ALTER TABLE tests
-              ADD CONSTRAINT fk_tests_research_id_research_id
-              FOREIGN KEY (research_id) REFERENCES research(id);
+            IF NOT EXISTS (
+              SELECT 1
+              FROM pg_constraint
+              WHERE conname = 'fk_tests_research_id_research_id'
+                AND conrelid = 'public.tests'::regclass
+            ) THEN
+              ALTER TABLE tests
+                ADD CONSTRAINT fk_tests_research_id_research_id
+                FOREIGN KEY (research_id) REFERENCES research(id);
+            END IF;
 
             UPDATE tests
             SET status_id = (SELECT id FROM test_statuses WHERE code = 'queued' LIMIT 1)
             WHERE status_id IS NOT NULL;
 
-            ALTER TABLE tests
-              ADD CONSTRAINT fk_tests_status_id_test_statuses_id
-              FOREIGN KEY (status_id) REFERENCES test_statuses(id);
+            IF NOT EXISTS (
+              SELECT 1
+              FROM pg_constraint
+              WHERE conname = 'fk_tests_status_id_test_statuses_id'
+                AND conrelid = 'public.tests'::regclass
+            ) THEN
+              ALTER TABLE tests
+                ADD CONSTRAINT fk_tests_status_id_test_statuses_id
+                FOREIGN KEY (status_id) REFERENCES test_statuses(id);
+            END IF;
           END IF;
         END $$;
         """
@@ -326,7 +341,8 @@ def upgrade() -> None:
             WHERE status_id IS NOT NULL;
 
             ALTER TABLE directions DROP CONSTRAINT IF EXISTS fk_directions_status_id_statuses_id;
-            ALTER TABLE directions DROP CONSTRAINT IF EXISTS fk_directions_status_id_direction_statuses_id;
+            ALTER TABLE directions DROP CONSTRAINT IF EXISTS
+              fk_directions_status_id_direction_statuses_id;
             ALTER TABLE directions
               ADD CONSTRAINT fk_directions_status_id_direction_statuses_id
               FOREIGN KEY (status_id) REFERENCES direction_statuses(id);
@@ -386,7 +402,8 @@ def upgrade() -> None:
               ALTER TABLE indicators DROP COLUMN lab_id;
             END IF;
 
-            ALTER TABLE indicators DROP CONSTRAINT IF EXISTS fk_indicators_research_goal_id_research_goals_id;
+            ALTER TABLE indicators DROP CONSTRAINT IF EXISTS
+              fk_indicators_research_goal_id_research_goals_id;
             ALTER TABLE indicators
               ADD CONSTRAINT fk_indicators_research_goal_id_research_goals_id
               FOREIGN KEY (research_goal_id) REFERENCES research_goals(id);
@@ -458,7 +475,8 @@ def upgrade() -> None:
                 WHERE c.conclusion_status_id = cs.id;
               END IF;
 
-              ALTER TABLE conclusions DROP CONSTRAINT IF EXISTS fk_conclusions_conclusion_status_id_conclusion_statuses_id;
+              ALTER TABLE conclusions DROP CONSTRAINT IF EXISTS
+                fk_conclusions_conclusion_status_id_conclusion_statuses_id;
               ALTER TABLE conclusions DROP COLUMN conclusion_status_id;
             END IF;
 

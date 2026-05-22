@@ -439,10 +439,24 @@ def downgrade() -> None:
     op.execute("DELETE FROM branches WHERE code LIKE 'BR-%';")
     op.execute("DELETE FROM sample_types WHERE code LIKE 'SAMPLE-TYPE-%';")
     op.execute("DELETE FROM protocol_types WHERE code LIKE 'PROTO-%';")
-    op.execute("DELETE FROM test_statuses WHERE code IN ('queued', 'in_progress', 'completed', 'rejected');")
-    op.execute("DELETE FROM research_statuses WHERE code IN ('draft', 'ordered', 'in_progress', 'completed', 'rejected');")
-    op.execute("DELETE FROM sample_statuses WHERE code IN ('pending', 'registered', 'rejected', 'in_progress', 'analyzed', 'completed');")
-    op.execute("DELETE FROM direction_statuses WHERE code IN ('draft', 'registered', 'in_progress', 'partially_completed', 'completed');")
+    op.execute(
+        "DELETE FROM test_statuses "
+        "WHERE code IN ('queued', 'in_progress', 'completed', 'rejected');"
+    )
+    op.execute(
+        "DELETE FROM research_statuses "
+        "WHERE code IN ('draft', 'ordered', 'in_progress', 'completed', 'rejected');"
+    )
+    op.execute(
+        "DELETE FROM sample_statuses "
+        "WHERE code IN ('pending', 'registered', 'rejected', 'in_progress', "
+        "'analyzed', 'completed');"
+    )
+    op.execute(
+        "DELETE FROM direction_statuses "
+        "WHERE code IN ('draft', 'registered', 'in_progress', 'partially_completed', "
+        "'completed');"
+    )
     op.execute("""
         DELETE FROM roles
         WHERE key IN (

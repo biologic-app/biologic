@@ -12,7 +12,7 @@
 
 ## Execution Checkpoint
 
-Last updated: 2026-05-15.
+Last updated: 2026-05-20.
 
 Completed and committed:
 
@@ -46,54 +46,61 @@ Completed and committed:
 
 Resume from:
 
-1. Continue with Task 10, `RegisterSample` slice, from the current uncommitted worktree.
-2. Fix the `RegisterSample` review findings listed below before committing it.
-3. Keep unrelated legacy tracked deletions untouched unless explicitly requested.
+1. Continue from final verification and any remaining gaps after the workflow/API surface in
+   `82f59d9`.
+2. Keep the current feature branch changes focused on verification hygiene unless a new backend
+   gap is identified.
+3. Do not touch unrelated legacy files unless explicitly requested.
 
 Task 10 progress:
 
 - [x] `RegisterDirection`
   - Commit: `e555b91 feat: implement direction register command`
   - Notes: implemented persistence status transition, readiness validation, `ChangeLog`, captured `DirectionRegistered` event, fake-session tests, and opt-in `APP_TEST_DATABASE_URL` Postgres integration test.
-- [ ] `RegisterSample`
-  - Status: implementation is present but uncommitted; spec/code review requested changes.
-  - Uncommitted files:
-    - `src/contexts/laboratory_workflow/application/commands.py`
-    - `src/contexts/laboratory_workflow/infrastructure/repositories.py`
-    - `src/contexts/laboratory_workflow/presentation/router.py`
-    - `src/contexts/laboratory_workflow/presentation/schemas.py`
-    - `tests/api/test_workflow_commands.py`
-    - `tests/contexts/laboratory_workflow/application/test_register_sample.py`
-    - `tests/contexts/laboratory_workflow/infrastructure/test_register_sample_repository.py`
-  - Passing checks before review:
-    - `uv run pytest tests/contexts/laboratory_workflow/application/test_register_sample.py tests/contexts/laboratory_workflow/infrastructure/test_register_sample_repository.py tests/api/test_workflow_commands.py -v` -> `9 passed, 1 skipped`
-    - `uv run ruff check ...changed files...` -> passed
-    - focused `uv run mypy --strict ...` for application/infrastructure changed files -> passed; broader presentation/API mypy still hits known `src/core/config.py` baseline.
-  - Required fixes before commit:
-    - `RegisterSampleRequest` must reject naive datetimes at the FastAPI request layer; current route can turn naive `received_at` into a plain Pydantic `ValidationError` and return `500` instead of stable `422`.
-    - Add API test for naive `received_at`/`deadline`.
-    - Replace hardcoded omitted-deadline calculation (`received_at + 2 days`) with an explicit deadline policy/port or agreed policy object; current test locks in the hardcoded helper.
-    - Update opt-in Postgres test so it selects existing seeded `sample_statuses` by code instead of inserting duplicate unique `pending` / `registered` codes into a migrated DB.
-    - Real Postgres integration remains skipped locally because `APP_TEST_DATABASE_URL` is not configured.
-- [ ] `RejectSample`
-- [ ] `AssignResearchToSample`
-- [ ] `ConfirmResearch`
-- [ ] `StartResearch`
-- [ ] `StartTest`
-- [ ] `CompleteTest`
-- [ ] `RequeueTest`
-- [ ] `RejectTest`
-- [ ] `CloseSample`
-- [ ] `CreateProtocol`
-- [ ] `UpdateProtocol`
-- [ ] `IssueProtocol`
+- [x] `RegisterSample`
+  - Commit: `4bc9bba feat: implement sample register command`
+  - Notes: request-layer timezone validation returns stable `422`; omitted deadlines use
+    `SampleDeadlinePolicy`; opt-in Postgres test selects seeded statuses by code.
+- [x] `RejectSample`
+  - Commit: `d811f0e feat: implement sample reject command`
+- [x] `AssignResearchToSample`
+- [x] `ConfirmResearch`
+- [x] `StartResearch`
+- [x] `StartTest`
+- [x] `CompleteTest`
+- [x] `RequeueTest`
+- [x] `RejectTest`
+- [x] `CloseSample`
+- [x] `CreateProtocol`
+- [x] `UpdateProtocol`
+- [x] `IssueProtocol`
+  - Commit: `82f59d9 feat(workflow) внес изменения`
+  - Notes: completed workflow command surface, status-code repository logic, `ChangeLog`
+    audit writes, CRUD route surface, notification routes, scope policy builders, and
+    docs/ADR updates.
+
+Current verification branch:
+
+- Branch: `fix-workflow-repository-test-fakes`
+- Added a shared application test fake and fixed focused mypy failures caused by stale
+  repository test doubles after `WorkflowRepository` was expanded.
+- Removed obsolete type-checking baseline in `src/core/config.py` and `src/core/security.py`.
+- Passing checks:
+  - `uv run pytest -q` -> `58 passed, 2 skipped`
+  - `uv run ruff check src tests` -> passed
+  - `uv run ruff check src tests migrations` -> passed
+  - `uv run mypy --strict src` -> passed
+  - `uv run mypy --strict src/contexts src/api tests/contexts/laboratory_workflow tests/api/test_workflow_commands.py` -> passed
+  - `make lint` -> passed
 
 Known workspace state:
 
-- The worktree contains many pre-existing tracked deletions from legacy `scripts/`, `src/api/v1/endpoints/`, `src/models/`, `src/repositories/`, `src/schemas/`, `src/services/`, and legacy `tests/`. Do not revert or stage them unless explicitly requested.
-- Full `ruff check src tests migrations` still has unrelated migration line-length failures.
-- Full `mypy --strict src` still has unrelated existing errors in `src/core/config.py` and `src/core/security.py`.
-- `uv run alembic upgrade head` was not validated because required `APP_*` settings and a database environment were not configured.
+- The current worktree is focused on verification hygiene changes only.
+- `uv run alembic upgrade head` fails before connecting because required settings are missing:
+  `APP_DATABASE_URL`, `APP_JWT_SECRET_KEY`, `APP_AUTH_COOKIE_SECURE`,
+  `APP_AUTH_COOKIE_DOMAIN`.
+- Docs build was not run because this checkout has no `docs-site/` directory and the `Makefile`
+  has no `docs-build`, `docs-dev`, or `docs-serve` targets.
 
 ## Current Repository Starting Point
 
