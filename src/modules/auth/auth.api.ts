@@ -30,6 +30,7 @@ const knownResources: Resource[] = [
   "customers",
   "inbox",
   "directions",
+  "research",
   "samples",
   "sample-targets",
   "protocols",
@@ -56,6 +57,11 @@ const mapResource = (resource: string): Resource | null => {
   const mapped =
     normalized === "roles" || normalized === "role-permissions"
       ? "user-types"
+      : normalized === "direction-statuses" ||
+          normalized === "sample-statuses" ||
+          normalized === "research-statuses" ||
+          normalized === "test-statuses"
+        ? "statuses"
       : normalized;
   return knownResources.includes(mapped as Resource)
     ? (mapped as Resource)

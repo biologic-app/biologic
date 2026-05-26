@@ -27,6 +27,9 @@ export interface TablePresetsApi {
 
 export const TABLE_PRESETS_KEY: InjectionKey<TablePresetsApi> = Symbol('tablePresets')
 
+type TableQueryParams = Record<string, unknown>
+const DEFAULT_PAGE_SIZE = 100
+
 const cloneFilters = (filters: TableFilters) => {
   const entries = Object.entries(filters).map(([key, meta]) => [key, { ...meta }])
   return Object.fromEntries(entries) as TableFilters
@@ -106,8 +109,11 @@ const mergeStoredFilters = (initialFilters: TableFilters, storedFilters?: TableF
 const wait = (ms: number) =>
   new Promise((resolve) => setTimeout(resolve, ms))
 
+const resolvePageSize = (storedPageSize?: number, initialPageSize?: number) =>
+  Math.max(storedPageSize ?? initialPageSize ?? DEFAULT_PAGE_SIZE, DEFAULT_PAGE_SIZE)
+
 export const useServerTable = <T>(
-  apiFn: (params: Record<string, any>) => Promise<ApiViewResponse<T>>,
+  apiFn: (params: TableQueryParams) => Promise<ApiViewResponse<T>>,
   options: ServerTableOptions = {}
 ) => {
   const isInfinite = options.mode === 'infinite'
@@ -121,7 +127,7 @@ export const useServerTable = <T>(
   const loading = ref(true)
   const error = ref(false)
   const loadingMore = ref(false)
-  const pagination = ref({ page: 0, size: tableSettings.pageSize ?? options.initialPageSize ?? 20 })
+  const pagination = ref({ page: 0, size: resolvePageSize(tableSettings.pageSize, options.initialPageSize) })
   const cursor = ref<string | null>(null)
   const nextCursor = ref<string | null>(null)
   const sorting = ref({
@@ -135,7 +141,7 @@ export const useServerTable = <T>(
 
   const hasMore = computed(() => {
     if (!isInfinite) return false
-    return nextCursor.value !== null || data.value.length < total.value
+    return nextCursor.value !== null
   })
 
   const savePreset = (name: string) => {
@@ -170,7 +176,7 @@ export const useServerTable = <T>(
   }
 
   const buildParams = () => {
-    const columnFilters: Record<string, any> = {}
+    const columnFilters: Record<string, unknown> = {}
 
     Object.entries(filters.value).forEach(([key, meta]) => {
       if (key === 'global') {
@@ -191,9 +197,7 @@ export const useServerTable = <T>(
       }
     })
 
-    const offset = isInfinite ? Number(cursor.value ?? 0) : pagination.value.page * pagination.value.size
-    const params: Record<string, any> = {
-      offset,
+    const params: TableQueryParams = {
       limit: pagination.value.size,
       sort_by: sorting.value.field,
       sort_order: sorting.value.order === -1 ? 'desc' : 'asc'
@@ -213,6 +217,10 @@ export const useServerTable = <T>(
     }
 
     return params
+  }
+
+  const resolveNextCursor = (response: ApiViewResponse<T>) => {
+    return response.meta.nextCursor ?? null
   }
 
   let debounceTimer: number | undefined
@@ -245,11 +253,7 @@ export const useServerTable = <T>(
         data.value = response.items as typeof data.value
       }
       total.value = response.meta.total
-      const derivedNextCursor =
-        response.meta.offset + response.meta.limit < response.meta.total
-          ? String(response.meta.offset + response.meta.limit)
-          : null
-      nextCursor.value = response.meta.nextCursor ?? derivedNextCursor
+      nextCursor.value = resolveNextCursor(response)
     } catch {
       error.value = true
     } finally {
@@ -265,7 +269,7 @@ export const useServerTable = <T>(
   }
 
   const loadMore = async () => {
-    if (!isInfinite || !hasMore.value || loading.value || loadingMore.value) return
+    if (!isInfinite || !hasMore.value || loading.value || loadingMore.value || error.value) return
     loadingMore.value = true
     pagination.value.page += 1
     const previousCursor = cursor.value
@@ -280,11 +284,7 @@ export const useServerTable = <T>(
       }
       data.value = [...data.value, ...response.items] as typeof data.value
       total.value = response.meta.total
-      const derivedNextCursor =
-        response.meta.offset + response.meta.limit < response.meta.total
-          ? String(response.meta.offset + response.meta.limit)
-          : null
-      nextCursor.value = response.meta.nextCursor ?? derivedNextCursor
+      nextCursor.value = resolveNextCursor(response)
     } catch {
       pagination.value.page -= 1
       cursor.value = previousCursor
@@ -318,6 +318,7 @@ export const useServerTable = <T>(
       sorting.value.order = 1
     }
     persistTableSettings(options.settingsKey, { sorting: { ...sorting.value } })
+    pagination.value.page = 0
     cursor.value = null
     nextCursor.value = null
     fetch()

@@ -32,7 +32,6 @@ export interface ApiViewResponse<T> {
   items: T[]
   meta: IncludesMeta & {
     total: number
-    offset: number
     limit: number
     nextCursor?: string | null
     hasMore?: boolean

@@ -14,7 +14,7 @@ const emit = defineEmits<{
   (event: "update:modelValue", value: string): void;
 }>();
 
-const inputRef = ref<InstanceType<typeof import("@nuxt/ui").UInput> | null>(null);
+const inputRef = ref<{ $el?: Element } | null>(null);
 
 onMounted(() => {
   inputRef.value?.$el?.querySelector("input")?.focus();

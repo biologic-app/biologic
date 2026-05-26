@@ -84,7 +84,7 @@ const table = useServerTable<CrudRow>(
     presetKey: props.config.presetKey,
     settingsKey: tableSettingsKey,
     filters: props.config.initialFilters,
-    initialPageSize: props.config.pageSize ?? 20,
+    initialPageSize: props.config.pageSize ?? 100,
   },
 );
 
@@ -100,7 +100,7 @@ const optimistic = useOptimistic<CrudRow>();
 const saving = ref(false);
 const formFields = ref<FormField[]>([]);
 const presetName = ref("");
-const pageSizeItems = [20, 30, 50, 100];
+const pageSizeItems = [100];
 const columnVisibility = useTableColumnVisibility(tableSettingsKey, { actions: false });
 const skeletonRows = createSkeletonRows<CrudRow>(12);
 const filters = reactive<TableFilters>(

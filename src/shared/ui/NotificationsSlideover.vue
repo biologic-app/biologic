@@ -1,18 +1,26 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useFetch } from '@vueuse/core'
 import { formatDistanceToNow } from 'date-fns'
 import { useI18n } from 'vue-i18n'
 import { useDashboardShell } from '@/shared/composables/useDashboardShell'
 import { useLocale } from '@/shared/composables/useLocale'
+import { useSystemMessages } from '@/modules/inbox/composables/useSystemMessages'
 import type { Notification } from '@/shared/types'
 
 const { isNotificationsSlideoverOpen } = useDashboardShell()
 const { t } = useI18n()
 const { dateFnsLocale } = useLocale()
+const { unreadMails } = useSystemMessages()
 
-const { data: notifications } = useFetch('https://dashboard-template.nuxt.dev/api/notifications', { initialData: [] }).json<Notification[]>()
-const unreadNotifications = computed(() => (notifications.value ?? []).filter(notification => notification.unread))
+const unreadNotifications = computed<Notification[]>(() =>
+  unreadMails.value.map((mail) => ({
+    id: mail.id,
+    unread: mail.unread,
+    sender: mail.from,
+    body: mail.body,
+    date: mail.date
+  }))
+)
 
 function formatNotificationTime(date: string) {
   return formatDistanceToNow(new Date(date), {

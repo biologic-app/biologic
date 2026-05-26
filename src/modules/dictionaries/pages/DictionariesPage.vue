@@ -45,7 +45,7 @@ const dictionaryLinks = computed<NavigationMenuItem[][]>(() => [
         : `/dictionaries/${item.key}`,
     active:
       item.key === "statuses"
-        ? selectedItem.value.configKey === "statuses"
+        ? selectedItem.value.key === "statuses" || selectedItem.value.key.startsWith("statuses-")
         : selectedItem.value.key === item.key,
     exact: true,
   })),
@@ -61,7 +61,7 @@ const statusLinks = computed<NavigationMenuItem[][]>(() => [
 ]);
 
 const showStatusNavigation = computed(
-  () => selectedItem.value.configKey === "statuses",
+  () => selectedItem.value.key === "statuses" || selectedItem.value.key.startsWith("statuses-"),
 );
 
 const createDisabled = computed(() => !can(selectedConfig.value.resource, "create"));

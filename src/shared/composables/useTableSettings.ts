@@ -33,12 +33,17 @@ const writeSettings = (key: string, patch: TableSettings) => {
   }
 };
 
+const defaultColumnVisibility: Record<string, boolean> = {
+  id: false,
+};
+
 export const useTableColumnVisibility = (
   key: string,
   defaults: Record<string, boolean> = {},
 ) => {
   const stored = readSettings(key).columnVisibility ?? {};
   const columnVisibility = ref<Record<string, boolean>>({
+    ...defaultColumnVisibility,
     ...defaults,
     ...stored,
   });

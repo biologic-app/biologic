@@ -15,10 +15,9 @@ export interface DictionaryItem {
 const statusContexts: DictionaryItem[] = [
   {
     key: "statuses-directions",
-    configKey: "statuses",
+    configKey: "direction-statuses",
     label: "Для направлений",
     icon: "i-lucide-book-copy",
-    requestParams: { entity_type: "directions" },
     config: {
       title: "Статусы направлений",
       description: "Статусы жизненного цикла направлений.",
@@ -28,10 +27,9 @@ const statusContexts: DictionaryItem[] = [
   },
   {
     key: "statuses-samples",
-    configKey: "statuses",
+    configKey: "sample-statuses",
     label: "Для образцов",
     icon: "i-lucide-vial",
-    requestParams: { entity_type: "samples" },
     config: {
       title: "Статусы образцов",
       description: "Статусы приёмки, работы и закрытия образцов.",
@@ -41,15 +39,26 @@ const statusContexts: DictionaryItem[] = [
   },
   {
     key: "statuses-research",
-    configKey: "statuses",
+    configKey: "research-statuses",
     label: "Для исследований",
     icon: "i-lucide-flask-conical",
-    requestParams: { entity_type: "research" },
     config: {
       title: "Статусы исследований",
       description: "Статусы лабораторных исследований и результатов.",
       presetKey: "statuses-research",
       pageId: "statuses-research",
+    },
+  },
+  {
+    key: "statuses-tests",
+    configKey: "test-statuses",
+    label: "Для тестов",
+    icon: "i-lucide-list-checks",
+    config: {
+      title: "Статусы тестов",
+      description: "Статусы отдельных лабораторных тестов.",
+      presetKey: "statuses-tests",
+      pageId: "statuses-tests",
     },
   },
 ];
@@ -65,7 +74,7 @@ export const dictionaryItems: DictionaryItem[] = [
   { key: "conclusions", configKey: "conclusions", label: "Заключения", icon: "i-lucide-file-text" },
   {
     key: "statuses",
-    configKey: "statuses",
+    configKey: "direction-statuses",
     label: "Статусы",
     icon: "i-lucide-badge-check",
     config: {

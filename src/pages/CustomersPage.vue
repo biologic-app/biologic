@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useTemplateRef, h, ref, computed, watch, resolveComponent } from "vue";
 import type { DropdownMenuItem, TableColumn } from "@nuxt/ui";
-import type { TableMeta, Row } from "@tanstack/vue-table";
+import type { Column, TableMeta, Row } from "@tanstack/vue-table";
 import { getPaginationRowModel, type Row as TRow } from "@tanstack/table-core";
 import { useI18n } from "vue-i18n";
 import CustomersAddModal from "@/modules/customers/components/CustomersAddModal.vue";
@@ -22,7 +22,7 @@ const toast = useToast();
 const table = useTemplateRef("table");
 const { t } = useI18n();
 
-const columnVisibility = ref();
+const columnVisibility = ref<Record<string, boolean>>({ id: false });
 const rowSelection = ref({ 1: true });
 const data = ref<User[]>(createMockCustomers());
 const isFetching = ref(false);
@@ -52,7 +52,7 @@ const items: DropdownMenuItem[] = [
   },
 ];
 
-function sortableHeader(label: string, column: any) {
+function sortableHeader(label: string, column: Column<User, unknown>) {
   const isSorted = column.getIsSorted();
   return h(UButton, {
     color: "neutral",
@@ -345,14 +345,15 @@ const updatePage = (page: number) => {
                   </template>
                 </UButton>
               </CustomersFilterModal>
-              <UTooltip :text="t('common.clearFilters')"
-                ><UButton
+              <UTooltip :text="t('common.clearFilters')">
+                <UButton
                   color="neutral"
                   variant="subtle"
                   size="sm"
                   class="px-2"
                   icon="i-lucide-filter-x"
-              /></UTooltip>
+                />
+              </UTooltip>
             </UFieldGroup>
           </div>
         </template>
@@ -373,9 +374,11 @@ const updatePage = (page: number) => {
                 icon="i-lucide-trash"
               >
                 <template #trailing>
-                  <UKbd>{{
-                    table?.tableApi?.getFilteredSelectedRowModel().rows.length
-                  }}</UKbd>
+                  <UKbd>
+                    {{
+                      table?.tableApi?.getFilteredSelectedRowModel().rows.length
+                    }}
+                  </UKbd>
                 </template>
               </UButton>
             </CustomersDeleteModal>

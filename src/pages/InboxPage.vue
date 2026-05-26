@@ -128,7 +128,7 @@ const isMobile = breakpoints.smaller('lg')
   <div v-else class="hidden lg:flex flex-1 flex-col items-center justify-center gap-3">
     <UIcon name="i-lucide-inbox" class="size-32 text-dimmed" />
     <p class="text-sm text-muted">
-      {{ alertMode ? 'Выберите уведомление.' : filteredMails.length ? t('inbox.open') : t('inbox.empty') }}
+      {{ filteredMails.length ? t('inbox.open') : t('inbox.empty') }}
     </p>
   </div>
 

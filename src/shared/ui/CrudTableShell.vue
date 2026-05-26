@@ -86,15 +86,15 @@ onUnmounted(() => {
       <div class="flex items-center gap-3 text-sm text-toned">
         <span>Всего: {{ total }}</span>
         <USelectMenu
-          :model-value="pageSize ?? 20"
-          :items="pageSizeItems || [20, 30, 50, 100]"
+          :model-value="pageSize ?? 100"
+          :items="pageSizeItems || [100]"
           class="w-24"
           @update:model-value="emit('update:pageSize', Number($event))"
         />
       </div>
       <UPagination
         :page="page ?? 1"
-        :items-per-page="pageSize ?? 20"
+        :items-per-page="pageSize ?? 100"
         :total="total"
         show-edges
         @update:page="emit('update:page', $event)"

@@ -117,7 +117,7 @@ const table = useServerTable<CrudRow>(
     presetKey: props.config.presetKey,
     settingsKey: tableSettingsKey,
     filters: props.config.initialFilters,
-    initialPageSize: props.config.pageSize ?? 20,
+    initialPageSize: props.config.pageSize ?? 100,
   },
 );
 

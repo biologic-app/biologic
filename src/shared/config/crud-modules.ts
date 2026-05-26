@@ -68,7 +68,7 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       { key: 'is_urgent', label: 'Срочно', type: 'boolean' },
       { key: 'doctor_id', label: 'Врач', type: 'select', source: '/doctors' },
       { key: 'object_id', label: 'Объект', type: 'select', source: '/objects' },
-      { key: 'status_id', label: 'Статус', type: 'select', source: '/statuses' },
+      { key: 'status_id', label: 'Статус', type: 'select', source: '/direction_statuses' },
       { key: 'sampled_at', label: 'Отбор', type: 'date' },
       { key: 'received_at', label: 'Получение', type: 'date' },
       { key: 'completed_at', label: 'Завершение', type: 'date' }
@@ -141,7 +141,7 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       { key: 'is_urgent', label: 'Срочно', type: 'boolean' },
       { key: 'is_done', label: 'Готов', type: 'boolean' },
       { key: 'sample_type_id', label: 'Тип образца', type: 'select', source: '/sample_types' },
-      { key: 'status_id', label: 'Статус', type: 'select', source: '/statuses' },
+      { key: 'status_id', label: 'Статус', type: 'select', source: '/sample_statuses' },
       { key: 'direction_id', label: 'Направление', type: 'select', source: '/directions' },
       { key: 'protocol_id', label: 'Протокол', type: 'select', source: '/protocols' },
       { key: 'sampled_at', label: 'Отобран', type: 'date' },
@@ -205,13 +205,85 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       { key: 'code', label: 'Код' }
     ]
   },
-  statuses: {
+  'direction-statuses': {
     resource: 'statuses',
-    title: 'Статусы',
-    description: 'Статусы для направлений, результатов и связанных сущностей.',
-    endpoint: '/statuses',
-    presetKey: 'statuses',
-    pageId: 'statuses',
+    title: 'Статусы направлений',
+    description: 'Статусы жизненного цикла направлений.',
+    endpoint: '/direction_statuses',
+    presetKey: 'direction-statuses',
+    pageId: 'direction-statuses',
+    initialFilters: {
+      global: textFilter(),
+      code: textFilter(),
+      name: textFilter(),
+      updated_at: dateFilter()
+    },
+    columns: [
+      { field: 'id', header: 'ID', sortable: true },
+      { field: 'code', header: 'Код', sortable: true, filter: { type: 'text', placeholder: 'Код' } },
+      { field: 'name', header: 'Название', sortable: true, filter: { type: 'text', placeholder: 'Название' } },
+      { field: 'updated_at', header: 'Обновлено', sortable: true, filter: { type: 'dateRange' } }
+    ],
+    fields: [
+      { key: 'code', label: 'Код' },
+      { key: 'name', label: 'Название', required: true }
+    ]
+  },
+  'sample-statuses': {
+    resource: 'statuses',
+    title: 'Статусы образцов',
+    description: 'Статусы приёмки, работы и закрытия образцов.',
+    endpoint: '/sample_statuses',
+    presetKey: 'sample-statuses',
+    pageId: 'sample-statuses',
+    initialFilters: {
+      global: textFilter(),
+      code: textFilter(),
+      name: textFilter(),
+      updated_at: dateFilter()
+    },
+    columns: [
+      { field: 'id', header: 'ID', sortable: true },
+      { field: 'code', header: 'Код', sortable: true, filter: { type: 'text', placeholder: 'Код' } },
+      { field: 'name', header: 'Название', sortable: true, filter: { type: 'text', placeholder: 'Название' } },
+      { field: 'updated_at', header: 'Обновлено', sortable: true, filter: { type: 'dateRange' } }
+    ],
+    fields: [
+      { key: 'code', label: 'Код' },
+      { key: 'name', label: 'Название', required: true }
+    ]
+  },
+  'research-statuses': {
+    resource: 'statuses',
+    title: 'Статусы исследований',
+    description: 'Статусы лабораторных исследований.',
+    endpoint: '/research_statuses',
+    presetKey: 'research-statuses',
+    pageId: 'research-statuses',
+    initialFilters: {
+      global: textFilter(),
+      code: textFilter(),
+      name: textFilter(),
+      updated_at: dateFilter()
+    },
+    columns: [
+      { field: 'id', header: 'ID', sortable: true },
+      { field: 'code', header: 'Код', sortable: true, filter: { type: 'text', placeholder: 'Код' } },
+      { field: 'name', header: 'Название', sortable: true, filter: { type: 'text', placeholder: 'Название' } },
+      { field: 'updated_at', header: 'Обновлено', sortable: true, filter: { type: 'dateRange' } }
+    ],
+    fields: [
+      { key: 'code', label: 'Код' },
+      { key: 'name', label: 'Название', required: true }
+    ]
+  },
+  'test-statuses': {
+    resource: 'statuses',
+    title: 'Статусы тестов',
+    description: 'Статусы отдельных лабораторных тестов.',
+    endpoint: '/test_statuses',
+    presetKey: 'test-statuses',
+    pageId: 'test-statuses',
     initialFilters: {
       global: textFilter(),
       code: textFilter(),
@@ -405,24 +477,29 @@ export const crudModules: Record<string, CrudModuleConfig> = {
     title: 'Заключения',
     description: 'Справочник предопределённых формулировок заключений.',
     endpoint: '/conclusions',
-    include: 'conclusion_status',
+    include: undefined,
     presetKey: 'conclusions',
     pageId: 'conclusions',
     initialFilters: {
       global: textFilter(),
-      comment: textFilter(),
-      'conclusion_status.name': textFilter(),
+      code: textFilter(),
+      name: textFilter(),
       updated_at: dateFilter()
     },
     columns: [
       { field: 'id', header: 'ID', sortable: true },
-      { field: 'comment', header: 'Формулировка', sortable: true, filter: { type: 'text', placeholder: 'Формулировка' } },
-      { field: 'conclusion_status.name', header: 'Статус заключения', sortable: true, filter: { type: 'text', placeholder: 'Статус' } },
+      { field: 'code', header: 'Код', sortable: true, filter: { type: 'text', placeholder: 'Код' } },
+      { field: 'name', header: 'Название', sortable: true, filter: { type: 'text', placeholder: 'Название' } },
+      { field: 'text_singular', header: 'Ед. число', sortable: true, filter: { type: 'text', placeholder: 'Ед. число' } },
+      { field: 'text_plural', header: 'Мн. число', sortable: true, filter: { type: 'text', placeholder: 'Мн. число' } },
       { field: 'updated_at', header: 'Обновлено', sortable: true, filter: { type: 'dateRange' } }
     ],
     fields: [
-      { key: 'comment', label: 'Формулировка', type: 'textarea', required: true },
-      { key: 'conclusion_status_id', label: 'Статус заключения', type: 'select', source: '/conclusion_statuses', required: true }
+      { key: 'code', label: 'Код', required: true },
+      { key: 'name', label: 'Название', required: true },
+      { key: 'text_singular', label: 'Текст в единственном числе', type: 'textarea', required: true },
+      { key: 'text_plural', label: 'Текст во множественном числе', type: 'textarea', required: true },
+      { key: 'comment', label: 'Комментарий', type: 'textarea' }
     ]
   },
   protocols: {
@@ -473,48 +550,38 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       { key: 'issued_at', label: 'Дата выдачи', type: 'date' }
     ]
   },
-  results: {
-    resource: 'results',
-    title: 'Результаты',
-    description: 'Результаты исследований по образцам.',
-    endpoint: '/results',
-    include: 'sample,lab,status',
-    presetKey: 'results',
-    pageId: 'results',
+  research: {
+    resource: 'research',
+    title: 'Исследования',
+    description: 'Исследования по образцам с целями, лабораториями и статусами.',
+    endpoint: '/research',
+    include: 'sample,research_goal,lab,status',
+    presetKey: 'research',
+    pageId: 'research',
     initialFilters: {
       global: textFilter(),
       'sample.name': textFilter(),
+      'research_goal.name': textFilter(),
       'lab.name': textFilter(),
       'status.name': textFilter(),
-      is_done: multiFilter(),
       received_at: dateFilter(),
       completed_at: dateFilter()
     },
     columns: [
       { field: 'id', header: 'ID', sortable: true },
       { field: 'sample.name', header: 'Образец', sortable: true, filter: { type: 'text', placeholder: 'Образец' } },
+      { field: 'research_goal.name', header: 'Цель исследования', sortable: true, filter: { type: 'text', placeholder: 'Цель исследования' } },
       { field: 'lab.name', header: 'Лаборатория', sortable: true, filter: { type: 'text', placeholder: 'Лаборатория' } },
       { field: 'status.name', header: 'Статус', sortable: true, filter: { type: 'text', placeholder: 'Статус' } },
-      {
-        field: 'is_done',
-        header: 'Завершён',
-        sortable: true,
-        filter: {
-          type: 'multiSelect',
-          options: [
-            { label: 'Да', value: true },
-            { label: 'Нет', value: false }
-          ]
-        }
-      },
+      { field: 'recommendation', header: 'Рекомендация', sortable: true, filter: { type: 'text', placeholder: 'Рекомендация' } },
       { field: 'received_at', header: 'Получен', sortable: true, filter: { type: 'dateRange' } },
       { field: 'completed_at', header: 'Завершён', sortable: true, filter: { type: 'dateRange' } }
     ],
     fields: [
       { key: 'sample_id', label: 'Образец', type: 'select', source: '/samples', required: true },
+      { key: 'research_goal_id', label: 'Цель исследования', type: 'select', source: '/research_goals', required: true },
       { key: 'lab_id', label: 'Лаборатория', type: 'select', source: '/labs' },
-      { key: 'status_id', label: 'Статус', type: 'select', source: '/statuses' },
-      { key: 'is_done', label: 'Завершён', type: 'boolean' },
+      { key: 'status_id', label: 'Статус', type: 'select', source: '/research_statuses' },
       { key: 'comment', label: 'Комментарий', type: 'textarea' },
       { key: 'recommendation', label: 'Рекомендация', type: 'textarea' },
       { key: 'received_at', label: 'Получен', type: 'date' },
@@ -526,12 +593,12 @@ export const crudModules: Record<string, CrudModuleConfig> = {
     title: 'Тесты',
     description: 'Результаты отдельных тестов и показателей.',
     endpoint: '/tests',
-    include: 'result,indicator,status',
+    include: 'research,indicator,status',
     presetKey: 'tests',
     pageId: 'tests',
     initialFilters: {
       global: textFilter(),
-      'result.name': textFilter(),
+      'research.name': textFilter(),
       'indicator.name': textFilter(),
       'status.name': textFilter(),
       value: textFilter(),
@@ -540,7 +607,7 @@ export const crudModules: Record<string, CrudModuleConfig> = {
     },
     columns: [
       { field: 'id', header: 'ID', sortable: true },
-      { field: 'result.name', header: 'Результат', sortable: true, filter: { type: 'text', placeholder: 'Результат' } },
+      { field: 'research.name', header: 'Исследование', sortable: true, filter: { type: 'text', placeholder: 'Исследование' } },
       { field: 'indicator.name', header: 'Показатель', sortable: true, filter: { type: 'text', placeholder: 'Показатель' } },
       { field: 'status.name', header: 'Статус', sortable: true, filter: { type: 'text', placeholder: 'Статус' } },
       { field: 'value', header: 'Значение', sortable: true, filter: { type: 'text', placeholder: 'Значение' } },
@@ -559,9 +626,9 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       { field: 'updated_at', header: 'Обновлено', sortable: true, filter: { type: 'dateRange' } }
     ],
     fields: [
-      { key: 'result_id', label: 'Результат', type: 'select', source: '/results', required: true },
+      { key: 'research_id', label: 'Исследование', type: 'select', source: '/research', required: true },
       { key: 'indicator_id', label: 'Показатель', type: 'select', source: '/indicators' },
-      { key: 'status_id', label: 'Статус', type: 'select', source: '/statuses' },
+      { key: 'status_id', label: 'Статус', type: 'select', source: '/test_statuses' },
       { key: 'value', label: 'Значение' },
       { key: 'norm', label: 'Норма' },
       { key: 'comment', label: 'Комментарий', type: 'textarea' },

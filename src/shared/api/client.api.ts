@@ -6,9 +6,14 @@ import type {
   ApiUpdateResponse,
   ApiViewResponse
 } from '@/shared/types/api'
-import { getMockListResponse, getMockReadResponse } from '@/shared/api/mock-data'
+import { jsonBodySerializer } from '@/shared/api/generated/core/bodySerializer.gen'
+import type { HttpMethod } from '@/shared/api/generated/core/types.gen'
+import { client as generatedApiClient } from '@/shared/api/generated/client.gen'
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
+type ApiParams = Record<string, unknown>
+type ApiRequestOptions = Omit<RequestInit, 'body'> & { params?: ApiParams; body?: unknown }
+type PlainObject = Record<string, unknown>
+
 const apiPrefixRaw = import.meta.env.VITE_API_PREFIX || '/api/v1'
 const requestCaseMode = import.meta.env.VITE_API_REQUEST_CASE || 'snake'
 const useSnakeCaseRequests = requestCaseMode === 'snake'
@@ -24,7 +29,24 @@ const normalizePrefix = (value: string) => {
 
 const apiPrefix = normalizePrefix(apiPrefixRaw)
 
-const isPlainObject = (value: unknown): value is Record<string, any> =>
+const normalizeApiBaseUrl = (value: string) => {
+  const withoutTrailingSlash = value.replace(/\/+$/, '')
+  return apiPrefix && withoutTrailingSlash.endsWith(apiPrefix)
+    ? withoutTrailingSlash.slice(0, -apiPrefix.length)
+    : withoutTrailingSlash
+}
+
+const apiBaseUrl = normalizeApiBaseUrl(
+  import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:8080'
+)
+
+generatedApiClient.setConfig({
+  baseUrl: apiBaseUrl,
+  credentials: 'include',
+  bodySerializer: jsonBodySerializer.bodySerializer
+})
+
+const isPlainObject = (value: unknown): value is PlainObject =>
   Object.prototype.toString.call(value) === '[object Object]'
 
 const toSnakeCase = (value: string) =>
@@ -39,7 +61,7 @@ const toSnakeFieldPath = (value: string) =>
     .map((segment) => toSnakeCase(segment))
     .join('.')
 
-const convertKeysToSnakeCase = (value: any): any => {
+const convertKeysToSnakeCase = (value: unknown): unknown => {
   if (Array.isArray(value)) {
     return value.map((item) => convertKeysToSnakeCase(item))
   }
@@ -99,34 +121,86 @@ export const setApiHooks = (next: Partial<typeof hooks>) => {
   hooks = { ...hooks, ...next }
 }
 
-const buildUrl = (path: string, params?: Record<string, any>) => {
+const buildApiPath = (path: string) => {
   const isAbsolute = /^https?:\/\//i.test(path)
   const normalizedPath = path.startsWith('/') ? path : `/${path}`
-  const withPrefix =
-    apiPrefix && !isAbsolute && !normalizedPath.startsWith(`${apiPrefix}/`)
+  return apiPrefix && !isAbsolute && !normalizedPath.startsWith(`${apiPrefix}/`)
       ? `${apiPrefix}${normalizedPath}`
-      : path
-
-  const url = new URL(withPrefix, apiBaseUrl || window.location.origin)
-  if (params) {
-    Object.entries(params).forEach(([key, value]) => {
-      const normalizedValue = normalizeParamValue(key, value)
-      if (normalizedValue === undefined || normalizedValue === null || normalizedValue === '') {
-        return
-      }
-      url.searchParams.set(key, String(normalizedValue))
-    })
-  }
-
-  return apiBaseUrl ? url.toString() : `${url.pathname}${url.search}`
+      : normalizedPath
 }
 
-const parseResponse = async (response: Response) => {
-  const contentType = response.headers.get('content-type') || ''
-  if (contentType.includes('application/json')) {
-    return response.json()
+const normalizeQueryParams = (params?: ApiParams) => {
+  if (!params) {
+    return undefined
   }
-  return response.text()
+
+  const requestParams = (useSnakeCaseRequests ? convertKeysToSnakeCase(params) : params) as ApiParams
+  return Object.fromEntries(
+    Object.entries(requestParams)
+      .filter(([key]) => key !== 'offset')
+      .map(([key, value]) => [key, normalizeParamValue(key, value)] as const)
+      .filter(([, value]) => value !== undefined && value !== null && value !== '')
+  )
+}
+
+const createHeaders = (headers: HeadersInit | undefined, hasJsonBody: boolean) => {
+  const requestHeaders = new Headers(headers)
+
+  if (hasJsonBody && !requestHeaders.has('Content-Type')) {
+    requestHeaders.set('Content-Type', 'application/json')
+  }
+
+  return requestHeaders
+}
+
+const getErrorMessage = (payload: unknown, fallback: string) => {
+  if (typeof payload === 'string' && payload.trim()) {
+    return payload
+  }
+
+  if (!isPlainObject(payload)) {
+    return fallback
+  }
+
+  if (Array.isArray(payload.detail)) {
+    return payload.detail
+      .map((item) => (isPlainObject(item) ? item.msg || item.message : null))
+      .filter(Boolean)
+      .join('; ') || fallback
+  }
+
+  if (typeof payload.detail === 'string') {
+    return payload.detail
+  }
+
+  if (typeof payload.message === 'string') {
+    return payload.message
+  }
+
+  if (typeof payload.title === 'string') {
+    return payload.title
+  }
+
+  return fallback
+}
+
+const normalizeResponseMeta = <T>(payload: T): T => {
+  if (!isPlainObject(payload) || !isPlainObject(payload.meta)) {
+    return payload
+  }
+
+  return {
+    ...payload,
+    meta: {
+      ...payload.meta,
+      requestId: payload.meta.request_id ?? payload.meta.requestId ?? null,
+      includesRequested: payload.meta.includes_requested ?? payload.meta.includesRequested ?? [],
+      includesApplied: payload.meta.includes_applied ?? payload.meta.includesApplied ?? [],
+      includesAllowed: payload.meta.includes_allowed ?? payload.meta.includesAllowed ?? [],
+      nextCursor: payload.meta.next_cursor ?? payload.meta.nextCursor ?? null,
+      hasMore: payload.meta.has_more ?? payload.meta.hasMore
+    }
+  }
 }
 
 export interface ApiClientError {
@@ -137,92 +211,98 @@ export interface ApiClientError {
 
 export const apiRequest = async <T>(
   path: string,
-  options: Omit<RequestInit, 'body'> & { params?: Record<string, any>; body?: any } = {}
+  options: ApiRequestOptions = {}
 ): Promise<T> => {
-  const requestParams =
-    useSnakeCaseRequests && options.params ? convertKeysToSnakeCase(options.params) : options.params
-  const url = buildUrl("/api/v1" + path, requestParams)
+  const { body, headers, method = 'GET', params, ...requestInit } = options
   const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData
   const requestBody =
-    !isFormData && useSnakeCaseRequests && options.body !== undefined
-      ? convertKeysToSnakeCase(options.body)
-      : options.body
+    !isFormData && useSnakeCaseRequests && body !== undefined ? convertKeysToSnakeCase(body) : body
 
-  const init: RequestInit = {
-    method: options.method || 'GET',
-    headers: {
-      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
-      ...(options.headers || {})
-    },
-    credentials: 'include'
-  }
+  const result = await generatedApiClient.request<T, unknown, false, 'fields'>({
+    ...requestInit,
+    method: method.toUpperCase() as Uppercase<HttpMethod>,
+    url: buildApiPath(path),
+    query: normalizeQueryParams(params),
+    body: requestBody,
+    bodySerializer: isFormData ? undefined : jsonBodySerializer.bodySerializer,
+    credentials: 'include',
+    headers: createHeaders(headers, !isFormData && requestBody !== undefined),
+    responseStyle: 'fields',
+    throwOnError: false
+  })
 
-  if (requestBody !== undefined) {
-    init.body = isFormData ? requestBody : JSON.stringify(requestBody)
-  }
-
-  const response = await fetch("http://localhost:8080" +url, init)
-
-  if (!response.ok) {
-    const payload = await parseResponse(response)
+  if (result.error !== undefined) {
+    const payload = result.error
+    const payloadRecord = isPlainObject(payload) ? payload : {}
+    const status = result.response?.status ?? 0
     const error: ApiClientError = {
-      status: response.status,
-      code: payload?.code || payload?.type,
-      message: payload?.message || payload?.detail || payload?.title || response.statusText
+      status,
+      code: typeof payloadRecord.code === 'string'
+        ? payloadRecord.code
+        : typeof payloadRecord.type === 'string'
+          ? payloadRecord.type
+          : undefined,
+      message: getErrorMessage(payload, result.response?.statusText || 'Network error')
     }
 
-    if (response.status === 401) {
+    if (status === 401) {
       hooks.onUnauthorized()
     }
 
-    if (response.status === 403) {
+    if (status === 403) {
       hooks.onForbidden()
     }
 
     throw error
   }
 
-  return parseResponse(response) as Promise<T>
+  return normalizeResponseMeta(result.data as T)
 }
 
 export const apiReadListRequest = async <T>(
   path: string,
-  options: Omit<RequestInit, 'body'> & { params?: Record<string, any>; body?: any } = {}
-) => getMockListResponse<T>(path, options.params) ?? apiRequest<ApiViewResponse<T>>(path, options)
+  options: ApiRequestOptions = {}
+) => apiRequest<ApiViewResponse<T>>(path, options)
 
 export const apiReadRequest = async <T>(
   path: string,
-  options: Omit<RequestInit, 'body'> & { params?: Record<string, any>; body?: any } = {}
-) => getMockReadResponse<T>(path) ?? apiRequest<ApiReadResponse<T>>(path, options)
+  options: ApiRequestOptions = {}
+) => apiRequest<ApiReadResponse<T>>(path, options)
 
 export const apiCreateRequest = async <T>(
   path: string,
-  options: Omit<RequestInit, 'body'> & { params?: Record<string, any>; body?: any } = {}
+  options: ApiRequestOptions = {}
 ) => apiRequest<ApiCreateResponse<T>>(path, options)
 
 export const apiUpdateRequest = async <T>(
   path: string,
-  options: Omit<RequestInit, 'body'> & { params?: Record<string, any>; body?: any } = {}
+  options: ApiRequestOptions = {}
 ) => apiRequest<ApiUpdateResponse<T>>(path, options)
 
 export const apiDeleteRequest = async <T>(
   path: string,
-  options: Omit<RequestInit, 'body'> & { params?: Record<string, any>; body?: any } = {}
+  options: ApiRequestOptions = {}
 ) => apiRequest<ApiDeleteResponse<T>>(path, options)
 
 export const apiCommandRequest = async <T>(
   path: string,
-  options: Omit<RequestInit, 'body'> & { params?: Record<string, any>; body?: any } = {}
+  options: ApiRequestOptions = {}
 ) => apiRequest<ApiCommandResponse<T>>(path, options)
+
+const toOptionValue = (value: unknown) =>
+  typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
+    ? value
+    : value === null
+      ? null
+      : String(value)
 
 export const loadReferenceOptions = async (
   path: string,
-  params: Record<string, any> = {}
+  params: ApiParams = {}
 ): Promise<Array<{ label: string; value: string | number | boolean | null }>> => {
-  const response = await apiReadListRequest<Record<string, any>>(path, {
+  const response = await apiReadListRequest<PlainObject>(path, {
     method: 'GET',
     params: {
-      offset: 0,
       limit: 500,
       ...params
     }
@@ -230,12 +310,14 @@ export const loadReferenceOptions = async (
 
   return response.items.map((row) => {
     if (row.name && row.code) {
-      return { label: `${row.name} (${row.code})`, value: row.id }
+      return { label: `${String(row.name)} (${String(row.code)})`, value: toOptionValue(row.id) }
     }
 
     return {
-      label: row.name || row.code || String(row.id),
-      value: row.id
+      label: String(row.name || row.code || row.id),
+      value: toOptionValue(row.id)
     }
   })
 }
+
+export { generatedApiClient as backendApiClient }
