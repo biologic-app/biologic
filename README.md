@@ -59,5 +59,16 @@ uv run alembic upgrade head
 make seed-data
 ```
 
+Generate larger workflow datasets for frontend and pagination testing:
+
+```bash
+make seed-data SEED_ARGS="--count 1000"
+make seed-data SEED_ARGS="--count 1000000 --truncate-generated"
+```
+
+`--count` creates that many generated `research` rows with related
+`directions`, `samples`, and `tests`. `--truncate-generated` deletes only
+previously generated bulk workflow rows before creating the new set.
+
 Local defaults are documented in `.env.example`; `.env` points the app at
 PostgreSQL 15 on `127.0.0.1:5433`.

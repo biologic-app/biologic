@@ -1,8 +1,59 @@
 from fastapi.testclient import TestClient
+from pydantic import BaseModel
 from pytest import MonkeyPatch
 
 from src.app_factory import create_app
+from src.contexts.catalogs.presentation.router import get_catalog_use_case
+from src.contexts.laboratory_workflow.presentation.router import get_workflow_crud_use_case
 from src.core.config import get_settings
+from src.core.errors import DomainConflictError
+from src.core.pagination import PageMeta, PaginationParams
+from src.core.responses import ListResponse, ResponseMeta, SingleResponse
+
+
+class FakeCatalogCrudUseCase:
+    async def list_branches(self, params: PaginationParams) -> ListResponse[dict[str, object]]:
+        return ListResponse(
+            items=[],
+            meta=PageMeta(
+                total=0,
+                limit=params.limit,
+                has_more=False,
+            ),
+        )
+
+    async def create_branch(self, payload: BaseModel) -> SingleResponse[dict[str, object]]:
+        return SingleResponse(
+            data={"id": "00000000-0000-0000-0000-000000000001", **payload.model_dump()},
+            meta=ResponseMeta(operation="branches.create"),
+        )
+
+    async def list_direction_statuses(
+        self,
+        params: PaginationParams,
+    ) -> ListResponse[dict[str, object]]:
+        return ListResponse(
+            items=[],
+            meta=PageMeta(
+                total=0,
+                limit=params.limit,
+                has_more=False,
+            ),
+        )
+
+    def reject_read_only_status_write(self, resource: str) -> None:
+        raise DomainConflictError(
+            code="resource_read_only",
+            detail=f"{resource} cannot be changed through catalog CRUD.",
+        )
+
+
+class FakeWorkflowCrudUseCase:
+    async def create_direction(self, payload: BaseModel) -> SingleResponse[dict[str, object]]:
+        return SingleResponse(
+            data={"id": "00000000-0000-0000-0000-000000000001", **payload.model_dump()},
+            meta=ResponseMeta(operation="directions.create"),
+        )
 
 
 def _client(monkeypatch: MonkeyPatch) -> TestClient:
@@ -12,6 +63,8 @@ def _client(monkeypatch: MonkeyPatch) -> TestClient:
     monkeypatch.setenv("APP_AUTH_COOKIE_DOMAIN", "localhost")
     get_settings.cache_clear()
     app = create_app()
+    app.dependency_overrides[get_catalog_use_case] = lambda: FakeCatalogCrudUseCase()
+    app.dependency_overrides[get_workflow_crud_use_case] = lambda: FakeWorkflowCrudUseCase()
     return TestClient(app)
 
 

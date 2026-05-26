@@ -1,11 +1,11 @@
 from typing import Annotated
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Response, status
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.contexts.laboratory_workflow.application.commands import WorkflowCommandService
+from src.contexts.laboratory_workflow.application.crud import WorkflowCrudUseCase
 from src.contexts.laboratory_workflow.application.dto import (
     AssignResearchInput,
     CloseSampleInput,
@@ -19,6 +19,13 @@ from src.contexts.laboratory_workflow.application.dto import (
     ResearchCommandInput,
     TestCommandInput,
     UpdateProtocolInput,
+)
+from src.contexts.laboratory_workflow.infrastructure.crud_repositories import (
+    DirectionCrudRepository,
+    ProtocolCrudRepository,
+    ResearchCrudRepository,
+    SampleCrudRepository,
+    TestCrudRepository,
 )
 from src.contexts.laboratory_workflow.infrastructure.repositories import (
     SqlAlchemyWorkflowRepository,
@@ -44,8 +51,7 @@ from src.contexts.laboratory_workflow.presentation.schemas import (
     UpdateProtocolRequest,
 )
 from src.core.database import get_db_session
-from src.core.errors import DomainConflictError, NotFoundError
-from src.core.pagination import PageMeta, PaginationParams
+from src.core.pagination import PaginationDependency
 from src.core.responses import ListResponse, ResponseMeta, SingleResponse
 
 router = APIRouter(tags=["workflow"])
@@ -57,200 +63,212 @@ async def get_workflow_command_service(
     return WorkflowCommandService(repository=SqlAlchemyWorkflowRepository(session=session))
 
 
-def _payload(payload: BaseModel) -> dict[str, object]:
-    return payload.model_dump(mode="json", exclude_unset=True)
-
-
-def _meta(params: PaginationParams, *, allowed: tuple[str, ...] = ()) -> PageMeta:
-    requested = params.includes_requested
-    applied = [item for item in requested if item in allowed]
-    return PageMeta(
-        total=0,
-        offset=params.offset,
-        limit=params.limit,
-        has_more=False,
-        includes_requested=requested,
-        includes_applied=applied,
-        includes_allowed=list(allowed),
+async def get_workflow_crud_use_case(
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> WorkflowCrudUseCase:
+    return WorkflowCrudUseCase(
+        directions=DirectionCrudRepository(session=session),
+        samples=SampleCrudRepository(session=session),
+        research=ResearchCrudRepository(session=session),
+        tests=TestCrudRepository(session=session),
+        protocols=ProtocolCrudRepository(session=session),
     )
 
 
-def _list_response(
-    params: PaginationParams,
-    *,
-    allowed: tuple[str, ...] = (),
-) -> ListResponse[dict[str, object]]:
-    return ListResponse(items=[], meta=_meta(params, allowed=allowed))
-
-
-def _read_missing(resource: str, item_id: UUID) -> SingleResponse[dict[str, object]]:
-    raise NotFoundError(f"{resource} item {item_id} was not found.")
-
-
-def _created(resource: str, payload: BaseModel) -> SingleResponse[dict[str, object]]:
-    return SingleResponse(
-        data={"id": str(uuid4()), **_payload(payload)},
-        meta=ResponseMeta(operation=f"{resource}.create"),
-    )
-
-
-def _updated(resource: str, item_id: UUID, payload: BaseModel) -> SingleResponse[dict[str, object]]:
-    data = _payload(payload)
-    if "status_id" in data:
-        raise DomainConflictError(
-            code="invalid_status_transition",
-            detail=f"{resource} lifecycle status must be changed through commands.",
-        )
-    return SingleResponse(
-        data={"id": str(item_id), **data},
-        meta=ResponseMeta(operation=f"{resource}.update"),
-    )
-
-
-def _deleted() -> Response:
+def _deleted_response() -> Response:
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/directions")
 async def list_directions(
-    params: Annotated[PaginationParams, Depends()],
+    params: PaginationDependency,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
 ) -> ListResponse[dict[str, object]]:
-    return _list_response(params, allowed=("status", "doctor", "object"))
+    return await use_case.list_directions(params)
 
 
 @router.get("/directions/{direction_id}")
-async def read_direction(direction_id: UUID) -> SingleResponse[dict[str, object]]:
-    return _read_missing("directions", direction_id)
+async def read_direction(
+    direction_id: UUID,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+) -> SingleResponse[dict[str, object]]:
+    return await use_case.read_direction(direction_id)
 
 
 @router.post("/directions", status_code=status.HTTP_201_CREATED)
 async def create_direction(
     payload: DirectionCreateRequest,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
 ) -> SingleResponse[dict[str, object]]:
-    return _created("directions", payload)
+    return await use_case.create_direction(payload)
 
 
 @router.patch("/directions/{direction_id}")
 async def update_direction(
     direction_id: UUID,
     payload: DirectionUpdateRequest,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
 ) -> SingleResponse[dict[str, object]]:
-    return _updated("directions", direction_id, payload)
+    return await use_case.update_direction(direction_id, payload)
 
 
 @router.delete("/directions/{direction_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_direction(direction_id: UUID) -> Response:
-    return _deleted()
+async def delete_direction(
+    direction_id: UUID,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+) -> Response:
+    await use_case.delete_direction(direction_id)
+    return _deleted_response()
 
 
 @router.get("/samples")
 async def list_samples(
-    params: Annotated[PaginationParams, Depends()],
+    params: PaginationDependency,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
 ) -> ListResponse[dict[str, object]]:
-    return _list_response(params, allowed=("status", "direction", "sample_type", "protocol"))
+    return await use_case.list_samples(params)
 
 
 @router.get("/samples/{sample_id}")
-async def read_sample(sample_id: UUID) -> SingleResponse[dict[str, object]]:
-    return _read_missing("samples", sample_id)
+async def read_sample(
+    sample_id: UUID,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+) -> SingleResponse[dict[str, object]]:
+    return await use_case.read_sample(sample_id)
 
 
 @router.post("/samples", status_code=status.HTTP_201_CREATED)
-async def create_sample(payload: SampleCreateRequest) -> SingleResponse[dict[str, object]]:
-    return _created("samples", payload)
+async def create_sample(
+    payload: SampleCreateRequest,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+) -> SingleResponse[dict[str, object]]:
+    return await use_case.create_sample(payload)
 
 
 @router.patch("/samples/{sample_id}")
 async def update_sample(
     sample_id: UUID,
     payload: SampleUpdateRequest,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
 ) -> SingleResponse[dict[str, object]]:
-    return _updated("samples", sample_id, payload)
+    return await use_case.update_sample(sample_id, payload)
 
 
 @router.delete("/samples/{sample_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_sample(sample_id: UUID) -> Response:
-    return _deleted()
+async def delete_sample(
+    sample_id: UUID,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+) -> Response:
+    await use_case.delete_sample(sample_id)
+    return _deleted_response()
 
 
 @router.get("/research")
 async def list_research(
-    params: Annotated[PaginationParams, Depends()],
+    params: PaginationDependency,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
 ) -> ListResponse[dict[str, object]]:
-    return _list_response(params, allowed=("status", "sample", "research_goal", "lab"))
+    return await use_case.list_research(params)
 
 
 @router.get("/research/{research_id}")
-async def read_research(research_id: UUID) -> SingleResponse[dict[str, object]]:
-    return _read_missing("research", research_id)
+async def read_research(
+    research_id: UUID,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+) -> SingleResponse[dict[str, object]]:
+    return await use_case.read_research(research_id)
 
 
 @router.post("/research", status_code=status.HTTP_201_CREATED)
-async def create_research(payload: ResearchCreateRequest) -> SingleResponse[dict[str, object]]:
-    return _created("research", payload)
+async def create_research(
+    payload: ResearchCreateRequest,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+) -> SingleResponse[dict[str, object]]:
+    return await use_case.create_research(payload)
 
 
 @router.patch("/research/{research_id}")
 async def update_research(
     research_id: UUID,
     payload: ResearchUpdateRequest,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
 ) -> SingleResponse[dict[str, object]]:
-    return _updated("research", research_id, payload)
+    return await use_case.update_research(research_id, payload)
 
 
 @router.delete("/research/{research_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_research(research_id: UUID) -> Response:
-    return _deleted()
+async def delete_research(
+    research_id: UUID,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+) -> Response:
+    await use_case.delete_research(research_id)
+    return _deleted_response()
 
 
 @router.get("/tests")
 async def list_tests(
-    params: Annotated[PaginationParams, Depends()],
+    params: PaginationDependency,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
 ) -> ListResponse[dict[str, object]]:
-    return _list_response(params, allowed=("status", "research", "indicator"))
+    return await use_case.list_tests(params)
 
 
 @router.get("/tests/{test_id}")
-async def read_test(test_id: UUID) -> SingleResponse[dict[str, object]]:
-    return _read_missing("tests", test_id)
+async def read_test(
+    test_id: UUID,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+) -> SingleResponse[dict[str, object]]:
+    return await use_case.read_test(test_id)
 
 
 @router.post("/tests", status_code=status.HTTP_409_CONFLICT)
-async def create_test() -> None:
-    raise DomainConflictError(
-        code="resource_read_only",
-        detail="tests cannot be created through generic CRUD.",
-    )
+async def create_test(
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+) -> None:
+    use_case.reject_test_create()
 
 
 @router.patch("/tests/{test_id}")
 async def update_test(
     test_id: UUID,
     payload: TestUpdateRequest,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
 ) -> SingleResponse[dict[str, object]]:
-    return _updated("tests", test_id, payload)
+    return await use_case.update_test(test_id, payload)
 
 
 @router.delete("/tests/{test_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_test(test_id: UUID) -> Response:
-    return _deleted()
+async def delete_test(
+    test_id: UUID,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+) -> Response:
+    await use_case.delete_test(test_id)
+    return _deleted_response()
 
 
 @router.get("/protocols")
 async def list_protocols(
-    params: Annotated[PaginationParams, Depends()],
+    params: PaginationDependency,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
 ) -> ListResponse[dict[str, object]]:
-    return _list_response(params, allowed=("conclusion", "protocol_type"))
+    return await use_case.list_protocols(params)
 
 
 @router.get("/protocols/{protocol_id}")
-async def read_protocol(protocol_id: UUID) -> SingleResponse[dict[str, object]]:
-    return _read_missing("protocols", protocol_id)
+async def read_protocol(
+    protocol_id: UUID,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+) -> SingleResponse[dict[str, object]]:
+    return await use_case.read_protocol(protocol_id)
 
 
 @router.delete("/protocols/{protocol_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_protocol(protocol_id: UUID) -> Response:
-    return _deleted()
+async def delete_protocol(
+    protocol_id: UUID,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+) -> Response:
+    await use_case.delete_protocol(protocol_id)
+    return _deleted_response()
 
 
 @router.post("/directions/{direction_id}/register")

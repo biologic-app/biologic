@@ -1,10 +1,9 @@
-from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from pydantic import BaseModel
 
-from src.core.pagination import PageMeta, PaginationParams
+from src.core.pagination import PageMeta, PaginationDependency, PaginationParams
 from src.core.responses import ListResponse, ResponseMeta, SingleResponse
 
 router = APIRouter(tags=["notifications"])
@@ -22,7 +21,6 @@ class AlertCommandResult(BaseModel):
 def _meta(params: PaginationParams) -> PageMeta:
     return PageMeta(
         total=0,
-        offset=params.offset,
         limit=params.limit,
         has_more=False,
         includes_requested=params.includes_requested,
@@ -33,7 +31,7 @@ def _meta(params: PaginationParams) -> PageMeta:
 
 @router.get("/alerts")
 async def list_alerts(
-    params: Annotated[PaginationParams, Depends()],
+    params: PaginationDependency,
 ) -> ListResponse[dict[str, object]]:
     return ListResponse(items=[], meta=_meta(params))
 

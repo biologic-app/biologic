@@ -1,10 +1,9 @@
-from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 
 from src.core.errors import NotFoundError
-from src.core.pagination import PageMeta, PaginationParams
+from src.core.pagination import PageMeta, PaginationDependency, PaginationParams
 from src.core.responses import ListResponse, SingleResponse
 
 router = APIRouter(tags=["audit"])
@@ -13,7 +12,6 @@ router = APIRouter(tags=["audit"])
 def _meta(params: PaginationParams) -> PageMeta:
     return PageMeta(
         total=0,
-        offset=params.offset,
         limit=params.limit,
         has_more=False,
         includes_requested=params.includes_requested,
@@ -24,7 +22,7 @@ def _meta(params: PaginationParams) -> PageMeta:
 
 @router.get("/history")
 async def list_history(
-    params: Annotated[PaginationParams, Depends()],
+    params: PaginationDependency,
 ) -> ListResponse[dict[str, object]]:
     return ListResponse(items=[], meta=_meta(params))
 

@@ -1,8 +1,89 @@
 from fastapi.testclient import TestClient
+from pydantic import BaseModel
 from pytest import MonkeyPatch
 
 from src.app_factory import create_app
+from src.contexts.laboratory_workflow.presentation.router import get_workflow_crud_use_case
 from src.core.config import get_settings
+from src.core.errors import DomainConflictError
+from src.core.pagination import PageMeta, PaginationParams
+from src.core.responses import ListResponse, ResponseMeta, SingleResponse
+
+
+class FakeWorkflowCrudUseCase:
+    async def list_directions(self, params: PaginationParams) -> ListResponse[dict[str, object]]:
+        return ListResponse(
+            items=[],
+            meta=PageMeta(
+                total=0,
+                limit=params.limit,
+                has_more=False,
+            ),
+        )
+
+    async def create_direction(self, payload: BaseModel) -> SingleResponse[dict[str, object]]:
+        return SingleResponse(
+            data={"id": "00000000-0000-0000-0000-000000000001", **payload.model_dump()},
+            meta=ResponseMeta(operation="directions.create"),
+        )
+
+    async def update_direction(
+        self,
+        direction_id: object,
+        payload: BaseModel,
+    ) -> SingleResponse[dict[str, object]]:
+        data = payload.model_dump(exclude_unset=True)
+        if "status_id" in data:
+            raise DomainConflictError(
+                code="invalid_status_transition",
+                detail="directions lifecycle status must be changed through commands.",
+            )
+        return SingleResponse(data={"id": str(direction_id), **data}, meta=ResponseMeta())
+
+    async def update_sample(
+        self,
+        sample_id: object,
+        payload: BaseModel,
+    ) -> SingleResponse[dict[str, object]]:
+        data = payload.model_dump(exclude_unset=True)
+        if "status_id" in data:
+            raise DomainConflictError(
+                code="invalid_status_transition",
+                detail="samples lifecycle status must be changed through commands.",
+            )
+        return SingleResponse(data={"id": str(sample_id), **data}, meta=ResponseMeta())
+
+    async def update_research(
+        self,
+        research_id: object,
+        payload: BaseModel,
+    ) -> SingleResponse[dict[str, object]]:
+        data = payload.model_dump(exclude_unset=True)
+        if "status_id" in data:
+            raise DomainConflictError(
+                code="invalid_status_transition",
+                detail="research lifecycle status must be changed through commands.",
+            )
+        return SingleResponse(data={"id": str(research_id), **data}, meta=ResponseMeta())
+
+    async def update_test(
+        self,
+        test_id: object,
+        payload: BaseModel,
+    ) -> SingleResponse[dict[str, object]]:
+        data = payload.model_dump(exclude_unset=True)
+        if "status_id" in data:
+            raise DomainConflictError(
+                code="invalid_status_transition",
+                detail="tests lifecycle status must be changed through commands.",
+            )
+        return SingleResponse(data={"id": str(test_id), **data}, meta=ResponseMeta())
+
+    def reject_test_create(self) -> None:
+        raise DomainConflictError(
+            code="resource_read_only",
+            detail="tests cannot be created through generic CRUD.",
+        )
 
 
 def _client(monkeypatch: MonkeyPatch) -> TestClient:
@@ -12,6 +93,7 @@ def _client(monkeypatch: MonkeyPatch) -> TestClient:
     monkeypatch.setenv("APP_AUTH_COOKIE_DOMAIN", "localhost")
     get_settings.cache_clear()
     app = create_app()
+    app.dependency_overrides[get_workflow_crud_use_case] = lambda: FakeWorkflowCrudUseCase()
     return TestClient(app)
 
 
@@ -25,6 +107,18 @@ def test_workflow_list_endpoint_has_list_envelope(monkeypatch: MonkeyPatch) -> N
         payload = response.json()
         assert set(payload) == {"items", "meta"}
         assert payload["meta"]["version"] == "v1"
+    finally:
+        get_settings.cache_clear()
+
+
+def test_workflow_list_rejects_offset_pagination(monkeypatch: MonkeyPatch) -> None:
+    try:
+        client = _client(monkeypatch)
+
+        response = client.get("/api/v1/directions?offset=0")
+
+        assert response.status_code == 400
+        assert "cursor" in response.json()["detail"]
     finally:
         get_settings.cache_clear()
 

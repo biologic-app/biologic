@@ -184,8 +184,8 @@ DELETE /{resource}/{id}
 
 List query parameters:
 
-- `offset`: integer, default `0`.
 - `limit`: integer, default `50`, maximum decided by backend.
+- `cursor`: opaque string returned as `next_cursor` from the previous page.
 - `sort_by`: field path, for example `created_at` or `status.name`.
 - `sort_order`: `asc` or `desc`.
 - `filters`: JSON string.
@@ -201,7 +201,6 @@ List response:
     "request_id": "uuid-or-null",
     "version": "v1",
     "total": 120,
-    "offset": 0,
     "limit": 50,
     "next_cursor": null,
     "has_more": true,

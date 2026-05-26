@@ -1,8 +1,11 @@
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_serializer, field_validator
+from fastapi import Depends, Query, Request
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
+
+from src.core.errors import BadRequestError
 
 SortOrder = Literal["asc", "desc"]
 
@@ -12,8 +15,10 @@ def utc_now_iso() -> str:
 
 
 class PaginationParams(BaseModel):
-    offset: int = Field(default=0, ge=0)
+    model_config = ConfigDict(extra="forbid")
+
     limit: int = Field(default=50, ge=1)
+    cursor: str | None = None
     sort_by: str | None = None
     sort_order: SortOrder = "asc"
     filters: str | None = None
@@ -31,12 +36,35 @@ class PaginationParams(BaseModel):
         return [item.strip() for item in self.include.split(",") if item.strip()]
 
 
+def get_pagination_params(
+    request: Request,
+    limit: int = Query(default=50, ge=1),
+    cursor: str | None = None,
+    sort_by: str | None = None,
+    sort_order: SortOrder = "asc",
+    filters: str | None = None,
+    include: str | None = None,
+) -> PaginationParams:
+    if "offset" in request.query_params:
+        raise BadRequestError("Offset pagination is not supported. Use cursor pagination.")
+    return PaginationParams(
+        limit=limit,
+        cursor=cursor,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        filters=filters,
+        include=include,
+    )
+
+
+PaginationDependency = Annotated[PaginationParams, Depends(get_pagination_params)]
+
+
 class PageMeta(BaseModel):
     timestamp: str = Field(default_factory=utc_now_iso)
     request_id: UUID | None = None
     version: str = "v1"
     total: int
-    offset: int
     limit: int
     next_cursor: str | None = None
     has_more: bool

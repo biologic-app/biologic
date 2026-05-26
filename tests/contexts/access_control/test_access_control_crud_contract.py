@@ -1,8 +1,38 @@
 from fastapi.testclient import TestClient
+from pydantic import BaseModel
 from pytest import MonkeyPatch
 
 from src.app_factory import create_app
+from src.contexts.access_control.presentation.router import get_access_control_use_case
 from src.core.config import get_settings
+from src.core.pagination import PageMeta, PaginationParams
+from src.core.responses import ListResponse, ResponseMeta, SingleResponse
+
+
+class FakeAccessControlCrudUseCase:
+    async def list_users(self, params: PaginationParams) -> ListResponse[dict[str, object]]:
+        return ListResponse(
+            items=[],
+            meta=PageMeta(
+                total=0,
+                limit=params.limit,
+                has_more=False,
+            ),
+        )
+
+    async def create_user(self, payload: BaseModel) -> SingleResponse[dict[str, object]]:
+        data = payload.model_dump()
+        data.pop("password_hash", None)
+        return SingleResponse(
+            data={"id": "00000000-0000-0000-0000-000000000001", **data},
+            meta=ResponseMeta(operation="users.create"),
+        )
+
+    async def create_permission(self, payload: BaseModel) -> SingleResponse[dict[str, object]]:
+        return SingleResponse(
+            data={"id": "00000000-0000-0000-0000-000000000001", **payload.model_dump()},
+            meta=ResponseMeta(operation="permissions.create"),
+        )
 
 
 def _client(monkeypatch: MonkeyPatch) -> TestClient:
@@ -12,6 +42,7 @@ def _client(monkeypatch: MonkeyPatch) -> TestClient:
     monkeypatch.setenv("APP_AUTH_COOKIE_DOMAIN", "localhost")
     get_settings.cache_clear()
     app = create_app()
+    app.dependency_overrides[get_access_control_use_case] = lambda: FakeAccessControlCrudUseCase()
     return TestClient(app)
 
 
