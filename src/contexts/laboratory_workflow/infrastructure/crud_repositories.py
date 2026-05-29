@@ -11,7 +11,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.cursor_pagination import CursorState, decode_cursor, encode_cursor
 from src.core.errors import BadRequestError, DomainConflictError, NotFoundError
 from src.core.pagination import PaginationParams
-from src.infrastructure.db.models import Direction, Protocol, Research, Sample, Test
+from src.infrastructure.db.models import (
+    Direction,
+    Lab,
+    Protocol,
+    Research,
+    ResearchGoal,
+    ResearchStatus,
+    Sample,
+    Test,
+)
 
 
 @dataclass(frozen=True)
@@ -27,13 +36,17 @@ class DirectionCrudRepository:
         self.session = session
 
     async def list(self, params: PaginationParams) -> RepositoryPage:
-        return await _list_rows(self.session, Direction, params, _direction_sortable_fields())
+        return await _list_rows(
+            self.session, Direction, params, _direction_sortable_fields()
+        )
 
     async def read(self, direction_id: UUID) -> Any:
         return await _read_row(self.session, Direction, "directions", direction_id)
 
     async def create(self, values: dict[str, Any]) -> Any:
-        return await _create_row(self.session, Direction, _pick(values, _direction_write_fields()))
+        return await _create_row(
+            self.session, Direction, _pick(values, _direction_write_fields())
+        )
 
     async def update(self, direction_id: UUID, values: dict[str, Any]) -> Any:
         _reject_status_update("directions", values)
@@ -58,7 +71,9 @@ class SampleCrudRepository:
         return await _read_row(self.session, Sample, "samples", sample_id)
 
     async def create(self, values: dict[str, Any]) -> Any:
-        return await _create_row(self.session, Sample, _pick(values, _sample_write_fields()))
+        return await _create_row(
+            self.session, Sample, _pick(values, _sample_write_fields())
+        )
 
     async def update(self, sample_id: UUID, values: dict[str, Any]) -> Any:
         _reject_status_update("samples", values)
@@ -77,13 +92,21 @@ class ResearchCrudRepository:
         self.session = session
 
     async def list(self, params: PaginationParams) -> RepositoryPage:
-        return await _list_rows(self.session, Research, params, _research_sortable_fields())
+        page = await _list_rows(
+            self.session, Research, params, _research_sortable_fields()
+        )
+        await _populate_research_includes(
+            self.session, page.items, params.includes_requested
+        )
+        return page
 
     async def read(self, research_id: UUID) -> Any:
         return await _read_row(self.session, Research, "research", research_id)
 
     async def create(self, values: dict[str, Any]) -> Any:
-        return await _create_row(self.session, Research, _pick(values, _research_write_fields()))
+        return await _create_row(
+            self.session, Research, _pick(values, _research_write_fields())
+        )
 
     async def update(self, research_id: UUID, values: dict[str, Any]) -> Any:
         _reject_status_update("research", values)
@@ -124,7 +147,9 @@ class ProtocolCrudRepository:
         self.session = session
 
     async def list(self, params: PaginationParams) -> RepositoryPage:
-        return await _list_rows(self.session, Protocol, params, _protocol_sortable_fields())
+        return await _list_rows(
+            self.session, Protocol, params, _protocol_sortable_fields()
+        )
 
     async def read(self, protocol_id: UUID) -> Any:
         return await _read_row(self.session, Protocol, "protocols", protocol_id)
@@ -174,7 +199,9 @@ async def _list_rows(
     items = rows[: params.limit]
     has_more = len(rows) > params.limit
     next_cursor = _next_cursor(items, sort_by, params.sort_order) if has_more else None
-    return RepositoryPage(items=items, total=total, has_more=has_more, next_cursor=next_cursor)
+    return RepositoryPage(
+        items=items, total=total, has_more=has_more, next_cursor=next_cursor
+    )
 
 
 async def _read_row(
@@ -192,7 +219,9 @@ async def _read_row(
     return row
 
 
-async def _create_row(session: AsyncSession, model: type[Any], values: dict[str, Any]) -> Any:
+async def _create_row(
+    session: AsyncSession, model: type[Any], values: dict[str, Any]
+) -> Any:
     row = model(**values)
     session.add(row)
     await session.commit()
@@ -236,7 +265,112 @@ def _base_filters(model: type[Any]) -> list[Any]:
     return []
 
 
-def _cursor_filter(cursor: CursorState, model: type[Any], sort_column: Any, id_column: Any) -> Any:
+async def _populate_research_includes(
+    session: AsyncSession,
+    items: list[Any],
+    includes_requested: list[str],
+) -> None:
+    includes = set(includes_requested) & {"sample", "research_goal", "lab", "status"}
+    if not items or not includes:
+        return
+
+    if "sample" in includes:
+        sample_ids = {item.sample_id for item in items if item.sample_id is not None}
+        samples = await _research_sample_includes(session, sample_ids)
+        for item in items:
+            setattr(item, "sample", samples.get(item.sample_id))
+
+    if "research_goal" in includes:
+        research_goal_ids = {
+            item.research_goal_id for item in items if item.research_goal_id is not None
+        }
+        research_goals = await _research_goal_includes(session, research_goal_ids)
+        for item in items:
+            setattr(item, "research_goal", research_goals.get(item.research_goal_id))
+
+    if "lab" in includes:
+        lab_ids = {item.lab_id for item in items if item.lab_id is not None}
+        labs = await _lab_includes(session, lab_ids)
+        for item in items:
+            setattr(item, "lab", labs.get(item.lab_id))
+
+    if "status" in includes:
+        status_ids = {item.status_id for item in items if item.status_id is not None}
+        statuses = await _research_status_includes(session, status_ids)
+        for item in items:
+            setattr(item, "status", statuses.get(item.status_id))
+
+
+async def _research_sample_includes(
+    session: AsyncSession,
+    sample_ids: set[UUID],
+) -> dict[UUID, dict[str, object]]:
+    if not sample_ids:
+        return {}
+    result = await session.execute(
+        select(Sample.id, Sample.name).where(
+            Sample.id.in_(sample_ids), *_base_filters(Sample)
+        ),
+    )
+    return {row_id: {"id": row_id, "name": name} for row_id, name in result.all()}
+
+
+async def _research_goal_includes(
+    session: AsyncSession,
+    research_goal_ids: set[UUID],
+) -> dict[UUID, dict[str, object]]:
+    if not research_goal_ids:
+        return {}
+    result = await session.execute(
+        select(ResearchGoal.id, ResearchGoal.code, ResearchGoal.name).where(
+            ResearchGoal.id.in_(research_goal_ids),
+            *_base_filters(ResearchGoal),
+        ),
+    )
+    return {
+        row_id: {"id": row_id, "code": code, "name": name}
+        for row_id, code, name in result.all()
+    }
+
+
+async def _lab_includes(
+    session: AsyncSession,
+    lab_ids: set[UUID],
+) -> dict[UUID, dict[str, object]]:
+    if not lab_ids:
+        return {}
+    result = await session.execute(
+        select(Lab.id, Lab.code, Lab.name).where(
+            Lab.id.in_(lab_ids), *_base_filters(Lab)
+        ),
+    )
+    return {
+        row_id: {"id": row_id, "code": code, "name": name}
+        for row_id, code, name in result.all()
+    }
+
+
+async def _research_status_includes(
+    session: AsyncSession,
+    status_ids: set[UUID],
+) -> dict[UUID, dict[str, object]]:
+    if not status_ids:
+        return {}
+    result = await session.execute(
+        select(ResearchStatus.id, ResearchStatus.code, ResearchStatus.name).where(
+            ResearchStatus.id.in_(status_ids),
+            *_base_filters(ResearchStatus),
+        ),
+    )
+    return {
+        row_id: {"id": row_id, "code": code, "name": name}
+        for row_id, code, name in result.all()
+    }
+
+
+def _cursor_filter(
+    cursor: CursorState, model: type[Any], sort_column: Any, id_column: Any
+) -> Any:
     sort_value = _coerce_cursor_value(model, cursor.sort_by, cursor.sort_value)
     if cursor.sort_order == "asc":
         return or_(

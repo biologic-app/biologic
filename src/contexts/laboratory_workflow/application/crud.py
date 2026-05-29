@@ -35,7 +35,9 @@ class WorkflowCrudUseCase:
         self.tests = tests
         self.protocols = protocols
 
-    async def list_directions(self, params: PaginationParams) -> ListResponse[dict[str, object]]:
+    async def list_directions(
+        self, params: PaginationParams
+    ) -> ListResponse[dict[str, object]]:
         return _list_response(
             await self.directions.list(params),
             params,
@@ -43,10 +45,16 @@ class WorkflowCrudUseCase:
             ("status", "doctor", "object"),
         )
 
-    async def read_direction(self, direction_id: UUID) -> SingleResponse[dict[str, object]]:
-        return _single_response(await self.directions.read(direction_id), _direction_fields())
+    async def read_direction(
+        self, direction_id: UUID
+    ) -> SingleResponse[dict[str, object]]:
+        return _single_response(
+            await self.directions.read(direction_id), _direction_fields()
+        )
 
-    async def create_direction(self, payload: BaseModel) -> SingleResponse[dict[str, object]]:
+    async def create_direction(
+        self, payload: BaseModel
+    ) -> SingleResponse[dict[str, object]]:
         row = await self.directions.create(_payload(payload))
         return _single_response(row, _direction_fields(), operation="directions.create")
 
@@ -61,7 +69,9 @@ class WorkflowCrudUseCase:
     async def delete_direction(self, direction_id: UUID) -> None:
         await self.directions.delete(direction_id)
 
-    async def list_samples(self, params: PaginationParams) -> ListResponse[dict[str, object]]:
+    async def list_samples(
+        self, params: PaginationParams
+    ) -> ListResponse[dict[str, object]]:
         return _list_response(
             await self.samples.list(params),
             params,
@@ -72,7 +82,9 @@ class WorkflowCrudUseCase:
     async def read_sample(self, sample_id: UUID) -> SingleResponse[dict[str, object]]:
         return _single_response(await self.samples.read(sample_id), _sample_fields())
 
-    async def create_sample(self, payload: BaseModel) -> SingleResponse[dict[str, object]]:
+    async def create_sample(
+        self, payload: BaseModel
+    ) -> SingleResponse[dict[str, object]]:
         row = await self.samples.create(_payload(payload))
         return _single_response(row, _sample_fields(), operation="samples.create")
 
@@ -87,7 +99,9 @@ class WorkflowCrudUseCase:
     async def delete_sample(self, sample_id: UUID) -> None:
         await self.samples.delete(sample_id)
 
-    async def list_research(self, params: PaginationParams) -> ListResponse[dict[str, object]]:
+    async def list_research(
+        self, params: PaginationParams
+    ) -> ListResponse[dict[str, object]]:
         return _list_response(
             await self.research.list(params),
             params,
@@ -95,10 +109,16 @@ class WorkflowCrudUseCase:
             ("status", "sample", "research_goal", "lab"),
         )
 
-    async def read_research(self, research_id: UUID) -> SingleResponse[dict[str, object]]:
-        return _single_response(await self.research.read(research_id), _research_fields())
+    async def read_research(
+        self, research_id: UUID
+    ) -> SingleResponse[dict[str, object]]:
+        return _single_response(
+            await self.research.read(research_id), _research_fields()
+        )
 
-    async def create_research(self, payload: BaseModel) -> SingleResponse[dict[str, object]]:
+    async def create_research(
+        self, payload: BaseModel
+    ) -> SingleResponse[dict[str, object]]:
         row = await self.research.create(_payload(payload))
         return _single_response(row, _research_fields(), operation="research.create")
 
@@ -113,7 +133,9 @@ class WorkflowCrudUseCase:
     async def delete_research(self, research_id: UUID) -> None:
         await self.research.delete(research_id)
 
-    async def list_tests(self, params: PaginationParams) -> ListResponse[dict[str, object]]:
+    async def list_tests(
+        self, params: PaginationParams
+    ) -> ListResponse[dict[str, object]]:
         return _list_response(
             await self.tests.list(params),
             params,
@@ -138,7 +160,9 @@ class WorkflowCrudUseCase:
     async def delete_test(self, test_id: UUID) -> None:
         await self.tests.delete(test_id)
 
-    async def list_protocols(self, params: PaginationParams) -> ListResponse[dict[str, object]]:
+    async def list_protocols(
+        self, params: PaginationParams
+    ) -> ListResponse[dict[str, object]]:
         return _list_response(
             await self.protocols.list(params),
             params,
@@ -146,8 +170,12 @@ class WorkflowCrudUseCase:
             ("conclusion", "protocol_type"),
         )
 
-    async def read_protocol(self, protocol_id: UUID) -> SingleResponse[dict[str, object]]:
-        return _single_response(await self.protocols.read(protocol_id), _protocol_fields())
+    async def read_protocol(
+        self, protocol_id: UUID
+    ) -> SingleResponse[dict[str, object]]:
+        return _single_response(
+            await self.protocols.read(protocol_id), _protocol_fields()
+        )
 
     async def delete_protocol(self, protocol_id: UUID) -> None:
         await self.protocols.delete(protocol_id)
@@ -166,7 +194,7 @@ def _list_response(
     requested = params.includes_requested
     applied = [item for item in requested if item in allowed_includes]
     return ListResponse(
-        items=[_serialize(item, fields) for item in page.items],
+        items=[_serialize(item, fields, tuple(applied)) for item in page.items],
         meta=PageMeta(
             total=page.total,
             limit=params.limit,
@@ -185,11 +213,29 @@ def _single_response(
     *,
     operation: str | None = None,
 ) -> SingleResponse[dict[str, object]]:
-    return SingleResponse(data=_serialize(item, fields), meta=ResponseMeta(operation=operation))
+    return SingleResponse(
+        data=_serialize(item, fields), meta=ResponseMeta(operation=operation)
+    )
 
 
-def _serialize(item: Any, fields: tuple[str, ...]) -> dict[str, object]:
-    return {field: json_value(getattr(item, field)) for field in fields}
+def _serialize(
+    item: Any,
+    fields: tuple[str, ...],
+    includes: tuple[str, ...] = (),
+) -> dict[str, object]:
+    payload = {field: _json_value(getattr(item, field)) for field in fields}
+    for include in includes:
+        if hasattr(item, include):
+            payload[include] = _json_value(getattr(item, include))
+    return payload
+
+
+def _json_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: _json_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_value(item) for item in value]
+    return json_value(value)
 
 
 def _direction_fields() -> tuple[str, ...]:
