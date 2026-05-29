@@ -2,7 +2,7 @@
 import { computed, h, nextTick, onMounted, reactive, ref, resolveComponent, watch } from 'vue'
 import type { DropdownMenuItem, TableColumn as NuxtTableColumn } from '@nuxt/ui'
 import { apiCreateRequest, apiReadListRequest, apiReadRequest, apiRequest, apiUpdateRequest } from '@/shared/api/client.api'
-import PermissionEditor from '@/shared/ui/PermissionEditor.vue'
+import AccessEntityDetailModal from '@/shared/ui/AccessEntityDetailModal.vue'
 import CrudDataTable from '@/shared/ui/CrudDataTable.vue'
 import CrudTableEmptyState from '@/shared/ui/CrudTableEmptyState.vue'
 import CrudFilterControls from '@/shared/ui/CrudFilterControls.vue'
@@ -31,7 +31,6 @@ const confirmDialog = ref<{ open: boolean; title: string; description: string; o
 });
 
 const deleting = ref(false)
-const isFullscreen = ref(false)
 const pendingUndo = ref<Array<{ item: RoleRow; timeout: ReturnType<typeof setTimeout> }>>([]);
 
 function undoDelete(undoEntry: { item: RoleRow; timeout: ReturnType<typeof setTimeout> }) {
@@ -57,8 +56,6 @@ const optimistic = useOptimistic<RoleRow>()
 const saving = ref(false)
 const permissionsLoading = ref(false)
 const permissions = ref<Permission[]>([])
-const activeTab = ref<'details' | 'permissions'>('details')
-const formRef = ref<HTMLFormElement | null>(null)
 const form = reactive({
   key: '',
   name: ''
@@ -110,8 +107,6 @@ watch(
 watch(
   () => [dialog.visible.value, dialog.selected.value] as const,
   async ([isVisible, selected]) => {
-    activeTab.value = 'details'
-
     if (!isVisible) {
       permissions.value = []
       form.key = ''
@@ -226,14 +221,17 @@ const uiColumns = computed<NuxtTableColumn<RoleRow>[]>(() => {
   ]
 })
 
-const tabItems = [
-  { label: 'Данные', value: 'details' },
-  { label: 'Права', value: 'permissions' }
-]
-
 const updatePermissions = (value: Permission[]) => {
   permissions.value = value
 }
+
+const accessDialogTitle = computed(() =>
+  dialog.mode.value === 'create'
+    ? 'Создать роль'
+    : dialog.mode.value === 'edit'
+      ? 'Редактировать роль'
+      : 'Просмотр роли'
+)
 
 const applyFilters = (debounceGlobal = false) => {
   table.updateFilters(JSON.parse(JSON.stringify(filters)), debounceGlobal)
@@ -422,17 +420,14 @@ const columnMenuItems = computed(() =>
   }))
 )
 
-const onSave = async () => {
-  if (formRef.value && !formRef.value.reportValidity()) {
-    return
-  }
-
+const onSave = async (formPayload?: Record<string, unknown>) => {
+  const source = formPayload ?? form
   saving.value = true
   try {
     if (dialog.mode.value === 'create') {
       const response = await apiCreateRequest<RoleRow>('/roles', {
         method: 'POST',
-        body: { key: form.key, name: form.name }
+        body: { key: source.key, name: source.name }
       })
 
       if (permissions.value.length) {
@@ -458,7 +453,7 @@ const onSave = async () => {
       const selectedId = dialog.selected.value.id
       const response = await apiUpdateRequest<RoleRow>(`/roles/${selectedId}`, {
         method: 'PATCH',
-        body: { key: form.key, name: form.name }
+        body: { key: source.key, name: source.name }
       })
 
       await apiRequest(`/roles/${selectedId}/permissions`, {
@@ -657,62 +652,21 @@ onMounted(() => {
     </template>
   </UDashboardPanel>
 
-  <UModal
-    :open="dialog.visible.value"
-    :ui="{ content: isFullscreen ? 'max-w-full sm:h-[95vh]' : 'max-w-6xl' }"
-    @update:open="dialog.visible.value = $event"
-  >
-    <template #header>
-      <div class="flex items-center justify-between gap-3 w-full">
-        <span class="text-lg font-semibold text-highlighted">
-          {{ dialog.mode.value === 'create' ? 'Создать роль' : dialog.mode.value === 'edit' ? 'Редактировать роль' : 'Просмотр роли' }}
-        </span>
-        <UButton
-          :icon="isFullscreen ? 'i-lucide-minimize-2' : 'i-lucide-maximize-2'"
-          color="neutral"
-          variant="ghost"
-          size="sm"
-          @click="isFullscreen = !isFullscreen"
-        />
-      </div>
-    </template>
-    <template #body>
-      <UTabs v-model="activeTab" :items="tabItems" :content="false" />
-
-      <div v-if="activeTab === 'details'" class="mt-4">
-        <form ref="formRef" class="grid gap-4 md:grid-cols-2" @submit.prevent="onSave">
-          <div class="grid gap-2">
-            <label class="text-sm font-medium text-toned">Ключ</label>
-            <UInput v-model="form.key" required :disabled="dialog.readOnly.value" />
-          </div>
-          <div class="grid gap-2">
-            <label class="text-sm font-medium text-toned">Название</label>
-            <UInput v-model="form.name" required :disabled="dialog.readOnly.value" />
-          </div>
-        </form>
-      </div>
-
-      <div v-else class="mt-4">
-        <div v-if="permissionsLoading" class="py-8 text-center text-sm text-toned">
-          Загрузка прав...
-        </div>
-        <PermissionEditor
-          v-else
-          mode="permissions"
-          :permissions="permissions"
-          :read-only="dialog.readOnly.value"
-          @update:permissions="updatePermissions"
-        />
-      </div>
-    </template>
-
-    <template #footer>
-      <div class="flex w-full items-center justify-end gap-3">
-        <UButton color="neutral" variant="ghost" label="Закрыть" @click="dialog.close()" />
-        <UButton v-if="!dialog.readOnly.value" :loading="saving" label="Сохранить" icon="i-lucide-save" @click="onSave" />
-      </div>
-    </template>
-  </UModal>
+  <AccessEntityDetailModal
+    v-model:open="dialog.visible.value"
+    :title="accessDialogTitle"
+    kind="role"
+    :mode="dialog.mode.value"
+    :item="dialog.selected.value"
+    :loading="permissionsLoading"
+    :saving="saving"
+    :read-only="dialog.readOnly.value"
+    :editable="can('user-types', 'edit')"
+    :permissions="permissions"
+    @update:permissions="updatePermissions"
+    @edit="dialog.startEdit()"
+    @save="onSave"
+  />
 
   <ConfirmDialog
     v-model:open="confirmDialog.open"

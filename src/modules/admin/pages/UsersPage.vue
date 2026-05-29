@@ -18,7 +18,7 @@ import {
   apiUpdateRequest,
   loadReferenceOptions,
 } from "@/shared/api/client.api";
-import PermissionEditor from "@/shared/ui/PermissionEditor.vue";
+import AccessEntityDetailModal from "@/shared/ui/AccessEntityDetailModal.vue";
 import CrudDataTable from "@/shared/ui/CrudDataTable.vue";
 import CrudTableEmptyState from "@/shared/ui/CrudTableEmptyState.vue";
 import CrudFilterControls from "@/shared/ui/CrudFilterControls.vue";
@@ -51,7 +51,6 @@ const confirmDialog = ref<{ open: boolean; title: string; description: string; o
 });
 
 const deleting = ref(false);
-const isFullscreen = ref(false);
 const pendingUndo = ref<Array<{ item: UserRow; timeout: ReturnType<typeof setTimeout> }>>([]);
 
 function undoDelete(undoEntry: { item: UserRow; timeout: ReturnType<typeof setTimeout> }) {
@@ -75,7 +74,6 @@ type UserRow = { id: string | number; [key: string]: any };
 const dialog = useCrudDialog<UserRow>("users");
 const optimistic = useOptimistic<UserRow>();
 const saving = ref(false);
-const activeTab = ref<"details" | "permissions">("details");
 const rolePermissions = ref<Permission[]>([]);
 const overrides = ref<PermissionOverride[]>([]);
 const permissionsLoading = ref(false);
@@ -85,7 +83,6 @@ const roleOptions = ref<
 const labOptions = ref<
   Array<{ label: string; value: string | number | boolean | null }>
 >([]);
-const formRef = ref<HTMLFormElement | null>(null);
 const form = reactive({
   username: "",
   code: "",
@@ -158,8 +155,6 @@ watch(
 watch(
   () => [dialog.visible.value, dialog.selected.value] as const,
   async ([isVisible, selected]) => {
-    activeTab.value = "details";
-
     if (!isVisible) {
       rolePermissions.value = [];
       overrides.value = [];
@@ -296,14 +291,22 @@ const uiColumns = computed<NuxtTableColumn<UserRow>[]>(() => {
   ];
 });
 
-const tabItems = [
-  { label: "Данные", value: "details" },
-  { label: "Права", value: "permissions" },
-];
-
 const updateOverrides = (value: PermissionOverride[]) => {
   overrides.value = value;
 };
+
+const accessDialogTitle = computed(() =>
+  dialog.mode.value === "create"
+    ? "Создать пользователя"
+    : dialog.mode.value === "edit"
+      ? "Редактировать пользователя"
+      : "Просмотр пользователя",
+);
+
+const accessFieldOptions = computed(() => ({
+  role_id: roleOptions.value,
+  lab_id: labOptions.value,
+}));
 
 const applyFilters = (debounceGlobal = false) => {
   table.updateFilters(JSON.parse(JSON.stringify(filters)), debounceGlobal);
@@ -496,28 +499,26 @@ const columnMenuItems = computed(() =>
   })),
 );
 
-const onSave = async () => {
-  if (formRef.value && !formRef.value.reportValidity()) {
-    return;
-  }
-
+const onSave = async (formPayload?: Record<string, unknown>) => {
+  const source = formPayload ?? form;
+  const password = typeof source.password_hash === "string" ? source.password_hash : "";
   saving.value = true;
   try {
     const payload: Record<string, any> = {
-      username: form.username,
-      code: form.code || null,
-      first_name: form.first_name || null,
-      last_name: form.last_name || null,
-      patronymic: form.patronymic || null,
-      role_id: form.role_id || null,
-      lab_id: form.lab_id || null,
-      is_registrar: form.is_registrar,
-      is_lab_head: form.is_lab_head,
-      is_branch_head: form.is_branch_head,
+      username: source.username || null,
+      code: source.code || null,
+      first_name: source.first_name || null,
+      last_name: source.last_name || null,
+      patronymic: source.patronymic || null,
+      role_id: source.role_id || null,
+      lab_id: source.lab_id || null,
+      is_registrar: Boolean(source.is_registrar),
+      is_lab_head: Boolean(source.is_lab_head),
+      is_branch_head: Boolean(source.is_branch_head),
     };
 
-    if (form.password_hash.trim()) {
-      payload.password_hash = form.password_hash;
+    if (password.trim()) {
+      payload.password_hash = password;
     }
 
     if (dialog.mode.value === "create") {
@@ -737,153 +738,23 @@ onMounted(async () => {
     </template>
   </UDashboardPanel>
 
-  <UModal
-    :open="dialog.visible.value"
-    :ui="{ content: isFullscreen ? 'max-w-full sm:h-[95vh]' : 'max-w-6xl' }"
-    @update:open="dialog.visible.value = $event"
-  >
-    <template #header>
-      <div class="flex items-center justify-between gap-3 w-full">
-        <span class="text-lg font-semibold text-highlighted">
-          {{ dialog.mode.value === 'create' ? 'Создать пользователя' : dialog.mode.value === 'edit' ? 'Редактировать пользователя' : 'Просмотр пользователя' }}
-        </span>
-        <UButton
-          :icon="isFullscreen ? 'i-lucide-minimize-2' : 'i-lucide-maximize-2'"
-          color="neutral"
-          variant="ghost"
-          size="sm"
-          @click="isFullscreen = !isFullscreen"
-        />
-      </div>
-    </template>
-    <template #body>
-      <UTabs v-model="activeTab" :items="tabItems" :content="false" />
-
-      <div v-if="activeTab === 'details'" class="mt-4">
-        <form
-          ref="formRef"
-          class="grid gap-4 md:grid-cols-2"
-          @submit.prevent="onSave"
-        >
-          <div class="grid gap-2">
-            <label class="text-sm font-medium text-toned">Логин</label>
-            <UInput
-              v-model="form.username"
-              required
-              :disabled="dialog.readOnly.value"
-            />
-          </div>
-          <div class="grid gap-2">
-            <label class="text-sm font-medium text-toned">Код</label>
-            <UInput v-model="form.code" :disabled="dialog.readOnly.value" />
-          </div>
-          <div class="grid gap-2">
-            <label class="text-sm font-medium text-toned">Имя</label>
-            <UInput
-              v-model="form.first_name"
-              :disabled="dialog.readOnly.value"
-            />
-          </div>
-          <div class="grid gap-2">
-            <label class="text-sm font-medium text-toned">Фамилия</label>
-            <UInput
-              v-model="form.last_name"
-              :disabled="dialog.readOnly.value"
-            />
-          </div>
-          <div class="grid gap-2">
-            <label class="text-sm font-medium text-toned">Отчество</label>
-            <UInput
-              v-model="form.patronymic"
-              :disabled="dialog.readOnly.value"
-            />
-          </div>
-          <div class="grid gap-2">
-            <label class="text-sm font-medium text-toned">Роль</label>
-            <USelectMenu
-              v-model="form.role_id"
-              :items="roleOptions"
-              value-key="value"
-              label-key="label"
-              :disabled="dialog.readOnly.value"
-            />
-          </div>
-          <div class="grid gap-2">
-            <label class="text-sm font-medium text-toned">Лаборатория</label>
-            <USelectMenu
-              v-model="form.lab_id"
-              :items="labOptions"
-              value-key="value"
-              label-key="label"
-              :disabled="dialog.readOnly.value"
-              clear
-            />
-          </div>
-          <div class="grid gap-2">
-            <label class="text-sm font-medium text-toned">Пароль</label>
-            <UInput
-              v-model="form.password_hash"
-              type="password"
-              :required="dialog.mode.value === 'create'"
-              :disabled="dialog.readOnly.value"
-            />
-          </div>
-          <div class="grid gap-3 md:col-span-2 lg:grid-cols-3">
-            <UCheckbox
-              v-model="form.is_registrar"
-              label="Регистратор"
-              :disabled="dialog.readOnly.value"
-            />
-            <UCheckbox
-              v-model="form.is_lab_head"
-              label="Руководитель лаборатории"
-              :disabled="dialog.readOnly.value"
-            />
-            <UCheckbox
-              v-model="form.is_branch_head"
-              label="Руководитель филиала"
-              :disabled="dialog.readOnly.value"
-            />
-          </div>
-        </form>
-      </div>
-
-      <div v-else class="mt-4">
-        <div
-          v-if="permissionsLoading"
-          class="py-8 text-center text-sm text-toned"
-        >
-          Загрузка прав...
-        </div>
-        <PermissionEditor
-          v-else
-          mode="overrides"
-          :role-permissions="rolePermissions"
-          :overrides="overrides"
-          :read-only="dialog.readOnly.value"
-          @update:overrides="updateOverrides"
-        />
-      </div>
-    </template>
-
-    <template #footer>
-      <div class="flex w-full items-center justify-end gap-3">
-        <UButton
-          color="neutral"
-          variant="ghost"
-          label="Закрыть"
-          @click="dialog.close()"
-        />
-        <UButton
-          v-if="!dialog.readOnly.value"
-          :loading="saving"
-          label="Сохранить"
-          icon="i-lucide-save"
-          @click="onSave"
-        />
-      </div>
-    </template>
-  </UModal>
+  <AccessEntityDetailModal
+    v-model:open="dialog.visible.value"
+    :title="accessDialogTitle"
+    kind="user"
+    :mode="dialog.mode.value"
+    :item="dialog.selected.value"
+    :loading="permissionsLoading"
+    :saving="saving"
+    :read-only="dialog.readOnly.value"
+    :editable="can('users', 'edit')"
+    :role-permissions="rolePermissions"
+    :overrides="overrides"
+    :field-options="accessFieldOptions"
+    @update:overrides="updateOverrides"
+    @edit="dialog.startEdit()"
+    @save="onSave"
+  />
 
   <ConfirmDialog
     v-model:open="confirmDialog.open"

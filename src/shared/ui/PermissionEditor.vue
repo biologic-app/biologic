@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { actions, actionLabels, resources, resourceLabels } from '@/shared/constants/permissions'
+import {
+  actionLabels,
+  crudActions,
+  crudPermissionResources,
+  resourceCommands,
+  resourceLabels
+} from '@/shared/constants/permissions'
 import type { Permission, PermissionOverride, Resource, Action } from '@/shared/types/permissions'
 
 const props = defineProps<{
@@ -81,95 +87,201 @@ const overrideState = (resource: Resource, action: Action) => {
   }
   return override.allowed ? 'allow' : 'deny'
 }
+
+const visibleResources = computed(() => crudPermissionResources)
+
+const commandCount = computed(() =>
+  resourceCommands.filter((command) =>
+    props.mode === 'permissions'
+      ? isAllowed(command.resource, command.action)
+      : overrideState(command.resource, command.action) !== 'inherit'
+  ).length
+)
+
+const permissionCount = (resource: Resource) =>
+  props.mode === 'permissions'
+    ? (props.permissions || []).filter((permission) => permission.resource === resource).length
+    : (props.overrides || []).filter((override) => override.resource === resource).length
 </script>
 
 <template>
-  <div class="grid gap-4">
-    <UCard
-      v-for="resource in resources.filter((item) => item !== 'customers' && item !== 'inbox')"
-      :key="resource"
-      :ui="{ body: 'space-y-4' }"
-    >
-      <template #header>
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <h3 class="text-sm font-semibold text-highlighted">
-              {{ resourceLabels[resource] }}
-            </h3>
-            <p class="text-xs text-toned">
-              {{ mode === 'permissions' ? 'Права роли' : 'Индивидуальные override-права' }}
-            </p>
-          </div>
-          <UBadge
-            :color="mode === 'permissions' ? 'success' : 'warning'"
-            variant="subtle"
-          >
-            {{
-              mode === 'permissions'
-                ? (permissions || []).filter((permission) => permission.resource === resource).length
-                : (overrides || []).filter((override) => override.resource === resource).length
-            }}
-          </UBadge>
-        </div>
-      </template>
+  <div class="space-y-5">
+    <section class="space-y-3">
+      <div class="flex items-center justify-between gap-3">
+        <h4 class="text-sm font-semibold text-highlighted">
+          CRUD справочников
+        </h4>
+        <UBadge
+          color="neutral"
+          variant="outline"
+          :label="`${visibleResources.length} ресурсов`"
+        />
+      </div>
 
-      <div
-        v-for="action in actions"
-        :key="`${resource}-${action}`"
-        class="grid gap-3 rounded-xl border border-default p-3 lg:grid-cols-[160px_1fr]"
-      >
-        <div class="space-y-1">
-          <div class="text-sm font-medium text-highlighted">
-            {{ actionLabels[action] }}
-          </div>
-          <div v-if="mode === 'overrides'" class="text-xs text-toned">
-            Роль: {{ inheritedAllowed(resource, action) ? 'разрешено' : 'запрещено' }}
-          </div>
-        </div>
+      <div class="overflow-hidden rounded-lg border border-default">
+        <div class="overflow-auto">
+          <div class="min-w-[860px]">
+            <div class="grid grid-cols-[13rem_repeat(4,minmax(10rem,1fr))] border-b border-default bg-elevated/60 text-xs font-semibold uppercase tracking-wide text-muted">
+              <div class="px-3 py-2">
+                Ресурс
+              </div>
+              <div
+                v-for="action in crudActions"
+                :key="action"
+                class="border-s border-default px-3 py-2"
+              >
+                {{ actionLabels[action] }}
+              </div>
+            </div>
 
-        <div class="flex flex-wrap gap-2">
-          <template v-if="mode === 'permissions'">
-            <UButton
-              :color="isAllowed(resource, action) ? 'success' : 'neutral'"
-              :variant="isAllowed(resource, action) ? 'solid' : 'outline'"
-              :disabled="readOnly"
-              label="Разрешить"
-              @click="setPermission(resource, action, true)"
-            />
-            <UButton
-              color="neutral"
-              :variant="isAllowed(resource, action) ? 'outline' : 'solid'"
-              :disabled="readOnly"
-              label="Запретить"
-              @click="setPermission(resource, action, false)"
-            />
-          </template>
+            <div
+              v-for="resource in visibleResources"
+              :key="resource"
+              class="grid grid-cols-[13rem_repeat(4,minmax(10rem,1fr))] border-b border-default last:border-b-0"
+            >
+              <div class="flex items-center justify-between gap-2 px-3 py-3">
+                <span class="text-sm font-medium text-highlighted">
+                  {{ resourceLabels[resource] }}
+                </span>
+                <UBadge
+                  :color="mode === 'permissions' ? 'success' : 'warning'"
+                  variant="subtle"
+                  :label="String(permissionCount(resource))"
+                />
+              </div>
 
-          <template v-else>
-            <UButton
-              color="neutral"
-              :variant="overrideState(resource, action) === 'inherit' ? 'solid' : 'outline'"
-              :disabled="readOnly"
-              :label="`Наследовать (${inheritedAllowed(resource, action) ? 'allow' : 'deny'})`"
-              @click="setOverride(resource, action, 'inherit')"
-            />
-            <UButton
-              color="success"
-              :variant="overrideState(resource, action) === 'allow' ? 'solid' : 'outline'"
-              :disabled="readOnly"
-              label="Allow"
-              @click="setOverride(resource, action, 'allow')"
-            />
-            <UButton
-              color="error"
-              :variant="overrideState(resource, action) === 'deny' ? 'solid' : 'outline'"
-              :disabled="readOnly"
-              label="Deny"
-              @click="setOverride(resource, action, 'deny')"
-            />
-          </template>
+              <div
+                v-for="action in crudActions"
+                :key="`${resource}-${action}`"
+                class="border-s border-default px-3 py-2"
+              >
+                <template v-if="mode === 'permissions'">
+                  <UCheckbox
+                    :model-value="isAllowed(resource, action)"
+                    :disabled="readOnly"
+                    label="Разрешено"
+                    @update:model-value="setPermission(resource, action, Boolean($event))"
+                  />
+                </template>
+
+                <template v-else>
+                  <p class="mb-2 text-xs text-muted">
+                    Роль: {{ inheritedAllowed(resource, action) ? 'разрешено' : 'запрещено' }}
+                  </p>
+                  <div class="flex flex-wrap gap-1">
+                    <UButton
+                      color="neutral"
+                      size="xs"
+                      :variant="overrideState(resource, action) === 'inherit' ? 'solid' : 'outline'"
+                      :disabled="readOnly"
+                      label="Роль"
+                      @click="setOverride(resource, action, 'inherit')"
+                    />
+                    <UButton
+                      color="success"
+                      size="xs"
+                      :variant="overrideState(resource, action) === 'allow' ? 'solid' : 'outline'"
+                      :disabled="readOnly"
+                      label="Да"
+                      @click="setOverride(resource, action, 'allow')"
+                    />
+                    <UButton
+                      color="error"
+                      size="xs"
+                      :variant="overrideState(resource, action) === 'deny' ? 'solid' : 'outline'"
+                      :disabled="readOnly"
+                      label="Нет"
+                      @click="setOverride(resource, action, 'deny')"
+                    />
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-    </UCard>
+    </section>
+
+    <section class="space-y-3">
+      <div class="flex items-center justify-between gap-3">
+        <h4 class="text-sm font-semibold text-highlighted">
+          Команды ресурсов
+        </h4>
+        <UBadge
+          color="neutral"
+          variant="outline"
+          :label="`${commandCount} активных`"
+        />
+      </div>
+
+      <div class="overflow-hidden rounded-lg border border-default">
+        <div class="grid grid-cols-[13rem_1fr_minmax(13rem,auto)] border-b border-default bg-elevated/60 text-xs font-semibold uppercase tracking-wide text-muted">
+          <div class="px-3 py-2">
+            Ресурс
+          </div>
+          <div class="border-s border-default px-3 py-2">
+            Команда
+          </div>
+          <div class="border-s border-default px-3 py-2">
+            Доступ
+          </div>
+        </div>
+
+        <div
+          v-for="command in resourceCommands"
+          :key="`${command.resource}-${command.action}`"
+          class="grid grid-cols-[13rem_1fr_minmax(13rem,auto)] border-b border-default last:border-b-0"
+        >
+          <div class="px-3 py-3 text-sm font-medium text-highlighted">
+            {{ resourceLabels[command.resource] }}
+          </div>
+          <div class="border-s border-default px-3 py-3 text-sm text-muted">
+            {{ actionLabels[command.action] }}
+          </div>
+          <div class="border-s border-default px-3 py-2">
+            <template v-if="mode === 'permissions'">
+              <UCheckbox
+                :model-value="isAllowed(command.resource, command.action)"
+                :disabled="readOnly"
+                label="Разрешено"
+                @update:model-value="setPermission(command.resource, command.action, Boolean($event))"
+              />
+            </template>
+
+            <template v-else>
+              <p class="mb-2 text-xs text-muted">
+                Роль: {{ inheritedAllowed(command.resource, command.action) ? 'разрешено' : 'запрещено' }}
+              </p>
+              <div class="flex flex-wrap gap-1">
+                <UButton
+                  color="neutral"
+                  size="xs"
+                  :variant="overrideState(command.resource, command.action) === 'inherit' ? 'solid' : 'outline'"
+                  :disabled="readOnly"
+                  label="Роль"
+                  @click="setOverride(command.resource, command.action, 'inherit')"
+                />
+                <UButton
+                  color="success"
+                  size="xs"
+                  :variant="overrideState(command.resource, command.action) === 'allow' ? 'solid' : 'outline'"
+                  :disabled="readOnly"
+                  label="Да"
+                  @click="setOverride(command.resource, command.action, 'allow')"
+                />
+                <UButton
+                  color="error"
+                  size="xs"
+                  :variant="overrideState(command.resource, command.action) === 'deny' ? 'solid' : 'outline'"
+                  :disabled="readOnly"
+                  label="Нет"
+                  @click="setOverride(command.resource, command.action, 'deny')"
+                />
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 </template>

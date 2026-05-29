@@ -20,6 +20,8 @@ import CrudTableEmptyState from "@/shared/ui/CrudTableEmptyState.vue";
 import CrudFilterModal from "@/shared/ui/CrudFilterModal.vue";
 import ConfirmDialog from "@/shared/ui/ConfirmDialog.vue";
 import RowContextMenu from "@/shared/ui/RowContextMenu.vue";
+import BusinessEntityDetailModal from "@/shared/ui/BusinessEntityDetailModal.vue";
+import DictionaryCrudDetailModal from "@/shared/ui/DictionaryCrudDetailModal.vue";
 import {
   createSkeletonRows,
   isSkeletonRow,
@@ -41,6 +43,7 @@ import {
   apiUpdateRequest,
   loadReferenceOptions,
 } from "@/shared/api/client.api";
+import { crudModules } from "@/shared/config/crud-modules";
 import { formatDateTime } from "@/shared/utils/format";
 import { getValueByPath } from "@/shared/utils/object";
 
@@ -48,6 +51,8 @@ type CrudRow = {
   id: string | number;
   [key: string]: unknown;
 };
+
+type DetailKind = "directions" | "samples" | "research";
 
 const props = withDefaults(
   defineProps<{
@@ -131,6 +136,14 @@ provide(TABLE_PRESETS_KEY, {
 const dialog = useCrudDialog<CrudRow>(props.config.resource);
 const optimistic = useOptimistic<CrudRow>();
 const saving = ref(false);
+const detailOpen = ref(false);
+const detailItem = ref<CrudRow | null>(null);
+const detailConfig = ref<CrudModuleConfig>(props.config);
+const detailKind = ref<DetailKind | null>(
+  ["directions", "samples", "research"].includes(props.config.presetKey)
+    ? props.config.presetKey as DetailKind
+    : null,
+);
 const formFields = ref<FormField[]>(
   props.config.fields.map((field) => ({ ...field })),
 );
@@ -389,7 +402,6 @@ const selectedRows = computed(() =>
 );
 
 const selectedCount = computed(() => selectedRows.value.length);
-
 const deleteSelected = async () => {
   if (!selectedRows.value.length) {
     return;
@@ -435,8 +447,37 @@ const deleteSelected = async () => {
   };
 };
 
+const resolveDetailKind = (config: CrudModuleConfig): DetailKind | null =>
+  ["directions", "samples", "research"].includes(config.presetKey)
+    ? config.presetKey as DetailKind
+    : null;
+
+const openDetail = (row: CrudRow, config: CrudModuleConfig = props.config) => {
+  detailItem.value = row;
+  detailConfig.value = config;
+  detailKind.value = resolveDetailKind(config);
+  detailOpen.value = true;
+};
+
+const onDetailSaved = (row: CrudRow) => {
+  if (detailConfig.value.presetKey !== props.config.presetKey) {
+    return;
+  }
+
+  table.data.value = table.data.value.map((item) =>
+    item.id === row.id ? { ...item, ...row } : item,
+  );
+};
+
+const openRelatedDetail = (payload: { kind: DetailKind; item: CrudRow }) => {
+  const config = crudModules[payload.kind];
+  if (config) {
+    openDetail(payload.item, config);
+  }
+};
+
 const getRowActionItems = (row: CrudRow): DropdownMenuItem[] => [
-  { label: "Просмотр", icon: "i-lucide-eye", onSelect: () => dialog.openView(row) },
+  { label: "Просмотр", icon: "i-lucide-eye", onSelect: () => openDetail(row) },
   { label: "Редактировать", icon: "i-lucide-pencil", onSelect: () => dialog.openEdit(row) },
   { label: "Удалить", icon: "i-lucide-trash-2", color: "error", onSelect: () => confirmDelete(row) },
 ];
@@ -446,7 +487,7 @@ const handleRowSelect = (_event: Event, row: { original: CrudRow }) => {
     return;
   }
 
-  dialog.openView(row.original);
+  openDetail(row.original);
 };
 
 const contextMenuItems = computed(() =>
@@ -665,6 +706,24 @@ defineExpose({
     :read-only="dialog.readOnly.value"
     :loading="saving"
     @save="onSave"
+  />
+
+  <BusinessEntityDetailModal
+    v-if="detailKind"
+    v-model:open="detailOpen"
+    :config="detailConfig"
+    :item="detailItem"
+    :business-kind="detailKind"
+    @saved="onDetailSaved"
+    @open-related="openRelatedDetail"
+  />
+
+  <DictionaryCrudDetailModal
+    v-else
+    v-model:open="detailOpen"
+    :config="detailConfig"
+    :item="detailItem"
+    @saved="onDetailSaved"
   />
 
   <ConfirmDialog

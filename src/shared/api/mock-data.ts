@@ -421,12 +421,20 @@ export const getMockReadResponse = <T>(path: string): ApiReadResponse<T> | null 
     return null;
   }
 
-  const permissions = (["view", "create", "edit", "delete"] as const).flatMap((action) =>
+  const crudPermissions = (["view", "create", "edit", "delete"] as const).flatMap((action) =>
     (["directions", "samples", "results", "tests", "protocols"] as const).map((resource) => ({
       resource,
       action,
     })),
   );
+  const commandPermissions = [
+    { resource: "directions", action: "import" },
+    { resource: "directions", action: "release" },
+    { resource: "samples", action: "register" },
+    { resource: "tests", action: "start" },
+    { resource: "tests", action: "requeue" },
+  ];
+  const permissions = [...crudPermissions, ...commandPermissions];
 
   return {
     data: (roleMatch ? { permissions } : { rolePermissions: permissions, overrides: [] }) as T,

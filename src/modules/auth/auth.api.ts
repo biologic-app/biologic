@@ -1,4 +1,5 @@
 import { apiRequest } from "@/shared/api/client.api";
+import { commandActions, crudActions } from "@/shared/constants/permissions";
 import type { NamedRef } from "@/shared/types/api";
 import type { Action, Permission, Resource } from "@/shared/types/permissions";
 import type { AuthUser } from "@/shared/types/auth";
@@ -50,7 +51,7 @@ const knownResources: Resource[] = [
   "objects",
 ];
 
-const knownActions: Action[] = ["view", "create", "edit", "delete"];
+const knownActions: Action[] = [...crudActions, ...commandActions];
 
 const mapResource = (resource: string): Resource | null => {
   const normalized = resource.trim().toLowerCase().replace(/_/g, "-");
@@ -75,6 +76,8 @@ const mapAction = (action: string): Action | null => {
       ? "view"
       : normalized === "update"
         ? "edit"
+        : normalized === "issue"
+          ? "release"
         : normalized;
   return knownActions.includes(mapped as Action) ? (mapped as Action) : null;
 };

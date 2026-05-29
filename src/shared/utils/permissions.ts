@@ -1,4 +1,6 @@
-import type { Permission, PermissionSummary } from '@/shared/types/permissions'
+import type { CrudAction, Permission, PermissionSummary } from '@/shared/types/permissions'
+
+const crudActions = new Set<CrudAction>(['view', 'create', 'edit', 'delete'])
 
 export const summarizePermissions = (permissions: Permission[]): PermissionSummary => {
   const summary: PermissionSummary = {
@@ -9,7 +11,9 @@ export const summarizePermissions = (permissions: Permission[]): PermissionSumma
   }
 
   permissions.forEach((permission) => {
-    summary[permission.action] += 1
+    if (crudActions.has(permission.action as CrudAction)) {
+      summary[permission.action as CrudAction] += 1
+    }
   })
 
   return summary

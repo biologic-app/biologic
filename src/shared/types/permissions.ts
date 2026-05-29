@@ -22,7 +22,20 @@ export type Resource =
   | "user-types"
   | "objects";
 
-export type Action = "view" | "create" | "edit" | "delete";
+export type CrudAction = "view" | "create" | "edit" | "delete";
+
+export type CommandAction =
+  | "import"
+  | "export"
+  | "register"
+  | "start"
+  | "complete"
+  | "release"
+  | "reject"
+  | "requeue"
+  | "approve";
+
+export type Action = CrudAction | CommandAction;
 
 export interface Permission {
   resource: Resource;
