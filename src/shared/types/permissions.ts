@@ -1,7 +1,5 @@
 export type Resource =
   | "dashboard"
-  | "customers"
-  | "inbox"
   | "directions"
   | "research"
   | "samples"

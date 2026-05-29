@@ -4,22 +4,16 @@ import { formatDistanceToNow } from 'date-fns'
 import { useI18n } from 'vue-i18n'
 import { useDashboardShell } from '@/shared/composables/useDashboardShell'
 import { useLocale } from '@/shared/composables/useLocale'
-import { useSystemMessages } from '@/modules/inbox/composables/useSystemMessages'
+import { useSystemNotifications } from '@/shared/composables/useSystemNotifications'
 import type { Notification } from '@/shared/types'
 
 const { isNotificationsSlideoverOpen } = useDashboardShell()
 const { t } = useI18n()
 const { dateFnsLocale } = useLocale()
-const { unreadMails } = useSystemMessages()
+const { unreadNotifications: unreadSystemNotifications } = useSystemNotifications()
 
 const unreadNotifications = computed<Notification[]>(() =>
-  unreadMails.value.map((mail) => ({
-    id: mail.id,
-    unread: mail.unread,
-    sender: mail.from,
-    body: mail.body,
-    date: mail.date
-  }))
+  unreadSystemNotifications.value
 )
 
 function formatNotificationTime(date: string) {
@@ -37,14 +31,13 @@ function formatNotificationTime(date: string) {
   >
     <template #body>
       <div v-if="!unreadNotifications.length" class="flex min-h-32 items-center justify-center text-sm text-muted">
-        {{ t('inbox.noUnread') }}
+        {{ t('notifications.noUnread') }}
       </div>
 
-      <RouterLink
+      <article
         v-for="notification in unreadNotifications"
         :key="notification.id"
-        :to="`/inbox?id=${notification.id}`"
-        class="px-3 py-2.5 rounded-md hover:bg-elevated/50 flex items-center gap-3 relative -mx-3 first:-mt-3 last:-mb-3"
+        class="px-3 py-2.5 rounded-md flex items-center gap-3 relative -mx-3 first:-mt-3 last:-mb-3"
       >
         <UChip
           color="error"
@@ -73,7 +66,7 @@ function formatNotificationTime(date: string) {
             {{ notification.body }}
           </p>
         </div>
-      </RouterLink>
+      </article>
     </template>
   </USlideover>
 </template>

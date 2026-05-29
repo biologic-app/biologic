@@ -1,6 +1,6 @@
 <script setup lang="ts" generic="TRow extends object">
 import { computed, h, resolveComponent } from "vue";
-import type { TableColumn } from "@nuxt/ui";
+import type { TableColumn, TableRow } from "@nuxt/ui";
 import CrudTableLoadingRows from "@/shared/ui/CrudTableLoadingRows.vue";
 import CrudTableShell from "@/shared/ui/CrudTableShell.vue";
 import {
@@ -79,6 +79,32 @@ const tableColumns = computed(() =>
 
 const tableUiConfig = computed(() => props.tableUi ?? borderedCrudTableUi);
 
+const isInteractiveTarget = (event: Event) => {
+  const target = event.target;
+  if (!(target instanceof Element)) {
+    return false;
+  }
+
+  return Boolean(
+    target.closest(
+      "button, a, input, textarea, select, [role='checkbox']",
+    ),
+  );
+};
+
+const handleRowSelect = (event: Event, row: TableRow<TRow>) => {
+  if (props.selectable) {
+    if (isSkeletonRow(row.original) || isInteractiveTarget(event)) {
+      return;
+    }
+
+    row.toggleSelected(!row.getIsSelected());
+    return;
+  }
+
+  emit("rowSelect", event, row);
+};
+
 const getColumnKey = (column: TableColumn<TRow>) => {
   if ("id" in column && typeof column.id === "string") {
     return column.id;
@@ -116,8 +142,7 @@ const visibleColumnCount = computed(() =>
         :data="data"
         :columns="tableColumns"
         :loading="loading"
-        :on-select="(event: Event, row: { original: TRow }) =>
-          emit('rowSelect', event, row)"
+        :on-select="handleRowSelect"
         :on-contextmenu="(event: Event, row: { original: TRow }) =>
           emit('rowContextmenu', event, row)"
         sticky

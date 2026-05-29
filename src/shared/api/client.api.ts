@@ -296,25 +296,81 @@ const toOptionValue = (value: unknown) =>
       ? null
       : String(value)
 
+const REFERENCE_PAGE_SIZE = 100
+const REFERENCE_MAX_ITEMS = 5000
+
+const compact = (items: Array<string | number | null | undefined | false>) =>
+  items
+    .map((item) => item === null || item === undefined || item === false ? '' : String(item).trim())
+    .filter(Boolean)
+
+const formatShortId = (value: unknown) => {
+  if (typeof value !== 'string' && typeof value !== 'number') {
+    return 'запись'
+  }
+
+  const text = String(value)
+  const uuidPrefix = text.match(/^[0-9a-f]{8}/i)?.[0]
+  return (uuidPrefix ?? text.slice(0, 8)).toUpperCase()
+}
+
+const formatReferenceLabel = (row: PlainObject) => {
+  if (row.name && row.code) {
+    return `${String(row.name)} (${String(row.code)})`
+  }
+
+  if (row.name || row.full_name || row.code) {
+    return String(row.name || row.full_name || row.code)
+  }
+
+  const personName = compact([row.last_name as string, row.first_name as string, row.patronymic as string]).join(' ')
+  if (personName) {
+    return personName
+  }
+
+  const documentNumber = compact([
+    row.year_no ? `${row.year_no}` : null,
+    row.base_no ? `№ ${row.base_no}` : null
+  ]).join(' ')
+  if (documentNumber) {
+    return documentNumber
+  }
+
+  const researchParts = compact([
+    row.sample_id ? `образец ${formatShortId(row.sample_id)}` : null,
+    row.research_goal_id ? `цель ${formatShortId(row.research_goal_id)}` : null
+  ])
+  if (researchParts.length) {
+    return `Исследование: ${researchParts.join(', ')}`
+  }
+
+  return `Запись ${formatShortId(row.id)}`
+}
+
 export const loadReferenceOptions = async (
   path: string,
   params: ApiParams = {}
 ): Promise<Array<{ label: string; value: string | number | boolean | null }>> => {
-  const response = await apiReadListRequest<PlainObject>(path, {
-    method: 'GET',
-    params: {
-      limit: 500,
-      ...params
-    }
-  })
+  const items: PlainObject[] = []
+  let cursor: unknown = params.cursor
 
-  return response.items.map((row) => {
-    if (row.name && row.code) {
-      return { label: `${String(row.name)} (${String(row.code)})`, value: toOptionValue(row.id) }
-    }
+  do {
+    const response = await apiReadListRequest<PlainObject>(path, {
+      method: 'GET',
+      params: {
+        ...params,
+        limit: params.limit ?? REFERENCE_PAGE_SIZE,
+        cursor
+      }
+    })
 
+    items.push(...response.items)
+    cursor = response.meta.nextCursor ?? null
+  } while (cursor && items.length < REFERENCE_MAX_ITEMS)
+
+  return items.map((row) => {
     return {
-      label: String(row.name || row.code || row.id),
+      label: formatReferenceLabel(row),
       value: toOptionValue(row.id)
     }
   })

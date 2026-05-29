@@ -271,6 +271,7 @@ export const messages = {
     },
     notifications: {
       title: "Уведомления",
+      noUnread: "Непрочитанных уведомлений нет",
     },
     errors: {
       actions: {
@@ -624,6 +625,7 @@ export const messages = {
     },
     notifications: {
       title: "Notifications",
+      noUnread: "No unread notifications",
     },
     errors: {
       actions: {

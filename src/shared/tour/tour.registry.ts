@@ -57,36 +57,6 @@ export const tourRegistry: TourDefinition[] = [
       },
       {
         routeName: 'dashboard',
-        element: '[data-tour="dashboard-quick-actions"]',
-        popover: {
-          title: t('tour.dashboard.base.quickActionsTitle'),
-          description: t('tour.dashboard.base.quickActionsDescription'),
-          side: 'left',
-          align: 'start'
-        }
-      },
-      {
-        routeName: 'customers',
-        element: '[data-tour="customers-create"]',
-        popover: {
-          title: t('tour.dashboard.base.customersTitle'),
-          description: t('tour.dashboard.base.customersDescription'),
-          side: 'bottom',
-          align: 'start'
-        }
-      },
-      {
-        routeName: 'inbox',
-        element: '[data-tour="inbox-tabs"]',
-        popover: {
-          title: t('tour.dashboard.base.inboxTitle'),
-          description: t('tour.dashboard.base.inboxDescription'),
-          side: 'bottom',
-          align: 'end'
-        }
-      },
-      {
-        routeName: 'dashboard',
         element: '[data-tour="dashboard-tour-menu"]',
         popover: {
           title: t('tour.dashboard.base.tourMenuTitle'),

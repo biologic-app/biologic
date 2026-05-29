@@ -6,6 +6,7 @@ import type { TableFilters } from '@/shared/types/table'
 export interface ServerTableOptions {
   initialPageSize?: number
   initialSort?: { field: string; order: 1 | -1 }
+  sortableFields?: string[]
   filters?: TableFilters
   presetKey?: string
   settingsKey?: string
@@ -112,6 +113,26 @@ const wait = (ms: number) =>
 const resolvePageSize = (storedPageSize?: number, initialPageSize?: number) =>
   Math.max(storedPageSize ?? initialPageSize ?? DEFAULT_PAGE_SIZE, DEFAULT_PAGE_SIZE)
 
+const isAllowedSortField = (field: string, sortableFields?: string[]) =>
+  !sortableFields || !field || sortableFields.includes(field)
+
+const resolveInitialSorting = (
+  tableSettings: TableSettings,
+  options: ServerTableOptions
+) => {
+  const storedSorting = tableSettings.sorting
+  if (storedSorting && isAllowedSortField(storedSorting.field, options.sortableFields)) {
+    return storedSorting
+  }
+
+  const initialSort = options.initialSort
+  if (initialSort && isAllowedSortField(initialSort.field, options.sortableFields)) {
+    return initialSort
+  }
+
+  return { field: '', order: 1 as const }
+}
+
 export const useServerTable = <T>(
   apiFn: (params: TableQueryParams) => Promise<ApiViewResponse<T>>,
   options: ServerTableOptions = {}
@@ -130,10 +151,7 @@ export const useServerTable = <T>(
   const pagination = ref({ page: 0, size: resolvePageSize(tableSettings.pageSize, options.initialPageSize) })
   const cursor = ref<string | null>(null)
   const nextCursor = ref<string | null>(null)
-  const sorting = ref({
-    field: tableSettings.sorting?.field ?? options.initialSort?.field ?? '',
-    order: tableSettings.sorting?.order ?? options.initialSort?.order ?? 1
-  })
+  const sorting = ref(resolveInitialSorting(tableSettings, options))
   const filters = ref<TableFilters>(mergeStoredFilters(initialFilters, tableSettings.filters))
   const lastGlobalValue = ref(filters.value.global?.value ?? '')
   const presetKey = buildPresetKey(options.presetKey)
@@ -311,6 +329,10 @@ export const useServerTable = <T>(
   }
 
   const setSort = (field: string) => {
+    if (!isAllowedSortField(field, options.sortableFields)) {
+      return
+    }
+
     if (sorting.value.field === field) {
       sorting.value.order = sorting.value.order === 1 ? -1 : 1
     } else {

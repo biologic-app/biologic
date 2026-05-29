@@ -71,6 +71,11 @@ const UBadge = resolveComponent("UBadge");
 const toast = useToast();
 const { can } = usePermission();
 const tableSettingsKey = `table-settings:crud:${props.config.presetKey}`;
+const sortableFields = computed(() =>
+  props.config.columns
+    .filter((column) => column.sortable)
+    .map((column) => column.field),
+);
 const table = useServerTable<CrudRow>(
   (params) =>
     apiReadListRequest<CrudRow>(props.config.endpoint, {
@@ -85,6 +90,7 @@ const table = useServerTable<CrudRow>(
     settingsKey: tableSettingsKey,
     filters: props.config.initialFilters,
     initialPageSize: props.config.pageSize ?? 100,
+    sortableFields: sortableFields.value,
   },
 );
 

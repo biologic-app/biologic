@@ -2,8 +2,6 @@ import type { Action, CommandAction, CrudAction, Resource } from '@/shared/types
 
 export const resources: Resource[] = [
   'dashboard',
-  'customers',
-  'inbox',
   'directions',
   'research',
   'samples',
@@ -90,8 +88,6 @@ export const resourceCommands: ResourceCommand[] = [
 
 export const resourceLabels: Record<Resource, string> = {
   dashboard: 'Главная',
-  customers: 'Пациенты',
-  inbox: 'Входящие',
   directions: 'Направления',
   research: 'Исследования',
   samples: 'Образцы',

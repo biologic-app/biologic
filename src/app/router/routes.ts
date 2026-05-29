@@ -41,18 +41,6 @@ export const routes: RouteRecordRaw[] = [
         component: () => import("@/pages/DirectionsPage.vue"),
       },
       {
-        path: "/customers",
-        name: "customers",
-        meta: { requiresAuth: false },
-        component: () => import("@/pages/CustomersPage.vue"),
-      },
-      {
-        path: "/inbox",
-        name: "inbox",
-        meta: { requiresAuth: false },
-        component: () => import("@/pages/InboxPage.vue"),
-      },
-      {
         path: "/research",
         name: "research",
         meta: { requiresAuth: false },

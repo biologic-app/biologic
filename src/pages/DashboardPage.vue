@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, shallowRef } from "vue";
+import { ref, shallowRef } from "vue";
 import { sub } from "date-fns";
-import type { DropdownMenuItem } from "@nuxt/ui";
 import { useI18n } from "vue-i18n";
 import { useDashboardShell } from "@/shared/composables/useDashboardShell";
 import TourMenu from "@/shared/ui/TourMenu.vue";
@@ -13,21 +12,6 @@ import type { Period, Range } from "@/modules/dashboard/types";
 
 const { isNotificationsSlideoverOpen } = useDashboardShell();
 const { t } = useI18n();
-
-const items = computed<DropdownMenuItem[][]>(() => [
-  [
-    {
-      label: t("dashboard.newMail"),
-      icon: "i-lucide-send",
-      to: "/inbox",
-    },
-    {
-      label: t("dashboard.newCustomer"),
-      icon: "i-lucide-user-plus",
-      to: "/customers",
-    },
-  ],
-]);
 
 const range = shallowRef<Range>({
   start: sub(new Date(), { days: 14 }),
@@ -60,17 +44,6 @@ const period = ref<Period>("daily");
           </UTooltip>
 
           <TourMenu scope="dashboard" />
-          <UDropdownMenu :items="items">
-            <UTooltip :text="t('dashboard.quickActions')">
-              <UButton
-                data-tour="dashboard-quick-actions"
-                icon="i-lucide-plus"
-                size="md"
-                variant="subtle"
-                class="rounded-full"
-              />
-            </UTooltip>
-          </UDropdownMenu>
         </template>
       </UDashboardNavbar>
 

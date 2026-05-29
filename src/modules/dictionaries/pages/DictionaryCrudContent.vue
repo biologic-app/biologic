@@ -53,6 +53,8 @@ type CrudRow = {
 };
 
 type DetailKind = "directions" | "samples" | "research";
+type ReferenceValue = string | number | boolean | null;
+type ReferenceOption = { label: string; value: ReferenceValue };
 
 const props = withDefaults(
   defineProps<{
@@ -79,6 +81,11 @@ const toast = useToast();
 const { can } = usePermission();
 const filterModalOpen = ref(false);
 const tableSettingsKey = `table-settings:dictionaries:${props.config.presetKey}:${JSON.stringify(props.requestParams ?? {})}`;
+const sortableFields = computed(() =>
+  props.config.columns
+    .filter((column) => column.sortable)
+    .map((column) => column.field),
+);
 
 const confirmDialog = ref<{ open: boolean; title: string; description: string; onConfirm: () => void }>({
   open: false,
@@ -123,6 +130,7 @@ const table = useServerTable<CrudRow>(
     settingsKey: tableSettingsKey,
     filters: props.config.initialFilters,
     initialPageSize: props.config.pageSize ?? 100,
+    sortableFields: sortableFields.value,
   },
 );
 
@@ -147,6 +155,7 @@ const detailKind = ref<DetailKind | null>(
 const formFields = ref<FormField[]>(
   props.config.fields.map((field) => ({ ...field })),
 );
+const referenceOptions = ref<Record<string, ReferenceOption[]>>({});
 const columnVisibility = useTableColumnVisibility(tableSettingsKey, { actions: false });
 const rowSelection = ref<Record<string, boolean>>({});
 const contextRow = ref<CrudRow | null>(null);
@@ -202,24 +211,75 @@ watch(
 onMounted(async () => {
   await Promise.all([
     table.fetch(),
-    Promise.all(
-      props.config.fields
-        .filter(
-          (field) => field.type === "select" && field.options === undefined,
-        )
-        .map(async (field) => {
-          const endpoint = field.source;
-          if (!endpoint) {
-            return;
-          }
-          const options = await loadReferenceOptions(endpoint).catch(() => []);
-          formFields.value = formFields.value.map((item) =>
-            item.key === field.key ? { ...item, options } : item,
-          );
-        }),
-    ),
+    loadFormReferenceOptions(),
   ]);
 });
+
+async function loadFormReferenceOptions() {
+  await Promise.all(
+    props.config.fields
+      .filter(
+        (field) => field.type === "select" && field.options === undefined,
+      )
+      .map(async (field) => {
+        const endpoint = field.source;
+        if (!endpoint) {
+          return;
+        }
+        const options = await loadReferenceOptions(endpoint).catch(() => []);
+        referenceOptions.value = {
+          ...referenceOptions.value,
+          [field.key]: options as ReferenceOption[],
+        };
+        formFields.value = formFields.value.map((item) =>
+          item.key === field.key ? { ...item, options } : item,
+        );
+      }),
+  );
+}
+
+const formatShortEntityCode = (value: unknown) => {
+  if (typeof value !== "string" && typeof value !== "number") {
+    return "";
+  }
+
+  const text = String(value);
+  const uuidPrefix = text.match(/^[0-9a-f]{8}/i)?.[0];
+  return (uuidPrefix ?? text.slice(0, 8)).toUpperCase();
+};
+
+const getReferenceLabel = (fieldKey: string, value: unknown) => {
+  if (value === null || value === undefined || value === "") {
+    return "";
+  }
+
+  return referenceOptions.value[fieldKey]?.find((option) => String(option.value) === String(value))?.label ?? "";
+};
+
+const getRelationIdField = (columnField: string) => {
+  const [relationKey, relationField] = columnField.split(".");
+  if (!relationKey || !relationField) {
+    return columnField.endsWith("_id") ? columnField : "";
+  }
+
+  return `${relationKey}_id`;
+};
+
+const resolveReferenceCell = (row: CrudRow, columnField: string) => {
+  const relationIdField = getRelationIdField(columnField);
+  if (!relationIdField) {
+    return "";
+  }
+
+  const idValue = getValueByPath(row, relationIdField);
+  const label = getReferenceLabel(relationIdField, idValue);
+  if (label) {
+    return label;
+  }
+
+  const shortCode = formatShortEntityCode(idValue);
+  return shortCode ? `Запись ${shortCode}` : "";
+};
 
 const uiColumns = computed(() => {
   const actionColumn = { id: "actions", header: "Действия", meta: { class: { td: "w-auto min-w-[56px] text-right" } } };
@@ -256,23 +316,24 @@ const uiColumns = computed(() => {
         }
 
         const value = getValueByPath(rowItem, column.field);
+        const referenceCell = value ?? resolveReferenceCell(rowItem, column.field);
 
-        if (typeof value === "boolean") {
+        if (typeof referenceCell === "boolean") {
           return h(
             UBadge,
             {
               color: "neutral",
               variant: "subtle",
             },
-            () => (value ? "Да" : "Нет"),
+            () => (referenceCell ? "Да" : "Нет"),
           );
         }
 
-        if (typeof value === "string" && /(at|date)$/i.test(column.field)) {
-          return formatDateTime(value);
+        if (typeof referenceCell === "string" && /(at|date)$/i.test(column.field)) {
+          return formatDateTime(referenceCell);
         }
 
-        return value ?? "-";
+        return referenceCell === "" ? "-" : referenceCell ?? "-";
       },
       meta: {
         class: {

@@ -28,8 +28,6 @@ interface BackendAuthEnvelope {
 
 const knownResources: Resource[] = [
   "dashboard",
-  "customers",
-  "inbox",
   "directions",
   "research",
   "samples",

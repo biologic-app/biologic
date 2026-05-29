@@ -97,9 +97,9 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       { field: 'id', header: 'ID', sortable: true },
       { field: 'name', header: 'Название', sortable: true, filter: { type: 'text', placeholder: 'Название' } },
       { field: 'alternate_name', header: 'Альтернативное имя', sortable: true, filter: { type: 'text', placeholder: 'Альтернативное имя' } },
-      { field: 'sample_type.name', header: 'Тип образца', sortable: true, filter: { type: 'text', placeholder: 'Тип образца' } },
-      { field: 'direction.name', header: 'Направление', sortable: true, filter: { type: 'text', placeholder: 'Направление' } },
-      { field: 'status.name', header: 'Статус', sortable: true, filter: { type: 'text', placeholder: 'Статус' } },
+      { field: 'sample_type.name', header: 'Тип образца', filter: { type: 'text', placeholder: 'Тип образца' } },
+      { field: 'direction.name', header: 'Направление', filter: { type: 'text', placeholder: 'Направление' } },
+      { field: 'status.name', header: 'Статус', filter: { type: 'text', placeholder: 'Статус' } },
       {
         field: 'is_urgent',
         header: 'Срочно',
@@ -564,6 +564,8 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       'research_goal.name': textFilter(),
       'lab.name': textFilter(),
       'status.name': textFilter(),
+      comment: textFilter(),
+      created_at: dateFilter(),
       received_at: dateFilter(),
       completed_at: dateFilter()
     },
@@ -573,7 +575,9 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       { field: 'research_goal.name', header: 'Цель исследования', sortable: true, filter: { type: 'text', placeholder: 'Цель исследования' } },
       { field: 'lab.name', header: 'Лаборатория', sortable: true, filter: { type: 'text', placeholder: 'Лаборатория' } },
       { field: 'status.name', header: 'Статус', sortable: true, filter: { type: 'text', placeholder: 'Статус' } },
+      { field: 'comment', header: 'Комментарий', sortable: true, filter: { type: 'text', placeholder: 'Комментарий' } },
       { field: 'recommendation', header: 'Рекомендация', sortable: true, filter: { type: 'text', placeholder: 'Рекомендация' } },
+      { field: 'created_at', header: 'Создано', sortable: true, filter: { type: 'dateRange' } },
       { field: 'received_at', header: 'Получен', sortable: true, filter: { type: 'dateRange' } },
       { field: 'completed_at', header: 'Завершён', sortable: true, filter: { type: 'dateRange' } }
     ],

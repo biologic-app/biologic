@@ -61,7 +61,7 @@ function formatDate(date: string) {
 }
 
 const directionTabs = computed<TabsItem[]>(() => [
-  { label: "Образцы", icon: "i-lucide-vial", value: "samples" },
+  { label: "Образцы", icon: "i-lucide-test-tube-2", value: "samples" },
   { label: "История", icon: "i-lucide-history", value: "history" },
 ]);
 
@@ -146,7 +146,7 @@ const directionHistoryItems = computed<StepperItem[]>(() => {
 
           <section>
             <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div class="flex items-center gap-2"><UIcon name="i-lucide-vial" class="size-4 text-muted" /><h3 class="text-sm font-semibold text-highlighted">Зарегистрированные образцы для направления</h3></div>
+              <div class="flex items-center gap-2"><UIcon name="i-lucide-test-tube-2" class="size-4 text-muted" /><h3 class="text-sm font-semibold text-highlighted">Зарегистрированные образцы для направления</h3></div>
               <UBadge :label="`${direction.samples.length} образца`" color="neutral" variant="subtle" />
             </div>
             <div class="overflow-x-auto rounded-lg border border-default">

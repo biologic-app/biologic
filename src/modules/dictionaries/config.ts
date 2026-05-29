@@ -29,7 +29,7 @@ const statusContexts: DictionaryItem[] = [
     key: "statuses-samples",
     configKey: "sample-statuses",
     label: "Для образцов",
-    icon: "i-lucide-vial",
+    icon: "i-lucide-test-tube-2",
     config: {
       title: "Статусы образцов",
       description: "Статусы приёмки, работы и закрытия образцов.",

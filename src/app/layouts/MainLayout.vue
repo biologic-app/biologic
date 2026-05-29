@@ -18,7 +18,6 @@ const { t } = useI18n();
 const auth = useAuth();
 
 const open = ref(false);
-const unreadNotifications = ref(4);
 
 const links = computed<NavigationMenuItem[][]>(() => [
   [
@@ -26,23 +25,6 @@ const links = computed<NavigationMenuItem[][]>(() => [
       label: t("nav.home"),
       icon: "i-lucide-layout-dashboard",
       to: { name: "dashboard" },
-      onSelect: () => {
-        open.value = false;
-      },
-    },
-    {
-      label: t("nav.inbox"),
-      icon: "i-lucide-inbox",
-      to: { name: "inbox" },
-      badge: unreadNotifications.value,
-      onSelect: () => {
-        open.value = false;
-      },
-    },
-    {
-      label: t("nav.customers"),
-      icon: "i-lucide-users",
-      to: { name: "customers" },
       onSelect: () => {
         open.value = false;
       },
@@ -64,7 +46,7 @@ const links = computed<NavigationMenuItem[][]>(() => [
     },
     {
       label: t("nav.samples"),
-      icon: "i-lucide-vial",
+      icon: "i-lucide-test-tube-2",
       to: { name: "samples" },
       onSelect: () => {
         open.value = false;

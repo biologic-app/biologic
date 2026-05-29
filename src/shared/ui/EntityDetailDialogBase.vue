@@ -91,6 +91,13 @@ const title = computed(() => {
   const row = currentItem.value;
   if (!row) return props.config.title;
 
+  if (props.businessKind === "research") {
+    return compact([
+      relationDisplayLabel(row, "sample"),
+      relationDisplayLabel(row, "research_goal"),
+    ]).join(" · ") || `${props.config.title} ${entityDisplayCode(row.id)}`;
+  }
+
   return pickText(row, [
     "name",
     "full_name",
@@ -99,7 +106,7 @@ const title = computed(() => {
     "sample.name",
     "research_goal.name",
     "object.name",
-  ]) || `${props.config.title} #${row.id}`;
+  ]) || `${props.config.title} ${entityDisplayCode(row.id)}`;
 });
 
 const subtitle = computed(() => {
@@ -124,9 +131,9 @@ const subtitle = computed(() => {
 
   if (props.businessKind === "research") {
     return compact([
-      namedValue(row.sample),
-      namedValue(row.research_goal),
-      namedValue(row.lab),
+      relationDisplayLabel(row, "sample"),
+      relationDisplayLabel(row, "research_goal"),
+      relationDisplayLabel(row, "lab"),
     ]).join(" · ");
   }
 
@@ -135,7 +142,7 @@ const subtitle = computed(() => {
 
 const statusLabel = computed(() => {
   const row = currentItem.value;
-  return row ? namedValue(row.status) || booleanStatus(row) : "";
+  return row ? relationDisplayLabel(row, "status") || booleanStatus(row) : "";
 });
 
 const statusColor = computed(() => {
@@ -188,8 +195,8 @@ const statusHistory = computed<TimelineEvent[]>(() => {
 
   if (props.businessKind === "research") {
     return compactEvents([
-      makeEvent("assigned", "Назначено", "Исследование прикреплено к образцу.", namedValue(row.research_goal), row.created_at ?? row.received_at),
-      makeEvent("started", "В работе", "Лаборатория получила исследование.", namedValue(row.lab), row.received_at),
+      makeEvent("assigned", "Назначено", "Исследование прикреплено к образцу.", relationDisplayLabel(row, "research_goal"), row.created_at ?? row.received_at),
+      makeEvent("started", "В работе", "Лаборатория получила исследование.", relationDisplayLabel(row, "lab"), row.received_at),
       row.completed_at ? makeEvent("completed", "Завершено", row.recommendation ? String(row.recommendation) : "Результат зафиксирован.", "process", row.completed_at) : null,
     ]);
   }
@@ -202,7 +209,7 @@ const technicalAudit = computed<TimelineEvent[]>(() => {
   if (!row) return [];
 
   return compactEvents([
-    makeEvent("entity", "Запись создана", `Идентификатор: ${row.id}`, "system", row.created_at ?? row.inserted_at ?? null),
+    makeEvent("entity", "Запись создана", `Код записи: ${entityDisplayCode(row.id)}`, "system", row.created_at ?? row.inserted_at ?? null),
     makeEvent("update", "Последнее сохранение", "Изменения сохранены через API.", "api", row.updated_at ?? row.modified_at ?? null),
     makeEvent("status", "Текущее состояние", statusLabel.value || "Статус не указан", "process", row.completed_at ?? row.updated_at ?? null),
   ]);
@@ -218,7 +225,6 @@ const relatedTitle = computed(() => {
 const relatedColumns = computed<TableColumn<RelatedRow>[]>(() => {
   const base: TableColumn<RelatedRow>[] = [
     { accessorKey: "type", header: "Тип" },
-    { accessorKey: "id", header: "ID" },
     { accessorKey: "title", header: "Название" },
     {
       accessorKey: "statusText",
@@ -352,9 +358,37 @@ function displayFieldValue(field: { key: string; value: unknown }) {
     const relationKey = field.key.replace(/_id$/, "");
     const relationValue = namedValue(row[relationKey]);
     if (relationValue) return relationValue;
+
+    const referenceValue = referenceLabel(field.key, field.value);
+    if (referenceValue) return referenceValue;
+
+    const fallbackCode = entityDisplayCode(field.value);
+    if (fallbackCode) return fallbackCode;
   }
 
   return formatDisplay(field.value);
+}
+
+function referenceLabel(fieldKey: string, value: unknown) {
+  if (value === null || value === undefined || value === "") {
+    return "";
+  }
+
+  return referenceOptions.value[fieldKey]?.find((option) => String(option.value) === String(value))?.label ?? "";
+}
+
+function relationDisplayLabel(row: CrudRow, relationKey: string) {
+  return namedValue(row[relationKey]) || referenceLabel(`${relationKey}_id`, row[`${relationKey}_id`]);
+}
+
+function entityDisplayCode(value: unknown) {
+  if (typeof value !== "string" && typeof value !== "number") {
+    return "";
+  }
+
+  const text = String(value);
+  const uuidPrefix = text.match(/^[0-9a-f]{8}/i)?.[0];
+  return `#${(uuidPrefix ?? text.slice(0, 8)).toUpperCase()}`;
 }
 
 async function loadSelectOptions() {
@@ -624,7 +658,7 @@ function relationLabel(kind: EntityKind | "tests") {
             <div class="flex min-w-0 gap-3">
               <div class="flex size-11 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
                 <UIcon
-                  :name="businessKind === 'directions' ? 'i-lucide-clipboard-list' : businessKind === 'samples' ? 'i-lucide-vial' : businessKind === 'research' ? 'i-lucide-flask-conical' : 'i-lucide-database'"
+                  :name="businessKind === 'directions' ? 'i-lucide-clipboard-list' : businessKind === 'samples' ? 'i-lucide-test-tube-2' : businessKind === 'research' ? 'i-lucide-flask-conical' : 'i-lucide-database'"
                   class="size-5"
                 />
               </div>
@@ -650,7 +684,7 @@ function relationLabel(kind: EntityKind | "tests") {
                     variant="outline"
                     :label="currentItem.is_urgent ? 'Срочно' : 'Normal'"
                   />
-                  <UBadge color="neutral" variant="outline" :label="`ID ${currentItem.id}`" />
+                  <UBadge color="neutral" variant="outline" :label="`Код записи ${entityDisplayCode(currentItem.id)}`" />
                   <UBadge
                     v-if="loadError"
                     color="warning"
@@ -944,9 +978,6 @@ function relationLabel(kind: EntityKind | "tests") {
                       <td class="px-3 py-2 align-top">
                         <p class="font-medium text-highlighted">
                           {{ row.title }}
-                        </p>
-                        <p class="font-mono text-xs text-muted">
-                          {{ row.id }}
                         </p>
                       </td>
                       <td class="px-3 py-2 align-top">
