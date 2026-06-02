@@ -225,7 +225,6 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       { field: 'updated_at', header: 'Обновлено', sortable: true, filter: { type: 'dateRange' } }
     ],
     fields: [
-      { key: 'code', label: 'Код' },
       { key: 'name', label: 'Название', required: true }
     ]
   },
@@ -249,7 +248,6 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       { field: 'updated_at', header: 'Обновлено', sortable: true, filter: { type: 'dateRange' } }
     ],
     fields: [
-      { key: 'code', label: 'Код' },
       { key: 'name', label: 'Название', required: true }
     ]
   },
@@ -273,7 +271,6 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       { field: 'updated_at', header: 'Обновлено', sortable: true, filter: { type: 'dateRange' } }
     ],
     fields: [
-      { key: 'code', label: 'Код' },
       { key: 'name', label: 'Название', required: true }
     ]
   },
@@ -297,7 +294,6 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       { field: 'updated_at', header: 'Обновлено', sortable: true, filter: { type: 'dateRange' } }
     ],
     fields: [
-      { key: 'code', label: 'Код' },
       { key: 'name', label: 'Название', required: true }
     ]
   },
