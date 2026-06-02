@@ -222,6 +222,15 @@ class RoleScopeType(StrEnum):
     OWN_OBJECTS = "own_objects"
 
 
+class AccessScopeType(StrEnum):
+    OWN = "own"
+    OWN_LAB = "own_lab"
+    ALL_LABS = "all_labs"
+    OWN_BRANCH = "own_branch"
+    ALL_BRANCHES = "all_branches"
+    ALL = "all"
+
+
 class Role(Base):
     __tablename__ = "roles"
     __table_args__ = (
@@ -294,6 +303,46 @@ class UserScope(Base):
         nullable=False,
     )
     scope_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+
+
+class UserPermissionOverride(Base):
+    __tablename__ = "user_permission_overrides"
+    __table_args__ = (
+        Index(
+            "user_permission_overrides_user_id_permission_id",
+            "user_id",
+            "permission_id",
+            unique=True,
+        ),
+        Index("user_permission_overrides_permission_id", "permission_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("uuidv7()"),
+    )
+    user_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.id", name="fk_user_permission_overrides_user_id_users_id"),
+        nullable=False,
+    )
+    permission_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(
+            "permissions.id",
+            name="fk_user_permission_overrides_permission_id_permissions_id",
+        ),
+        nullable=False,
+    )
+    allowed: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    scope: Mapped[AccessScopeType | None] = mapped_column(
+        SQLEnum(
+            AccessScopeType,
+            name="access_scope_type",
+            values_callable=lambda enum: [item.value for item in enum],
+        ),
+    )
 
 
 class Test(Base):
@@ -793,6 +842,15 @@ class RolePermission(Base):
         ForeignKey("permissions.id", name="fk_role_permissions_permission_id_permissions_id"),
         nullable=False,
     )
+    scope: Mapped[AccessScopeType] = mapped_column(
+        SQLEnum(
+            AccessScopeType,
+            name="access_scope_type",
+            values_callable=lambda enum: [item.value for item in enum],
+        ),
+        nullable=False,
+        server_default=text("'all'::access_scope_type"),
+    )
 
 
 class Sample(Base):
@@ -893,6 +951,45 @@ class ChangeLog(Base):
     actor_name: Mapped[str | None] = mapped_column(Text)
     snapshot: Mapped[dict[str, object] | None] = mapped_column(JSONB)
     diff: Mapped[dict[str, object] | None] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+    __table_args__ = (
+        Index("notifications_notifications_created_at", "created_at"),
+        Index("notifications_notifications_read_at", "read_at"),
+        Index("notifications_notifications_target_user_id", "target_user_id"),
+        Index("notifications_notifications_target_role_key", "target_role_key"),
+        Index("notifications_notifications_entity", "entity_type", "entity_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("uuidv7()"),
+    )
+    kind: Mapped[str] = mapped_column(Text, nullable=False)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    entity_type: Mapped[str] = mapped_column(Text, nullable=False)
+    entity_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    source_event_type: Mapped[str] = mapped_column(Text, nullable=False)
+    payload: Mapped[dict[str, object]] = mapped_column(
+        JSONB,
+        nullable=False,
+        server_default=text("'{}'::jsonb"),
+    )
+    target_user_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.id", name="fk_notifications_target_user_id_users_id"),
+    )
+    target_role_key: Mapped[str | None] = mapped_column(Text)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

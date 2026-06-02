@@ -13,33 +13,46 @@ from src.contexts.laboratory_workflow.application.dto import (
     UpdateProtocolInput,
 )
 from src.contexts.laboratory_workflow.application.ports import WorkflowRepository
+from src.contexts.notifications.application.service import NotificationService
 
 
 class WorkflowCommandService:
-    def __init__(self, *, repository: WorkflowRepository) -> None:
+    def __init__(
+        self,
+        *,
+        repository: WorkflowRepository,
+        notification_service: NotificationService | None = None,
+    ) -> None:
         self.repository = repository
+        self.notification_service = notification_service
 
     async def register_direction(self, command: RegisterDirectionInput) -> CommandResult:
-        return await self.repository.register_direction(
+        result = await self.repository.register_direction(
             direction_id=command.direction_id,
             actor_id=command.actor_id,
             comment=command.comment,
         )
+        await self._publish_repository_events()
+        return result
 
     async def register_sample(self, command: RegisterSampleInput) -> CommandResult:
-        return await self.repository.register_sample(
+        result = await self.repository.register_sample(
             sample_id=command.sample_id,
             actor_id=command.actor_id,
             received_at=command.received_at,
             deadline=command.deadline,
         )
+        await self._publish_repository_events()
+        return result
 
     async def reject_sample(self, command: RejectSampleInput) -> CommandResult:
-        return await self.repository.reject_sample(
+        result = await self.repository.reject_sample(
             sample_id=command.sample_id,
             actor_id=command.actor_id,
             reason=command.reason,
         )
+        await self._publish_repository_events()
+        return result
 
     async def assign_research(self, command: AssignResearchInput) -> CommandResult:
         return await self.repository.assign_research(
@@ -118,3 +131,9 @@ class WorkflowCommandService:
             actor_id=command.actor_id,
             issued_at=command.issued_at,
         )
+
+    async def _publish_repository_events(self) -> None:
+        if self.notification_service is None:
+            return
+        events = getattr(self.repository, "events", [])
+        await self.notification_service.create_from_events(events)

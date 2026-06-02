@@ -10,6 +10,7 @@ from src.contexts.access_control.infrastructure.repositories import (
     RepositoryPage,
     RolePermissionRepository,
     RoleRepository,
+    UserPermissionOverrideRepository,
     UserRepository,
     UserScopeRepository,
 )
@@ -26,12 +27,14 @@ class AccessControlCrudUseCase:
         roles: RoleRepository,
         permissions: PermissionRepository,
         role_permissions: RolePermissionRepository,
+        user_permission_overrides: UserPermissionOverrideRepository,
         user_scopes: UserScopeRepository,
     ) -> None:
         self.users = users
         self.roles = roles
         self.permissions = permissions
         self.role_permissions = role_permissions
+        self.user_permission_overrides = user_permission_overrides
         self.user_scopes = user_scopes
 
     async def list_users(self, params: PaginationParams) -> ListResponse[dict[str, object]]:
@@ -75,6 +78,39 @@ class AccessControlCrudUseCase:
 
     async def delete_role(self, role_id: UUID) -> None:
         await self.roles.delete(role_id)
+
+    async def read_role_permissions(self, role_id: UUID) -> SingleResponse[dict[str, object]]:
+        await self.roles.read(role_id)
+        rows = await self.role_permissions.list_for_role(role_id)
+        return SingleResponse(
+            data={
+                "permissions": [
+                    _serialize_permission(permission, role_permission.scope)
+                    for role_permission, permission in rows
+                ],
+            },
+            meta=ResponseMeta(operation="roles.permissions.read"),
+        )
+
+    async def replace_role_permissions(
+        self,
+        role_id: UUID,
+        payload: BaseModel,
+    ) -> SingleResponse[dict[str, object]]:
+        await self.roles.read(role_id)
+        rows = await self.role_permissions.replace_for_role(
+            role_id,
+            [item.model_dump(mode="python") for item in payload.permissions],
+        )
+        return SingleResponse(
+            data={
+                "permissions": [
+                    _serialize_permission(permission, role_permission.scope)
+                    for role_permission, permission in rows
+                ],
+            },
+            meta=ResponseMeta(operation="roles.permissions.replace"),
+        )
 
     async def list_permissions(self, params: PaginationParams) -> ListResponse[dict[str, object]]:
         return _list_response(
@@ -157,6 +193,58 @@ class AccessControlCrudUseCase:
     async def delete_user_scope(self, user_scope_id: UUID) -> None:
         await self.user_scopes.delete(user_scope_id)
 
+    async def read_user_permissions(self, user_id: UUID) -> SingleResponse[dict[str, object]]:
+        user = await self.users.read(user_id)
+        role_rows = await self.role_permissions.list_for_role(user.role_id)
+        override_rows = await self.user_permission_overrides.list_for_user(user_id)
+        effective = {
+            permission.id: _serialize_permission(permission, role_permission.scope)
+            for role_permission, permission in role_rows
+        }
+        for override, permission in override_rows:
+            if override.allowed:
+                effective[permission.id] = _serialize_permission(permission, override.scope)
+            else:
+                effective.pop(permission.id, None)
+        return SingleResponse(
+            data={"permissions": sorted(effective.values(), key=_permission_sort_key)},
+            meta=ResponseMeta(operation="users.permissions.read"),
+        )
+
+    async def read_user_permission_overrides(
+        self,
+        user_id: UUID,
+    ) -> SingleResponse[dict[str, object]]:
+        await self.users.read(user_id)
+        rows = await self.user_permission_overrides.list_for_user(user_id)
+        return SingleResponse(
+            data={
+                "overrides": [
+                    _serialize_override(override, permission) for override, permission in rows
+                ],
+            },
+            meta=ResponseMeta(operation="users.overrides.read"),
+        )
+
+    async def replace_user_permission_overrides(
+        self,
+        user_id: UUID,
+        payload: BaseModel,
+    ) -> SingleResponse[dict[str, object]]:
+        await self.users.read(user_id)
+        rows = await self.user_permission_overrides.replace_for_user(
+            user_id,
+            [item.model_dump(mode="python") for item in payload.overrides],
+        )
+        return SingleResponse(
+            data={
+                "overrides": [
+                    _serialize_override(override, permission) for override, permission in rows
+                ],
+            },
+            meta=ResponseMeta(operation="users.overrides.replace"),
+        )
+
 
 def _payload(payload: BaseModel) -> dict[str, Any]:
     return payload.model_dump(mode="python", exclude_unset=True)
@@ -194,6 +282,33 @@ def _serialize(item: Any, fields: tuple[str, ...]) -> dict[str, object]:
     return {field: json_value(getattr(item, field)) for field in fields}
 
 
+def _serialize_permission(permission: Any, scope: Any) -> dict[str, object]:
+    return {
+        "id": json_value(permission.id),
+        "resource": permission.resource,
+        "action": permission.action,
+        "scope": json_value(scope),
+    }
+
+
+def _serialize_override(override: Any, permission: Any) -> dict[str, object]:
+    return {
+        "permission_id": json_value(permission.id),
+        "resource": permission.resource,
+        "action": permission.action,
+        "allowed": override.allowed,
+        "scope": json_value(override.scope),
+    }
+
+
+def _permission_sort_key(permission: dict[str, object]) -> tuple[str, str, str]:
+    return (
+        str(permission["resource"]),
+        str(permission["action"]),
+        str(permission["id"]),
+    )
+
+
 def _user_fields() -> tuple[str, ...]:
     return (
         "id",
@@ -222,7 +337,7 @@ def _permission_fields() -> tuple[str, ...]:
 
 
 def _role_permission_fields() -> tuple[str, ...]:
-    return ("id", "role_id", "permission_id")
+    return ("id", "role_id", "permission_id", "scope")
 
 
 def _user_scope_fields() -> tuple[str, ...]:

@@ -1,5 +1,6 @@
 from src.infrastructure.db.models.base import Base
 from src.infrastructure.db.models.entities import (
+    AccessScopeType,
     Branch,
     ChangeLog,
     Conclusion,
@@ -8,6 +9,7 @@ from src.infrastructure.db.models.entities import (
     Doctor,
     Indicator,
     Lab,
+    Notification,
     Object,
     Permission,
     Protocol,
@@ -24,11 +26,13 @@ from src.infrastructure.db.models.entities import (
     Test,
     TestStatus,
     User,
+    UserPermissionOverride,
     UserScope,
 )
 
 __all__ = [
     "Base",
+    "AccessScopeType",
     "Branch",
     "ChangeLog",
     "Conclusion",
@@ -37,6 +41,7 @@ __all__ = [
     "Doctor",
     "Indicator",
     "Lab",
+    "Notification",
     "Object",
     "Permission",
     "Protocol",
@@ -53,5 +58,6 @@ __all__ = [
     "Test",
     "TestStatus",
     "User",
+    "UserPermissionOverride",
     "UserScope",
 ]

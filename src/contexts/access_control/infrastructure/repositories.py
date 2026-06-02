@@ -11,7 +11,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.cursor_pagination import CursorState, decode_cursor, encode_cursor
 from src.core.errors import BadRequestError, NotFoundError
 from src.core.pagination import PaginationParams
-from src.infrastructure.db.models import Permission, Role, RolePermission, User, UserScope
+from src.infrastructure.db.models import (
+    Permission,
+    Role,
+    RolePermission,
+    User,
+    UserPermissionOverride,
+    UserScope,
+)
 
 
 @dataclass(frozen=True)
@@ -118,18 +125,78 @@ class RolePermissionRepository:
         return await _create_row(
             self.session,
             RolePermission,
-            _pick(values, ("role_id", "permission_id")),
+            _pick(values, ("role_id", "permission_id", "scope")),
         )
 
     async def update(self, role_permission_id: UUID, values: dict[str, Any]) -> Any:
         return await _update_row(
             self.session,
             await self.read(role_permission_id),
-            _pick(values, ("role_id", "permission_id")),
+            _pick(values, ("role_id", "permission_id", "scope")),
         )
 
     async def delete(self, role_permission_id: UUID) -> None:
         await _delete_row(self.session, await self.read(role_permission_id))
+
+    async def list_for_role(self, role_id: UUID) -> list[tuple[Any, Any]]:
+        result = await self.session.execute(
+            select(RolePermission, Permission)
+            .join(Permission, Permission.id == RolePermission.permission_id)
+            .where(RolePermission.role_id == role_id)
+            .order_by(Permission.resource, Permission.action, Permission.id),
+        )
+        return list(result.all())
+
+    async def replace_for_role(
+        self,
+        role_id: UUID,
+        permissions: list[dict[str, Any]],
+    ) -> list[tuple[Any, Any]]:
+        await self.session.execute(delete(RolePermission).where(RolePermission.role_id == role_id))
+        for item in permissions:
+            self.session.add(
+                RolePermission(
+                    role_id=role_id,
+                    permission_id=item["permission_id"],
+                    scope=item["scope"],
+                ),
+            )
+        await self.session.commit()
+        return await self.list_for_role(role_id)
+
+
+class UserPermissionOverrideRepository:
+    def __init__(self, *, session: AsyncSession) -> None:
+        self.session = session
+
+    async def list_for_user(self, user_id: UUID) -> list[tuple[Any, Any]]:
+        result = await self.session.execute(
+            select(UserPermissionOverride, Permission)
+            .join(Permission, Permission.id == UserPermissionOverride.permission_id)
+            .where(UserPermissionOverride.user_id == user_id)
+            .order_by(Permission.resource, Permission.action, Permission.id),
+        )
+        return list(result.all())
+
+    async def replace_for_user(
+        self,
+        user_id: UUID,
+        overrides: list[dict[str, Any]],
+    ) -> list[tuple[Any, Any]]:
+        await self.session.execute(
+            delete(UserPermissionOverride).where(UserPermissionOverride.user_id == user_id),
+        )
+        for item in overrides:
+            self.session.add(
+                UserPermissionOverride(
+                    user_id=user_id,
+                    permission_id=item["permission_id"],
+                    allowed=item["allowed"],
+                    scope=item["scope"],
+                ),
+            )
+        await self.session.commit()
+        return await self.list_for_user(user_id)
 
 
 class UserScopeRepository:
@@ -322,7 +389,7 @@ def _permission_sortable_fields() -> tuple[str, ...]:
 
 
 def _role_permission_sortable_fields() -> tuple[str, ...]:
-    return ("id", "role_id", "permission_id")
+    return ("id", "role_id", "permission_id", "scope")
 
 
 def _user_scope_sortable_fields() -> tuple[str, ...]:

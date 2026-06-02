@@ -9,6 +9,7 @@ from src.contexts.access_control.infrastructure.repositories import (
     PermissionRepository,
     RolePermissionRepository,
     RoleRepository,
+    UserPermissionOverrideRepository,
     UserRepository,
     UserScopeRepository,
 )
@@ -27,5 +28,6 @@ async def get_access_control_use_case(
         roles=RoleRepository(session=session),
         permissions=PermissionRepository(session=session),
         role_permissions=RolePermissionRepository(session=session),
+        user_permission_overrides=UserPermissionOverrideRepository(session=session),
         user_scopes=UserScopeRepository(session=session),
     )

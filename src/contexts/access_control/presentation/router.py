@@ -4,15 +4,20 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Response, status
 
 from src.contexts.access_control.application.crud import AccessControlCrudUseCase
-from src.contexts.access_control.presentation.dependencies import get_access_control_use_case
+from src.contexts.access_control.presentation.dependencies import (
+    get_access_control_use_case,
+    get_actor_id,
+)
 from src.contexts.access_control.presentation.schemas import (
     PermissionCreateRequest,
     PermissionUpdateRequest,
     RoleCreateRequest,
     RolePermissionCreateRequest,
+    RolePermissionsReplaceRequest,
     RolePermissionUpdateRequest,
     RoleUpdateRequest,
     UserCreateRequest,
+    UserPermissionOverridesReplaceRequest,
     UserScopeCreateRequest,
     UserScopeUpdateRequest,
     UserUpdateRequest,
@@ -69,6 +74,39 @@ async def delete_user(
     return _deleted_response()
 
 
+@router.get("/users/{user_id}/permissions")
+async def read_user_permissions(
+    user_id: UUID,
+    use_case: Annotated[AccessControlCrudUseCase, Depends(get_access_control_use_case)],
+) -> SingleResponse[dict[str, object]]:
+    return await use_case.read_user_permissions(user_id)
+
+
+@router.get("/user/me/permissions")
+async def read_current_user_permissions(
+    actor_id: Annotated[UUID, Depends(get_actor_id)],
+    use_case: Annotated[AccessControlCrudUseCase, Depends(get_access_control_use_case)],
+) -> SingleResponse[dict[str, object]]:
+    return await use_case.read_user_permissions(actor_id)
+
+
+@router.get("/users/{user_id}/overrides")
+async def read_user_permission_overrides(
+    user_id: UUID,
+    use_case: Annotated[AccessControlCrudUseCase, Depends(get_access_control_use_case)],
+) -> SingleResponse[dict[str, object]]:
+    return await use_case.read_user_permission_overrides(user_id)
+
+
+@router.put("/users/{user_id}/overrides")
+async def replace_user_permission_overrides(
+    user_id: UUID,
+    payload: UserPermissionOverridesReplaceRequest,
+    use_case: Annotated[AccessControlCrudUseCase, Depends(get_access_control_use_case)],
+) -> SingleResponse[dict[str, object]]:
+    return await use_case.replace_user_permission_overrides(user_id, payload)
+
+
 @router.get("/roles")
 async def list_roles(
     params: PaginationDependency,
@@ -109,6 +147,23 @@ async def delete_role(
 ) -> Response:
     await use_case.delete_role(role_id)
     return _deleted_response()
+
+
+@router.get("/roles/{role_id}/permissions")
+async def read_role_permissions(
+    role_id: UUID,
+    use_case: Annotated[AccessControlCrudUseCase, Depends(get_access_control_use_case)],
+) -> SingleResponse[dict[str, object]]:
+    return await use_case.read_role_permissions(role_id)
+
+
+@router.put("/roles/{role_id}/permissions")
+async def replace_role_permissions(
+    role_id: UUID,
+    payload: RolePermissionsReplaceRequest,
+    use_case: Annotated[AccessControlCrudUseCase, Depends(get_access_control_use_case)],
+) -> SingleResponse[dict[str, object]]:
+    return await use_case.replace_role_permissions(role_id, payload)
 
 
 @router.get("/permissions")

@@ -1,8 +1,8 @@
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
-from src.infrastructure.db.models.entities import RoleScopeType
+from src.infrastructure.db.models.entities import AccessScopeType, RoleScopeType
 
 
 class StrictRequest(BaseModel):
@@ -64,11 +64,13 @@ class PermissionUpdateRequest(StrictRequest):
 class RolePermissionCreateRequest(StrictRequest):
     role_id: UUID
     permission_id: UUID
+    scope: AccessScopeType = AccessScopeType.ALL
 
 
 class RolePermissionUpdateRequest(StrictRequest):
     role_id: UUID | None = None
     permission_id: UUID | None = None
+    scope: AccessScopeType | None = None
 
 
 class UserScopeCreateRequest(StrictRequest):
@@ -79,3 +81,30 @@ class UserScopeCreateRequest(StrictRequest):
 class UserScopeUpdateRequest(StrictRequest):
     user_id: UUID | None = None
     scope_id: UUID | None = None
+
+
+class RolePermissionAssignmentRequest(StrictRequest):
+    permission_id: UUID
+    scope: AccessScopeType = AccessScopeType.ALL
+
+
+class RolePermissionsReplaceRequest(StrictRequest):
+    permissions: list[RolePermissionAssignmentRequest]
+
+
+class UserPermissionOverrideRequest(StrictRequest):
+    permission_id: UUID
+    allowed: bool
+    scope: AccessScopeType | None = None
+
+    @model_validator(mode="after")
+    def normalize_scope(self) -> "UserPermissionOverrideRequest":
+        if not self.allowed:
+            self.scope = None
+        elif self.scope is None:
+            self.scope = AccessScopeType.ALL
+        return self
+
+
+class UserPermissionOverridesReplaceRequest(StrictRequest):
+    overrides: list[UserPermissionOverrideRequest]

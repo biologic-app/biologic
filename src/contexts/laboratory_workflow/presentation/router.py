@@ -50,6 +50,8 @@ from src.contexts.laboratory_workflow.presentation.schemas import (
     TestUpdateRequest,
     UpdateProtocolRequest,
 )
+from src.contexts.notifications.application.service import NotificationService
+from src.contexts.notifications.infrastructure.repositories import SqlAlchemyNotificationRepository
 from src.core.database import get_db_session
 from src.core.pagination import PaginationDependency
 from src.core.responses import ListResponse, ResponseMeta, SingleResponse
@@ -60,7 +62,12 @@ router = APIRouter(tags=["workflow"])
 async def get_workflow_command_service(
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> WorkflowCommandService:
-    return WorkflowCommandService(repository=SqlAlchemyWorkflowRepository(session=session))
+    return WorkflowCommandService(
+        repository=SqlAlchemyWorkflowRepository(session=session),
+        notification_service=NotificationService(
+            repository=SqlAlchemyNotificationRepository(session=session),
+        ),
+    )
 
 
 async def get_workflow_crud_use_case(
