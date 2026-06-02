@@ -128,3 +128,7 @@ class ProtocolTypeCreateRequest(StrictRequest):
 class ProtocolTypeUpdateRequest(StrictRequest):
     code: str | None = None
     name: str | None = None
+
+
+class StatusUpdateRequest(StrictRequest):
+    name: str

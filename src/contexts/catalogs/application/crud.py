@@ -290,6 +290,14 @@ class CatalogCrudUseCase:
     async def read_direction_status(self, item_id: UUID) -> SingleResponse[dict[str, object]]:
         return _single_response(await self.direction_statuses.read(item_id), _status_fields())
 
+    async def update_direction_status(
+        self,
+        item_id: UUID,
+        payload: BaseModel,
+    ) -> SingleResponse[dict[str, object]]:
+        row = await self.direction_statuses.update(item_id, _payload(payload))
+        return _single_response(row, _status_fields(), operation="direction_statuses.update")
+
     async def list_sample_statuses(
         self,
         params: PaginationParams,
@@ -298,6 +306,14 @@ class CatalogCrudUseCase:
 
     async def read_sample_status(self, item_id: UUID) -> SingleResponse[dict[str, object]]:
         return _single_response(await self.sample_statuses.read(item_id), _status_fields())
+
+    async def update_sample_status(
+        self,
+        item_id: UUID,
+        payload: BaseModel,
+    ) -> SingleResponse[dict[str, object]]:
+        row = await self.sample_statuses.update(item_id, _payload(payload))
+        return _single_response(row, _status_fields(), operation="sample_statuses.update")
 
     async def list_research_statuses(
         self,
@@ -308,11 +324,27 @@ class CatalogCrudUseCase:
     async def read_research_status(self, item_id: UUID) -> SingleResponse[dict[str, object]]:
         return _single_response(await self.research_statuses.read(item_id), _status_fields())
 
+    async def update_research_status(
+        self,
+        item_id: UUID,
+        payload: BaseModel,
+    ) -> SingleResponse[dict[str, object]]:
+        row = await self.research_statuses.update(item_id, _payload(payload))
+        return _single_response(row, _status_fields(), operation="research_statuses.update")
+
     async def list_test_statuses(self, params: PaginationParams) -> ListResponse[dict[str, object]]:
         return _list_response(await self.test_statuses.list(params), params, _status_fields())
 
     async def read_test_status(self, item_id: UUID) -> SingleResponse[dict[str, object]]:
         return _single_response(await self.test_statuses.read(item_id), _status_fields())
+
+    async def update_test_status(
+        self,
+        item_id: UUID,
+        payload: BaseModel,
+    ) -> SingleResponse[dict[str, object]]:
+        row = await self.test_statuses.update(item_id, _payload(payload))
+        return _single_response(row, _status_fields(), operation="test_statuses.update")
 
     def reject_read_only_status_write(self, resource: str) -> None:
         reject_status_write(resource)

@@ -39,6 +39,7 @@ from src.contexts.catalogs.presentation.schemas import (
     ResearchGoalUpdateRequest,
     SampleTypeCreateRequest,
     SampleTypeUpdateRequest,
+    StatusUpdateRequest,
 )
 from src.core.database import get_db_session
 from src.core.pagination import PaginationDependency
@@ -472,12 +473,13 @@ async def create_direction_status(
     use_case.reject_read_only_status_write("direction_statuses")
 
 
-@router.patch("/direction_statuses/{item_id}", status_code=status.HTTP_409_CONFLICT)
+@router.patch("/direction_statuses/{item_id}")
 async def update_direction_status(
     item_id: UUID,
+    payload: StatusUpdateRequest,
     use_case: Annotated[CatalogCrudUseCase, Depends(get_catalog_use_case)],
-) -> None:
-    use_case.reject_read_only_status_write("direction_statuses")
+) -> SingleResponse[dict[str, object]]:
+    return await use_case.update_direction_status(item_id, payload)
 
 
 @router.delete("/direction_statuses/{item_id}", status_code=status.HTTP_409_CONFLICT)
@@ -511,12 +513,13 @@ async def create_sample_status(
     use_case.reject_read_only_status_write("sample_statuses")
 
 
-@router.patch("/sample_statuses/{item_id}", status_code=status.HTTP_409_CONFLICT)
+@router.patch("/sample_statuses/{item_id}")
 async def update_sample_status(
     item_id: UUID,
+    payload: StatusUpdateRequest,
     use_case: Annotated[CatalogCrudUseCase, Depends(get_catalog_use_case)],
-) -> None:
-    use_case.reject_read_only_status_write("sample_statuses")
+) -> SingleResponse[dict[str, object]]:
+    return await use_case.update_sample_status(item_id, payload)
 
 
 @router.delete("/sample_statuses/{item_id}", status_code=status.HTTP_409_CONFLICT)
@@ -550,12 +553,13 @@ async def create_research_status(
     use_case.reject_read_only_status_write("research_statuses")
 
 
-@router.patch("/research_statuses/{item_id}", status_code=status.HTTP_409_CONFLICT)
+@router.patch("/research_statuses/{item_id}")
 async def update_research_status(
     item_id: UUID,
+    payload: StatusUpdateRequest,
     use_case: Annotated[CatalogCrudUseCase, Depends(get_catalog_use_case)],
-) -> None:
-    use_case.reject_read_only_status_write("research_statuses")
+) -> SingleResponse[dict[str, object]]:
+    return await use_case.update_research_status(item_id, payload)
 
 
 @router.delete("/research_statuses/{item_id}", status_code=status.HTTP_409_CONFLICT)
@@ -589,12 +593,13 @@ async def create_test_status(
     use_case.reject_read_only_status_write("test_statuses")
 
 
-@router.patch("/test_statuses/{item_id}", status_code=status.HTTP_409_CONFLICT)
+@router.patch("/test_statuses/{item_id}")
 async def update_test_status(
     item_id: UUID,
+    payload: StatusUpdateRequest,
     use_case: Annotated[CatalogCrudUseCase, Depends(get_catalog_use_case)],
-) -> None:
-    use_case.reject_read_only_status_write("test_statuses")
+) -> SingleResponse[dict[str, object]]:
+    return await use_case.update_test_status(item_id, payload)
 
 
 @router.delete("/test_statuses/{item_id}", status_code=status.HTTP_409_CONFLICT)

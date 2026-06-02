@@ -286,6 +286,10 @@ class DirectionStatusRepository:
     async def read(self, item_id: UUID) -> Any:
         return await _read_row(self.session, DirectionStatus, "direction_statuses", item_id)
 
+    async def update(self, item_id: UUID, values: dict[str, Any]) -> Any:
+        row = await self.read(item_id)
+        return await _update_row(self.session, row, _pick(values, ("name",)))
+
 
 class SampleStatusRepository:
     def __init__(self, *, session: AsyncSession) -> None:
@@ -296,6 +300,10 @@ class SampleStatusRepository:
 
     async def read(self, item_id: UUID) -> Any:
         return await _read_row(self.session, SampleStatus, "sample_statuses", item_id)
+
+    async def update(self, item_id: UUID, values: dict[str, Any]) -> Any:
+        row = await self.read(item_id)
+        return await _update_row(self.session, row, _pick(values, ("name",)))
 
 
 class ResearchStatusRepository:
@@ -308,6 +316,10 @@ class ResearchStatusRepository:
     async def read(self, item_id: UUID) -> Any:
         return await _read_row(self.session, ResearchStatus, "research_statuses", item_id)
 
+    async def update(self, item_id: UUID, values: dict[str, Any]) -> Any:
+        row = await self.read(item_id)
+        return await _update_row(self.session, row, _pick(values, ("name",)))
+
 
 class TestStatusRepository:
     def __init__(self, *, session: AsyncSession) -> None:
@@ -318,6 +330,10 @@ class TestStatusRepository:
 
     async def read(self, item_id: UUID) -> Any:
         return await _read_row(self.session, TestStatus, "test_statuses", item_id)
+
+    async def update(self, item_id: UUID, values: dict[str, Any]) -> Any:
+        row = await self.read(item_id)
+        return await _update_row(self.session, row, _pick(values, ("name",)))
 
 
 async def _list_rows(

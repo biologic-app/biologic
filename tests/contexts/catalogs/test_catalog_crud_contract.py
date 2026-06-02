@@ -1,4 +1,6 @@
-from fastapi.testclient import TestClient
+from uuid import UUID
+
+import httpx
 from pydantic import BaseModel
 from pytest import MonkeyPatch
 
@@ -7,7 +9,7 @@ from src.contexts.catalogs.presentation.router import get_catalog_use_case
 from src.contexts.laboratory_workflow.presentation.router import get_workflow_crud_use_case
 from src.core.config import get_settings
 from src.core.errors import DomainConflictError
-from src.core.pagination import PageMeta, PaginationParams
+from src.core.pagination import PageMeta, PaginationParams, get_pagination_params
 from src.core.responses import ListResponse, ResponseMeta, SingleResponse
 
 
@@ -41,6 +43,20 @@ class FakeCatalogCrudUseCase:
             ),
         )
 
+    async def update_direction_status(
+        self,
+        item_id: UUID,
+        payload: BaseModel,
+    ) -> SingleResponse[dict[str, object]]:
+        return SingleResponse(
+            data={
+                "id": str(item_id),
+                "code": "draft",
+                "name": payload.model_dump()["name"],
+            },
+            meta=ResponseMeta(operation="direction_statuses.update"),
+        )
+
     def reject_read_only_status_write(self, resource: str) -> None:
         raise DomainConflictError(
             code="resource_read_only",
@@ -56,164 +72,213 @@ class FakeWorkflowCrudUseCase:
         )
 
 
-def _client(monkeypatch: MonkeyPatch) -> TestClient:
+def _app(monkeypatch: MonkeyPatch):
     monkeypatch.setenv("APP_DATABASE_URL", "postgresql+asyncpg://user:pass@localhost:5432/test")
     monkeypatch.setenv("APP_JWT_SECRET_KEY", "test-secret")
     monkeypatch.setenv("APP_AUTH_COOKIE_SECURE", "false")
     monkeypatch.setenv("APP_AUTH_COOKIE_DOMAIN", "localhost")
     get_settings.cache_clear()
     app = create_app()
-    app.dependency_overrides[get_catalog_use_case] = lambda: FakeCatalogCrudUseCase()
-    app.dependency_overrides[get_workflow_crud_use_case] = lambda: FakeWorkflowCrudUseCase()
-    return TestClient(app)
+
+    async def override_catalog_use_case() -> FakeCatalogCrudUseCase:
+        return FakeCatalogCrudUseCase()
+
+    async def override_workflow_crud_use_case() -> FakeWorkflowCrudUseCase:
+        return FakeWorkflowCrudUseCase()
+
+    async def override_pagination_params() -> PaginationParams:
+        return PaginationParams()
+
+    app.dependency_overrides[get_catalog_use_case] = override_catalog_use_case
+    app.dependency_overrides[get_workflow_crud_use_case] = override_workflow_crud_use_case
+    app.dependency_overrides[get_pagination_params] = override_pagination_params
+    return app
 
 
-def test_catalog_list_endpoint_has_list_envelope(monkeypatch: MonkeyPatch) -> None:
+async def _request(
+    monkeypatch: MonkeyPatch,
+    method: str,
+    path: str,
+    *,
+    json: dict[str, object] | None = None,
+) -> httpx.Response:
     try:
-        client = _client(monkeypatch)
-
-        response = client.get("/api/v1/branches")
-
-        assert response.status_code in {200, 409}
-        if response.status_code == 200:
-            payload = response.json()
-            assert set(payload) == {"items", "meta"}
-            assert payload["meta"]["version"] == "v1"
+        transport = httpx.ASGITransport(app=_app(monkeypatch))
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            return await client.request(method, path, json=json)
     finally:
         get_settings.cache_clear()
 
 
-def test_branch_create_accepts_only_branch_schema(monkeypatch: MonkeyPatch) -> None:
-    try:
-        client = _client(monkeypatch)
+async def test_catalog_list_endpoint_has_list_envelope(monkeypatch: MonkeyPatch) -> None:
+    response = await _request(monkeypatch, "GET", "/api/v1/branches")
 
-        response = client.post("/api/v1/branches", json={"code": "MSK", "name": "Moscow"})
-
-        assert response.status_code == 201
-        payload = response.json()
-        assert payload["data"]["code"] == "MSK"
-        assert payload["data"]["name"] == "Moscow"
-        assert payload["meta"]["operation"] == "branches.create"
-    finally:
-        get_settings.cache_clear()
-
-
-def test_branch_create_rejects_unknown_fields(monkeypatch: MonkeyPatch) -> None:
-    try:
-        client = _client(monkeypatch)
-
-        response = client.post(
-            "/api/v1/branches",
-            json={"code": "MSK", "name": "Moscow", "status_id": "not-a-branch-field"},
-        )
-
-        assert response.status_code == 422
-        payload = response.json()
-        assert payload["status"] == 422
-        assert any(error["type"] == "extra_forbidden" for error in payload["errors"])
-    finally:
-        get_settings.cache_clear()
-
-
-def test_sample_type_create_rejects_missing_required_code(monkeypatch: MonkeyPatch) -> None:
-    try:
-        client = _client(monkeypatch)
-
-        response = client.post("/api/v1/sample_types", json={"name": "Water"})
-
-        assert response.status_code == 422
-        payload = response.json()
-        assert payload["status"] == 422
-        assert any(error["loc"][-1] == "code" for error in payload["errors"])
-    finally:
-        get_settings.cache_clear()
-
-
-def test_status_resource_rejects_writes(monkeypatch: MonkeyPatch) -> None:
-    try:
-        client = _client(monkeypatch)
-
-        response = client.post(
-            "/api/v1/direction_statuses",
-            json={"code": "archived", "name": "Archived"},
-        )
-
-        assert response.status_code == 409
-        payload = response.json()
-        assert payload["code"] == "resource_read_only"
-    finally:
-        get_settings.cache_clear()
-
-
-def test_status_resource_allows_reads(monkeypatch: MonkeyPatch) -> None:
-    try:
-        client = _client(monkeypatch)
-
-        response = client.get("/api/v1/direction_statuses")
-
-        assert response.status_code == 200
+    assert response.status_code in {200, 409}
+    if response.status_code == 200:
         payload = response.json()
         assert set(payload) == {"items", "meta"}
         assert payload["meta"]["version"] == "v1"
-    finally:
-        get_settings.cache_clear()
 
 
-def test_catalog_router_does_not_accept_access_control_payloads(
+async def test_branch_create_accepts_only_branch_schema(monkeypatch: MonkeyPatch) -> None:
+    response = await _request(
+        monkeypatch,
+        "POST",
+        "/api/v1/branches",
+        json={"code": "MSK", "name": "Moscow"},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["data"]["code"] == "MSK"
+    assert payload["data"]["name"] == "Moscow"
+    assert payload["meta"]["operation"] == "branches.create"
+
+
+async def test_branch_create_rejects_unknown_fields(monkeypatch: MonkeyPatch) -> None:
+    response = await _request(
+        monkeypatch,
+        "POST",
+        "/api/v1/branches",
+        json={"code": "MSK", "name": "Moscow", "status_id": "not-a-branch-field"},
+    )
+
+    assert response.status_code == 422
+    payload = response.json()
+    assert payload["status"] == 422
+    assert any(error["type"] == "extra_forbidden" for error in payload["errors"])
+
+
+async def test_sample_type_create_rejects_missing_required_code(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    try:
-        client = _client(monkeypatch)
+    response = await _request(
+        monkeypatch,
+        "POST",
+        "/api/v1/sample_types",
+        json={"name": "Water"},
+    )
 
-        response = client.post(
-            "/api/v1/branches",
-            json={
-                "username": "admin",
-                "password_hash": "hash",
-                "role_id": "00000000-0000-0000-0000-000000000001",
-            },
-        )
-
-        assert response.status_code == 422
-        payload = response.json()
-        assert payload["status"] == 422
-    finally:
-        get_settings.cache_clear()
+    assert response.status_code == 422
+    payload = response.json()
+    assert payload["status"] == 422
+    assert any(error["loc"][-1] == "code" for error in payload["errors"])
 
 
-def test_catalog_router_does_not_own_history(monkeypatch: MonkeyPatch) -> None:
-    try:
-        client = _client(monkeypatch)
+async def test_status_resource_rejects_writes(monkeypatch: MonkeyPatch) -> None:
+    response = await _request(
+        monkeypatch,
+        "POST",
+        "/api/v1/direction_statuses",
+        json={"code": "archived", "name": "Archived"},
+    )
 
-        response = client.post("/api/v1/history", json={"entity_type": "samples"})
-
-        assert response.status_code == 405
-    finally:
-        get_settings.cache_clear()
-
-
-def test_catalog_router_does_not_own_alerts(monkeypatch: MonkeyPatch) -> None:
-    try:
-        client = _client(monkeypatch)
-
-        response = client.post(
-            "/api/v1/alerts",
-            json={"user_id": "00000000-0000-0000-0000-000000000001"},
-        )
-
-        assert response.status_code == 405
-    finally:
-        get_settings.cache_clear()
+    assert response.status_code == 409
+    payload = response.json()
+    assert payload["code"] == "resource_read_only"
 
 
-def test_catalog_router_does_not_own_workflow_resources(monkeypatch: MonkeyPatch) -> None:
-    try:
-        client = _client(monkeypatch)
+async def test_status_resource_allows_name_update(monkeypatch: MonkeyPatch) -> None:
+    response = await _request(
+        monkeypatch,
+        "PATCH",
+        "/api/v1/direction_statuses/00000000-0000-0000-0000-000000000001",
+        json={"name": "Черновик"},
+    )
 
-        response = client.post("/api/v1/directions", json={"year_no": 2026})
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["data"]["code"] == "draft"
+    assert payload["data"]["name"] == "Черновик"
+    assert payload["meta"]["operation"] == "direction_statuses.update"
 
-        assert response.status_code == 201
-        payload = response.json()
-        assert payload["meta"]["operation"] == "directions.create"
-    finally:
-        get_settings.cache_clear()
+
+async def test_status_resource_rejects_code_update(monkeypatch: MonkeyPatch) -> None:
+    response = await _request(
+        monkeypatch,
+        "PATCH",
+        "/api/v1/direction_statuses/00000000-0000-0000-0000-000000000001",
+        json={"code": "renamed", "name": "Renamed"},
+    )
+
+    assert response.status_code == 422
+    payload = response.json()
+    assert payload["status"] == 422
+    assert any(error["type"] == "extra_forbidden" for error in payload["errors"])
+
+
+async def test_status_resource_rejects_delete(monkeypatch: MonkeyPatch) -> None:
+    response = await _request(
+        monkeypatch,
+        "DELETE",
+        "/api/v1/direction_statuses/00000000-0000-0000-0000-000000000001",
+    )
+
+    assert response.status_code == 409
+    payload = response.json()
+    assert payload["code"] == "resource_read_only"
+
+
+async def test_status_resource_allows_reads(monkeypatch: MonkeyPatch) -> None:
+    response = await _request(monkeypatch, "GET", "/api/v1/direction_statuses")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert set(payload) == {"items", "meta"}
+    assert payload["meta"]["version"] == "v1"
+
+
+async def test_catalog_router_does_not_accept_access_control_payloads(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    response = await _request(
+        monkeypatch,
+        "POST",
+        "/api/v1/branches",
+        json={
+            "username": "admin",
+            "password_hash": "hash",
+            "role_id": "00000000-0000-0000-0000-000000000001",
+        },
+    )
+
+    assert response.status_code == 422
+    payload = response.json()
+    assert payload["status"] == 422
+
+
+async def test_catalog_router_does_not_own_history(monkeypatch: MonkeyPatch) -> None:
+    response = await _request(
+        monkeypatch,
+        "POST",
+        "/api/v1/history",
+        json={"entity_type": "samples"},
+    )
+
+    assert response.status_code == 405
+
+
+async def test_catalog_router_does_not_own_alerts(monkeypatch: MonkeyPatch) -> None:
+    response = await _request(
+        monkeypatch,
+        "POST",
+        "/api/v1/alerts",
+        json={"user_id": "00000000-0000-0000-0000-000000000001"},
+    )
+
+    assert response.status_code == 405
+
+
+async def test_catalog_router_does_not_own_workflow_resources(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    response = await _request(
+        monkeypatch,
+        "POST",
+        "/api/v1/directions",
+        json={"year_no": 2026},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["meta"]["operation"] == "directions.create"
