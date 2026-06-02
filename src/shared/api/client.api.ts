@@ -129,6 +129,8 @@ const buildApiPath = (path: string) => {
       : normalizedPath
 }
 
+export const buildApiUrl = (path: string) => `${apiBaseUrl}${buildApiPath(path)}`
+
 const normalizeQueryParams = (params?: ApiParams) => {
   if (!params) {
     return undefined

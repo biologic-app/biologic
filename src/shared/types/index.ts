@@ -38,11 +38,13 @@ export interface Sale {
 }
 
 export interface Notification {
-  id: number
+  id: string
   unread?: boolean
   sender: User
+  title: string
   body: string
   date: string
+  readAt: string | null
 }
 
 export interface ResearchHistoryEntry {

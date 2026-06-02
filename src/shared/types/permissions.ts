@@ -35,15 +35,28 @@ export type CommandAction =
 
 export type Action = CrudAction | CommandAction;
 
+export type AccessScope =
+  | "own"
+  | "own_lab"
+  | "all_labs"
+  | "own_branch"
+  | "all_branches"
+  | "all";
+
 export interface Permission {
+  id?: string;
+  permission_id?: string;
   resource: Resource;
   action: Action;
+  scope?: AccessScope;
 }
 
 export interface PermissionOverride {
+  permission_id?: string;
   resource: Resource;
   action: Action;
   allowed: boolean;
+  scope?: AccessScope | null;
 }
 
 export interface PermissionSummary {

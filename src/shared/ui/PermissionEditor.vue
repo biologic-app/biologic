@@ -7,7 +7,7 @@ import {
   resourceCommands,
   resourceLabels
 } from '@/shared/constants/permissions'
-import type { Permission, PermissionOverride, Resource, Action } from '@/shared/types/permissions'
+import type { Permission, PermissionOverride, Resource, Action, AccessScope } from '@/shared/types/permissions'
 
 const props = defineProps<{
   mode: 'permissions' | 'overrides'
@@ -21,6 +21,15 @@ const emit = defineEmits<{
   (e: 'update:permissions', value: Permission[]): void
   (e: 'update:overrides', value: PermissionOverride[]): void
 }>()
+
+const scopeOptions: Array<{ label: string; value: AccessScope }> = [
+  { label: 'Только свои', value: 'own' },
+  { label: 'Своя лаборатория', value: 'own_lab' },
+  { label: 'Все лаборатории', value: 'all_labs' },
+  { label: 'Свой филиал', value: 'own_branch' },
+  { label: 'Все филиалы', value: 'all_branches' },
+  { label: 'Все записи', value: 'all' }
+]
 
 const allowedSet = computed(() => {
   const set = new Set<string>()
@@ -41,8 +50,17 @@ const roleSet = computed(() => {
 const getOverride = (resource: Resource, action: Action) =>
   (props.overrides || []).find((override) => override.resource === resource && override.action === action)
 
+const getPermission = (resource: Resource, action: Action) =>
+  (props.permissions || []).find((permission) => permission.resource === resource && permission.action === action)
+
 const isAllowed = (resource: Resource, action: Action) => allowedSet.value.has(`${resource}:${action}`)
 const inheritedAllowed = (resource: Resource, action: Action) => roleSet.value.has(`${resource}:${action}`)
+
+const inheritedScope = (resource: Resource, action: Action) =>
+  (props.rolePermissions || []).find((permission) => permission.resource === resource && permission.action === action)?.scope || null
+
+const permissionScope = (resource: Resource, action: Action) =>
+  getPermission(resource, action)?.scope || 'all'
 
 const setPermission = (resource: Resource, action: Action, allowed: boolean) => {
   if (props.readOnly || props.mode !== 'permissions') {
@@ -54,8 +72,22 @@ const setPermission = (resource: Resource, action: Action, allowed: boolean) => 
   )
 
   if (allowed) {
-    next.push({ resource, action })
+    next.push({ ...getPermission(resource, action), resource, action, scope: permissionScope(resource, action) })
   }
+
+  emit('update:permissions', next)
+}
+
+const setPermissionScope = (resource: Resource, action: Action, scope: AccessScope) => {
+  if (props.readOnly || props.mode !== 'permissions') {
+    return
+  }
+
+  const next = (props.permissions || []).map((permission) =>
+    permission.resource === resource && permission.action === action
+      ? { ...permission, scope }
+      : permission
+  )
 
   emit('update:permissions', next)
 }
@@ -70,12 +102,32 @@ const setOverride = (resource: Resource, action: Action, nextState: 'inherit' | 
   )
 
   if (nextState === 'allow') {
-    nextOverrides.push({ resource, action, allowed: true })
+    nextOverrides.push({
+      ...getOverride(resource, action),
+      resource,
+      action,
+      allowed: true,
+      scope: getOverride(resource, action)?.scope || inheritedScope(resource, action) || 'all'
+    })
   }
 
   if (nextState === 'deny') {
-    nextOverrides.push({ resource, action, allowed: false })
+    nextOverrides.push({ ...getOverride(resource, action), resource, action, allowed: false, scope: null })
   }
+
+  emit('update:overrides', nextOverrides)
+}
+
+const setOverrideScope = (resource: Resource, action: Action, scope: AccessScope) => {
+  if (props.readOnly || props.mode !== 'overrides') {
+    return
+  }
+
+  const nextOverrides = (props.overrides || []).map((override) =>
+    override.resource === resource && override.action === action
+      ? { ...override, scope }
+      : override
+  )
 
   emit('update:overrides', nextOverrides)
 }
@@ -156,17 +208,30 @@ const permissionCount = (resource: Resource) =>
                 class="border-s border-default px-3 py-2"
               >
                 <template v-if="mode === 'permissions'">
-                  <UCheckbox
-                    :model-value="isAllowed(resource, action)"
-                    :disabled="readOnly"
-                    label="Разрешено"
-                    @update:model-value="setPermission(resource, action, Boolean($event))"
-                  />
+                  <div class="space-y-2">
+                    <UCheckbox
+                      :model-value="isAllowed(resource, action)"
+                      :disabled="readOnly"
+                      label="Разрешено"
+                      @update:model-value="setPermission(resource, action, Boolean($event))"
+                    />
+                    <USelectMenu
+                      v-if="isAllowed(resource, action)"
+                      :model-value="permissionScope(resource, action)"
+                      :items="scopeOptions"
+                      value-key="value"
+                      label-key="label"
+                      :disabled="readOnly"
+                      size="xs"
+                      class="w-full"
+                      @update:model-value="setPermissionScope(resource, action, $event as AccessScope)"
+                    />
+                  </div>
                 </template>
 
                 <template v-else>
                   <p class="mb-2 text-xs text-muted">
-                    Роль: {{ inheritedAllowed(resource, action) ? 'разрешено' : 'запрещено' }}
+                    Роль: {{ inheritedAllowed(resource, action) ? `разрешено · ${inheritedScope(resource, action) || 'all'}` : 'запрещено' }}
                   </p>
                   <div class="flex flex-wrap gap-1">
                     <UButton
@@ -194,6 +259,17 @@ const permissionCount = (resource: Resource) =>
                       @click="setOverride(resource, action, 'deny')"
                     />
                   </div>
+                  <USelectMenu
+                    v-if="overrideState(resource, action) === 'allow'"
+                    :model-value="getOverride(resource, action)?.scope || 'all'"
+                    :items="scopeOptions"
+                    value-key="value"
+                    label-key="label"
+                    :disabled="readOnly"
+                    size="xs"
+                    class="mt-2 w-full"
+                    @update:model-value="setOverrideScope(resource, action, $event as AccessScope)"
+                  />
                 </template>
               </div>
             </div>
@@ -240,17 +316,30 @@ const permissionCount = (resource: Resource) =>
           </div>
           <div class="border-s border-default px-3 py-2">
             <template v-if="mode === 'permissions'">
-              <UCheckbox
-                :model-value="isAllowed(command.resource, command.action)"
-                :disabled="readOnly"
-                label="Разрешено"
-                @update:model-value="setPermission(command.resource, command.action, Boolean($event))"
-              />
+              <div class="space-y-2">
+                <UCheckbox
+                  :model-value="isAllowed(command.resource, command.action)"
+                  :disabled="readOnly"
+                  label="Разрешено"
+                  @update:model-value="setPermission(command.resource, command.action, Boolean($event))"
+                />
+                <USelectMenu
+                  v-if="isAllowed(command.resource, command.action)"
+                  :model-value="permissionScope(command.resource, command.action)"
+                  :items="scopeOptions"
+                  value-key="value"
+                  label-key="label"
+                  :disabled="readOnly"
+                  size="xs"
+                  class="w-full"
+                  @update:model-value="setPermissionScope(command.resource, command.action, $event as AccessScope)"
+                />
+              </div>
             </template>
 
             <template v-else>
               <p class="mb-2 text-xs text-muted">
-                Роль: {{ inheritedAllowed(command.resource, command.action) ? 'разрешено' : 'запрещено' }}
+                Роль: {{ inheritedAllowed(command.resource, command.action) ? `разрешено · ${inheritedScope(command.resource, command.action) || 'all'}` : 'запрещено' }}
               </p>
               <div class="flex flex-wrap gap-1">
                 <UButton
@@ -278,6 +367,17 @@ const permissionCount = (resource: Resource) =>
                   @click="setOverride(command.resource, command.action, 'deny')"
                 />
               </div>
+              <USelectMenu
+                v-if="overrideState(command.resource, command.action) === 'allow'"
+                :model-value="getOverride(command.resource, command.action)?.scope || 'all'"
+                :items="scopeOptions"
+                value-key="value"
+                label-key="label"
+                :disabled="readOnly"
+                size="xs"
+                class="mt-2 w-full"
+                @update:model-value="setOverrideScope(command.resource, command.action, $event as AccessScope)"
+              />
             </template>
           </div>
         </div>

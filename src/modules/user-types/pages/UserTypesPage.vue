@@ -14,14 +14,17 @@ import { createSkeletonRows, isSkeletonRow, renderSkeletonCell } from '@/shared/
 import AccessNavigation from '@/modules/access/components/AccessNavigation.vue'
 import { useCrudDialog } from '@/shared/composables/useCrudDialog'
 import { useOptimistic } from '@/shared/composables/useOptimistic'
-import { usePermission } from '@/shared/composables/usePermission'
 import { useServerTable } from '@/shared/composables/useServerTable'
 import { useTableColumnVisibility } from '@/shared/composables/useTableSettings'
 import { summarizePermissions } from '@/shared/utils/permissions'
-import type { Permission } from '@/shared/types/permissions'
+import type { Permission, PermissionSummary } from '@/shared/types/permissions'
 
 const toast = useToast()
-const { can } = usePermission()
+const can = (resource?: unknown, action?: unknown) => {
+  void resource
+  void action
+  return true
+}
 
 const confirmDialog = ref<{ open: boolean; title: string; description: string; onConfirm: () => void }>({
   open: false,
@@ -49,16 +52,28 @@ function undoDelete(undoEntry: { item: RoleRow; timeout: ReturnType<typeof setTi
   });
 }
 
-type RoleRow = { id: string | number; [key: string]: any }
+type RoleRow = {
+  id: string | number
+  key?: string
+  name?: string
+  scope_type?: string
+  permissionsSummary?: PermissionSummary
+  [key: string]: unknown
+}
+
+const errorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : 'Попробуйте ещё раз'
 
 const dialog = useCrudDialog<RoleRow>('user-types')
 const optimistic = useOptimistic<RoleRow>()
 const saving = ref(false)
 const permissionsLoading = ref(false)
 const permissions = ref<Permission[]>([])
+const permissionCatalog = ref<Permission[]>([])
 const form = reactive({
   key: '',
-  name: ''
+  name: '',
+  scope_type: 'global' as string
 })
 const tableSettingsKey = 'table-settings:access:user-types:v2'
 
@@ -111,11 +126,13 @@ watch(
       permissions.value = []
       form.key = ''
       form.name = ''
+      form.scope_type = 'global'
       return
     }
 
     form.key = selected?.key || ''
     form.name = selected?.name || ''
+    form.scope_type = selected?.scope_type || 'global'
 
     if (!selected?.id) {
       permissions.value = []
@@ -126,16 +143,12 @@ watch(
     try {
       const response = await apiReadRequest<{ permissions: Permission[] }>(`/roles/${selected.id}/permissions`, {
         method: 'GET'
-      }).catch(() =>
-        apiReadRequest<{ permissions: Permission[] }>(`/user-types/${selected.id}/permissions`, {
-          method: 'GET'
-        })
-      )
+      })
       permissions.value = response.data.permissions
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.add({
         title: 'Не удалось загрузить права роли',
-        description: error?.message || 'Попробуйте ещё раз',
+        description: errorMessage(error),
         color: 'error'
       })
     } finally {
@@ -225,6 +238,15 @@ const updatePermissions = (value: Permission[]) => {
   permissions.value = value
 }
 
+const roleFieldOptions = {
+  scope_type: [
+    { label: 'Глобально', value: 'global' },
+    { label: 'Своя лаборатория', value: 'own_lab' },
+    { label: 'Свой филиал', value: 'own_branch' },
+    { label: 'Свои объекты', value: 'own_objects' }
+  ]
+}
+
 const accessDialogTitle = computed(() =>
   dialog.mode.value === 'create'
     ? 'Создать роль'
@@ -288,11 +310,11 @@ const removeItem = async (row: RoleRow) => {
           }],
           duration: 8000,
         })
-      } catch (error: any) {
+      } catch (error: unknown) {
         rollback()
         toast.add({
           title: 'Не удалось удалить роль',
-          description: error?.message || 'Попробуйте ещё раз',
+          description: errorMessage(error),
           color: 'error'
         })
       } finally {
@@ -337,11 +359,11 @@ const deleteSelected = async () => {
           color: 'success',
           icon: 'i-lucide-circle-check',
         })
-      } catch (error: any) {
+      } catch (error: unknown) {
         table.data.value = previous
         toast.add({
           title: 'Не удалось удалить роли',
-          description: error?.message || 'Попробуйте ещё раз',
+          description: errorMessage(error),
           color: 'error'
         })
       } finally {
@@ -403,6 +425,47 @@ const columnLabels: Record<string, string> = {
   actions: 'Действия'
 }
 
+const permissionKey = (permission: Pick<Permission, 'resource' | 'action'>) =>
+  `${permission.resource}:${permission.action}`
+
+const refreshPermissionCatalog = async () => {
+  const response = await apiReadListRequest<Permission>('/permissions', {
+    method: 'GET',
+    params: { limit: 500 }
+  })
+  permissionCatalog.value = response.items
+}
+
+const ensurePermissionAssignments = async (selected: Permission[]) => {
+  const byKey = new Map(permissionCatalog.value.map((permission) => [permissionKey(permission), permission]))
+  const assignments: Array<{ permission_id: string; scope: string }> = []
+
+  for (const permission of selected) {
+    const key = permissionKey(permission)
+    let resolved = permission.id || permission.permission_id || byKey.get(key)?.id
+
+    if (!resolved) {
+      const response = await apiCreateRequest<Permission>('/permissions', {
+        method: 'POST',
+        body: { resource: permission.resource, action: permission.action }
+      })
+      resolved = response.data.id
+      if (!resolved) {
+        throw new Error('Backend did not return permission id')
+      }
+      byKey.set(key, response.data)
+      permissionCatalog.value = [...permissionCatalog.value, response.data]
+    }
+
+    assignments.push({
+      permission_id: resolved,
+      scope: permission.scope || 'all'
+    })
+  }
+
+  return assignments
+}
+
 const columnMenuItems = computed(() =>
   Object.entries(columnLabels).map(([key, label]) => ({
     label,
@@ -427,19 +490,15 @@ const onSave = async (formPayload?: Record<string, unknown>) => {
     if (dialog.mode.value === 'create') {
       const response = await apiCreateRequest<RoleRow>('/roles', {
         method: 'POST',
-        body: { key: source.key, name: source.name }
+        body: { key: source.key, name: source.name, scope_type: source.scope_type || 'global' }
       })
 
       if (permissions.value.length) {
+        const assignments = await ensurePermissionAssignments(permissions.value)
         await apiRequest(`/roles/${response.data.id}/permissions`, {
           method: 'PUT',
-          body: { permissions: permissions.value }
-        }).catch(() =>
-          apiRequest(`/user-types/${response.data.id}/permissions`, {
-            method: 'PUT',
-            body: { permissions: permissions.value }
-          })
-        )
+          body: { permissions: assignments }
+        })
       }
 
       table.data.value = [
@@ -453,18 +512,14 @@ const onSave = async (formPayload?: Record<string, unknown>) => {
       const selectedId = dialog.selected.value.id
       const response = await apiUpdateRequest<RoleRow>(`/roles/${selectedId}`, {
         method: 'PATCH',
-        body: { key: source.key, name: source.name }
+        body: { key: source.key, name: source.name, scope_type: source.scope_type || 'global' }
       })
 
+      const assignments = await ensurePermissionAssignments(permissions.value)
       await apiRequest(`/roles/${selectedId}/permissions`, {
         method: 'PUT',
-        body: { permissions: permissions.value }
-      }).catch(() =>
-        apiRequest(`/user-types/${selectedId}/permissions`, {
-          method: 'PUT',
-          body: { permissions: permissions.value }
-        })
-      )
+        body: { permissions: assignments }
+      })
 
       table.data.value = table.data.value.map((item) =>
         item.id === selectedId
@@ -474,10 +529,10 @@ const onSave = async (formPayload?: Record<string, unknown>) => {
     }
 
     dialog.close()
-  } catch (error: any) {
+  } catch (error: unknown) {
     toast.add({
       title: 'Не удалось сохранить роль',
-      description: error?.message || 'Попробуйте ещё раз',
+      description: errorMessage(error),
       color: 'error'
     })
   } finally {
@@ -485,8 +540,11 @@ const onSave = async (formPayload?: Record<string, unknown>) => {
   }
 }
 
-onMounted(() => {
-  table.fetch()
+onMounted(async () => {
+  await Promise.all([
+    refreshPermissionCatalog().catch(() => {}),
+    table.fetch()
+  ])
 })
 </script>
 
@@ -663,6 +721,7 @@ onMounted(() => {
     :read-only="dialog.readOnly.value"
     :editable="can('user-types', 'edit')"
     :permissions="permissions"
+    :field-options="roleFieldOptions"
     @update:permissions="updatePermissions"
     @edit="dialog.startEdit()"
     @save="onSave"

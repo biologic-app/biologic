@@ -81,6 +81,7 @@ const detailFields = computed<DetailField[]>(() => {
     return [
       { key: "key", label: "Ключ", required: true },
       { key: "name", label: "Название", required: true },
+      { key: "scope_type", label: "Область роли", type: "select", required: true },
     ];
   }
 

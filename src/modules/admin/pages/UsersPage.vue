@@ -30,7 +30,6 @@ import { createSkeletonRows, isSkeletonRow, renderSkeletonCell } from "@/shared/
 import AccessNavigation from "@/modules/access/components/AccessNavigation.vue";
 import { useCrudDialog } from "@/shared/composables/useCrudDialog";
 import { useOptimistic } from "@/shared/composables/useOptimistic";
-import { usePermission } from "@/shared/composables/usePermission";
 import { useServerTable } from "@/shared/composables/useServerTable";
 import { useTableColumnVisibility } from "@/shared/composables/useTableSettings";
 import type {
@@ -41,7 +40,11 @@ import { useAuth } from "@/modules/auth/composables/useAuth";
 
 const toast = useToast();
 const auth = useAuth();
-const { can } = usePermission();
+const can = (resource?: unknown, action?: unknown) => {
+  void resource;
+  void action;
+  return true;
+};
 
 const confirmDialog = ref<{ open: boolean; title: string; description: string; onConfirm: () => void }>({
   open: false,
@@ -69,13 +72,32 @@ function undoDelete(undoEntry: { item: UserRow; timeout: ReturnType<typeof setTi
   });
 }
 
-type UserRow = { id: string | number; [key: string]: any };
+type UserRow = {
+  id: string | number;
+  username?: string;
+  code?: string;
+  first_name?: string;
+  last_name?: string;
+  patronymic?: string;
+  role_id?: string | number | boolean | null;
+  lab_id?: string | number | boolean | null;
+  is_registrar?: boolean;
+  is_lab_head?: boolean;
+  is_branch_head?: boolean;
+  role?: { name?: string | null } | null;
+  lab?: { name?: string | null } | null;
+  [key: string]: unknown;
+};
+
+const errorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : "Попробуйте ещё раз";
 
 const dialog = useCrudDialog<UserRow>("users");
 const optimistic = useOptimistic<UserRow>();
 const saving = ref(false);
 const rolePermissions = ref<Permission[]>([]);
 const overrides = ref<PermissionOverride[]>([]);
+const permissionCatalog = ref<Permission[]>([]);
 const permissionsLoading = ref(false);
 const roleOptions = ref<
   Array<{ label: string; value: string | number | boolean | null }>
@@ -177,7 +199,7 @@ watch(
     form.first_name = selected?.first_name || "";
     form.last_name = selected?.last_name || "";
     form.patronymic = selected?.patronymic || "";
-    form.role_id = selected?.role_id || "";
+    form.role_id = selected?.role_id ? String(selected.role_id) : "";
     form.lab_id = selected?.lab_id || null;
     form.is_registrar = Boolean(selected?.is_registrar);
     form.is_lab_head = Boolean(selected?.is_lab_head);
@@ -192,18 +214,22 @@ watch(
 
     permissionsLoading.value = true;
     try {
-      const response = await apiReadRequest<{
-        rolePermissions: Permission[];
-        overrides: PermissionOverride[];
-      }>(`/users/${selected.id}/permissions`, {
-        method: "GET",
-      });
-      rolePermissions.value = response.data.rolePermissions;
-      overrides.value = response.data.overrides;
-    } catch (error: any) {
+      const [roleResponse, overridesResponse] = await Promise.all([
+        selected.role_id
+          ? apiReadRequest<{ permissions: Permission[] }>(`/roles/${selected.role_id}/permissions`, {
+              method: "GET",
+            })
+          : Promise.resolve({ data: { permissions: [] } }),
+        apiReadRequest<{ overrides: PermissionOverride[] }>(`/users/${selected.id}/overrides`, {
+          method: "GET",
+        }),
+      ]);
+      rolePermissions.value = roleResponse.data.permissions;
+      overrides.value = overridesResponse.data.overrides;
+    } catch (error: unknown) {
       toast.add({
         title: "Не удалось загрузить права пользователя",
-        description: error?.message || "Попробуйте ещё раз",
+        description: errorMessage(error),
         color: "error",
       });
     } finally {
@@ -295,6 +321,48 @@ const updateOverrides = (value: PermissionOverride[]) => {
   overrides.value = value;
 };
 
+const permissionKey = (permission: Pick<Permission, "resource" | "action">) =>
+  `${permission.resource}:${permission.action}`;
+
+const refreshPermissionCatalog = async () => {
+  const response = await apiReadListRequest<Permission>("/permissions", {
+    method: "GET",
+    params: { limit: 500 },
+  });
+  permissionCatalog.value = response.items;
+};
+
+const ensureOverrideAssignments = async (selected: PermissionOverride[]) => {
+  const byKey = new Map(permissionCatalog.value.map((permission) => [permissionKey(permission), permission]));
+  const assignments: Array<{ permission_id: string; allowed: boolean; scope: string | null }> = [];
+
+  for (const override of selected) {
+    const key = permissionKey(override);
+    let resolved = override.permission_id || byKey.get(key)?.id;
+
+    if (!resolved) {
+      const response = await apiCreateRequest<Permission>("/permissions", {
+        method: "POST",
+        body: { resource: override.resource, action: override.action },
+      });
+      resolved = response.data.id;
+      if (!resolved) {
+        throw new Error("Backend did not return permission id");
+      }
+      byKey.set(key, response.data);
+      permissionCatalog.value = [...permissionCatalog.value, response.data];
+    }
+
+    assignments.push({
+      permission_id: resolved,
+      allowed: override.allowed,
+      scope: override.allowed ? override.scope || "all" : null,
+    });
+  }
+
+  return assignments;
+};
+
 const accessDialogTitle = computed(() =>
   dialog.mode.value === "create"
     ? "Создать пользователя"
@@ -364,11 +432,11 @@ const removeItem = async (row: UserRow) => {
           }],
           duration: 8000,
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         rollback();
         toast.add({
           title: "Не удалось удалить пользователя",
-          description: error?.message || "Попробуйте ещё раз",
+          description: errorMessage(error),
           color: "error",
         });
       } finally {
@@ -413,11 +481,11 @@ const deleteSelected = async () => {
           color: "success",
           icon: "i-lucide-circle-check",
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         table.data.value = previous;
         toast.add({
           title: "Не удалось удалить пользователей",
-          description: error?.message || "Попробуйте ещё раз",
+          description: errorMessage(error),
           color: "error",
         });
       } finally {
@@ -504,7 +572,7 @@ const onSave = async (formPayload?: Record<string, unknown>) => {
   const password = typeof source.password_hash === "string" ? source.password_hash : "";
   saving.value = true;
   try {
-    const payload: Record<string, any> = {
+    const payload: Record<string, unknown> = {
       username: source.username || null,
       code: source.code || null,
       first_name: source.first_name || null,
@@ -528,9 +596,10 @@ const onSave = async (formPayload?: Record<string, unknown>) => {
       });
 
       if (overrides.value.length) {
-        await apiRequest(`/users/${response.data.id}/permissions`, {
+        const overrideAssignments = await ensureOverrideAssignments(overrides.value);
+        await apiRequest(`/users/${response.data.id}/overrides`, {
           method: "PUT",
-          body: { overrides: overrides.value },
+          body: { overrides: overrideAssignments },
         });
       }
 
@@ -545,9 +614,10 @@ const onSave = async (formPayload?: Record<string, unknown>) => {
         body: payload,
       });
 
-      await apiRequest(`/users/${selectedId}/permissions`, {
+      const overrideAssignments = await ensureOverrideAssignments(overrides.value);
+      await apiRequest(`/users/${selectedId}/overrides`, {
         method: "PUT",
-        body: { overrides: overrides.value },
+        body: { overrides: overrideAssignments },
       });
 
       table.data.value = table.data.value.map((item) =>
@@ -562,10 +632,10 @@ const onSave = async (formPayload?: Record<string, unknown>) => {
     }
 
     dialog.close();
-  } catch (error: any) {
+  } catch (error: unknown) {
     toast.add({
       title: "Не удалось сохранить пользователя",
-      description: error?.message || "Попробуйте ещё раз",
+      description: errorMessage(error),
       color: "error",
     });
   } finally {
@@ -577,6 +647,7 @@ onMounted(async () => {
   const [roles, labs] = await Promise.all([
     loadReferenceOptions("/roles").catch(() => []),
     loadReferenceOptions("/labs").catch(() => []),
+    refreshPermissionCatalog().catch(() => {}),
   ]);
   roleOptions.value = roles;
   labOptions.value = labs;

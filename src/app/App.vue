@@ -4,6 +4,8 @@ import { useLocale } from '@/shared/composables/useLocale'
 import { useAppearanceSettings } from '@/shared/composables/useAppearanceSettings'
 
 const { nuxtUiLocale } = useLocale()
+const toaster = { expand: false }
+
 useAppearanceSettings()
 
 const preventContextMenu = (event: MouseEvent) => {
@@ -21,7 +23,7 @@ onUnmounted(() => {
 
 <template>
   <Suspense>
-    <UApp :locale="nuxtUiLocale">
+    <UApp :toaster="toaster" :locale="nuxtUiLocale"  >
       <RouterView />
     </UApp>
   </Suspense>

@@ -3,6 +3,7 @@ import { ref, shallowRef } from "vue";
 import { sub } from "date-fns";
 import { useI18n } from "vue-i18n";
 import { useDashboardShell } from "@/shared/composables/useDashboardShell";
+import { useSystemNotifications } from "@/shared/composables/useSystemNotifications";
 import TourMenu from "@/shared/ui/TourMenu.vue";
 import HomeChart from "@/modules/dashboard/components/HomeChart.vue";
 import HomeDateRangePicker from "@/modules/dashboard/components/HomeDateRangePicker.vue";
@@ -11,6 +12,7 @@ import HomeStats from "@/modules/dashboard/components/HomeStats.vue";
 import type { Period, Range } from "@/modules/dashboard/types";
 
 const { isNotificationsSlideoverOpen } = useDashboardShell();
+const { unreadNotifications } = useSystemNotifications();
 const { t } = useI18n();
 
 const range = shallowRef<Range>({
@@ -37,7 +39,12 @@ const period = ref<Period>("daily");
               square
               @click="isNotificationsSlideoverOpen = true"
             >
-              <UChip color="error" inset>
+              <UChip
+                color="error"
+                inset
+                :text="unreadNotifications.length ? String(unreadNotifications.length) : undefined"
+                :show="unreadNotifications.length > 0"
+              >
                 <UIcon name="i-lucide-bell" class="size-5 shrink-0" />
               </UChip>
             </UButton>

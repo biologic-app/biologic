@@ -20,7 +20,7 @@ interface BackendAuthEnvelope {
       last_name: string | null;
       patronymic: string | null;
     };
-    permissions: Array<{ resource: string; action: string }>;
+    permissions: Array<{ resource: string; action: string; scope?: string | null }>;
     access_expires_at: string;
     refresh_expires_at: string | null;
   };
@@ -124,6 +124,12 @@ const mapSession = (payload: BackendAuthEnvelope["data"]): AuthResponse => ({
   permissions: mapPermissions(payload.permissions || []),
 });
 
+interface BackendPermissionsEnvelope {
+  data: {
+    permissions: Array<{ resource: string; action: string; scope?: string | null }>;
+  };
+}
+
 export const login = async (loginValue: string, password: string) => {
   const response = await apiRequest<BackendAuthEnvelope>("/auth/login", {
     method: "POST",
@@ -140,5 +146,16 @@ export const me = async () => {
   const response = await apiRequest<BackendAuthEnvelope>("/auth/me", {
     method: "GET",
   });
-  return mapSession(response.data);
+  const session = mapSession(response.data);
+  const permissionsResponse = await apiRequest<BackendPermissionsEnvelope>("/user/me/permissions", {
+    method: "GET",
+    headers: { "X-Actor-Id": session.user.id },
+  }).catch(() => null);
+
+  return {
+    ...session,
+    permissions: permissionsResponse
+      ? mapPermissions(permissionsResponse.data.permissions || [])
+      : session.permissions,
+  };
 };
