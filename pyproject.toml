@@ -15,7 +15,6 @@ dependencies = [
     "uvicorn[standard]>=0.40.0",
     "loguru>=0.7.3",
     "pygments>=2.19.2",
-
 ]
 
 [dependency-groups]

@@ -141,6 +141,11 @@ class RejectSampleRequest(BaseModel):
     reason: str
 
 
+class RejectResearchRequest(BaseModel):
+    actor_id: UUID
+    reason: str
+
+
 class ActorRequest(BaseModel):
     actor_id: UUID
 

@@ -41,6 +41,7 @@ from src.contexts.laboratory_workflow.presentation.schemas import (
     IssueProtocolRequest,
     RegisterDirectionRequest,
     RegisterSampleRequest,
+    RejectResearchRequest,
     RejectSampleRequest,
     RejectTestRequest,
     ResearchCreateRequest,
@@ -371,6 +372,22 @@ async def confirm_research(
         ResearchCommandInput(research_id=research_id, actor_id=request.actor_id),
     )
     return SingleResponse(data=result, meta=ResponseMeta(operation="research.confirm"))
+
+
+@router.post("/research/{research_id}/reject")
+async def reject_research(
+    research_id: UUID,
+    request: RejectResearchRequest,
+    service: Annotated[WorkflowCommandService, Depends(get_workflow_command_service)],
+) -> SingleResponse[CommandResult]:
+    result = await service.reject_research(
+        ResearchCommandInput(
+            research_id=research_id,
+            actor_id=request.actor_id,
+            reason=request.reason,
+        ),
+    )
+    return SingleResponse(data=result, meta=ResponseMeta(operation="research.reject"))
 
 
 @router.post("/research/{research_id}/start")

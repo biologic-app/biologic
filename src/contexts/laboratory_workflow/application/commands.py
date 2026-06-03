@@ -68,6 +68,15 @@ class WorkflowCommandService:
             actor_id=command.actor_id,
         )
 
+    async def reject_research(self, command: ResearchCommandInput) -> CommandResult:
+        result = await self.repository.reject_research(
+            research_id=command.research_id,
+            actor_id=command.actor_id,
+            reason=command.reason or "",
+        )
+        await self._publish_repository_events()
+        return result
+
     async def start_research(self, command: ResearchCommandInput) -> CommandResult:
         return await self.repository.start_research(
             research_id=command.research_id,

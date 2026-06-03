@@ -13,13 +13,17 @@ from src.core.errors import BadRequestError, DomainConflictError, NotFoundError
 from src.core.pagination import PaginationParams
 from src.infrastructure.db.models import (
     Direction,
+    DirectionStatus,
+    Indicator,
     Lab,
     Protocol,
     Research,
     ResearchGoal,
     ResearchStatus,
     Sample,
+    SampleStatus,
     Test,
+    TestStatus,
 )
 
 
@@ -36,9 +40,13 @@ class DirectionCrudRepository:
         self.session = session
 
     async def list(self, params: PaginationParams) -> RepositoryPage:
-        return await _list_rows(
+        page = await _list_rows(
             self.session, Direction, params, _direction_sortable_fields()
         )
+        await _populate_direction_includes(
+            self.session, page.items, params.includes_requested
+        )
+        return page
 
     async def read(self, direction_id: UUID) -> Any:
         return await _read_row(self.session, Direction, "directions", direction_id)
@@ -65,7 +73,11 @@ class SampleCrudRepository:
         self.session = session
 
     async def list(self, params: PaginationParams) -> RepositoryPage:
-        return await _list_rows(self.session, Sample, params, _sample_sortable_fields())
+        page = await _list_rows(self.session, Sample, params, _sample_sortable_fields())
+        await _populate_sample_includes(
+            self.session, page.items, params.includes_requested
+        )
+        return page
 
     async def read(self, sample_id: UUID) -> Any:
         return await _read_row(self.session, Sample, "samples", sample_id)
@@ -125,7 +137,11 @@ class TestCrudRepository:
         self.session = session
 
     async def list(self, params: PaginationParams) -> RepositoryPage:
-        return await _list_rows(self.session, Test, params, _test_sortable_fields())
+        page = await _list_rows(self.session, Test, params, _test_sortable_fields())
+        await _populate_test_includes(
+            self.session, page.items, params.includes_requested
+        )
+        return page
 
     async def read(self, test_id: UUID) -> Any:
         return await _read_row(self.session, Test, "tests", test_id)
@@ -299,6 +315,165 @@ async def _populate_research_includes(
         statuses = await _research_status_includes(session, status_ids)
         for item in items:
             setattr(item, "status", statuses.get(item.status_id))
+
+
+async def _populate_direction_includes(
+    session: AsyncSession,
+    items: list[Any],
+    includes_requested: list[str],
+) -> None:
+    includes = set(includes_requested) & {"status"}
+    if not items or not includes:
+        return
+
+    status_ids = {item.status_id for item in items if item.status_id is not None}
+    statuses = await _direction_status_includes(session, status_ids)
+    for item in items:
+        setattr(item, "status", statuses.get(item.status_id))
+
+
+async def _populate_sample_includes(
+    session: AsyncSession,
+    items: list[Any],
+    includes_requested: list[str],
+) -> None:
+    includes = set(includes_requested) & {"status"}
+    if not items or not includes:
+        return
+
+    status_ids = {item.status_id for item in items if item.status_id is not None}
+    statuses = await _sample_status_includes(session, status_ids)
+    for item in items:
+        setattr(item, "status", statuses.get(item.status_id))
+
+
+async def _populate_test_includes(
+    session: AsyncSession,
+    items: list[Any],
+    includes_requested: list[str],
+) -> None:
+    includes = set(includes_requested) & {"research", "indicator", "status"}
+    if not items or not includes:
+        return
+
+    if "research" in includes:
+        research_ids = {item.research_id for item in items if item.research_id is not None}
+        research = await _test_research_includes(session, research_ids)
+        for item in items:
+            setattr(item, "research", research.get(item.research_id))
+
+    if "indicator" in includes:
+        indicator_ids = {
+            item.indicator_id for item in items if item.indicator_id is not None
+        }
+        indicators = await _indicator_includes(session, indicator_ids)
+        for item in items:
+            setattr(item, "indicator", indicators.get(item.indicator_id))
+
+    if "status" in includes:
+        status_ids = {item.status_id for item in items if item.status_id is not None}
+        statuses = await _test_status_includes(session, status_ids)
+        for item in items:
+            setattr(item, "status", statuses.get(item.status_id))
+
+
+async def _direction_status_includes(
+    session: AsyncSession,
+    status_ids: set[UUID],
+) -> dict[UUID, dict[str, object]]:
+    if not status_ids:
+        return {}
+    result = await session.execute(
+        select(DirectionStatus.id, DirectionStatus.code, DirectionStatus.name).where(
+            DirectionStatus.id.in_(status_ids),
+            *_base_filters(DirectionStatus),
+        ),
+    )
+    return {
+        row_id: {"id": row_id, "code": code, "name": name}
+        for row_id, code, name in result.all()
+    }
+
+
+async def _sample_status_includes(
+    session: AsyncSession,
+    status_ids: set[UUID],
+) -> dict[UUID, dict[str, object]]:
+    if not status_ids:
+        return {}
+    result = await session.execute(
+        select(SampleStatus.id, SampleStatus.code, SampleStatus.name).where(
+            SampleStatus.id.in_(status_ids),
+            *_base_filters(SampleStatus),
+        ),
+    )
+    return {
+        row_id: {"id": row_id, "code": code, "name": name}
+        for row_id, code, name in result.all()
+    }
+
+
+async def _test_research_includes(
+    session: AsyncSession,
+    research_ids: set[UUID],
+) -> dict[UUID, dict[str, object]]:
+    if not research_ids:
+        return {}
+    result = await session.execute(
+        select(Research.id, Research.sample_id, Research.research_goal_id).where(
+            Research.id.in_(research_ids),
+            *_base_filters(Research),
+        ),
+    )
+    return {
+        row_id: {
+            "id": row_id,
+            "sample_id": sample_id,
+            "research_goal_id": research_goal_id,
+        }
+        for row_id, sample_id, research_goal_id in result.all()
+    }
+
+
+async def _indicator_includes(
+    session: AsyncSession,
+    indicator_ids: set[UUID],
+) -> dict[UUID, dict[str, object]]:
+    if not indicator_ids:
+        return {}
+    result = await session.execute(
+        select(Indicator.id, Indicator.name, Indicator.unit, Indicator.norm_text).where(
+            Indicator.id.in_(indicator_ids),
+            *_base_filters(Indicator),
+        ),
+    )
+    return {
+        row_id: {
+            "id": row_id,
+            "name": name,
+            "unit": unit,
+            "norm_text": norm_text,
+        }
+        for row_id, name, unit, norm_text in result.all()
+    }
+
+
+async def _test_status_includes(
+    session: AsyncSession,
+    status_ids: set[UUID],
+) -> dict[UUID, dict[str, object]]:
+    if not status_ids:
+        return {}
+    result = await session.execute(
+        select(TestStatus.id, TestStatus.code, TestStatus.name).where(
+            TestStatus.id.in_(status_ids),
+            *_base_filters(TestStatus),
+        ),
+    )
+    return {
+        row_id: {"id": row_id, "code": code, "name": name}
+        for row_id, code, name in result.all()
+    }
 
 
 async def _research_sample_includes(
