@@ -559,6 +559,7 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       'lab.name': textFilter(),
       'status.name': textFilter(),
       comment: textFilter(),
+      recommendation: textFilter(),
       created_at: dateFilter(),
       received_at: dateFilter(),
       completed_at: dateFilter()
