@@ -18,6 +18,7 @@ import CrudFormModal from "@/shared/ui/CrudFormModal.vue";
 import CrudDataTable from "@/shared/ui/CrudDataTable.vue";
 import CrudTableEmptyState from "@/shared/ui/CrudTableEmptyState.vue";
 import CrudFilterModal from "@/shared/ui/CrudFilterModal.vue";
+import CrudDateRangeFilter from "@/shared/ui/CrudDateRangeFilter.vue";
 import ConfirmDialog from "@/shared/ui/ConfirmDialog.vue";
 import RowContextMenu from "@/shared/ui/RowContextMenu.vue";
 import BusinessEntityDetailModal from "@/shared/ui/BusinessEntityDetailModal.vue";
@@ -1198,7 +1199,7 @@ defineExpose({
   >
     <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
       <div
-        v-for="column in config.columns.filter((column) => column.filter)"
+        v-for="column in config.columns.filter((column) => column.filter && filters[column.field])"
         :key="column.field"
         class="grid gap-2"
       >
@@ -1206,31 +1207,11 @@ defineExpose({
           {{ column.header }}
         </label>
 
-        <div
+        <CrudDateRangeFilter
           v-if="column.filter?.type === 'dateRange'"
-          class="grid gap-2 sm:grid-cols-2"
-        >
-          <UInput
-            :model-value="filters[column.field].value?.[0] || ''"
-            type="date"
-            @update:model-value="
-              filters[column.field].value = [
-                $event || null,
-                filters[column.field].value?.[1] || null,
-              ]
-            "
-          />
-          <UInput
-            :model-value="filters[column.field].value?.[1] || ''"
-            type="date"
-            @update:model-value="
-              filters[column.field].value = [
-                filters[column.field].value?.[0] || null,
-                $event || null,
-              ]
-            "
-          />
-        </div>
+          :model-value="(filters[column.field].value as (string | null)[]) || [null, null]"
+          @update:model-value="filters[column.field].value = $event"
+        />
 
         <USelectMenu
           v-else-if="column.filter?.type === 'multiSelect'"
