@@ -53,6 +53,14 @@ const links = computed<NavigationMenuItem[][]>(() => [
       },
     },
     {
+      label: t("nav.tests"),
+      icon: "i-lucide-clipboard-list",
+      to: { name: "tests" },
+      onSelect: () => {
+        open.value = false;
+      },
+    },
+    {
       label: t("nav.dictionaries"),
       icon: "i-lucide-library",
       to: { name: "dictionaries" },

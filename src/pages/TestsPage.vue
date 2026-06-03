@@ -1,65 +1,60 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import DictionaryCrudContent from "@/modules/dictionaries/pages/DictionaryCrudContent.vue";
-import { usePermission } from "@/shared/composables/usePermission";
 import CrudFilterControls from "@/shared/ui/CrudFilterControls.vue";
 import CrudSearchControl from "@/shared/ui/CrudSearchControl.vue";
 import { crudModules } from "@/shared/config/crud-modules";
 
-const { can } = usePermission();
 const crudContent = ref<InstanceType<typeof DictionaryCrudContent> | null>(null);
 const tableSearch = ref("");
 const refreshToken = ref(0);
 const resetToken = ref(0);
 
-const selectedConfig = crudModules.samples;
-
-const createDisabled = !can(selectedConfig.resource, "create");
+const selectedConfig = crudModules.tests;
 const activeFilterCount = computed(() => crudContent.value?.activeFilterCount || 0);
 </script>
 
 <template>
-  <UDashboardPanel id="samples" :ui="{ body: 'min-h-0 overflow-hidden' }">
+  <UDashboardPanel id="tests" :ui="{ body: 'min-h-0 overflow-hidden' }">
     <template #header>
-      <UDashboardNavbar title="Образцы">
+      <UDashboardNavbar title="Тесты">
         <template #leading>
           <UDashboardSidebarCollapse />
-        </template>
-        <template #right>
-          <UTooltip :text="createDisabled ? 'Нет прав на создание' : 'Создать запись'">
-            <UButton label="Создать" :icon="createDisabled ? 'i-lucide-lock' : 'i-lucide-plus'"
-              :disabled="createDisabled" @click="crudContent?.openCreate()" />
-          </UTooltip>
         </template>
       </UDashboardNavbar>
 
       <UDashboardToolbar>
         <template #left>
           <div class="flex w-full flex-col gap-3 lg:flex-row lg:items-center">
-            <CrudSearchControl v-model="tableSearch" placeholder="Поиск по образцам" />
+            <CrudSearchControl v-model="tableSearch" placeholder="Поиск по тестам" />
             <CrudFilterControls :active-count="activeFilterCount" @open="crudContent!.filterModalOpen = true"
               @clear="resetToken++" />
           </div>
         </template>
         <template #right>
           <div class="flex flex-wrap items-center gap-2">
-            <UButton v-show="crudContent?.selectedCount" :disabled="!crudContent?.canRegisterSelectedSamples"
-              color="primary" variant="subtle" icon="i-lucide-clipboard-check" label="Зарегистрировать"
-              @click="crudContent?.registerSelectedSamples()">
+            <UButton v-show="crudContent?.selectedCount" :disabled="!crudContent?.canStartSelectedTests" color="primary"
+              variant="subtle" icon="i-lucide-play" label="В работу" @click="crudContent?.startSelectedTests()">
               <template #trailing>
                 <UKbd>{{ crudContent?.selectedCount }}</UKbd>
               </template>
             </UButton>
-            <UButton v-show="crudContent?.selectedCount" :disabled="!crudContent?.canRejectSelectedSamples"
-              color="warning" variant="subtle" icon="i-lucide-ban" label="Брак"
-              @click="crudContent?.rejectSelectedSamples()">
+            <UButton v-show="crudContent?.selectedCount" :disabled="!crudContent?.canCompleteSelectedTests"
+              color="success" variant="subtle" icon="i-lucide-check" label="Результат"
+              @click="crudContent?.completeSelectedTests()">
               <template #trailing>
                 <UKbd>{{ crudContent?.selectedCount }}</UKbd>
               </template>
             </UButton>
-            <UButton v-show="crudContent?.selectedCount" :disabled="!crudContent?.canCloseSelectedSamples"
-              color="success" variant="subtle" icon="i-lucide-lock-keyhole" label="Закрыть"
-              @click="crudContent?.closeSelectedSamples()">
+            <UButton v-show="crudContent?.selectedCount" :disabled="!crudContent?.canRequeueSelectedTests"
+              color="warning" variant="subtle" icon="i-lucide-rotate-ccw" label="В очередь"
+              @click="crudContent?.requeueSelectedTests()">
+              <template #trailing>
+                <UKbd>{{ crudContent?.selectedCount }}</UKbd>
+              </template>
+            </UButton>
+            <UButton v-show="crudContent?.selectedCount" :disabled="!crudContent?.canRejectSelectedTests" color="error"
+              variant="subtle" icon="i-lucide-ban" label="Отклонить" @click="crudContent?.rejectSelectedTests()">
               <template #trailing>
                 <UKbd>{{ crudContent?.selectedCount }}</UKbd>
               </template>

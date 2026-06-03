@@ -429,9 +429,17 @@ export const getMockReadResponse = <T>(path: string): ApiReadResponse<T> | null 
   );
   const commandPermissions = [
     { resource: "directions", action: "import" },
+    { resource: "directions", action: "register" },
     { resource: "directions", action: "release" },
+    { resource: "research", action: "confirm" },
+    { resource: "research", action: "start" },
+    { resource: "research", action: "reject" },
     { resource: "samples", action: "register" },
+    { resource: "samples", action: "reject" },
+    { resource: "samples", action: "close" },
     { resource: "tests", action: "start" },
+    { resource: "tests", action: "complete" },
+    { resource: "tests", action: "reject" },
     { resource: "tests", action: "requeue" },
   ];
   const permissions = [...crudPermissions, ...commandPermissions];

@@ -12,7 +12,6 @@ import {
 } from "@/modules/dictionaries/config";
 import DictionaryCrudContent from "@/modules/dictionaries/pages/DictionaryCrudContent.vue";
 import { usePermission } from "@/shared/composables/usePermission";
-import CrudFilterControls from "@/shared/ui/CrudFilterControls.vue";
 import CrudSearchControl from "@/shared/ui/CrudSearchControl.vue";
 
 const route = useRoute();
@@ -21,7 +20,6 @@ const { can } = usePermission();
 const crudContent = ref<InstanceType<typeof DictionaryCrudContent> | null>(null);
 const tableSearch = ref("");
 const refreshToken = ref(0);
-const resetToken = ref(0);
 
 const moduleKey = computed(() => {
   const rawModule = route.params.module;
@@ -65,9 +63,6 @@ const showStatusNavigation = computed(
 );
 
 const createDisabled = computed(() => !can(selectedConfig.value.resource, "create"));
-const activeFilterCount = computed(
-  () => crudContent.value?.activeFilterCount || 0,
-);
 
 watch(
   moduleKey,
@@ -97,15 +92,9 @@ watch(moduleKey, () => {
           <UDashboardSidebarCollapse />
         </template>
         <template #right>
-          <UTooltip
-            :text="createDisabled ? 'Нет прав на создание' : 'Создать запись'"
-          >
-            <UButton
-              label="Создать"
-              :icon="createDisabled ? 'i-lucide-lock' : 'i-lucide-plus'"
-              :disabled="createDisabled"
-              @click="crudContent?.openCreate()"
-            />
+          <UTooltip :text="createDisabled ? 'Нет прав на создание' : 'Создать запись'">
+            <UButton label="Создать" :icon="createDisabled ? 'i-lucide-lock' : 'i-lucide-plus'"
+              :disabled="createDisabled" @click="crudContent?.openCreate()" />
           </UTooltip>
         </template>
       </UDashboardNavbar>
@@ -115,58 +104,32 @@ watch(moduleKey, () => {
       </UDashboardToolbar>
 
       <UDashboardToolbar v-if="showStatusNavigation">
-        <UNavigationMenu
-          :items="statusLinks"
-          highlight
-          class="-mx-1 flex-1"
-        />
+        <UNavigationMenu :items="statusLinks" highlight class="-mx-1 flex-1" />
       </UDashboardToolbar>
 
       <UDashboardToolbar>
         <template #left>
           <div class="flex w-full flex-col gap-3 lg:flex-row lg:items-center">
-            <CrudSearchControl
-              v-model="tableSearch"
-              placeholder="Поиск по справочнику"
-            />
-            <CrudFilterControls
-              :active-count="activeFilterCount"
-              @open="crudContent!.filterModalOpen = true"
-              @clear="resetToken++"
-            />
+            <CrudSearchControl v-model="tableSearch" placeholder="Поиск по справочнику" />
           </div>
         </template>
         <template #right>
           <div class="flex flex-wrap items-center gap-2">
-            <UButton
-              v-show="crudContent?.selectedCount"
-              color="error"
-              variant="subtle"
-              icon="i-lucide-trash"
-              label="Удалить"
-              @click="crudContent?.deleteSelected()"
-            >
+            <UButton v-show="crudContent?.selectedCount" color="error" variant="subtle" icon="i-lucide-trash"
+              label="Удалить" @click="crudContent?.deleteSelected()">
               <template #trailing>
                 <UKbd>{{ crudContent?.selectedCount }}</UKbd>
               </template>
             </UButton>
-            <UButton
-              color="neutral"
-              variant="subtle"
-              icon="i-lucide-refresh-cw"
-              label="Обновить"
-              @click="refreshToken++"
-            />
-            <UDropdownMenu
-              :items="crudContent?.columnMenuItems || []"
-              :content="{ align: 'end' }"
-            >
-              <UButton
-                label="Столбцы"
-                color="neutral"
-                variant="subtle"
-                trailing-icon="i-lucide-settings-2"
-              />
+            <UTooltip text="Обновить данные">
+
+              <UButton color="neutral" variant="subtle" icon="i-lucide-refresh-cw" @click="refreshToken++" />
+            </UTooltip>
+
+            <UDropdownMenu :items="crudContent?.columnMenuItems || []" :content="{ align: 'end' }">
+              <UTooltip text="Столбцы таблицы">
+                <UButton color="neutral" variant="subtle" trailing-icon="i-lucide-settings-2" />
+              </UTooltip>
             </UDropdownMenu>
           </div>
         </template>
@@ -175,15 +138,8 @@ watch(moduleKey, () => {
 
     <template #body>
       <div class="flex min-h-0 w-full flex-1 flex-col gap-4">
-        <DictionaryCrudContent
-          ref="crudContent"
-          :key="moduleKey"
-          :config="selectedConfig"
-          :request-params="selectedItem.requestParams"
-          :search="tableSearch"
-          :refresh-token="refreshToken"
-          :reset-token="resetToken"
-        />
+        <DictionaryCrudContent ref="crudContent" :key="moduleKey" :config="selectedConfig"
+          :request-params="selectedItem.requestParams" :search="tableSearch" :refresh-token="refreshToken" />
       </div>
     </template>
   </UDashboardPanel>

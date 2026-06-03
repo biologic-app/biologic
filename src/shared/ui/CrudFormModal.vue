@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import type { FormField } from '@/shared/types/form'
+import { getFormFieldLayoutClass } from '@/shared/ui/form-layout'
 import { fromDateTimeLocalValue, toDateTimeLocalValue } from '@/shared/utils/format'
 
 const props = defineProps<{
   open: boolean
   title: string
   fields: FormField[]
-  item: Record<string, any> | null
+  item: Record<string, unknown> | null
   mode: 'view' | 'edit' | 'create'
   loading?: boolean
   readOnly?: boolean
@@ -15,11 +16,15 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:open', value: boolean): void
-  (e: 'save', payload: Record<string, any>): void
+  (e: 'save', payload: Record<string, unknown>): void
 }>()
 
+// Dynamic v-model targets need a broad value type for Nuxt UI form components.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type FormState = Record<string, any>
+
 const formRef = ref<HTMLFormElement | null>(null)
-const form = reactive<Record<string, any>>({})
+const form = reactive<FormState>({})
 const isFullscreen = ref(false)
 
 const normalizedFields = computed(() =>
@@ -81,7 +86,7 @@ const submit = () => {
     return
   }
 
-  const payload: Record<string, any> = {}
+  const payload: Record<string, unknown> = {}
 
   normalizedFields.value.forEach((field) => {
     if (field.type === 'file') {
@@ -136,12 +141,12 @@ const onFileChange = (key: string, event: Event) => {
       </div>
     </template>
     <template #body>
-      <form ref="formRef" class="grid gap-4 md:grid-cols-2" @submit.prevent="submit">
+      <form ref="formRef" class="grid gap-4 md:grid-cols-12" @submit.prevent="submit">
         <div
           v-for="field in normalizedFields"
           :key="field.key"
           class="grid gap-2"
-          :class="field.type === 'textarea' ? 'md:col-span-2' : ''"
+          :class="getFormFieldLayoutClass(field)"
         >
           <label :for="field.key" class="text-sm font-medium text-toned">
             {{ field.label }}
@@ -212,7 +217,13 @@ const onFileChange = (key: string, event: Event) => {
 
     <template #footer>
       <div class="flex w-full items-center justify-end gap-3">
-        <UButton color="neutral" variant="ghost" label="Закрыть" :disabled="loading" @click="close" />
+        <UButton
+          color="neutral"
+          variant="ghost"
+          label="Закрыть"
+          :disabled="loading"
+          @click="close"
+        />
         <UButton
           v-if="!readOnly"
           color="primary"

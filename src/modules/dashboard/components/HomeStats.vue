@@ -1,98 +1,78 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { computed } from 'vue'
 import { useLocale } from '@/shared/composables/useLocale'
-import { randomInt } from '@/shared/utils/random'
-import type { Period, Range, Stat } from '@/modules/dashboard/types'
+import type { DashboardKpi, DashboardSummary } from '@/modules/dashboard/types'
 
 const props = defineProps<{
-  period: Period
-  range: Range
+  summary: DashboardSummary | null
+  loading: boolean
 }>()
 
-function formatCount(value: number): string {
-  return value.toLocaleString(intlLocale.value)
-}
-
-const { t } = useI18n()
 const { intlLocale } = useLocale()
 
-const baseStats = computed(() => [{
-  title: t('dashboard.stats.patients'),
-  icon: 'i-lucide-users',
-  minValue: 120,
-  maxValue: 600,
-  minVariation: -10,
-  maxVariation: 20
-}, {
-  title: t('dashboard.stats.analyses'),
-  icon: 'i-lucide-flask-conical',
-  minValue: 800,
-  maxValue: 3000,
-  minVariation: -8,
-  maxVariation: 18
-}, {
-  title: t('dashboard.stats.critical'),
-  icon: 'i-lucide-triangle-alert',
-  minValue: 2,
-  maxValue: 40,
-  minVariation: -30,
-  maxVariation: 50
-}, {
-  title: t('dashboard.stats.averageTime'),
-  icon: 'i-lucide-timer',
-  minValue: 18,
-  maxValue: 72,
-  minVariation: -15,
-  maxVariation: 10
-}])
+const skeletonItems = Array.from({ length: 6 }, (_, index) => index)
 
-const stats = ref<Stat[]>([])
+const kpis = computed<DashboardKpi[]>(() => props.summary?.kpis ?? [])
 
-watch([() => props.period, () => props.range, baseStats], () => {
-  stats.value = baseStats.value.map((stat) => {
-    const value = randomInt(stat.minValue, stat.maxValue)
-    const variation = randomInt(stat.minVariation, stat.maxVariation)
+const formatMinutes = (value: number) => {
+  if (value < 60) {
+    return `${value} мин`
+  }
 
-    return {
-      title: stat.title,
-      icon: stat.icon,
-      value: formatCount(value),
-      variation
-    }
-  })
-}, { immediate: true })
+  const hours = Math.floor(value / 60)
+  const minutes = value % 60
+  return minutes ? `${hours} ч ${minutes} мин` : `${hours} ч`
+}
+
+const formatValue = (item: DashboardKpi) => {
+  if (item.unit === 'minutes') {
+    return formatMinutes(item.value)
+  }
+
+  return item.value.toLocaleString(intlLocale.value)
+}
 </script>
 
 <template>
-  <UPageGrid class="lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-px">
-    <UPageCard
-      v-for="(stat, index) in stats"
-      :key="index"
-      :icon="stat.icon"
-      :title="stat.title"
-      variant="subtle"
-      :ui="{
-        container: 'gap-y-1.5',
-        wrapper: 'items-start',
-        leading: 'p-2.5 rounded-full bg-primary/10 ring ring-inset ring-primary/25',
-        title: 'font-normal text-muted text-xs uppercase'
-      }"
-      class="lg:rounded-none first:rounded-l-lg last:rounded-r-lg hover:z-1"
-    >
-      <div class="flex items-center gap-2">
-        <span class="text-2xl font-semibold text-highlighted">
-          {{ stat.value }}
-        </span>
+  <UPageGrid class="lg:grid-cols-6 gap-4 sm:gap-6 lg:gap-px">
+    <template v-if="loading && !kpis.length">
+      <UPageCard
+        v-for="item in skeletonItems"
+        :key="item"
+        variant="subtle"
+        :ui="{
+          container: 'gap-y-3',
+          wrapper: 'items-start'
+        }"
+        class="lg:rounded-none first:rounded-l-lg last:rounded-r-lg"
+      >
+        <USkeleton class="size-10 rounded-full" />
+        <USkeleton class="h-3 w-24" />
+        <USkeleton class="h-7 w-20" />
+      </UPageCard>
+    </template>
 
-        <UBadge
-          :color="stat.variation > 0 ? 'success' : 'error'"
-          variant="subtle"
-          class="text-xs"
-        >
-          {{ stat.variation > 0 ? '+' : '' }}{{ stat.variation }}%
-        </UBadge>
-      </div>
-    </UPageCard>
+    <template v-else>
+      <UPageCard
+        v-for="stat in kpis"
+        :key="stat.key"
+        :icon="stat.icon || 'i-lucide-chart-no-axes-column'"
+        :title="stat.label"
+        variant="subtle"
+        :ui="{
+          container: 'gap-y-1.5',
+          wrapper: 'items-start',
+          leading: 'p-2.5 rounded-full bg-primary/10 ring ring-inset ring-primary/25',
+          title: 'font-normal text-muted text-xs uppercase'
+        }"
+        class="lg:rounded-none first:rounded-l-lg last:rounded-r-lg hover:z-1"
+      >
+        <div class="flex items-center gap-2">
+          <span class="text-2xl font-semibold text-highlighted">
+            {{ formatValue(stat) }}
+          </span>
+        </div>
+      </UPageCard>
+    </template>
   </UPageGrid>
 </template>

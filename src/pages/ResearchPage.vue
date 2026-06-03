@@ -26,12 +26,8 @@ const activeFilterCount = computed(() => crudContent.value?.activeFilterCount ||
         </template>
         <template #right>
           <UTooltip :text="createDisabled ? 'Нет прав на создание' : 'Создать запись'">
-            <UButton
-              label="Создать"
-              :icon="createDisabled ? 'i-lucide-lock' : 'i-lucide-plus'"
-              :disabled="createDisabled"
-              @click="crudContent?.openCreate()"
-            />
+            <UButton label="Создать" :icon="createDisabled ? 'i-lucide-lock' : 'i-lucide-plus'"
+              :disabled="createDisabled" @click="crudContent?.openCreate()" />
           </UTooltip>
         </template>
       </UDashboardNavbar>
@@ -40,42 +36,51 @@ const activeFilterCount = computed(() => crudContent.value?.activeFilterCount ||
         <template #left>
           <div class="flex w-full flex-col gap-3 lg:flex-row lg:items-center">
             <CrudSearchControl v-model="tableSearch" placeholder="Поиск по исследованиям" />
-            <CrudFilterControls
-              :active-count="activeFilterCount"
-              @open="crudContent!.filterModalOpen = true"
-              @clear="resetToken++"
-            />
+            <CrudFilterControls :active-count="activeFilterCount" @open="crudContent!.filterModalOpen = true"
+              @clear="resetToken++" />
           </div>
         </template>
         <template #right>
           <div class="flex flex-wrap items-center gap-2">
-            <UButton
-              v-show="crudContent?.selectedCount"
-              color="error"
-              variant="subtle"
-              icon="i-lucide-trash"
-              label="Удалить"
-              @click="crudContent?.deleteSelected()"
-            >
+            <UButton v-show="crudContent?.selectedCount" :disabled="!crudContent?.canConfirmSelectedResearch"
+              color="primary" variant="subtle" icon="i-lucide-check-check" label="Подтвердить"
+              @click="crudContent?.confirmSelectedResearch()">
               <template #trailing>
                 <UKbd>{{ crudContent?.selectedCount }}</UKbd>
               </template>
             </UButton>
-            <UButton
-              color="neutral"
-              variant="subtle"
-              icon="i-lucide-refresh-cw"
-              label="Обновить"
-              @click="refreshToken++"
-            />
+            <UButton v-show="crudContent?.selectedCount" :disabled="!crudContent?.canStartSelectedResearch"
+              color="primary" variant="subtle" icon="i-lucide-play" label="В работу"
+              @click="crudContent?.startSelectedResearch()">
+              <template #trailing>
+                <UKbd>{{ crudContent?.selectedCount }}</UKbd>
+              </template>
+            </UButton>
+            <UButton v-show="crudContent?.selectedCount" :disabled="!crudContent?.canRejectSelectedResearch"
+              color="error" variant="subtle" icon="i-lucide-ban" label="Отклонить"
+              @click="crudContent?.rejectSelectedResearch()">
+              <template #trailing>
+                <UKbd>{{ crudContent?.selectedCount }}</UKbd>
+              </template>
+            </UButton>
+
+            <UButton v-show="crudContent?.selectedCount" color="error" variant="subtle" icon="i-lucide-trash"
+              label="Удалить" :disabled="!crudContent?.canDeleteSelected" @click="crudContent?.deleteSelected()">
+              <template #trailing>
+                <UKbd>{{ crudContent?.selectedCount }}</UKbd>
+              </template>
+            </UButton>
+            <UTooltip text="Обновить данные">
+
+              <UButton color="neutral" variant="subtle" icon="i-lucide-refresh-cw" @click="refreshToken++" />
+            </UTooltip>
+
             <UDropdownMenu :items="crudContent?.columnMenuItems || []" :content="{ align: 'end' }">
-              <UButton
-                label="Столбцы"
-                color="neutral"
-                variant="subtle"
-                trailing-icon="i-lucide-settings-2"
-              />
+              <UTooltip text="Столбцы таблицы">
+                <UButton color="neutral" variant="subtle" trailing-icon="i-lucide-settings-2" />
+              </UTooltip>
             </UDropdownMenu>
+
           </div>
         </template>
       </UDashboardToolbar>
@@ -83,13 +88,8 @@ const activeFilterCount = computed(() => crudContent.value?.activeFilterCount ||
 
     <template #body>
       <div class="flex h-full min-h-0 w-full flex-col">
-        <DictionaryCrudContent
-          ref="crudContent"
-          :config="selectedConfig"
-          :search="tableSearch"
-          :refresh-token="refreshToken"
-          :reset-token="resetToken"
-        />
+        <DictionaryCrudContent ref="crudContent" :config="selectedConfig" :search="tableSearch"
+          :refresh-token="refreshToken" :reset-token="resetToken" />
       </div>
     </template>
   </UDashboardPanel>

@@ -32,6 +32,7 @@ import { useCrudDialog } from "@/shared/composables/useCrudDialog";
 import { useOptimistic } from "@/shared/composables/useOptimistic";
 import { usePermission } from "@/shared/composables/usePermission";
 import { useTableColumnVisibility } from "@/shared/composables/useTableSettings";
+import { useAuth } from "@/modules/auth/composables/useAuth";
 import {
   TABLE_PRESETS_KEY,
   useServerTable,
@@ -53,8 +54,37 @@ type CrudRow = {
 };
 
 type DetailKind = "directions" | "samples" | "research";
+type BadgeColor = "neutral" | "primary" | "info" | "success" | "warning" | "error";
 type ReferenceValue = string | number | boolean | null;
 type ReferenceOption = { label: string; value: ReferenceValue };
+type WorkflowCommandKey =
+  | "directions.register"
+  | "samples.register"
+  | "samples.reject"
+  | "samples.close"
+  | "research.confirm"
+  | "research.start"
+  | "research.reject"
+  | "tests.start"
+  | "tests.complete"
+  | "tests.requeue"
+  | "tests.reject";
+
+type WorkflowCommand = {
+  key: WorkflowCommandKey;
+  label: string;
+  title: string;
+  icon: string;
+  color?: "primary" | "success" | "warning" | "error" | "neutral";
+  resource: "directions" | "samples" | "research" | "tests";
+  action: "register" | "reject" | "close" | "confirm" | "start" | "complete" | "requeue";
+  statuses: string[];
+  endpoint: (row: CrudRow) => string;
+  fields: FormField[];
+  successTitle: string;
+  errorTitle: string;
+  body: (actorId: string, payload: Record<string, unknown>) => Record<string, unknown>;
+};
 
 const props = withDefaults(
   defineProps<{
@@ -78,6 +108,7 @@ const UButton = resolveComponent("UButton");
 const UBadge = resolveComponent("UBadge");
 
 const toast = useToast();
+const auth = useAuth();
 const { can } = usePermission();
 const filterModalOpen = ref(false);
 const tableSettingsKey = `table-settings:dictionaries:${props.config.presetKey}:${JSON.stringify(props.requestParams ?? {})}`;
@@ -95,6 +126,11 @@ const confirmDialog = ref<{ open: boolean; title: string; description: string; o
 });
 
 const deleting = ref(false);
+const commandSaving = ref(false);
+const commandDialogOpen = ref(false);
+const activeCommand = ref<WorkflowCommand | null>(null);
+const commandRows = ref<CrudRow[]>([]);
+const commandFields = ref<FormField[]>([]);
 const pendingUndo = ref<Array<{ item: CrudRow; timeout: ReturnType<typeof setTimeout> }>>([]);
 
 function undoDelete(undoEntry: { item: CrudRow; timeout: ReturnType<typeof setTimeout> }) {
@@ -281,12 +317,284 @@ const resolveReferenceCell = (row: CrudRow, columnField: string) => {
   return shortCode ? `Запись ${shortCode}` : "";
 };
 
+const getStringValue = (value: unknown) =>
+  typeof value === "string" && value.trim() ? value.trim() : "";
+
+const getStatusLabel = (row: CrudRow) => {
+  const statusValue = getValueByPath(row, "status");
+  const label =
+    getStringValue(getValueByPath(row, "status.name"))
+    || getStringValue(getValueByPath(row, "status_name"))
+    || getStringValue(statusValue)
+    || resolveReferenceCell(row, "status.name");
+
+  return label || "-";
+};
+
+const normalizeStatusCode = (row: CrudRow) => {
+  const rawCode = getValueByPath(row, "status.code");
+  const value = String(rawCode || getStatusLabel(row)).trim().toLowerCase();
+
+  if (value.includes("draft") || value.includes("чернов")) return "draft";
+  if (value.includes("pending") || value.includes("регистрац")) return "pending";
+  if (value.includes("queued") || value.includes("очеред")) return "queued";
+  if (value.includes("ordered") || value.includes("назнач")) return "ordered";
+  if (value.includes("registered") || value.includes("зарегистр")) return "registered";
+  if (value.includes("in_progress") || value.includes("работ") || value.includes("исслед")) return "in_progress";
+  if (value.includes("rejected") || value.includes("отклон") || value.includes("брак")) return "rejected";
+  if (value.includes("completed") || value.includes("заверш")) return "completed";
+  if (value.includes("partially")) return "partially_completed";
+  if (value.includes("analyzed") || value.includes("анализ")) return "analyzed";
+  return value;
+};
+
+const getStatusBadgeColor = (row: CrudRow): BadgeColor => {
+  const code = normalizeStatusCode(row);
+  if (code === "draft") return "neutral";
+  if (code === "pending" || code === "queued" || code === "ordered") return "warning";
+  if (code === "registered" || code === "in_progress" || code === "analyzed") return "info";
+  if (code === "completed" || code === "partially_completed") return "success";
+  if (code === "rejected") return "error";
+  return "primary";
+};
+
+const rendersStatusBadge = (columnField: string) =>
+  columnField === "status.name"
+  && ["directions", "samples", "research", "tests"].includes(props.config.presetKey);
+
+const getColumnId = (columnField: string) =>
+  rendersStatusBadge(columnField) ? "status" : columnField;
+
+const isDeleteAllowed = (row: CrudRow) => {
+  const code = normalizeStatusCode(row);
+  if (props.config.presetKey === "directions") return code === "draft";
+  if (props.config.presetKey === "samples") return code === "pending";
+  if (props.config.presetKey === "research") return code === "draft";
+  return true;
+};
+
+const deleteRestriction = computed(() => {
+  if (props.config.presetKey === "directions") return "Удалять можно только направления в статусе «Черновик».";
+  if (props.config.presetKey === "samples") return "Удалять можно только образцы в статусе «На регистрации».";
+  if (props.config.presetKey === "research") return "Удалять можно только исследования в статусе «Черновик».";
+  return "";
+});
+
+const getActorId = () => {
+  if (auth.user?.id) {
+    return auth.user.id;
+  }
+
+  toast.add({
+    title: "Не удалось выполнить действие",
+    description: "Текущий пользователь не определён.",
+    color: "error",
+    icon: "i-lucide-circle-alert",
+  });
+  return null;
+};
+
+const workflowCommands: WorkflowCommand[] = [
+  {
+    key: "directions.register",
+    label: "REG",
+    title: "Зарегистрировать направление",
+    icon: "i-lucide-clipboard-check",
+    color: "primary",
+    resource: "directions",
+    action: "register",
+    statuses: ["draft"],
+    endpoint: (row) => `/directions/${row.id}/register`,
+    fields: [{ key: "comment", label: "Комментарий", type: "textarea" }],
+    successTitle: "Направления зарегистрированы",
+    errorTitle: "Не удалось зарегистрировать направления",
+    body: (actorId, payload) => ({ actor_id: actorId, comment: payload.comment }),
+  },
+  {
+    key: "samples.register",
+    label: "REG",
+    title: "Зарегистрировать образец",
+    icon: "i-lucide-clipboard-check",
+    color: "primary",
+    resource: "samples",
+    action: "register",
+    statuses: ["pending"],
+    endpoint: (row) => `/samples/${row.id}/register`,
+    fields: [
+      { key: "received_at", label: "Дата получения", type: "date", required: true, layout: { span: 6 } },
+      { key: "deadline", label: "Срок", type: "date", layout: { span: 6 } },
+    ],
+    successTitle: "Образцы зарегистрированы",
+    errorTitle: "Не удалось зарегистрировать образцы",
+    body: (actorId, payload) => ({
+      actor_id: actorId,
+      received_at: payload.received_at,
+      deadline: payload.deadline,
+    }),
+  },
+  {
+    key: "samples.reject",
+    label: "REJ",
+    title: "Забраковать образец",
+    icon: "i-lucide-ban",
+    color: "error",
+    resource: "samples",
+    action: "reject",
+    statuses: ["pending"],
+    endpoint: (row) => `/samples/${row.id}/reject`,
+    fields: [{ key: "reason", label: "Причина", type: "textarea", required: true }],
+    successTitle: "Образцы помечены как брак",
+    errorTitle: "Не удалось забраковать образцы",
+    body: (actorId, payload) => ({ actor_id: actorId, reason: payload.reason }),
+  },
+  {
+    key: "samples.close",
+    label: "CLO",
+    title: "Закрыть образец",
+    icon: "i-lucide-lock-keyhole",
+    color: "success",
+    resource: "samples",
+    action: "close",
+    statuses: ["analyzed"],
+    endpoint: (row) => `/samples/${row.id}/close`,
+    fields: [
+      { key: "verdict", label: "Вердикт", required: true },
+      { key: "comment", label: "Комментарий", type: "textarea" },
+    ],
+    successTitle: "Образцы закрыты",
+    errorTitle: "Не удалось закрыть образцы",
+    body: (actorId, payload) => ({
+      actor_id: actorId,
+      verdict: payload.verdict,
+      comment: payload.comment,
+    }),
+  },
+  {
+    key: "research.confirm",
+    label: "CNF",
+    title: "Подтвердить исследование",
+    icon: "i-lucide-check-check",
+    color: "primary",
+    resource: "research",
+    action: "confirm",
+    statuses: ["draft"],
+    endpoint: (row) => `/research/${row.id}/confirm`,
+    fields: [],
+    successTitle: "Исследования подтверждены",
+    errorTitle: "Не удалось подтвердить исследования",
+    body: (actorId) => ({ actor_id: actorId }),
+  },
+  {
+    key: "research.start",
+    label: "STR",
+    title: "Взять исследование в работу",
+    icon: "i-lucide-play",
+    color: "primary",
+    resource: "research",
+    action: "start",
+    statuses: ["ordered"],
+    endpoint: (row) => `/research/${row.id}/start`,
+    fields: [],
+    successTitle: "Исследования взяты в работу",
+    errorTitle: "Не удалось взять исследования в работу",
+    body: (actorId) => ({ actor_id: actorId }),
+  },
+  {
+    key: "research.reject",
+    label: "REJ",
+    title: "Отклонить исследование",
+    icon: "i-lucide-ban",
+    color: "error",
+    resource: "research",
+    action: "reject",
+    statuses: ["draft", "ordered"],
+    endpoint: (row) => `/research/${row.id}/reject`,
+    fields: [{ key: "reason", label: "Причина", type: "textarea", required: true }],
+    successTitle: "Исследования отклонены",
+    errorTitle: "Не удалось отклонить исследования",
+    body: (actorId, payload) => ({ actor_id: actorId, reason: payload.reason }),
+  },
+  {
+    key: "tests.start",
+    label: "STR",
+    title: "Взять тест в работу",
+    icon: "i-lucide-play",
+    color: "primary",
+    resource: "tests",
+    action: "start",
+    statuses: ["queued"],
+    endpoint: (row) => `/tests/${row.id}/start`,
+    fields: [],
+    successTitle: "Тесты взяты в работу",
+    errorTitle: "Не удалось взять тесты в работу",
+    body: (actorId) => ({ actor_id: actorId }),
+  },
+  {
+    key: "tests.complete",
+    label: "RES",
+    title: "Внести результат теста",
+    icon: "i-lucide-check",
+    color: "success",
+    resource: "tests",
+    action: "complete",
+    statuses: ["in_progress"],
+    endpoint: (row) => `/tests/${row.id}/complete`,
+    fields: [
+      { key: "value", label: "Значение", required: true, layout: { span: 6 } },
+      { key: "norm", label: "Норма", layout: { span: 6 } },
+      { key: "comment", label: "Комментарий", type: "textarea" },
+    ],
+    successTitle: "Результаты тестов сохранены",
+    errorTitle: "Не удалось сохранить результаты тестов",
+    body: (actorId, payload) => ({
+      actor_id: actorId,
+      value: payload.value,
+      norm: payload.norm,
+      comment: payload.comment,
+    }),
+  },
+  {
+    key: "tests.requeue",
+    label: "REQ",
+    title: "Вернуть тест в очередь",
+    icon: "i-lucide-rotate-ccw",
+    color: "warning",
+    resource: "tests",
+    action: "requeue",
+    statuses: ["in_progress"],
+    endpoint: (row) => `/tests/${row.id}/requeue`,
+    fields: [],
+    successTitle: "Тесты возвращены в очередь",
+    errorTitle: "Не удалось вернуть тесты в очередь",
+    body: (actorId) => ({ actor_id: actorId }),
+  },
+  {
+    key: "tests.reject",
+    label: "REJ",
+    title: "Отклонить тест",
+    icon: "i-lucide-ban",
+    color: "error",
+    resource: "tests",
+    action: "reject",
+    statuses: ["queued", "in_progress"],
+    endpoint: (row) => `/tests/${row.id}/reject`,
+    fields: [{ key: "reason", label: "Причина", type: "textarea", required: true }],
+    successTitle: "Тесты отклонены",
+    errorTitle: "Не удалось отклонить тесты",
+    body: (actorId, payload) => ({ actor_id: actorId, reason: payload.reason }),
+  },
+];
+
+const selectedRowsHaveStatus = (allowed: string[]) =>
+  selectedRows.value.length > 0
+  && selectedRows.value.every((row) => allowed.includes(normalizeStatusCode(row)));
+
 const uiColumns = computed(() => {
   const actionColumn = { id: "actions", header: "Действия", meta: { class: { td: "w-auto min-w-[56px] text-right" } } };
 
   return [
     ...props.config.columns.map((column, columnIndex) => ({
-      id: column.field,
+      id: getColumnId(column.field),
       accessorKey: column.field,
       header: () =>
         h(UButton, {
@@ -317,6 +625,14 @@ const uiColumns = computed(() => {
 
         const value = getValueByPath(rowItem, column.field);
         const referenceCell = value ?? resolveReferenceCell(rowItem, column.field);
+
+        if (rendersStatusBadge(column.field)) {
+          return h(UBadge, {
+            color: getStatusBadgeColor(rowItem),
+            variant: "subtle",
+            label: getStatusLabel(rowItem),
+          });
+        }
 
         if (typeof referenceCell === "boolean") {
           return h(
@@ -407,6 +723,16 @@ const onSave = async (payload: Record<string, unknown>) => {
 };
 
 const confirmDelete = async (row: CrudRow) => {
+  if (!isDeleteAllowed(row)) {
+    toast.add({
+      title: "Удаление недоступно",
+      description: deleteRestriction.value,
+      color: "warning",
+      icon: "i-lucide-circle-alert",
+    });
+    return;
+  }
+
   confirmDialog.value = {
     open: true,
     title: "Удалить запись",
@@ -463,8 +789,157 @@ const selectedRows = computed(() =>
 );
 
 const selectedCount = computed(() => selectedRows.value.length);
+const canDeleteSelected = computed(() =>
+  selectedRows.value.length > 0 && selectedRows.value.every(isDeleteAllowed),
+);
+
+const commandByKey = (key: WorkflowCommandKey) =>
+  workflowCommands.find((command) => command.key === key);
+
+const commandBelongsToPage = (command: WorkflowCommand) =>
+  command.resource === props.config.presetKey;
+
+const canRunCommandOnRow = (command: WorkflowCommand, row: CrudRow) =>
+  commandBelongsToPage(command)
+  && can(command.resource, command.action)
+  && command.statuses.includes(normalizeStatusCode(row));
+
+const canRunCommandOnSelection = (key: WorkflowCommandKey) => {
+  const command = commandByKey(key);
+  return Boolean(
+    command
+    && commandBelongsToPage(command)
+    && can(command.resource, command.action)
+    && selectedRowsHaveStatus(command.statuses),
+  );
+};
+
+const canRegisterSelectedDirections = computed(() => canRunCommandOnSelection("directions.register"));
+const canRegisterSelectedSamples = computed(() => canRunCommandOnSelection("samples.register"));
+const canRejectSelectedSamples = computed(() => canRunCommandOnSelection("samples.reject"));
+const canCloseSelectedSamples = computed(() => canRunCommandOnSelection("samples.close"));
+const canConfirmSelectedResearch = computed(() => canRunCommandOnSelection("research.confirm"));
+const canRejectSelectedResearch = computed(() => canRunCommandOnSelection("research.reject"));
+const canStartSelectedResearch = computed(() => canRunCommandOnSelection("research.start"));
+const canStartSelectedTests = computed(() => canRunCommandOnSelection("tests.start"));
+const canCompleteSelectedTests = computed(() => canRunCommandOnSelection("tests.complete"));
+const canRequeueSelectedTests = computed(() => canRunCommandOnSelection("tests.requeue"));
+const canRejectSelectedTests = computed(() => canRunCommandOnSelection("tests.reject"));
+
+const commandInitialItem = computed(() => {
+  if (!activeCommand.value) {
+    return null;
+  }
+
+  const defaults: Record<string, unknown> = {};
+  activeCommand.value.fields.forEach((field) => {
+    if (field.type === "date" && field.required) {
+      defaults[field.key] = new Date().toISOString();
+      return;
+    }
+    defaults[field.key] = "";
+  });
+  return defaults;
+});
+
+const runWorkflowCommand = async (
+  command: WorkflowCommand,
+  rows: CrudRow[],
+  payload: Record<string, unknown> = {},
+) => {
+  const actorId = getActorId();
+  if (!actorId || !rows.length) {
+    return;
+  }
+
+  commandSaving.value = true;
+  try {
+    await Promise.all(
+      rows.map((row) =>
+        apiRequest(command.endpoint(row), {
+          method: "POST",
+          body: command.body(actorId, payload),
+        }),
+      ),
+    );
+    rowSelection.value = {};
+    commandDialogOpen.value = false;
+    await table.refresh();
+    toast.add({
+      title: command.successTitle,
+      color: "success",
+      icon: "i-lucide-circle-check",
+    });
+  } catch (error: unknown) {
+    toast.add({
+      title: command.errorTitle,
+      description: errorMessage(error),
+      color: "error",
+      icon: "i-lucide-circle-alert",
+    });
+  } finally {
+    commandSaving.value = false;
+  }
+};
+
+const loadCommandFieldOptions = async (fields: FormField[]) => {
+  const loadedFields = await Promise.all(
+    fields.map(async (field) => {
+      if (field.type !== "select" || field.options || !field.source) {
+        return field;
+      }
+
+      const options = await loadReferenceOptions(field.source).catch(() => []);
+      return { ...field, options };
+    }),
+  );
+  commandFields.value = loadedFields;
+};
+
+const openWorkflowCommand = async (key: WorkflowCommandKey, rows: CrudRow[]) => {
+  const command = commandByKey(key);
+  const allowedRows = rows.filter((row) => command && canRunCommandOnRow(command, row));
+  if (!command || !allowedRows.length) {
+    toast.add({
+      title: "Действие недоступно",
+      description: "Проверьте статус выбранных записей и права доступа.",
+      color: "warning",
+      icon: "i-lucide-circle-alert",
+    });
+    return;
+  }
+
+  if (!command.fields.length) {
+    await runWorkflowCommand(command, allowedRows);
+    return;
+  }
+
+  activeCommand.value = command;
+  commandRows.value = allowedRows;
+  await loadCommandFieldOptions(command.fields);
+  commandDialogOpen.value = true;
+};
+
+const saveWorkflowCommand = async (payload: Record<string, unknown>) => {
+  if (!activeCommand.value) {
+    return;
+  }
+
+  await runWorkflowCommand(activeCommand.value, commandRows.value, payload);
+};
+
 const deleteSelected = async () => {
   if (!selectedRows.value.length) {
+    return;
+  }
+
+  if (!canDeleteSelected.value) {
+    toast.add({
+      title: "Удаление недоступно",
+      description: deleteRestriction.value,
+      color: "warning",
+      icon: "i-lucide-circle-alert",
+    });
     return;
   }
 
@@ -508,6 +983,39 @@ const deleteSelected = async () => {
   };
 };
 
+const registerSelectedDirections = () =>
+  openWorkflowCommand("directions.register", selectedRows.value);
+
+const registerSelectedSamples = () =>
+  openWorkflowCommand("samples.register", selectedRows.value);
+
+const rejectSelectedSamples = () =>
+  openWorkflowCommand("samples.reject", selectedRows.value);
+
+const closeSelectedSamples = () =>
+  openWorkflowCommand("samples.close", selectedRows.value);
+
+const confirmSelectedResearch = () =>
+  openWorkflowCommand("research.confirm", selectedRows.value);
+
+const rejectSelectedResearch = () =>
+  openWorkflowCommand("research.reject", selectedRows.value);
+
+const startSelectedResearch = () =>
+  openWorkflowCommand("research.start", selectedRows.value);
+
+const startSelectedTests = () =>
+  openWorkflowCommand("tests.start", selectedRows.value);
+
+const completeSelectedTests = () =>
+  openWorkflowCommand("tests.complete", selectedRows.value);
+
+const requeueSelectedTests = () =>
+  openWorkflowCommand("tests.requeue", selectedRows.value);
+
+const rejectSelectedTests = () =>
+  openWorkflowCommand("tests.reject", selectedRows.value);
+
 const resolveDetailKind = (config: CrudModuleConfig): DetailKind | null =>
   ["directions", "samples", "research"].includes(config.presetKey)
     ? config.presetKey as DetailKind
@@ -537,11 +1045,32 @@ const openRelatedDetail = (payload: { kind: DetailKind; item: CrudRow }) => {
   }
 };
 
-const getRowActionItems = (row: CrudRow): DropdownMenuItem[] => [
-  { label: "Просмотр", icon: "i-lucide-eye", onSelect: () => openDetail(row) },
-  { label: "Редактировать", icon: "i-lucide-pencil", onSelect: () => dialog.openEdit(row) },
-  { label: "Удалить", icon: "i-lucide-trash-2", color: "error", onSelect: () => confirmDelete(row) },
-];
+const getRowWorkflowActionItems = (row: CrudRow): DropdownMenuItem[] =>
+  workflowCommands
+    .filter(commandBelongsToPage)
+    .map((command) => ({
+      label: `${command.label} · ${command.title}`,
+      icon: command.icon,
+      disabled: !canRunCommandOnRow(command, row),
+      ...(command.color === "error" ? { color: "error" as const } : {}),
+      onSelect: () => openWorkflowCommand(command.key, [row]),
+    }));
+
+const getRowActionItems = (row: CrudRow): DropdownMenuItem[] => {
+  const workflowItems = getRowWorkflowActionItems(row);
+  return [
+    { label: "Просмотр", icon: "i-lucide-eye", onSelect: () => openDetail(row) },
+    { label: "Редактировать", icon: "i-lucide-pencil", onSelect: () => dialog.openEdit(row) },
+    ...workflowItems,
+    {
+      label: "Удалить",
+      icon: "i-lucide-trash-2",
+      color: "error",
+      disabled: !isDeleteAllowed(row),
+      onSelect: () => confirmDelete(row),
+    },
+  ];
+};
 
 const handleRowSelect = (_event: Event, row: { original: CrudRow }) => {
   if (isSkeletonRow(row.original)) {
@@ -569,7 +1098,9 @@ const handleRowContextmenu = async (event: Event, row: { original: CrudRow }) =>
   contextMenuOpen.value = true;
 };
 
-const createDisabled = computed(() => !can(props.config.resource, "create"));
+const createDisabled = computed(() =>
+  props.config.presetKey === "tests" || !can(props.config.resource, "create"),
+);
 const activeFilterCount = computed(() =>
   Object.entries(filters).filter(([key, filter]) => {
     if (key === "global") {
@@ -590,11 +1121,11 @@ const columnMenuItems = computed(() =>
     ...props.config.columns.map((column) => ({
       label: column.header,
       type: "checkbox" as const,
-      checked: columnVisibility.value[column.field] !== false,
+      checked: columnVisibility.value[getColumnId(column.field)] !== false,
       onUpdateChecked(checked: boolean) {
         columnVisibility.value = {
           ...columnVisibility.value,
-          [column.field]: checked,
+          [getColumnId(column.field)]: checked,
         };
       },
       onSelect(event?: Event) {
@@ -629,7 +1160,30 @@ defineExpose({
   createDisabled,
   activeFilterCount,
   selectedCount,
+  canDeleteSelected,
+  canRegisterSelectedDirections,
+  canRegisterSelectedSamples,
+  canRejectSelectedSamples,
+  canCloseSelectedSamples,
+  canConfirmSelectedResearch,
+  canRejectSelectedResearch,
+  canStartSelectedResearch,
+  canStartSelectedTests,
+  canCompleteSelectedTests,
+  canRequeueSelectedTests,
+  canRejectSelectedTests,
   deleteSelected,
+  registerSelectedDirections,
+  registerSelectedSamples,
+  rejectSelectedSamples,
+  closeSelectedSamples,
+  confirmSelectedResearch,
+  rejectSelectedResearch,
+  startSelectedResearch,
+  startSelectedTests,
+  completeSelectedTests,
+  requeueSelectedTests,
+  rejectSelectedTests,
   columnMenuItems,
   filterModalOpen,
 });
@@ -737,6 +1291,15 @@ defineExpose({
         />
       </UDropdownMenu>
     </template>
+    <template #status-cell="{ row }">
+      <USkeleton v-if="isSkeletonRow(row.original)" class="h-5 w-24" />
+      <UBadge
+        v-else
+        :color="getStatusBadgeColor(row.original)"
+        variant="subtle"
+        :label="getStatusLabel(row.original)"
+      />
+    </template>
     <template #empty>
       <CrudTableEmptyState
         :title="activeFilterCount ? 'Ничего не найдено' : 'Нет записей'"
@@ -767,6 +1330,16 @@ defineExpose({
     :read-only="dialog.readOnly.value"
     :loading="saving"
     @save="onSave"
+  />
+
+  <CrudFormModal
+    v-model:open="commandDialogOpen"
+    :title="activeCommand?.title || 'Действие'"
+    :fields="commandFields"
+    :item="commandInitialItem"
+    mode="create"
+    :loading="commandSaving"
+    @save="saveWorkflowCommand"
   />
 
   <BusinessEntityDetailModal

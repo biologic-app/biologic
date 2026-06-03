@@ -69,14 +69,13 @@ const mapResource = (resource: string): Resource | null => {
 
 const mapAction = (action: string): Action | null => {
   const normalized = action.trim().toLowerCase();
-  const mapped =
-    normalized === "read"
-      ? "view"
-      : normalized === "update"
-        ? "edit"
-        : normalized === "issue"
-          ? "release"
-        : normalized;
+  const actionMap: Record<string, Action> = {
+    read: "view",
+    update: "edit",
+    issue: "release",
+    result: "complete",
+  };
+  const mapped = actionMap[normalized] ?? normalized;
   return knownActions.includes(mapped as Action) ? (mapped as Action) : null;
 };
 

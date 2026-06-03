@@ -28,24 +28,29 @@ function onConfirm() {
 <template>
   <UModal
     :open="open"
+    :title="title || 'Подтверждение'"
     :dismissible="!loading"
+    :ui="{
+      content: 'w-[calc(100vw-2rem)] max-w-[420px]',
+      header: 'min-h-0 px-5 py-4 sm:px-5',
+      body: 'px-5 py-4 sm:px-5 sm:py-4',
+      footer: 'px-5 py-3 sm:px-5',
+      close: 'top-3.5 end-4'
+    }"
     @update:open="emit('update:open', $event)"
   >
     <template #body>
-      <div class="flex flex-col items-center gap-4 py-4 text-center sm:py-6">
+      <div class="flex items-start gap-3">
         <div
-          class="flex size-11 items-center justify-center rounded-full border border-default bg-elevated"
+          class="flex size-11 shrink-0 items-center justify-center rounded-full border border-default bg-elevated"
         >
           <UIcon
             :name="confirmColor === 'error' ? 'i-lucide-triangle-alert' : 'i-lucide-circle-help'"
             :class="confirmColor === 'error' ? 'size-5 text-error' : 'size-5 text-muted'"
           />
         </div>
-        <div class="space-y-1.5">
-          <p class="text-base font-semibold text-highlighted">
-            {{ title || "Подтверждение" }}
-          </p>
-          <p class="max-w-md text-sm text-muted">
+        <div class="min-w-0 pt-0.5">
+          <p class="text-sm leading-5 text-muted">
             {{ description || "Вы уверены?" }}
           </p>
         </div>
@@ -53,7 +58,7 @@ function onConfirm() {
     </template>
 
     <template #footer>
-      <div class="flex w-full items-center justify-end gap-3">
+      <div class="flex w-full items-center justify-end gap-2">
         <UButton
           color="neutral"
           variant="ghost"

@@ -177,6 +177,17 @@ const visibleColumnCount = computed(() =>
           <slot name="actions-cell" :row="row" />
         </template>
 
+        <template
+          v-for="(_, name) in $slots"
+          #[name]="slotProps"
+        >
+          <slot
+            v-if="name !== 'before-table' && name !== 'actions-cell' && name !== 'empty'"
+            :name="name"
+            v-bind="slotProps"
+          />
+        </template>
+
         <template #empty>
           <slot name="empty" />
         </template>

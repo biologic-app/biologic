@@ -1,15 +1,16 @@
 <script setup lang="ts">
-import { ref, shallowRef } from "vue";
+import { ref, shallowRef, watch } from "vue";
 import { sub } from "date-fns";
 import { useI18n } from "vue-i18n";
 import { useDashboardShell } from "@/shared/composables/useDashboardShell";
 import { useSystemNotifications } from "@/shared/composables/useSystemNotifications";
 import TourMenu from "@/shared/ui/TourMenu.vue";
+import { loadDashboardSummary } from "@/modules/dashboard/dashboard.api";
 import HomeChart from "@/modules/dashboard/components/HomeChart.vue";
 import HomeDateRangePicker from "@/modules/dashboard/components/HomeDateRangePicker.vue";
 import HomePeriodSelect from "@/modules/dashboard/components/HomePeriodSelect.vue";
 import HomeStats from "@/modules/dashboard/components/HomeStats.vue";
-import type { Period, Range } from "@/modules/dashboard/types";
+import type { DashboardSummary, Period, Range } from "@/modules/dashboard/types";
 
 const { isNotificationsSlideoverOpen } = useDashboardShell();
 const { unreadNotifications } = useSystemNotifications();
@@ -20,6 +21,49 @@ const range = shallowRef<Range>({
   end: new Date(),
 });
 const period = ref<Period>("daily");
+const summary = shallowRef<DashboardSummary | null>(null);
+const isLoading = ref(false);
+const errorMessage = ref<string | null>(null);
+let requestSerial = 0;
+
+const resolveErrorMessage = (error: unknown) => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+
+  return t("dashboard.error");
+};
+
+watch([range, period], async () => {
+  const serial = ++requestSerial;
+  isLoading.value = true;
+  errorMessage.value = null;
+
+  try {
+    const nextSummary = await loadDashboardSummary(range.value, period.value);
+    if (serial === requestSerial) {
+      summary.value = nextSummary;
+    }
+  } catch (error) {
+    if (serial === requestSerial) {
+      errorMessage.value = resolveErrorMessage(error);
+      summary.value = null;
+    }
+  } finally {
+    if (serial === requestSerial) {
+      isLoading.value = false;
+    }
+  }
+}, { immediate: true });
 </script>
 
 <template>
@@ -72,8 +116,29 @@ const period = ref<Period>("daily");
     </template>
 
     <template #body>
-      <HomeStats data-tour="dashboard-stats" :period="period" :range="range" />
-      <HomeChart data-tour="dashboard-chart" :period="period" :range="range" />
+      <div class="space-y-6">
+        <UAlert
+          v-if="errorMessage"
+          color="error"
+          variant="subtle"
+          icon="i-lucide-circle-alert"
+          :title="t('dashboard.loadError')"
+          :description="errorMessage"
+        />
+
+        <HomeStats
+          data-tour="dashboard-stats"
+          :summary="summary"
+          :loading="isLoading"
+        />
+
+        <HomeChart
+          data-tour="dashboard-chart"
+          :summary="summary"
+          :period="period"
+          :loading="isLoading"
+        />
+      </div>
     </template>
   </UDashboardPanel>
 </template>

@@ -62,16 +62,15 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       }
     ],
     fields: [
-      { key: 'year_no', label: 'Год', type: 'number', required: true },
-      { key: 'base_no', label: 'Номер', type: 'number' },
-      { key: 'is_done', label: 'Завершено', type: 'boolean' },
-      { key: 'is_urgent', label: 'Срочно', type: 'boolean' },
-      { key: 'doctor_id', label: 'Врач', type: 'select', source: '/doctors' },
-      { key: 'object_id', label: 'Объект', type: 'select', source: '/objects' },
-      { key: 'status_id', label: 'Статус', type: 'select', source: '/direction_statuses' },
-      { key: 'sampled_at', label: 'Отбор', type: 'date' },
-      { key: 'received_at', label: 'Получение', type: 'date' },
-      { key: 'completed_at', label: 'Завершение', type: 'date' }
+      { key: 'year_no', label: 'Год', type: 'number', required: true, layout: { span: 4 } },
+      { key: 'base_no', label: 'Номер', type: 'number', layout: { span: 4 } },
+      { key: 'is_done', label: 'Завершено', type: 'boolean', layout: { span: 6 } },
+      { key: 'is_urgent', label: 'Срочно', type: 'boolean', layout: { span: 6 } },
+      { key: 'doctor_id', label: 'Врач', type: 'select', source: '/doctors', layout: { span: 4 } },
+      { key: 'object_id', label: 'Объект', type: 'select', source: '/objects', layout: { span: 4 } },
+      { key: 'sampled_at', label: 'Отбор', type: 'date', layout: { span: 4 } },
+      { key: 'received_at', label: 'Получение', type: 'date', layout: { span: 4 } },
+      { key: 'completed_at', label: 'Завершение', type: 'date', layout: { span: 4 } }
     ]
   },
   samples: {
@@ -127,26 +126,25 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       { field: 'received_at', header: 'Получен', sortable: true, filter: { type: 'dateRange' } }
     ],
     fields: [
-      { key: 'month_no', label: 'Месяц', type: 'number' },
-      { key: 'name', label: 'Название', required: true },
-      { key: 'alternate_name', label: 'Альтернативное имя' },
+      { key: 'month_no', label: 'Месяц', type: 'number', layout: { span: 4 } },
+      { key: 'name', label: 'Название', required: true, layout: { span: 4 } },
+      { key: 'alternate_name', label: 'Альтернативное имя', layout: { span: 4 } },
       { key: 'mass', label: 'Масса' },
       { key: 'target_description', label: 'Описание цели', type: 'textarea' },
       { key: 'comment', label: 'Комментарий', type: 'textarea' },
-      { key: 'section', label: 'Раздел' },
-      { key: 'delivery', label: 'Доставка' },
-      { key: 'nomenclature_code', label: 'Код номенклатуры' },
-      { key: 'batch_code', label: 'Код партии' },
-      { key: 'supplier', label: 'Поставщик' },
-      { key: 'is_urgent', label: 'Срочно', type: 'boolean' },
-      { key: 'is_done', label: 'Готов', type: 'boolean' },
-      { key: 'sample_type_id', label: 'Тип образца', type: 'select', source: '/sample_types' },
-      { key: 'status_id', label: 'Статус', type: 'select', source: '/sample_statuses' },
-      { key: 'direction_id', label: 'Направление', type: 'select', source: '/directions' },
-      { key: 'protocol_id', label: 'Протокол', type: 'select', source: '/protocols' },
-      { key: 'sampled_at', label: 'Отобран', type: 'date' },
-      { key: 'received_at', label: 'Получен', type: 'date' },
-      { key: 'completed_at', label: 'Завершён', type: 'date' }
+      { key: 'section', label: 'Раздел', layout: { span: 4 } },
+      { key: 'delivery', label: 'Доставка', layout: { span: 4 } },
+      { key: 'nomenclature_code', label: 'Код номенклатуры', layout: { span: 4 } },
+      { key: 'batch_code', label: 'Код партии', layout: { span: 4 } },
+      { key: 'supplier', label: 'Поставщик', layout: { span: 4 } },
+      { key: 'is_urgent', label: 'Срочно', type: 'boolean', layout: { span: 6 } },
+      { key: 'is_done', label: 'Готов', type: 'boolean', layout: { span: 6 } },
+      { key: 'sample_type_id', label: 'Тип образца', type: 'select', source: '/sample_types', layout: { span: 4 } },
+      { key: 'direction_id', label: 'Направление', type: 'select', source: '/directions', layout: { span: 4 } },
+      { key: 'protocol_id', label: 'Протокол', type: 'select', source: '/protocols', layout: { span: 4 } },
+      { key: 'sampled_at', label: 'Отобран', type: 'date', layout: { span: 4 } },
+      { key: 'received_at', label: 'Получен', type: 'date', layout: { span: 4 } },
+      { key: 'completed_at', label: 'Завершён', type: 'date', layout: { span: 4 } }
     ]
   },
   objects: {
@@ -536,14 +534,14 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       { field: 'issued_at', header: 'Дата выдачи', sortable: true, filter: { type: 'dateRange' } }
     ],
     fields: [
-      { key: 'year_no', label: 'Год / номер', type: 'number', required: true },
-      { key: 'copies', label: 'Копии', type: 'number' },
-      { key: 'is_signed', label: 'Подписан', type: 'boolean' },
+      { key: 'year_no', label: 'Год / номер', type: 'number', required: true, layout: { span: 4 } },
+      { key: 'copies', label: 'Копии', type: 'number', layout: { span: 4 } },
+      { key: 'is_signed', label: 'Подписан', type: 'boolean', layout: { span: 4 } },
       { key: 'protocol_copy_name', label: 'Название копии протокола' },
       { key: 'excerpt_copy_name', label: 'Название выписки' },
-      { key: 'protocol_type_id', label: 'Тип протокола', type: 'select', source: '/protocol_types' },
-      { key: 'conclusion_id', label: 'Заключение', type: 'select', source: '/conclusions' },
-      { key: 'issued_at', label: 'Дата выдачи', type: 'date' }
+      { key: 'protocol_type_id', label: 'Тип протокола', type: 'select', source: '/protocol_types', layout: { span: 4 } },
+      { key: 'conclusion_id', label: 'Заключение', type: 'select', source: '/conclusions', layout: { span: 4 } },
+      { key: 'issued_at', label: 'Дата выдачи', type: 'date', layout: { span: 4 } }
     ]
   },
   research: {
@@ -578,14 +576,13 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       { field: 'completed_at', header: 'Завершён', sortable: true, filter: { type: 'dateRange' } }
     ],
     fields: [
-      { key: 'sample_id', label: 'Образец', type: 'select', source: '/samples', required: true },
-      { key: 'research_goal_id', label: 'Цель исследования', type: 'select', source: '/research_goals', required: true },
-      { key: 'lab_id', label: 'Лаборатория', type: 'select', source: '/labs' },
-      { key: 'status_id', label: 'Статус', type: 'select', source: '/research_statuses' },
+      { key: 'sample_id', label: 'Образец', type: 'select', source: '/samples', required: true, layout: { span: 6 } },
+      { key: 'research_goal_id', label: 'Цель исследования', type: 'select', source: '/research_goals', required: true, layout: { span: 6 } },
+      { key: 'lab_id', label: 'Лаборатория', type: 'select', source: '/labs', layout: { span: 6 } },
       { key: 'comment', label: 'Комментарий', type: 'textarea' },
       { key: 'recommendation', label: 'Рекомендация', type: 'textarea' },
-      { key: 'received_at', label: 'Получен', type: 'date' },
-      { key: 'completed_at', label: 'Завершён', type: 'date' }
+      { key: 'received_at', label: 'Получен', type: 'date', layout: { span: 6 } },
+      { key: 'completed_at', label: 'Завершён', type: 'date', layout: { span: 6 } }
     ]
   },
   tests: {
@@ -628,7 +625,6 @@ export const crudModules: Record<string, CrudModuleConfig> = {
     fields: [
       { key: 'research_id', label: 'Исследование', type: 'select', source: '/research', required: true },
       { key: 'indicator_id', label: 'Показатель', type: 'select', source: '/indicators' },
-      { key: 'status_id', label: 'Статус', type: 'select', source: '/test_statuses' },
       { key: 'value', label: 'Значение' },
       { key: 'norm', label: 'Норма' },
       { key: 'comment', label: 'Комментарий', type: 'textarea' },

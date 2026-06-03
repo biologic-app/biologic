@@ -5,6 +5,12 @@ export interface FieldOption {
   value: string | number | boolean | null
 }
 
+export type FieldLayoutSpan = 4 | 6 | 12
+
+export interface FieldLayout {
+  span?: FieldLayoutSpan
+}
+
 export interface FormField {
   key: string
   label: string
@@ -14,4 +20,5 @@ export interface FormField {
   placeholder?: string
   accept?: string
   source?: string
+  layout?: FieldLayout
 }
