@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from "vue";
+import { ref, onMounted, onUnmounted, nextTick, watch } from "vue";
 
 const props = withDefaults(
   defineProps<{
@@ -30,6 +30,7 @@ const emit = defineEmits<{
 const sectionRef = ref<HTMLElement | null>(null);
 let io: IntersectionObserver | null = null;
 let mo: MutationObserver | null = null;
+let observeQueued = false;
 
 function findTbody(): HTMLTableSectionElement | null {
   // Search from section down — UTable renders table with tbody even inside scroll wrapper
@@ -41,6 +42,7 @@ function findScrollRoot(): HTMLElement | null {
 }
 
 function observeLastRow() {
+  observeQueued = false;
   io?.disconnect();
   const tbody = findTbody();
   if (!tbody) return;
@@ -59,16 +61,25 @@ function observeLastRow() {
   io.observe(lastRow);
 }
 
+function queueObserveLastRow() {
+  if (observeQueued) return;
+  observeQueued = true;
+  nextTick(() => observeLastRow());
+}
+
 onMounted(() => {
-  nextTick(() => {
-    observeLastRow();
-    const tbody = findTbody();
-    if (tbody) {
-      mo = new MutationObserver(() => observeLastRow());
-      mo.observe(tbody, { childList: true });
-    }
-  });
+  queueObserveLastRow();
+  if (sectionRef.value) {
+    mo = new MutationObserver(() => queueObserveLastRow());
+    mo.observe(sectionRef.value, { childList: true, subtree: true });
+  }
 });
+
+watch(
+  () => [props.hasMore, props.loadingMore],
+  () => queueObserveLastRow(),
+  { flush: "post" },
+);
 
 onUnmounted(() => {
   io?.disconnect();
