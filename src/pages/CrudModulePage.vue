@@ -14,9 +14,13 @@ import type { TableRow } from "@nuxt/ui";
 import type { TableFilters } from "@/shared/types/table";
 import type { FormField } from "@/shared/types/form";
 import type { Resource } from "@/shared/types/permissions";
-import type { TableColumn } from "@/shared/types/table";
+import type { TableColumn, TableFilterField } from "@/shared/types/table";
 import CrudTableEmptyState from "@/shared/ui/CrudTableEmptyState.vue";
 import CrudFormModal from "@/shared/ui/CrudFormModal.vue";
+import {
+  getFilterSelectModelValue,
+  normalizeFilterSelectValue,
+} from "@/shared/ui/filter-select";
 import {
   borderedCrudTableUi,
   createSkeletonRows,
@@ -51,6 +55,7 @@ export interface CrudModuleConfig {
   presetKey: string;
   pageId: string;
   columns: TableColumn[];
+  filterFields?: TableFilterField[];
   fields: FormField[];
   initialFilters: TableFilters;
   pageSize?: number;
@@ -325,6 +330,8 @@ const paginationPage = computed({
 });
 
 const createDisabled = computed(() => !can(props.config.resource, "create"));
+const isVisibleFilterColumn = (column: TableColumn) =>
+  Boolean(column.filter) && !["created_at", "updated_at"].includes(column.field);
 </script>
 
 <template>
@@ -401,9 +408,9 @@ const createDisabled = computed(() => !can(props.config.resource, "create"));
           {{ config.description }}
         </p>
 
-        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div class="grid gap-3 md:grid-cols-2">
           <div
-            v-for="column in config.columns.filter((column) => column.filter)"
+            v-for="column in config.columns.filter(isVisibleFilterColumn)"
             :key="column.field"
             class="grid gap-2"
           >
@@ -441,14 +448,13 @@ const createDisabled = computed(() => !can(props.config.resource, "create"));
 
             <USelectMenu
               v-else-if="column.filter?.type === 'multiSelect'"
-              :model-value="filters[column.field].value || []"
+              :model-value="getFilterSelectModelValue(filters[column.field].value)"
               :items="column.filter?.options || []"
               value-key="value"
               label-key="label"
-              multiple
               clear
               @update:model-value="
-                filters[column.field].value = $event;
+                filters[column.field].value = normalizeFilterSelectValue($event);
                 applyFilters();
               "
             />
@@ -496,6 +502,9 @@ const createDisabled = computed(() => !can(props.config.resource, "create"));
             <CrudTableEmptyState
               title="Нет записей"
               :description="`В таблице «${config.title}» пока нет данных.`"
+              :error="table.error.value"
+              error-description="Не удалось загрузить данные. Проверьте подключение или повторите попытку позже."
+              @retry="table.refresh()"
             />
           </template>
         </UTable>

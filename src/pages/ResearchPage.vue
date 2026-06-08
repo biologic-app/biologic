@@ -9,6 +9,7 @@ import { crudModules } from '@/shared/config/crud-modules'
 const { can } = usePermission()
 const crudContent = ref<InstanceType<typeof DictionaryCrudContent> | null>(null)
 const tableSearch = ref('')
+const filterModalOpen = ref(false)
 const refreshToken = ref(0)
 const resetToken = ref(0)
 
@@ -36,7 +37,7 @@ const activeFilterCount = computed(() => crudContent.value?.activeFilterCount ||
         <template #left>
           <div class="flex w-full flex-col gap-3 lg:flex-row lg:items-center">
             <CrudSearchControl v-model="tableSearch" placeholder="Поиск по исследованиям" />
-            <CrudFilterControls :active-count="activeFilterCount" @open="crudContent!.filterModalOpen = true"
+            <CrudFilterControls :active-count="activeFilterCount" @open="filterModalOpen = true"
               @clear="resetToken++" />
           </div>
         </template>
@@ -89,7 +90,7 @@ const activeFilterCount = computed(() => crudContent.value?.activeFilterCount ||
     <template #body>
       <div class="flex h-full min-h-0 w-full flex-col">
         <DictionaryCrudContent ref="crudContent" :config="selectedConfig" :search="tableSearch"
-          :refresh-token="refreshToken" :reset-token="resetToken" />
+          v-model:filter-open="filterModalOpen" :refresh-token="refreshToken" :reset-token="resetToken" />
       </div>
     </template>
   </UDashboardPanel>

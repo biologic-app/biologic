@@ -13,15 +13,21 @@ import {
 import type { DropdownMenuItem, TableColumn as NuxtTableColumn, TableRow } from "@nuxt/ui";
 import type { CrudModuleConfig } from "@/pages/CrudModulePage.vue";
 import type { FormField } from "@/shared/types/form";
-import type { TableFilters } from "@/shared/types/table";
+import type { TableColumn, TableFilters } from "@/shared/types/table";
 import CrudFormModal from "@/shared/ui/CrudFormModal.vue";
 import CrudDataTable from "@/shared/ui/CrudDataTable.vue";
 import CrudTableEmptyState from "@/shared/ui/CrudTableEmptyState.vue";
 import CrudFilterModal from "@/shared/ui/CrudFilterModal.vue";
+import CrudDateRangeFilter from "@/shared/ui/CrudDateRangeFilter.vue";
 import ConfirmDialog from "@/shared/ui/ConfirmDialog.vue";
 import RowContextMenu from "@/shared/ui/RowContextMenu.vue";
 import BusinessEntityDetailModal from "@/shared/ui/BusinessEntityDetailModal.vue";
 import DictionaryCrudDetailModal from "@/shared/ui/DictionaryCrudDetailModal.vue";
+import {
+  filterSelectOverlayUi,
+  getFilterSelectModelValue,
+  normalizeFilterSelectValue,
+} from "@/shared/ui/filter-select";
 import {
   createSkeletonRows,
   isSkeletonRow,
@@ -44,7 +50,7 @@ import {
   apiUpdateRequest,
   loadReferenceOptions,
 } from "@/shared/api/client.api";
-import { crudModules } from "@/shared/config/crud-modules";
+import { crudModules, getCrudModuleFilterFields } from "@/shared/config/crud-modules";
 import { formatDateTime } from "@/shared/utils/format";
 import { getValueByPath } from "@/shared/utils/object";
 
@@ -110,7 +116,7 @@ const UBadge = resolveComponent("UBadge");
 const toast = useToast();
 const auth = useAuth();
 const { can } = usePermission();
-const filterModalOpen = ref(false);
+const filterModalOpen = defineModel<boolean>("filterOpen", { default: false });
 const tableSettingsKey = `table-settings:dictionaries:${props.config.presetKey}:${JSON.stringify(props.requestParams ?? {})}`;
 const sortableFields = computed(() =>
   props.config.columns
@@ -192,6 +198,10 @@ const formFields = ref<FormField[]>(
   props.config.fields.map((field) => ({ ...field })),
 );
 const referenceOptions = ref<Record<string, ReferenceOption[]>>({});
+const formReferenceOptionsLoaded = ref(false);
+const formReferenceOptionsLoading = ref(false);
+const filterReferenceOptionsLoaded = ref(false);
+const filterReferenceOptionsLoading = ref(false);
 const columnVisibility = useTableColumnVisibility(tableSettingsKey, { actions: false });
 const rowSelection = ref<Record<string, boolean>>({});
 const contextRow = ref<CrudRow | null>(null);
@@ -202,14 +212,40 @@ const filters = reactive<TableFilters>(
   JSON.parse(JSON.stringify(props.config.initialFilters)),
 );
 
+const filterFields = computed(() =>
+  getCrudModuleFilterFields(props.config),
+);
+
+const cloneFilterMeta = (value: TableFilters[string]) =>
+  JSON.parse(JSON.stringify(value)) as TableFilters[string];
+
+const createFilterMeta = (field: TableColumn) => {
+  if (field.filter?.type === "dateRange") {
+    return { value: [null, null], matchMode: "between" };
+  }
+  return { value: "", matchMode: "contains" };
+};
+
+const getFilterOptions = (field: TableColumn) =>
+  referenceOptions.value[field.field] ?? field.filter?.options ?? [];
+
+const ensureFilterEntries = () => {
+  filterFields.value.forEach((field) => {
+    if (!filters[field.field]) {
+      filters[field.field] = createFilterMeta(field);
+    }
+  });
+};
+
 const tableRows = computed(() =>
   table.loading.value ? skeletonRows : table.data.value,
 );
 
 const syncFilters = () => {
   Object.entries(table.filters.value).forEach(([key, value]) => {
-    filters[key] = { ...value };
+    filters[key] = cloneFilterMeta(value);
   });
+  ensureFilterEntries();
 };
 
 syncFilters();
@@ -244,34 +280,83 @@ watch(
   },
 );
 
+watch(
+  filterModalOpen,
+  (open) => {
+    if (open) {
+      void loadFilterReferenceOptions();
+    }
+  },
+);
+
 onMounted(async () => {
-  await Promise.all([
-    table.fetch(),
-    loadFormReferenceOptions(),
-  ]);
+  await table.fetch();
 });
 
 async function loadFormReferenceOptions() {
-  await Promise.all(
-    props.config.fields
-      .filter(
-        (field) => field.type === "select" && field.options === undefined,
-      )
-      .map(async (field) => {
-        const endpoint = field.source;
-        if (!endpoint) {
-          return;
-        }
-        const options = await loadReferenceOptions(endpoint).catch(() => []);
-        referenceOptions.value = {
-          ...referenceOptions.value,
-          [field.key]: options as ReferenceOption[],
-        };
-        formFields.value = formFields.value.map((item) =>
-          item.key === field.key ? { ...item, options } : item,
-        );
-      }),
-  );
+  if (formReferenceOptionsLoaded.value || formReferenceOptionsLoading.value) {
+    return;
+  }
+
+  formReferenceOptionsLoading.value = true;
+  try {
+    await Promise.all(
+      props.config.fields
+        .filter(
+          (field) => field.type === "select" && field.options === undefined,
+        )
+        .map(async (field) => {
+          const endpoint = field.source;
+          if (!endpoint) {
+            return;
+          }
+          const options = await loadReferenceOptions(endpoint).catch(() => []);
+          referenceOptions.value = {
+            ...referenceOptions.value,
+            [field.key]: options as ReferenceOption[],
+          };
+          formFields.value = formFields.value.map((item) =>
+            item.key === field.key ? { ...item, options } : item,
+          );
+        }),
+    );
+    formReferenceOptionsLoaded.value = true;
+  } finally {
+    formReferenceOptionsLoading.value = false;
+  }
+}
+
+async function loadFilterReferenceOptions() {
+  if (filterReferenceOptionsLoaded.value || filterReferenceOptionsLoading.value) {
+    return;
+  }
+
+  filterReferenceOptionsLoading.value = true;
+  try {
+    await Promise.all(
+      filterFields.value
+        .filter(
+          (field) =>
+            field.filter?.type === "select"
+            && field.filter.options === undefined
+            && field.filter.source,
+        )
+        .map(async (field) => {
+          const endpoint = field.filter?.source;
+          if (!endpoint) {
+            return;
+          }
+          const options = await loadReferenceOptions(endpoint).catch(() => []);
+          referenceOptions.value = {
+            ...referenceOptions.value,
+            [field.field]: options as ReferenceOption[],
+          };
+        }),
+    );
+    filterReferenceOptionsLoaded.value = true;
+  } finally {
+    filterReferenceOptionsLoading.value = false;
+  }
 }
 
 const formatShortEntityCode = (value: unknown) => {
@@ -667,7 +752,12 @@ const applyFilters = (debounceGlobal = false) => {
 
 const resetFilters = () => {
   Object.keys(props.config.initialFilters).forEach((key) => {
-    filters[key] = { ...props.config.initialFilters[key] };
+    filters[key] = cloneFilterMeta(props.config.initialFilters[key]);
+  });
+  filterFields.value.forEach((field) => {
+    if (!filters[field.field]) {
+      filters[field.field] = createFilterMeta(field);
+    }
   });
   applyFilters();
 };
@@ -1060,7 +1150,7 @@ const getRowActionItems = (row: CrudRow): DropdownMenuItem[] => {
   const workflowItems = getRowWorkflowActionItems(row);
   return [
     { label: "Просмотр", icon: "i-lucide-eye", onSelect: () => openDetail(row) },
-    { label: "Редактировать", icon: "i-lucide-pencil", onSelect: () => dialog.openEdit(row) },
+    { label: "Редактировать", icon: "i-lucide-pencil", onSelect: () => openEdit(row) },
     ...workflowItems,
     {
       label: "Удалить",
@@ -1152,7 +1242,13 @@ const columnMenuItems = computed(() =>
 const openCreate = () => {
   if (!createDisabled.value) {
     dialog.openCreate();
+    void loadFormReferenceOptions();
   }
+};
+
+const openEdit = (row: CrudRow) => {
+  dialog.openEdit(row);
+  void loadFormReferenceOptions();
 };
 
 defineExpose({
@@ -1196,59 +1292,40 @@ defineExpose({
     @apply="applyFilters()"
     @reset="resetFilters()"
   >
-    <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+    <div class="grid gap-3 md:grid-cols-2">
       <div
-        v-for="column in config.columns.filter((column) => column.filter)"
-        :key="column.field"
+        v-for="filterField in filterFields"
+        :key="filterField.field"
         class="grid gap-2"
       >
         <label class="text-sm font-medium text-toned">
-          {{ column.header }}
+          {{ filterField.header }}
         </label>
 
-        <div
-          v-if="column.filter?.type === 'dateRange'"
-          class="grid gap-2 sm:grid-cols-2"
-        >
-          <UInput
-            :model-value="filters[column.field].value?.[0] || ''"
-            type="date"
-            @update:model-value="
-              filters[column.field].value = [
-                $event || null,
-                filters[column.field].value?.[1] || null,
-              ]
-            "
-          />
-          <UInput
-            :model-value="filters[column.field].value?.[1] || ''"
-            type="date"
-            @update:model-value="
-              filters[column.field].value = [
-                filters[column.field].value?.[0] || null,
-                $event || null,
-              ]
-            "
-          />
-        </div>
+        <CrudDateRangeFilter
+          v-if="filterField.filter?.type === 'dateRange'"
+          v-model="filters[filterField.field].value"
+        />
 
         <USelectMenu
-          v-else-if="column.filter?.type === 'multiSelect'"
-          :model-value="filters[column.field].value || []"
-          :items="column.filter?.options || []"
+          v-else-if="filterField.filter?.type === 'select' || filterField.filter?.type === 'multiSelect'"
+          :model-value="getFilterSelectModelValue(filters[filterField.field].value)"
+          :items="getFilterOptions(filterField)"
           value-key="value"
           label-key="label"
-          multiple
+          :placeholder="filterField.filter?.placeholder || filterField.header"
+          :portal="false"
+          :ui="filterSelectOverlayUi"
           clear
           @update:model-value="
-            filters[column.field].value = $event
+            filters[filterField.field].value = normalizeFilterSelectValue($event)
           "
         />
 
         <UInput
           v-else
-          v-model="filters[column.field].value"
-          :placeholder="column.filter?.placeholder || column.header"
+          v-model="filters[filterField.field].value"
+          :placeholder="filterField.filter?.placeholder || filterField.header"
         />
       </div>
     </div>

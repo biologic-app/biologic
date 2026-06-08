@@ -1,4 +1,4 @@
-export type FilterType = 'text' | 'dateRange' | 'multiSelect'
+export type FilterType = 'text' | 'dateRange' | 'multiSelect' | 'select'
 
 export interface TableFilterOption {
   label: string
@@ -14,8 +14,11 @@ export interface TableColumn {
     type: FilterType
     placeholder?: string
     options?: TableFilterOption[]
+    source?: string
   }
   body?: (row: Record<string, any>) => string | number | null | undefined
 }
+
+export type TableFilterField = Pick<TableColumn, 'field' | 'header' | 'filter'>
 
 export type TableFilters = Record<string, { value: any; matchMode?: string }>

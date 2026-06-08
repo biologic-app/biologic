@@ -30,6 +30,7 @@ export const TABLE_PRESETS_KEY: InjectionKey<TablePresetsApi> = Symbol('tablePre
 
 type TableQueryParams = Record<string, unknown>
 const DEFAULT_PAGE_SIZE = 100
+const GLOBAL_SEARCH_DEBOUNCE_MS = 500
 
 const cloneFilters = (filters: TableFilters) => {
   const entries = Object.entries(filters).map(([key, meta]) => [key, { ...meta }])
@@ -227,7 +228,7 @@ export const useServerTable = <T>(
 
     const global = filters.value.global?.value ?? ''
     if (global) {
-      params.global = global
+      params.search = global
     }
 
     if (Object.keys(columnFilters).length) {
@@ -247,7 +248,7 @@ export const useServerTable = <T>(
     window.clearTimeout(debounceTimer)
     debounceTimer = window.setTimeout(() => {
       fetch()
-    }, 350)
+    }, GLOBAL_SEARCH_DEBOUNCE_MS)
   }
 
   const fetch = async () => {

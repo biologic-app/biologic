@@ -1,5 +1,5 @@
 <script setup lang="ts" generic="TRow extends object">
-import { computed, h, resolveComponent } from "vue";
+import { computed, h, resolveComponent, useSlots } from "vue";
 import type { TableColumn, TableRow } from "@nuxt/ui";
 import CrudTableLoadingRows from "@/shared/ui/CrudTableLoadingRows.vue";
 import CrudTableShell from "@/shared/ui/CrudTableShell.vue";
@@ -45,6 +45,8 @@ const rowSelection = defineModel<Record<string, boolean>>(
 );
 
 const UCheckbox = resolveComponent("UCheckbox");
+const slots = useSlots();
+const reservedSlotNames = new Set(["before-table", "actions-cell", "empty"]);
 
 const selectColumn: TableColumn<TRow> = {
   id: "select",
@@ -124,6 +126,10 @@ const visibleColumnCount = computed(() =>
     }).length,
   ),
 );
+
+const forwardedSlotNames = computed(() =>
+  Object.keys(slots).filter((name) => !reservedSlotNames.has(name)),
+);
 </script>
 
 <template>
@@ -145,6 +151,7 @@ const visibleColumnCount = computed(() =>
         :on-select="handleRowSelect"
         :on-contextmenu="(event: Event, row: { original: TRow }) =>
           emit('rowContextmenu', event, row)"
+        empty=" "
         sticky
         :ui="tableUiConfig"
       >
@@ -178,11 +185,10 @@ const visibleColumnCount = computed(() =>
         </template>
 
         <template
-          v-for="(_, name) in $slots"
+          v-for="name in forwardedSlotNames"
           #[name]="slotProps"
         >
           <slot
-            v-if="name !== 'before-table' && name !== 'actions-cell' && name !== 'empty'"
             :name="name"
             v-bind="slotProps"
           />

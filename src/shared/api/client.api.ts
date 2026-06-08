@@ -9,6 +9,7 @@ import type {
 import { jsonBodySerializer } from '@/shared/api/generated/core/bodySerializer.gen'
 import type { HttpMethod } from '@/shared/api/generated/core/types.gen'
 import { client as generatedApiClient } from '@/shared/api/generated/client.gen'
+import { formatReferenceOption } from '@/shared/api/reference-options'
 
 type ApiParams = Record<string, unknown>
 type ApiRequestOptions = Omit<RequestInit, 'body'> & { params?: ApiParams; body?: unknown }
@@ -305,91 +306,44 @@ export const apiUploadRequest = async <T>(
   })
 }
 
-const toOptionValue = (value: unknown) =>
-  typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
-    ? value
-    : value === null
-      ? null
-      : String(value)
-
 const REFERENCE_PAGE_SIZE = 100
 const REFERENCE_MAX_ITEMS = 5000
-
-const compact = (items: Array<string | number | null | undefined | false>) =>
-  items
-    .map((item) => item === null || item === undefined || item === false ? '' : String(item).trim())
-    .filter(Boolean)
-
-const formatShortId = (value: unknown) => {
-  if (typeof value !== 'string' && typeof value !== 'number') {
-    return 'запись'
-  }
-
-  const text = String(value)
-  const uuidPrefix = text.match(/^[0-9a-f]{8}/i)?.[0]
-  return (uuidPrefix ?? text.slice(0, 8)).toUpperCase()
-}
-
-const formatReferenceLabel = (row: PlainObject) => {
-  if (row.name && row.code) {
-    return `${String(row.name)} (${String(row.code)})`
-  }
-
-  if (row.name || row.full_name || row.code) {
-    return String(row.name || row.full_name || row.code)
-  }
-
-  const personName = compact([row.last_name as string, row.first_name as string, row.patronymic as string]).join(' ')
-  if (personName) {
-    return personName
-  }
-
-  const documentNumber = compact([
-    row.year_no ? `${row.year_no}` : null,
-    row.base_no ? `№ ${row.base_no}` : null
-  ]).join(' ')
-  if (documentNumber) {
-    return documentNumber
-  }
-
-  const researchParts = compact([
-    row.sample_id ? `образец ${formatShortId(row.sample_id)}` : null,
-    row.research_goal_id ? `цель ${formatShortId(row.research_goal_id)}` : null
-  ])
-  if (researchParts.length) {
-    return `Исследование: ${researchParts.join(', ')}`
-  }
-
-  return `Запись ${formatShortId(row.id)}`
-}
 
 export const loadReferenceOptions = async (
   path: string,
   params: ApiParams = {}
 ): Promise<Array<{ label: string; value: string | number | boolean | null }>> => {
-  const items: PlainObject[] = []
-  let cursor: unknown = params.cursor
+  const options: Array<{ label: string; value: string | number | boolean | null }> = []
+  let cursor: string | null = typeof params.cursor === 'string' ? params.cursor : null
 
   do {
-    const response = await apiReadListRequest<PlainObject>(path, {
-      method: 'GET',
-      params: {
-        ...params,
-        limit: params.limit ?? REFERENCE_PAGE_SIZE,
-        cursor
-      }
-    })
+    const page = await loadReferenceOptionsPage(path, { ...params, cursor })
+    options.push(...page.options)
+    cursor = page.nextCursor
+  } while (cursor && options.length < REFERENCE_MAX_ITEMS)
 
-    items.push(...response.items)
-    cursor = response.meta.nextCursor ?? null
-  } while (cursor && items.length < REFERENCE_MAX_ITEMS)
+  return options
+}
 
-  return items.map((row) => {
-    return {
-      label: formatReferenceLabel(row),
-      value: toOptionValue(row.id)
+export const loadReferenceOptionsPage = async (
+  path: string,
+  params: ApiParams = {}
+): Promise<{
+  options: Array<{ label: string; value: string | number | boolean | null }>
+  nextCursor: string | null
+}> => {
+  const response = await apiReadListRequest<PlainObject>(path, {
+    method: 'GET',
+    params: {
+      ...params,
+      limit: params.limit ?? REFERENCE_PAGE_SIZE
     }
   })
+
+  return {
+    nextCursor: response.meta.nextCursor ?? null,
+    options: response.items.map((row) => formatReferenceOption(row, path))
+  }
 }
 
 export { generatedApiClient as backendApiClient }
