@@ -8,10 +8,19 @@ from uuid import UUID
 from sqlalchemy import and_, asc, delete, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.crud_query import (
+    JoinSpec,
+    RelatedField,
+    apply_outer_joins,
+    attach_sort_values,
+    build_crud_query_parts,
+    cursor_sort_value,
+)
 from src.core.cursor_pagination import CursorState, decode_cursor, encode_cursor
 from src.core.errors import BadRequestError, NotFoundError
 from src.core.pagination import PaginationParams
 from src.infrastructure.db.models import (
+    Lab,
     Permission,
     Role,
     RolePermission,
@@ -229,31 +238,42 @@ async def _list_rows(
     params: PaginationParams,
     sortable_fields: tuple[str, ...],
 ) -> RepositoryPage:
-    sort_by = params.sort_by or _default_sort_field(sortable_fields)
-    if sort_by not in sortable_fields:
-        raise BadRequestError(f"Unsupported sort field {sort_by!r}.")
-    sort_column = getattr(model, sort_by)
+    query_parts = build_crud_query_parts(
+        model=model,
+        params=params,
+        sortable_fields=sortable_fields,
+        base_filters=_base_filters(model),
+        related_fields=_related_fields(model),
+    )
+    sort_by = query_parts.sort_by
+    sort_column = query_parts.sort_column
     id_column = getattr(model, "id")
-    filters = _base_filters(model)
+    filters = list(query_parts.filters)
+    total_filters = list(filters)
     cursor = decode_cursor(params.cursor) if params.cursor else None
     if cursor is not None:
         if cursor.sort_by != sort_by or cursor.sort_order != params.sort_order:
             raise BadRequestError("Pagination cursor does not match requested sorting.")
-        filters.append(_cursor_filter(cursor, model, sort_column, id_column))
+        filters.append(_cursor_filter(cursor, sort_column, id_column))
 
-    total_result = await session.execute(
-        select(func.count()).select_from(model).where(*_base_filters(model)),
-    )
+    total_query = apply_outer_joins(
+        select(func.count()).select_from(model),
+        query_parts.joins,
+    ).where(*total_filters)
+    total_result = await session.execute(total_query)
     total = int(total_result.scalar_one())
     order_fn = asc if params.sort_order == "asc" else desc
+    query = apply_outer_joins(
+        select(model, sort_column),
+        query_parts.joins,
+    )
     query = (
-        select(model)
-        .where(*filters)
+        query.where(*filters)
         .order_by(order_fn(sort_column), order_fn(id_column))
         .limit(params.limit + 1)
     )
     result = await session.execute(query)
-    rows = list(result.scalars().all())
+    rows = attach_sort_values(list(result.all()))
     items = rows[: params.limit]
     has_more = len(rows) > params.limit
     next_cursor = _next_cursor(items, sort_by, params.sort_order) if has_more else None
@@ -311,8 +331,33 @@ def _base_filters(model: type[Any]) -> list[Any]:
     return []
 
 
-def _cursor_filter(cursor: CursorState, model: type[Any], sort_column: Any, id_column: Any) -> Any:
-    sort_value = _coerce_cursor_value(model, cursor.sort_by, cursor.sort_value)
+def _related_fields(model: type[Any]) -> dict[str, RelatedField]:
+    if model is User:
+        role = JoinSpec("user.role", Role, User.role_id == Role.id)
+        lab = JoinSpec("user.lab", Lab, User.lab_id == Lab.id)
+        return {
+            "role.name": RelatedField(Role.name, (role,)),
+            "lab.name": RelatedField(Lab.name, (lab,)),
+        }
+
+    if model is RolePermission:
+        role = JoinSpec("role_permission.role", Role, RolePermission.role_id == Role.id)
+        permission = JoinSpec(
+            "role_permission.permission",
+            Permission,
+            RolePermission.permission_id == Permission.id,
+        )
+        return {
+            "role.name": RelatedField(Role.name, (role,)),
+            "permission.resource": RelatedField(Permission.resource, (permission,)),
+            "permission.action": RelatedField(Permission.action, (permission,)),
+        }
+
+    return {}
+
+
+def _cursor_filter(cursor: CursorState, sort_column: Any, id_column: Any) -> Any:
+    sort_value = _coerce_cursor_value(sort_column, cursor.sort_value)
     if cursor.sort_order == "asc":
         return or_(
             sort_column > sort_value,
@@ -324,8 +369,7 @@ def _cursor_filter(cursor: CursorState, model: type[Any], sort_column: Any, id_c
     )
 
 
-def _coerce_cursor_value(model: type[Any], sort_by: str, value: Any) -> Any:
-    column = getattr(model, sort_by)
+def _coerce_cursor_value(column: Any, value: Any) -> Any:
     try:
         python_type = column.property.columns[0].type.python_type
     except (AttributeError, NotImplementedError):
@@ -346,7 +390,7 @@ def _next_cursor(items: list[Any], sort_by: str, sort_order: str) -> str | None:
     return encode_cursor(
         sort_by=sort_by,
         sort_order=sort_order,
-        sort_value=getattr(last, sort_by),
+        sort_value=cursor_sort_value(last, sort_by),
         item_id=getattr(last, "id"),
     )
 

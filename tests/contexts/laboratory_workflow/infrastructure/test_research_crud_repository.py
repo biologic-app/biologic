@@ -60,7 +60,24 @@ class FakeAsyncSession:
         if "FROM research_statuses" in sql:
             return FakeRowsResult([(STATUS_ID, "draft", "Draft")])
         if "FROM research" in sql:
-            return FakeResult(scalars=[self.research])
+            return FakeRowsResult([(self.research, None)])
+        raise AssertionError(f"Unexpected query: {sql}")
+
+
+class FakeRelationSortSession:
+    def __init__(self, research: Research) -> None:
+        self.research = research
+        self.statements: list[str] = []
+
+    async def execute(self, statement: Any) -> FakeResult | FakeRowsResult:
+        sql = str(statement)
+        self.statements.append(sql)
+        if "count" in sql:
+            return FakeResult(scalar=1)
+        if "FROM research_goals" in sql and "JOIN" not in sql:
+            return FakeRowsResult([(RESEARCH_GOAL_ID, "goal", "Goal")])
+        if "FROM research" in sql:
+            return FakeRowsResult([(self.research, "Goal")])
         raise AssertionError(f"Unexpected query: {sql}")
 
 
@@ -89,3 +106,23 @@ async def test_research_list_populates_requested_includes() -> None:
     }
     assert item.lab == {"id": LAB_ID, "code": "lab", "name": "Lab"}
     assert item.status == {"id": STATUS_ID, "code": "draft", "name": "Draft"}
+
+
+@pytest.mark.asyncio
+async def test_research_list_sorts_by_research_goal_name() -> None:
+    research = Research(
+        id=RESEARCH_ID,
+        sample_id=SAMPLE_ID,
+        research_goal_id=RESEARCH_GOAL_ID,
+        lab_id=LAB_ID,
+        status_id=STATUS_ID,
+    )
+    fake_session = FakeRelationSortSession(research)
+    repository = ResearchCrudRepository(session=fake_session)  # type: ignore[arg-type]
+
+    page = await repository.list(
+        PaginationParams(sort_by="research_goal.name", include="research_goal")
+    )
+
+    assert page.items == [research]
+    assert any("JOIN research_goals" in statement for statement in fake_session.statements)

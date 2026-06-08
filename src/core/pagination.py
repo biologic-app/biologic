@@ -22,6 +22,7 @@ class PaginationParams(BaseModel):
     sort_by: str | None = None
     sort_order: SortOrder = "asc"
     filters: str | None = None
+    search: str | None = None
     include: str | None = None
 
     @field_validator("limit")
@@ -43,6 +44,7 @@ def get_pagination_params(
     sort_by: str | None = None,
     sort_order: SortOrder = "asc",
     filters: str | None = None,
+    search: str | None = None,
     include: str | None = None,
 ) -> PaginationParams:
     if "offset" in request.query_params:
@@ -53,6 +55,7 @@ def get_pagination_params(
         sort_by=sort_by,
         sort_order=sort_order,
         filters=filters,
+        search=search,
         include=include,
     )
 

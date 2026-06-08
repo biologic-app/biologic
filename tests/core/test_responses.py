@@ -23,6 +23,12 @@ def test_pagination_params_accepts_cursor() -> None:
     assert params.cursor == "opaque-cursor"
 
 
+def test_pagination_params_accepts_search() -> None:
+    params = PaginationParams(search="Сыворотка")
+
+    assert params.search == "Сыворотка"
+
+
 def test_pagination_params_rejects_offset() -> None:
     with pytest.raises(ValidationError) as exc_info:
         PaginationParams.model_validate({"offset": 0})
