@@ -5,6 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from src.contexts.laboratory_workflow.application.imports import DirectionImportService
 from src.contexts.laboratory_workflow.infrastructure.crud_repositories import (
     DirectionCrudRepository,
     ProtocolCrudRepository,
@@ -68,6 +69,17 @@ class WorkflowCrudUseCase:
 
     async def delete_direction(self, direction_id: UUID) -> None:
         await self.directions.delete(direction_id)
+
+    async def import_directions(
+        self, filename: str, content: bytes
+    ) -> SingleResponse[dict[str, object]]:
+        summary = await DirectionImportService(directions=self.directions).import_file(
+            filename, content
+        )
+        return SingleResponse(
+            data=summary.model_dump(mode="json"),
+            meta=ResponseMeta(operation="directions.import"),
+        )
 
     async def list_samples(
         self, params: PaginationParams

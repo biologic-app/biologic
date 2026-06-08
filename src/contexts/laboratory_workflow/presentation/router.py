@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, File, Response, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.contexts.laboratory_workflow.application.commands import WorkflowCommandService
@@ -109,6 +109,14 @@ async def create_direction(
     use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
 ) -> SingleResponse[dict[str, object]]:
     return await use_case.create_direction(payload)
+
+
+@router.post("/directions/import")
+async def import_directions(
+    file: Annotated[UploadFile, File()],
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+) -> SingleResponse[dict[str, object]]:
+    return await use_case.import_directions(file.filename or "", await file.read())
 
 
 @router.patch("/directions/{direction_id}")
