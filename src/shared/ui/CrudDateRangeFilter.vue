@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { CalendarDate } from "@internationalized/date";
+import { CalendarDate, getLocalTimeZone, parseDate as parseCalendarDate } from "@internationalized/date";
+import { useI18n } from "vue-i18n";
+import { useLocale } from "@/shared/composables/useLocale";
 import {
   DATE_RANGE_PRESETS,
   isDateRangePresetSelected,
@@ -10,30 +12,44 @@ import {
 } from "@/shared/utils/date-range";
 
 const model = defineModel<DateRangeValue>({ required: true });
-
-const pad = (value: number) => String(value).padStart(2, "0");
+const { t } = useI18n();
+const { intlLocale } = useLocale();
 const presetCurrentDate = computed(() => new Date());
+const rangeLabelKeys = [
+  "last7Days",
+  "last14Days",
+  "last30Days",
+  "last3Months",
+  "last6Months",
+  "lastYear",
+] as const;
 
-const parseDate = (value: string | null | undefined) => {
+const ranges = computed<DateRangePreset[]>(() =>
+  DATE_RANGE_PRESETS.map((preset, index) => ({
+    ...preset,
+    label: t(`dashboard.ranges.${rangeLabelKeys[index] ?? "last7Days"}`),
+  })),
+);
+
+const toCalendarDate = (value: string | null | undefined) => {
   if (!value) {
     return undefined;
   }
 
-  const [year, month, day] = value.slice(0, 10).split("-").map(Number);
-  if (!year || !month || !day) {
+  try {
+    return parseCalendarDate(value.slice(0, 10));
+  } catch {
     return undefined;
   }
-
-  return new CalendarDate(year, month, day);
 };
 
 const formatDate = (value: CalendarDate | undefined) =>
-  value ? `${value.year}-${pad(value.month)}-${pad(value.day)}` : null;
+  value ? value.toString() : null;
 
 const calendarRange = computed({
   get: () => ({
-    start: parseDate(model.value?.[0]),
-    end: parseDate(model.value?.[1]),
+    start: toCalendarDate(model.value?.[0]),
+    end: toCalendarDate(model.value?.[1]),
   }),
   set: (value: { start: CalendarDate | undefined; end: CalendarDate | undefined }) => {
     model.value = [formatDate(value.start), formatDate(value.end)];
@@ -44,10 +60,19 @@ const hasValue = computed(() => Boolean(model.value?.[0] || model.value?.[1]));
 
 const displayValue = computed(() => {
   const [start, end] = model.value ?? [null, null];
-  if (start && end) {
-    return `${start} - ${end}`;
+  const startDate = toCalendarDate(start);
+  const endDate = toCalendarDate(end);
+
+  if (startDate && endDate) {
+    return `${formatDisplayDate(startDate)} - ${formatDisplayDate(endDate)}`;
   }
-  return start || end || "Выберите период";
+  if (startDate) {
+    return formatDisplayDate(startDate);
+  }
+  if (endDate) {
+    return formatDisplayDate(endDate);
+  }
+  return t("common.pickDateRange");
 });
 
 const clear = () => {
@@ -60,25 +85,38 @@ const selectPreset = (preset: DateRangePreset) => {
 
 const isPresetSelected = (preset: DateRangePreset) =>
   isDateRangePresetSelected(model.value ?? [null, null], preset, presetCurrentDate.value);
+
+const formatDisplayDate = (value: CalendarDate) =>
+  new Intl.DateTimeFormat(intlLocale.value, { dateStyle: "medium" }).format(
+    value.toDate(getLocalTimeZone()),
+  );
 </script>
 
 <template>
   <UFieldGroup>
-    <UPopover :content="{ align: 'start' }">
+    <UPopover :content="{ align: 'start' }" :modal="true">
       <UButton
         color="neutral"
         variant="outline"
         icon="i-lucide-calendar"
-        class="w-full justify-start"
+        block
+        class="justify-start data-[state=open]:bg-elevated group"
       >
         <span class="truncate">{{ displayValue }}</span>
+
+        <template #trailing>
+          <UIcon
+            name="i-lucide-chevron-down"
+            class="shrink-0 text-dimmed size-5 group-data-[state=open]:rotate-180 transition-transform duration-200"
+          />
+        </template>
       </UButton>
 
       <template #content>
         <div class="flex flex-col sm:flex-row sm:divide-x divide-default">
           <div class="flex sm:w-52 sm:flex-col sm:justify-center overflow-x-auto sm:overflow-visible">
             <UButton
-              v-for="preset in DATE_RANGE_PRESETS"
+              v-for="preset in ranges"
               :key="preset.label"
               :label="preset.label"
               color="neutral"
@@ -105,7 +143,7 @@ const isPresetSelected = (preset: DateRangePreset) =>
       </template>
     </UPopover>
 
-    <UTooltip text="Очистить период">
+    <UTooltip :text="t('common.clear')">
       <UButton
         color="neutral"
         variant="outline"

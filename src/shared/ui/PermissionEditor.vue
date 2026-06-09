@@ -31,6 +31,20 @@ const scopeOptions: Array<{ label: string; value: AccessScope }> = [
   { label: 'Все записи', value: 'all' }
 ]
 
+type PermissionStateValue = 'deny' | 'allow'
+type OverrideStateValue = 'inherit' | 'allow' | 'deny'
+
+const permissionStateOptions: Array<{ label: string; value: PermissionStateValue }> = [
+  { label: 'Запрещено', value: 'deny' },
+  { label: 'Разрешено', value: 'allow' }
+]
+
+const overrideStateOptions: Array<{ label: string; value: OverrideStateValue }> = [
+  { label: 'От роли', value: 'inherit' },
+  { label: 'Разрешено', value: 'allow' },
+  { label: 'Запрещено', value: 'deny' }
+]
+
 const allowedSet = computed(() => {
   const set = new Set<string>()
   ;(props.permissions || []).forEach((permission) => {
@@ -76,6 +90,13 @@ const setPermission = (resource: Resource, action: Action, allowed: boolean) => 
   }
 
   emit('update:permissions', next)
+}
+
+const permissionState = (resource: Resource, action: Action): PermissionStateValue =>
+  isAllowed(resource, action) ? 'allow' : 'deny'
+
+const setPermissionState = (resource: Resource, action: Action, state: PermissionStateValue) => {
+  setPermission(resource, action, state === 'allow')
 }
 
 const setPermissionScope = (resource: Resource, action: Action, scope: AccessScope) => {
@@ -209,11 +230,16 @@ const permissionCount = (resource: Resource) =>
               >
                 <template v-if="mode === 'permissions'">
                   <div class="space-y-2">
-                    <UCheckbox
-                      :model-value="isAllowed(resource, action)"
+                    <USelect
+                      :model-value="permissionState(resource, action)"
+                      :items="permissionStateOptions"
+                      value-key="value"
+                      label-key="label"
                       :disabled="readOnly"
-                      label="Разрешено"
-                      @update:model-value="setPermission(resource, action, Boolean($event))"
+                      size="xs"
+                      class="w-full"
+                      aria-label="Действие"
+                      @update:model-value="setPermissionState(resource, action, $event as PermissionStateValue)"
                     />
                     <USelectMenu
                       v-if="isAllowed(resource, action)"
@@ -224,6 +250,7 @@ const permissionCount = (resource: Resource) =>
                       :disabled="readOnly"
                       size="xs"
                       class="w-full"
+                      aria-label="Ограничение"
                       @update:model-value="setPermissionScope(resource, action, $event as AccessScope)"
                     />
                   </div>
@@ -233,43 +260,31 @@ const permissionCount = (resource: Resource) =>
                   <p class="mb-2 text-xs text-muted">
                     Роль: {{ inheritedAllowed(resource, action) ? `разрешено · ${inheritedScope(resource, action) || 'all'}` : 'запрещено' }}
                   </p>
-                  <div class="flex flex-wrap gap-1">
-                    <UButton
-                      color="neutral"
-                      size="xs"
-                      :variant="overrideState(resource, action) === 'inherit' ? 'solid' : 'outline'"
+                  <div class="space-y-2">
+                    <USelect
+                      :model-value="overrideState(resource, action)"
+                      :items="overrideStateOptions"
+                      value-key="value"
+                      label-key="label"
                       :disabled="readOnly"
-                      label="Роль"
-                      @click="setOverride(resource, action, 'inherit')"
+                      size="xs"
+                      class="w-full"
+                      aria-label="Действие"
+                      @update:model-value="setOverride(resource, action, $event as OverrideStateValue)"
                     />
-                    <UButton
-                      color="success"
-                      size="xs"
-                      :variant="overrideState(resource, action) === 'allow' ? 'solid' : 'outline'"
+                    <USelectMenu
+                      v-if="overrideState(resource, action) === 'allow'"
+                      :model-value="getOverride(resource, action)?.scope || 'all'"
+                      :items="scopeOptions"
+                      value-key="value"
+                      label-key="label"
                       :disabled="readOnly"
-                      label="Да"
-                      @click="setOverride(resource, action, 'allow')"
-                    />
-                    <UButton
-                      color="error"
                       size="xs"
-                      :variant="overrideState(resource, action) === 'deny' ? 'solid' : 'outline'"
-                      :disabled="readOnly"
-                      label="Нет"
-                      @click="setOverride(resource, action, 'deny')"
+                      class="w-full"
+                      aria-label="Ограничение"
+                      @update:model-value="setOverrideScope(resource, action, $event as AccessScope)"
                     />
                   </div>
-                  <USelectMenu
-                    v-if="overrideState(resource, action) === 'allow'"
-                    :model-value="getOverride(resource, action)?.scope || 'all'"
-                    :items="scopeOptions"
-                    value-key="value"
-                    label-key="label"
-                    :disabled="readOnly"
-                    size="xs"
-                    class="mt-2 w-full"
-                    @update:model-value="setOverrideScope(resource, action, $event as AccessScope)"
-                  />
                 </template>
               </div>
             </div>
@@ -317,11 +332,16 @@ const permissionCount = (resource: Resource) =>
           <div class="border-s border-default px-3 py-2">
             <template v-if="mode === 'permissions'">
               <div class="space-y-2">
-                <UCheckbox
-                  :model-value="isAllowed(command.resource, command.action)"
+                <USelect
+                  :model-value="permissionState(command.resource, command.action)"
+                  :items="permissionStateOptions"
+                  value-key="value"
+                  label-key="label"
                   :disabled="readOnly"
-                  label="Разрешено"
-                  @update:model-value="setPermission(command.resource, command.action, Boolean($event))"
+                  size="xs"
+                  class="w-full"
+                  aria-label="Действие"
+                  @update:model-value="setPermissionState(command.resource, command.action, $event as PermissionStateValue)"
                 />
                 <USelectMenu
                   v-if="isAllowed(command.resource, command.action)"
@@ -332,6 +352,7 @@ const permissionCount = (resource: Resource) =>
                   :disabled="readOnly"
                   size="xs"
                   class="w-full"
+                  aria-label="Ограничение"
                   @update:model-value="setPermissionScope(command.resource, command.action, $event as AccessScope)"
                 />
               </div>
@@ -341,43 +362,31 @@ const permissionCount = (resource: Resource) =>
               <p class="mb-2 text-xs text-muted">
                 Роль: {{ inheritedAllowed(command.resource, command.action) ? `разрешено · ${inheritedScope(command.resource, command.action) || 'all'}` : 'запрещено' }}
               </p>
-              <div class="flex flex-wrap gap-1">
-                <UButton
-                  color="neutral"
-                  size="xs"
-                  :variant="overrideState(command.resource, command.action) === 'inherit' ? 'solid' : 'outline'"
+              <div class="space-y-2">
+                <USelect
+                  :model-value="overrideState(command.resource, command.action)"
+                  :items="overrideStateOptions"
+                  value-key="value"
+                  label-key="label"
                   :disabled="readOnly"
-                  label="Роль"
-                  @click="setOverride(command.resource, command.action, 'inherit')"
+                  size="xs"
+                  class="w-full"
+                  aria-label="Действие"
+                  @update:model-value="setOverride(command.resource, command.action, $event as OverrideStateValue)"
                 />
-                <UButton
-                  color="success"
-                  size="xs"
-                  :variant="overrideState(command.resource, command.action) === 'allow' ? 'solid' : 'outline'"
+                <USelectMenu
+                  v-if="overrideState(command.resource, command.action) === 'allow'"
+                  :model-value="getOverride(command.resource, command.action)?.scope || 'all'"
+                  :items="scopeOptions"
+                  value-key="value"
+                  label-key="label"
                   :disabled="readOnly"
-                  label="Да"
-                  @click="setOverride(command.resource, command.action, 'allow')"
-                />
-                <UButton
-                  color="error"
                   size="xs"
-                  :variant="overrideState(command.resource, command.action) === 'deny' ? 'solid' : 'outline'"
-                  :disabled="readOnly"
-                  label="Нет"
-                  @click="setOverride(command.resource, command.action, 'deny')"
+                  class="w-full"
+                  aria-label="Ограничение"
+                  @update:model-value="setOverrideScope(command.resource, command.action, $event as AccessScope)"
                 />
               </div>
-              <USelectMenu
-                v-if="overrideState(command.resource, command.action) === 'allow'"
-                :model-value="getOverride(command.resource, command.action)?.scope || 'all'"
-                :items="scopeOptions"
-                value-key="value"
-                label-key="label"
-                :disabled="readOnly"
-                size="xs"
-                class="mt-2 w-full"
-                @update:model-value="setOverrideScope(command.resource, command.action, $event as AccessScope)"
-              />
             </template>
           </div>
         </div>

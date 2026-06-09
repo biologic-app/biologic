@@ -21,6 +21,8 @@ export const messages = {
       rows: "строк",
       filter: "Фильтр",
       clearFilters: "Очистить фильтры",
+      pickDateRange: "Выберите период",
+      clear: "Очистить",
     },
     validation: {
       tooShort: "Слишком короткое значение",
@@ -368,6 +370,8 @@ export const messages = {
       rows: "rows",
       filter: "Filter",
       clearFilters: "Clear filters",
+      pickDateRange: "Pick a date range",
+      clear: "Clear",
     },
     validation: {
       tooShort: "Too short",

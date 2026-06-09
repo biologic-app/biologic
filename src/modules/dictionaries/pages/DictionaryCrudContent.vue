@@ -1292,7 +1292,7 @@ defineExpose({
     @apply="applyFilters()"
     @reset="resetFilters()"
   >
-    <div class="grid gap-3 md:grid-cols-2">
+    <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
       <div
         v-for="filterField in filterFields"
         :key="filterField.field"

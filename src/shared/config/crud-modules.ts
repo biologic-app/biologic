@@ -673,6 +673,9 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       research_goal_id: textFilter(),
       lab_id: textFilter(),
       status_id: textFilter(),
+      comment: textFilter(),
+      recommendation: textFilter(),
+      created_at: dateFilter(),
       received_at: dateFilter(),
       completed_at: dateFilter()
     },
@@ -681,6 +684,9 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       selectFilterField('research_goal_id', 'Цель исследования', '/research_goals'),
       selectFilterField('lab_id', 'Лаборатория', '/labs'),
       selectFilterField('status_id', 'Статус', '/research_statuses'),
+      textFilterField('comment', 'Комментарий'),
+      textFilterField('recommendation', 'Рекомендация'),
+      dateFilterField('created_at', 'Создано'),
       dateFilterField('received_at', 'Получен'),
       dateFilterField('completed_at', 'Завершён')
     ],
