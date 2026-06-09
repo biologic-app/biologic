@@ -16,10 +16,16 @@ from src.core.crud_query import (
     build_crud_query_parts,
     cursor_sort_value,
 )
-from src.core.cursor_pagination import CursorState, decode_cursor, encode_cursor
+from src.core.cursor_pagination import (
+    CursorState,
+    decode_cursor,
+    encode_cursor,
+    json_value,
+)
 from src.core.errors import BadRequestError, DomainConflictError, NotFoundError
 from src.core.pagination import PaginationParams
 from src.infrastructure.db.models import (
+    ChangeLog,
     Conclusion,
     Direction,
     DirectionStatus,
@@ -75,6 +81,7 @@ class DirectionCrudRepository:
             self.session,
             await self.read(direction_id),
             _pick(values, _direction_write_fields()),
+            audit_resource="directions",
         )
 
     async def delete(self, direction_id: UUID) -> None:
@@ -106,6 +113,7 @@ class SampleCrudRepository:
             self.session,
             await self.read(sample_id),
             _pick(values, _sample_write_fields()),
+            audit_resource="samples",
         )
 
     async def delete(self, sample_id: UUID) -> None:
@@ -139,6 +147,7 @@ class ResearchCrudRepository:
             self.session,
             await self.read(research_id),
             _pick(values, _research_write_fields()),
+            audit_resource="research",
         )
 
     async def delete(self, research_id: UUID) -> None:
@@ -165,6 +174,7 @@ class TestCrudRepository:
             self.session,
             await self.read(test_id),
             _pick(values, _test_write_fields()),
+            audit_resource="tests",
         )
 
     async def delete(self, test_id: UUID) -> None:
@@ -269,15 +279,46 @@ async def _create_row(
     return row
 
 
-async def _update_row(session: AsyncSession, row: Any, values: dict[str, Any]) -> Any:
+async def _update_row(
+    session: AsyncSession,
+    row: Any,
+    values: dict[str, Any],
+    *,
+    audit_resource: str,
+) -> Any:
+    diff = _audit_diff(row, values)
     for field, value in values.items():
         setattr(row, field, value)
     if hasattr(row, "updated_at"):
         setattr(row, "updated_at", datetime.now(UTC))
     session.add(row)
+    if diff:
+        session.add(
+            ChangeLog(
+                entity_type=audit_resource,
+                entity_id=row.id,
+                action=f"{audit_resource}.update",
+                actor_name="api",
+                snapshot={field: change["to"] for field, change in diff.items()},
+                diff=diff,
+            ),
+        )
     await session.commit()
     await session.refresh(row)
     return row
+
+
+def _audit_diff(row: Any, values: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    diff: dict[str, dict[str, Any]] = {}
+    for field, next_value in values.items():
+        previous_value = getattr(row, field)
+        if previous_value == next_value:
+            continue
+        diff[field] = {
+            "from": json_value(previous_value),
+            "to": json_value(next_value),
+        }
+    return diff
 
 
 async def _delete_row(session: AsyncSession, row: Any) -> None:

@@ -7,7 +7,7 @@ from src.contexts.laboratory_workflow.infrastructure.crud_repositories import (
     ResearchCrudRepository,
 )
 from src.core.pagination import PaginationParams
-from src.infrastructure.db.models import Research
+from src.infrastructure.db.models import ChangeLog, Research
 
 RESEARCH_ID = UUID("00000000-0000-0000-0000-000000000001")
 SAMPLE_ID = UUID("00000000-0000-0000-0000-000000000002")
@@ -43,6 +43,14 @@ class FakeRowsResult:
         return self.rows
 
 
+class FakeReadResult:
+    def __init__(self, row: Any) -> None:
+        self.row = row
+
+    def scalar_one_or_none(self) -> Any:
+        return self.row
+
+
 class FakeAsyncSession:
     def __init__(self, research: Research) -> None:
         self.research = research
@@ -62,6 +70,29 @@ class FakeAsyncSession:
         if "FROM research" in sql:
             return FakeRowsResult([(self.research, None)])
         raise AssertionError(f"Unexpected query: {sql}")
+
+
+class FakeUpdateSession:
+    def __init__(self, research: Research) -> None:
+        self.research = research
+        self.added: list[Any] = []
+        self.committed = False
+        self.refreshed: Any = None
+
+    async def execute(self, statement: Any) -> FakeReadResult:
+        sql = str(statement)
+        if "FROM research" in sql:
+            return FakeReadResult(self.research)
+        raise AssertionError(f"Unexpected query: {sql}")
+
+    def add(self, row: Any) -> None:
+        self.added.append(row)
+
+    async def commit(self) -> None:
+        self.committed = True
+
+    async def refresh(self, row: Any) -> None:
+        self.refreshed = row
 
 
 class FakeRelationSortSession:
@@ -126,3 +157,33 @@ async def test_research_list_sorts_by_research_goal_name() -> None:
 
     assert page.items == [research]
     assert any("JOIN research_goals" in statement for statement in fake_session.statements)
+
+
+@pytest.mark.asyncio
+async def test_research_update_writes_recommendation_audit_diff() -> None:
+    research = Research(
+        id=RESEARCH_ID,
+        sample_id=SAMPLE_ID,
+        research_goal_id=RESEARCH_GOAL_ID,
+        lab_id=LAB_ID,
+        status_id=STATUS_ID,
+        recommendation="old recommendation",
+    )
+    fake_session = FakeUpdateSession(research)
+    repository = ResearchCrudRepository(session=fake_session)  # type: ignore[arg-type]
+
+    await repository.update(RESEARCH_ID, {"recommendation": "new recommendation"})
+
+    audit_rows = [row for row in fake_session.added if isinstance(row, ChangeLog)]
+    assert len(audit_rows) == 1
+    audit = audit_rows[0]
+    assert audit.entity_type == "research"
+    assert audit.entity_id == RESEARCH_ID
+    assert audit.action == "research.update"
+    assert audit.diff == {
+        "recommendation": {
+            "from": "old recommendation",
+            "to": "new recommendation",
+        },
+    }
+    assert audit.snapshot == {"recommendation": "new recommendation"}
