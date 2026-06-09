@@ -3,6 +3,7 @@ import { computed, reactive, ref, watch } from "vue";
 import type { TabsItem } from "@nuxt/ui";
 import type { CrudModuleConfig } from "@/pages/CrudModulePage.vue";
 import { apiUpdateRequest, loadReferenceOptions } from "@/shared/api/client.api";
+import TechnicalAuditTimeline from "@/shared/ui/TechnicalAuditTimeline.vue";
 import { formatDateTime } from "@/shared/utils/format";
 import { getValueByPath } from "@/shared/utils/object";
 
@@ -89,17 +90,24 @@ const technicalEvents = computed(() => {
   return [
     {
       id: "entity",
-      label: "Запись",
-      description: `Идентификатор: ${row.id}`,
+      label: "Запись создана",
+      description: `Код записи: ${entityDisplayCode(row.id)}`,
       actor: "system",
-      date: row.created_at ?? row.inserted_at ?? null,
+      date: auditDate(row.created_at ?? row.inserted_at),
     },
     {
       id: "update",
       label: "Последнее сохранение",
       description: "Изменения сохранены через API.",
       actor: "api",
-      date: row.updated_at ?? row.modified_at ?? null,
+      date: auditDate(row.updated_at ?? row.modified_at),
+    },
+    {
+      id: "status",
+      label: "Текущее состояние",
+      description: currentStateLabel(row),
+      actor: "process",
+      date: auditDate(row.updated_at ?? row.modified_at ?? row.created_at ?? row.inserted_at),
     },
   ];
 });
@@ -214,6 +222,35 @@ function pickText(row: CrudRow, paths: string[]) {
   }
 
   return "";
+}
+
+function entityDisplayCode(value: unknown) {
+  if (typeof value !== "string" && typeof value !== "number") {
+    return "-";
+  }
+
+  const text = String(value);
+  const uuidPrefix = text.match(/^[0-9a-f]{8}/i)?.[0];
+  return `#${(uuidPrefix ?? text).toUpperCase()}`;
+}
+
+function auditDate(value: unknown) {
+  return typeof value === "string" ? value : null;
+}
+
+function currentStateLabel(row: CrudRow) {
+  const status = pickText(row, ["status.name", "state.name", "status", "state"]);
+  if (status) return status;
+
+  if (typeof row.is_active === "boolean") {
+    return row.is_active ? "Активна" : "Неактивна";
+  }
+
+  if (row.deleted_at) {
+    return "Удалена";
+  }
+
+  return "Актуальная запись";
 }
 
 function labelForKey(key: string) {
@@ -373,30 +410,10 @@ function inferFieldType(value: unknown) {
             </div>
           </section>
 
-          <section v-else-if="activeTab === 'technical'" class="max-w-3xl">
-            <div class="mb-3 flex items-center justify-between gap-3">
-              <h3 class="text-sm font-semibold text-highlighted">
-                Технический аудит
-              </h3>
-              <UBadge color="neutral" variant="outline" :label="`${technicalEvents.length} события`" />
-            </div>
-            <div class="space-y-4 border-l border-default pl-5">
-              <div v-for="event in technicalEvents" :key="event.id" class="relative">
-                <span class="absolute -left-[1.82rem] mt-1 size-3 rounded-full border border-default bg-default" />
-                <div class="space-y-1">
-                  <p class="text-sm font-semibold text-highlighted">
-                    {{ event.label }}
-                  </p>
-                  <p class="text-sm text-muted">
-                    {{ event.description }}
-                  </p>
-                  <p class="font-mono text-xs text-muted">
-                    {{ typeof event.date === 'string' ? formatDateTime(event.date) : 'Дата не указана' }}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </section>
+          <TechnicalAuditTimeline
+            v-else-if="activeTab === 'technical'"
+            :events="technicalEvents"
+          />
 
           <section v-else>
             <UTextarea

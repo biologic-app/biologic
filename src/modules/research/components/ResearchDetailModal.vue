@@ -6,6 +6,7 @@ import { useI18n } from 'vue-i18n'
 import { useLocale } from '@/shared/composables/useLocale'
 import { statusColors, statusIcons, interpretationColors, interpretationLabels } from '@/shared/constants/research'
 import type { ResearchSample, ResearchTest, ResearchStatus } from '@/shared/types'
+import { getLastStepperIndex, timelineStepperUi } from '@/shared/ui/timeline-stepper'
 
 interface RelatedSample {
   id: number
@@ -57,6 +58,8 @@ const historyStepperItems = computed<StepperItem[]>(() =>
     value: entry.id
   }))
 )
+
+const activeHistoryStepIndex = computed(() => getLastStepperIndex(historyStepperItems.value))
 
 const relatedSamples = computed<RelatedSample[]>(() => {
   if (!props.sample) return []
@@ -192,7 +195,14 @@ function formatDate(date: string) {
 
           <section>
             <div class="mb-3 flex items-center gap-2"><UIcon name="i-lucide-history" class="size-4 text-muted" /><h3 class="text-sm font-semibold text-highlighted">{{ t('research.historyTitle') }}</h3></div>
-            <UStepper orientation="vertical" :items="historyStepperItems" :default-value="historyStepperItems.length - 1" disabled class="w-full" :ui="{ item: 'items-start', title: 'text-sm font-semibold text-highlighted', description: 'whitespace-pre-line text-xs leading-5 text-muted', separator: 'min-h-8' }" />
+            <UStepper
+              orientation="vertical"
+              :items="historyStepperItems"
+              :model-value="activeHistoryStepIndex"
+              disabled
+              class="w-full"
+              :ui="timelineStepperUi"
+            />
           </section>
         </div>
 

@@ -229,6 +229,13 @@ const createFilterMeta = (field: TableColumn) => {
 const getFilterOptions = (field: TableColumn) =>
   referenceOptions.value[field.field] ?? field.filter?.options ?? [];
 
+const isFilterOptionsLoading = (field: TableColumn) =>
+  filterReferenceOptionsLoading.value
+  && field.filter?.type === "select"
+  && field.filter.options === undefined
+  && Boolean(field.filter.source)
+  && referenceOptions.value[field.field] === undefined;
+
 const ensureFilterEntries = () => {
   filterFields.value.forEach((field) => {
     if (!filters[field.field]) {
@@ -1292,7 +1299,7 @@ defineExpose({
     @apply="applyFilters()"
     @reset="resetFilters()"
   >
-    <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+    <div class="grid gap-3 md:grid-cols-2">
       <div
         v-for="filterField in filterFields"
         :key="filterField.field"
@@ -1316,11 +1323,22 @@ defineExpose({
           :placeholder="filterField.filter?.placeholder || filterField.header"
           :portal="false"
           :ui="filterSelectOverlayUi"
+          :loading="isFilterOptionsLoading(filterField)"
           clear
           @update:model-value="
             filters[filterField.field].value = normalizeFilterSelectValue($event)
           "
-        />
+        >
+          <template #empty>
+            <div
+              v-if="isFilterOptionsLoading(filterField)"
+              class="flex items-center gap-2 py-1 text-sm text-muted"
+            >
+              <UIcon name="i-lucide-loader-circle" class="size-4 animate-spin" />
+              <span>Загрузка...</span>
+            </div>
+          </template>
+        </USelectMenu>
 
         <UInput
           v-else

@@ -8,8 +8,18 @@ import {
   apiUpdateRequest,
   loadReferenceOptions,
 } from "@/shared/api/client.api";
+import TechnicalAuditTimeline from "@/shared/ui/TechnicalAuditTimeline.vue";
+import {
+  historyEntryToTechnicalAuditEvent,
+  type TechnicalAuditHistoryEntry,
+} from "@/shared/ui/technical-audit";
 import { formatDateTime } from "@/shared/utils/format";
 import { getValueByPath } from "@/shared/utils/object";
+import {
+  getLastStepperIndex,
+  timelineEventsToStepperItems,
+  timelineStepperUi,
+} from "@/shared/ui/timeline-stepper";
 
 type EntityKind = "directions" | "samples" | "research";
 
@@ -26,7 +36,7 @@ interface TimelineEvent {
   label: string;
   description: string;
   actor: string;
-  date: string | null;
+  date?: string | null;
 }
 
 interface RelatedRow extends CrudRow {
@@ -54,6 +64,7 @@ const UBadge = resolveComponent("UBadge");
 const activeTab = ref<"card" | "technical" | "related" | "notes">("card");
 const detail = ref<CrudRow | null>(null);
 const relatedRows = ref<RelatedRow[]>([]);
+const auditHistory = ref<TechnicalAuditHistoryEntry[]>([]);
 const loading = ref(false);
 const relatedLoading = ref(false);
 const relatedLoadingMore = ref(false);
@@ -204,13 +215,28 @@ const statusHistory = computed<TimelineEvent[]>(() => {
   return [];
 });
 
+const statusStepperItems = computed(() => timelineEventsToStepperItems(statusHistory.value, "i-lucide-circle-dot"));
+const activeStatusStepIndex = computed(() => getLastStepperIndex(statusStepperItems.value));
+
 const technicalAudit = computed<TimelineEvent[]>(() => {
   const row = currentItem.value;
   if (!row) return [];
 
+  if (auditHistory.value.length) {
+    return auditHistory.value.map(historyEntryToTechnicalAuditEvent);
+  }
+
   return compactEvents([
     makeEvent("entity", "Запись создана", `Код записи: ${entityDisplayCode(row.id)}`, "system", row.created_at ?? row.inserted_at ?? null),
-    makeEvent("update", "Последнее сохранение", "Изменения сохранены через API.", "api", row.updated_at ?? row.modified_at ?? null),
+    props.businessKind === "research"
+      ? makeEvent(
+          "recommendation",
+          "Текущая рекомендация",
+          formatPlain(row.recommendation),
+          "api",
+          row.updated_at ?? row.modified_at ?? null,
+        )
+      : null,
     makeEvent("status", "Текущее состояние", statusLabel.value || "Статус не указан", "process", row.completed_at ?? row.updated_at ?? null),
   ]);
 });
@@ -303,6 +329,7 @@ watch(
     } finally {
       syncForm();
       loading.value = false;
+      void loadAuditHistory(detail.value);
       void loadRelatedRows(true);
       void loadSelectOptions();
     }
@@ -313,6 +340,7 @@ watch(
 function resetState() {
   detail.value = null;
   relatedRows.value = [];
+  auditHistory.value = [];
   relatedCursor.value = null;
   relatedHasMore.value = false;
   loadError.value = null;
@@ -450,6 +478,29 @@ async function loadRelatedRows(reset = false) {
   }
 }
 
+async function loadAuditHistory(row: CrudRow | null) {
+  if (!row?.id || !props.businessKind) {
+    auditHistory.value = [];
+    return;
+  }
+
+  try {
+    const response = await apiReadListRequest<TechnicalAuditHistoryEntry>("/history", {
+      method: "GET",
+      params: {
+        limit: 20,
+        filters: JSON.stringify({
+          entity_type: props.businessKind,
+          entity_id: row.id,
+        }),
+      },
+    });
+    auditHistory.value = response.items;
+  } catch {
+    auditHistory.value = [];
+  }
+}
+
 function relationRequest(row: CrudRow | null) {
   if (!row) return null;
 
@@ -510,6 +561,7 @@ async function saveInline() {
     detail.value = { ...row, ...payload, ...response.data };
     editing.value = false;
     emit("saved", detail.value);
+    await loadAuditHistory(detail.value);
   } finally {
     saving.value = false;
   }
@@ -864,66 +916,42 @@ function relationLabel(kind: EntityKind | "tests") {
                 <UBadge color="neutral" variant="outline" :label="`${statusHistory.length} события`" />
               </div>
 
-              <div class="space-y-4 border-l border-default pl-5">
-                <div v-for="event in statusHistory" :key="event.id" class="relative">
-                  <span class="absolute -left-[1.82rem] mt-1 size-3 rounded-full border border-primary bg-default" />
+              <UStepper
+                v-if="statusStepperItems.length"
+                orientation="vertical"
+                :items="statusStepperItems"
+                :model-value="activeStatusStepIndex"
+                disabled
+                class="w-full"
+                :ui="timelineStepperUi"
+              >
+                <template #description="{ item: stepperItem }">
                   <div class="space-y-1">
+                    <p class="whitespace-pre-line break-words text-xs leading-5 text-muted">
+                      {{ stepperItem.description }}
+                    </p>
                     <div class="flex flex-wrap items-center gap-2">
-                      <p class="text-sm font-semibold text-highlighted">
-                        {{ event.label }}
-                      </p>
                       <UBadge
+                        v-if="stepperItem.actor"
                         color="neutral"
                         variant="outline"
                         size="sm"
-                        :label="event.actor"
+                        :label="stepperItem.actor"
                       />
+                      <p class="font-mono text-xs text-muted">
+                        {{ stepperItem.date ? formatDateTime(stepperItem.date) : 'Дата не указана' }}
+                      </p>
                     </div>
-                    <p class="text-sm text-muted">
-                      {{ event.description }}
-                    </p>
-                    <p class="font-mono text-xs text-muted">
-                      {{ event.date ? formatDateTime(event.date) : 'Дата не указана' }}
-                    </p>
                   </div>
-                </div>
-              </div>
+                </template>
+              </UStepper>
             </aside>
           </div>
 
-          <section v-else-if="activeTab === 'technical'" class="max-w-3xl">
-            <div class="mb-3 flex items-center justify-between gap-3">
-              <h3 class="text-sm font-semibold text-highlighted">
-                Технический аудит
-              </h3>
-              <UBadge color="neutral" variant="outline" :label="`${technicalAudit.length} события`" />
-            </div>
-
-            <div class="space-y-4 border-l border-default pl-5">
-              <div v-for="event in technicalAudit" :key="event.id" class="relative">
-                <span class="absolute -left-[1.82rem] mt-1 size-3 rounded-full border border-default bg-default" />
-                <div class="space-y-1">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <p class="text-sm font-semibold text-highlighted">
-                      {{ event.label }}
-                    </p>
-                    <UBadge
-                      color="neutral"
-                      variant="outline"
-                      size="sm"
-                      :label="event.actor"
-                    />
-                  </div>
-                  <p class="text-sm text-muted">
-                    {{ event.description }}
-                  </p>
-                  <p class="font-mono text-xs text-muted">
-                    {{ event.date ? formatDateTime(event.date) : 'Дата не указана' }}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </section>
+          <TechnicalAuditTimeline
+            v-else-if="activeTab === 'technical'"
+            :events="technicalAudit"
+          />
 
           <section v-else-if="activeTab === 'related'" class="flex h-full min-h-0 flex-col gap-3">
             <div class="flex shrink-0 items-center justify-between gap-3">

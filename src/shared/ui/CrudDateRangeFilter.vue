@@ -103,13 +103,6 @@ const formatDisplayDate = (value: CalendarDate) =>
         class="justify-start data-[state=open]:bg-elevated group"
       >
         <span class="truncate">{{ displayValue }}</span>
-
-        <template #trailing>
-          <UIcon
-            name="i-lucide-chevron-down"
-            class="shrink-0 text-dimmed size-5 group-data-[state=open]:rotate-180 transition-transform duration-200"
-          />
-        </template>
       </UButton>
 
       <template #content>

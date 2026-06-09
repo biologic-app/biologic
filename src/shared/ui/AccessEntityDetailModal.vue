@@ -2,8 +2,8 @@
 import { computed, reactive, ref, watch } from "vue";
 import type { TabsItem } from "@nuxt/ui";
 import PermissionEditor from "@/shared/ui/PermissionEditor.vue";
+import TechnicalAuditTimeline from "@/shared/ui/TechnicalAuditTimeline.vue";
 import type { Permission, PermissionOverride } from "@/shared/types/permissions";
-import { formatDateTime } from "@/shared/utils/format";
 
 type AccessKind = "user" | "role";
 
@@ -126,15 +126,24 @@ const auditEvents = computed(() => {
   return [
     {
       id: "entity",
-      label: props.kind === "role" ? "Роль" : "Пользователь",
-      description: `Идентификатор: ${row.id}`,
-      date: row.created_at ?? null,
+      label: "Запись создана",
+      description: `Код записи: ${entityDisplayCode(row.id)}`,
+      actor: "system",
+      date: auditDate(row.created_at),
     },
     {
       id: "update",
-      label: "Последнее изменение",
+      label: "Последнее сохранение",
       description: "Данные доступа сохранены через API.",
-      date: row.updated_at ?? null,
+      actor: "api",
+      date: auditDate(row.updated_at),
+    },
+    {
+      id: "status",
+      label: "Текущее состояние",
+      description: accessStateLabel(row),
+      actor: "process",
+      date: auditDate(row.updated_at ?? row.created_at),
     },
   ];
 });
@@ -184,6 +193,32 @@ function formatFieldValue(field: DetailField) {
   }
 
   return formatValue(value);
+}
+
+function entityDisplayCode(value: unknown) {
+  if (typeof value !== "string" && typeof value !== "number") {
+    return "-";
+  }
+
+  const text = String(value);
+  const uuidPrefix = text.match(/^[0-9a-f]{8}/i)?.[0];
+  return `#${(uuidPrefix ?? text).toUpperCase()}`;
+}
+
+function auditDate(value: unknown) {
+  return typeof value === "string" ? value : null;
+}
+
+function accessStateLabel(row: AccessRow) {
+  if (typeof row.is_active === "boolean") {
+    return row.is_active ? "Активна" : "Неактивна";
+  }
+
+  if (row.deleted_at) {
+    return "Удалена";
+  }
+
+  return props.mode === "create" ? "Черновик" : "Актуальная запись";
 }
 
 function formString(key: string) {
@@ -351,34 +386,7 @@ function formOptionValue(key: string) {
             />
           </section>
 
-          <section v-else class="max-w-3xl">
-            <div class="mb-3 flex items-center justify-between gap-3">
-              <h3 class="text-sm font-semibold text-highlighted">
-                Технический аудит
-              </h3>
-              <UBadge
-                color="neutral"
-                variant="outline"
-                :label="`${auditEvents.length} события`"
-              />
-            </div>
-            <div class="space-y-4 border-l border-default pl-5">
-              <div v-for="event in auditEvents" :key="event.id" class="relative">
-                <span class="absolute -left-[1.82rem] mt-1 size-3 rounded-full border border-default bg-default" />
-                <div class="space-y-1">
-                  <p class="text-sm font-semibold text-highlighted">
-                    {{ event.label }}
-                  </p>
-                  <p class="text-sm text-muted">
-                    {{ event.description }}
-                  </p>
-                  <p class="font-mono text-xs text-muted">
-                    {{ typeof event.date === 'string' ? formatDateTime(event.date) : 'Дата не указана' }}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </section>
+          <TechnicalAuditTimeline v-else :events="auditEvents" />
         </main>
 
         <footer class="flex justify-end gap-2 border-t border-default bg-elevated/40 px-5 py-3">

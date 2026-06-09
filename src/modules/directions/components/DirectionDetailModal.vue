@@ -2,6 +2,7 @@
 import { format } from "date-fns";
 import { computed, ref } from "vue";
 import type { StepperItem, TabsItem } from "@nuxt/ui";
+import { getLastStepperIndex, timelineStepperUi } from "@/shared/ui/timeline-stepper";
 
 interface DirectionSample {
   id: number;
@@ -83,6 +84,8 @@ const directionHistoryItems = computed<StepperItem[]>(() => {
   }
   return items;
 });
+
+const activeDirectionHistoryIndex = computed(() => getLastStepperIndex(directionHistoryItems.value));
 </script>
 
 <template>
@@ -182,7 +185,14 @@ const directionHistoryItems = computed<StepperItem[]>(() => {
         <!-- History tab -->
         <section v-else class="rounded-lg border border-default p-4">
           <div class="mb-3 flex items-center gap-2"><UIcon name="i-lucide-history" class="size-4 text-muted" /><h3 class="text-sm font-semibold text-highlighted">История направления</h3></div>
-          <UStepper orientation="vertical" :items="directionHistoryItems" :default-value="directionHistoryItems.length" disabled class="w-full" :ui="{ item: 'items-start', title: 'text-sm font-semibold text-highlighted', description: 'whitespace-pre-line text-xs leading-5 text-muted', separator: 'min-h-8' }" />
+          <UStepper
+            orientation="vertical"
+            :items="directionHistoryItems"
+            :model-value="activeDirectionHistoryIndex"
+            disabled
+            class="w-full"
+            :ui="timelineStepperUi"
+          />
         </section>
       </div>
     </template>
