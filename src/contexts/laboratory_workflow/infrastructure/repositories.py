@@ -466,7 +466,9 @@ class SqlAlchemyWorkflowRepository:
             action="research_confirmed",
         )
 
-    async def reject_research(self, research_id: UUID, actor_id: UUID, reason: str) -> CommandResult:
+    async def reject_research(
+        self, research_id: UUID, actor_id: UUID, reason: str
+    ) -> CommandResult:
         research = await self._get_research_for_update(research_id)
         research.comment = reason or research.comment
         return await self._transition_research(

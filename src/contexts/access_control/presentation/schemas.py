@@ -2,7 +2,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
-from src.infrastructure.db.models.entities import AccessScopeType, RoleScopeType
+from src.infrastructure.db.models.enums import AccessScopeType, RoleScopeType
 
 
 class StrictRequest(BaseModel):

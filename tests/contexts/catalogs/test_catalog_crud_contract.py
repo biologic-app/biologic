@@ -5,7 +5,10 @@ from pydantic import BaseModel
 from pytest import MonkeyPatch
 
 from src.app_factory import create_app
-from src.contexts.catalogs.presentation.router import get_catalog_use_case
+from src.contexts.catalogs.presentation.dependencies import (
+    get_branch_use_case,
+    get_direction_status_use_case,
+)
 from src.contexts.laboratory_workflow.presentation.router import get_workflow_crud_use_case
 from src.core.config import get_settings
 from src.core.errors import DomainConflictError
@@ -13,8 +16,8 @@ from src.core.pagination import PageMeta, PaginationParams, get_pagination_param
 from src.core.responses import ListResponse, ResponseMeta, SingleResponse
 
 
-class FakeCatalogCrudUseCase:
-    async def list_branches(self, params: PaginationParams) -> ListResponse[dict[str, object]]:
+class FakeBranchUseCase:
+    async def list(self, params: PaginationParams) -> ListResponse[dict[str, object]]:
         return ListResponse(
             items=[],
             meta=PageMeta(
@@ -24,13 +27,15 @@ class FakeCatalogCrudUseCase:
             ),
         )
 
-    async def create_branch(self, payload: BaseModel) -> SingleResponse[dict[str, object]]:
+    async def create(self, payload: BaseModel) -> SingleResponse[dict[str, object]]:
         return SingleResponse(
             data={"id": "00000000-0000-0000-0000-000000000001", **payload.model_dump()},
             meta=ResponseMeta(operation="branches.create"),
         )
 
-    async def list_direction_statuses(
+
+class FakeDirectionStatusUseCase:
+    async def list(
         self,
         params: PaginationParams,
     ) -> ListResponse[dict[str, object]]:
@@ -43,7 +48,7 @@ class FakeCatalogCrudUseCase:
             ),
         )
 
-    async def update_direction_status(
+    async def update(
         self,
         item_id: UUID,
         payload: BaseModel,
@@ -57,10 +62,10 @@ class FakeCatalogCrudUseCase:
             meta=ResponseMeta(operation="direction_statuses.update"),
         )
 
-    def reject_read_only_status_write(self, resource: str) -> None:
+    def reject_write(self) -> None:
         raise DomainConflictError(
             code="resource_read_only",
-            detail=f"{resource} cannot be changed through catalog CRUD.",
+            detail="direction_statuses cannot be changed through catalog CRUD.",
         )
 
 
@@ -80,8 +85,11 @@ def _app(monkeypatch: MonkeyPatch):
     get_settings.cache_clear()
     app = create_app()
 
-    async def override_catalog_use_case() -> FakeCatalogCrudUseCase:
-        return FakeCatalogCrudUseCase()
+    async def override_branch_use_case() -> FakeBranchUseCase:
+        return FakeBranchUseCase()
+
+    async def override_direction_status_use_case() -> FakeDirectionStatusUseCase:
+        return FakeDirectionStatusUseCase()
 
     async def override_workflow_crud_use_case() -> FakeWorkflowCrudUseCase:
         return FakeWorkflowCrudUseCase()
@@ -89,7 +97,8 @@ def _app(monkeypatch: MonkeyPatch):
     async def override_pagination_params() -> PaginationParams:
         return PaginationParams()
 
-    app.dependency_overrides[get_catalog_use_case] = override_catalog_use_case
+    app.dependency_overrides[get_branch_use_case] = override_branch_use_case
+    app.dependency_overrides[get_direction_status_use_case] = override_direction_status_use_case
     app.dependency_overrides[get_workflow_crud_use_case] = override_workflow_crud_use_case
     app.dependency_overrides[get_pagination_params] = override_pagination_params
     return app

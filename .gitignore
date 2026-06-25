@@ -214,3 +214,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+# OMC / Claude Code agent artifacts (centralized in parent bio/.omc via .omc-workspace)
+/.omc/
+/.claude/settings.local.json

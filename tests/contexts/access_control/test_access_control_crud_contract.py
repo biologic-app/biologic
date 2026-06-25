@@ -3,14 +3,19 @@ from pydantic import BaseModel
 from pytest import MonkeyPatch
 
 from src.app_factory import create_app
-from src.contexts.access_control.presentation.router import get_access_control_use_case
+from src.contexts.access_control.presentation.dependencies import (
+    get_permission_use_case,
+    get_role_permission_set_use_case,
+    get_user_permission_set_use_case,
+    get_user_use_case,
+)
 from src.core.config import get_settings
 from src.core.pagination import PageMeta, PaginationParams
 from src.core.responses import ListResponse, ResponseMeta, SingleResponse
 
 
-class FakeAccessControlCrudUseCase:
-    async def list_users(self, params: PaginationParams) -> ListResponse[dict[str, object]]:
+class FakeUserCrudUseCase:
+    async def list(self, params: PaginationParams) -> ListResponse[dict[str, object]]:
         return ListResponse(
             items=[],
             meta=PageMeta(
@@ -20,7 +25,7 @@ class FakeAccessControlCrudUseCase:
             ),
         )
 
-    async def create_user(self, payload: BaseModel) -> SingleResponse[dict[str, object]]:
+    async def create(self, payload: BaseModel) -> SingleResponse[dict[str, object]]:
         data = payload.model_dump()
         data.pop("password_hash", None)
         return SingleResponse(
@@ -28,13 +33,17 @@ class FakeAccessControlCrudUseCase:
             meta=ResponseMeta(operation="users.create"),
         )
 
-    async def create_permission(self, payload: BaseModel) -> SingleResponse[dict[str, object]]:
+
+class FakePermissionCrudUseCase:
+    async def create(self, payload: BaseModel) -> SingleResponse[dict[str, object]]:
         return SingleResponse(
             data={"id": "00000000-0000-0000-0000-000000000001", **payload.model_dump()},
             meta=ResponseMeta(operation="permissions.create"),
         )
 
-    async def read_role_permissions(self, role_id: object) -> SingleResponse[dict[str, object]]:
+
+class FakeRolePermissionSetUseCase:
+    async def read(self, role_id: object) -> SingleResponse[dict[str, object]]:
         return SingleResponse(
             data={
                 "permissions": [
@@ -49,7 +58,7 @@ class FakeAccessControlCrudUseCase:
             meta=ResponseMeta(operation="roles.permissions.read"),
         )
 
-    async def replace_role_permissions(
+    async def replace(
         self,
         role_id: object,
         payload: BaseModel,
@@ -59,7 +68,9 @@ class FakeAccessControlCrudUseCase:
             meta=ResponseMeta(operation="roles.permissions.replace"),
         )
 
-    async def read_user_permissions(self, user_id: object) -> SingleResponse[dict[str, object]]:
+
+class FakeUserPermissionSetUseCase:
+    async def read_effective(self, user_id: object) -> SingleResponse[dict[str, object]]:
         return SingleResponse(
             data={
                 "permissions": [
@@ -74,7 +85,7 @@ class FakeAccessControlCrudUseCase:
             meta=ResponseMeta(operation="users.permissions.read"),
         )
 
-    async def read_user_permission_overrides(
+    async def read_overrides(
         self,
         user_id: object,
     ) -> SingleResponse[dict[str, object]]:
@@ -93,7 +104,7 @@ class FakeAccessControlCrudUseCase:
             meta=ResponseMeta(operation="users.overrides.read"),
         )
 
-    async def replace_user_permission_overrides(
+    async def replace_overrides(
         self,
         user_id: object,
         payload: BaseModel,
@@ -111,7 +122,14 @@ def _client(monkeypatch: MonkeyPatch) -> TestClient:
     monkeypatch.setenv("APP_AUTH_COOKIE_DOMAIN", "localhost")
     get_settings.cache_clear()
     app = create_app()
-    app.dependency_overrides[get_access_control_use_case] = lambda: FakeAccessControlCrudUseCase()
+    app.dependency_overrides[get_user_use_case] = lambda: FakeUserCrudUseCase()
+    app.dependency_overrides[get_permission_use_case] = lambda: FakePermissionCrudUseCase()
+    app.dependency_overrides[get_role_permission_set_use_case] = lambda: (
+        FakeRolePermissionSetUseCase()
+    )
+    app.dependency_overrides[get_user_permission_set_use_case] = lambda: (
+        FakeUserPermissionSetUseCase()
+    )
     return TestClient(app)
 
 
