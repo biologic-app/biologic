@@ -36,14 +36,11 @@ import type {
   PermissionOverride,
 } from "@/shared/types/permissions";
 import { useAuth } from "@/modules/auth/composables/useAuth";
+import { usePermission } from "@/shared/composables/usePermission";
 
 const toast = useToast();
 const auth = useAuth();
-const can = (resource?: unknown, action?: unknown) => {
-  void resource;
-  void action;
-  return true;
-};
+const { can } = usePermission();
 
 const confirmDialog = ref<{ open: boolean; title: string; description: string; onConfirm: () => void }>({
   open: false,

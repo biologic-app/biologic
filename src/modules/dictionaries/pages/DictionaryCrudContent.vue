@@ -1258,6 +1258,10 @@ const openEdit = (row: CrudRow) => {
   void loadFormReferenceOptions();
 };
 
+const clearSelection = () => {
+  rowSelection.value = {};
+};
+
 defineExpose({
   openCreate,
   createDisabled,
@@ -1289,6 +1293,7 @@ defineExpose({
   rejectSelectedTests,
   columnMenuItems,
   filterModalOpen,
+  clearSelection,
 });
 </script>
 

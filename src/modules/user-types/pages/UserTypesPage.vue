@@ -17,13 +17,10 @@ import { useServerTable } from '@/shared/composables/useServerTable'
 import { useTableColumnVisibility } from '@/shared/composables/useTableSettings'
 import { summarizePermissions } from '@/shared/utils/permissions'
 import type { Permission, PermissionSummary } from '@/shared/types/permissions'
+import { usePermission } from '@/shared/composables/usePermission'
 
 const toast = useToast()
-const can = (resource?: unknown, action?: unknown) => {
-  void resource
-  void action
-  return true
-}
+const { can } = usePermission()
 
 const confirmDialog = ref<{ open: boolean; title: string; description: string; onConfirm: () => void }>({
   open: false,

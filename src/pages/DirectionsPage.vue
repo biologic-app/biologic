@@ -5,6 +5,8 @@ import { usePermission } from '@/shared/composables/usePermission'
 import { apiUploadRequest } from '@/shared/api/client.api'
 import CrudFilterControls from '@/shared/ui/CrudFilterControls.vue'
 import CrudSearchControl from '@/shared/ui/CrudSearchControl.vue'
+import SelectionActionBar from '@/shared/ui/SelectionActionBar.vue'
+import type { SelectionAction } from '@/shared/ui/SelectionActionBar.vue'
 import { crudModules } from '@/shared/config/crud-modules'
 
 const { can } = usePermission()
@@ -22,6 +24,24 @@ const createDisabled = computed(() => !can(selectedConfig.resource, 'create'))
 const importDisabled = computed(() => !can(selectedConfig.resource, 'import'))
 const createMenuDisabled = computed(() => createDisabled.value && importDisabled.value)
 const activeFilterCount = computed(() => crudContent.value?.activeFilterCount || 0)
+const selectedCount = computed(() => crudContent.value?.selectedCount ?? 0)
+
+const selectionActions = computed<SelectionAction[]>(() => [
+  {
+    label: 'Зарегистрировать',
+    icon: 'i-lucide-clipboard-check',
+    color: 'primary',
+    disabled: !crudContent.value?.canRegisterSelectedDirections,
+    onClick: () => crudContent.value?.registerSelectedDirections(),
+  },
+  {
+    label: 'Удалить',
+    icon: 'i-lucide-trash',
+    color: 'error',
+    disabled: !crudContent.value?.canDeleteSelected,
+    onClick: () => crudContent.value?.deleteSelected(),
+  },
+])
 
 interface DirectionImportSummary {
   filename: string
@@ -132,33 +152,7 @@ const handleImportFile = async (event: Event) => {
           </div>
         </template>
         <template #right>
-          <div class="flex flex-wrap items-center gap-2">
-            <UButton
-              v-show="crudContent?.selectedCount"
-              :disabled="!crudContent?.canRegisterSelectedDirections"
-              color="primary"
-              variant="subtle"
-              icon="i-lucide-clipboard-check"
-              label="Зарегистрировать"
-              @click="crudContent?.registerSelectedDirections()"
-            >
-              <template #trailing>
-                <UKbd>{{ crudContent?.selectedCount }}</UKbd>
-              </template>
-            </UButton>
-            <UButton
-              v-show="crudContent?.selectedCount"
-              color="error"
-              variant="subtle"
-              icon="i-lucide-trash"
-              label="Удалить"
-              :disabled="!crudContent?.canDeleteSelected"
-              @click="crudContent?.deleteSelected()"
-            >
-              <template #trailing>
-                <UKbd>{{ crudContent?.selectedCount }}</UKbd>
-              </template>
-            </UButton>
+          <div class="flex items-center gap-2">
             <UTooltip text="Обновить данные">
               <UButton
                 color="neutral"
@@ -167,7 +161,6 @@ const handleImportFile = async (event: Event) => {
                 @click="refreshToken++"
               />
             </UTooltip>
-
             <UDropdownMenu
               :items="crudContent?.columnMenuItems || []"
               :content="{ align: 'end' }"

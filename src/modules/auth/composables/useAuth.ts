@@ -4,14 +4,37 @@ import { computed, ref } from "vue";
 import * as authApi from "../auth.api";
 import type { Action, Permission, Resource } from "@/shared/types/permissions";
 import type { AuthUser } from "@/shared/types/auth";
+import {
+  defaultUserModeId,
+  isUserModeId,
+  modeAllows,
+  resolveModePermissions,
+  resolveUserMode,
+  type UserModeId,
+} from "@/shared/config/user-modes";
 
 export const useAuth = defineStore("auth", () => {
   const user = useStorage<AuthUser | null>("auth:user", null);
+  // Права роли с бэкенда (наполняются при логине). Пока не используются `can()`:
+  // источник истины — активный режим (frontend-пресет). Будут задействованы,
+  // когда разграничение прав переедет на бэкенд.
   const permissions = useStorage<Permission[]>("auth:permissions", []);
+  const activeModeId = useStorage<UserModeId>("auth:mode", defaultUserModeId);
   const loading = ref(false);
   const initialized = ref(false);
 
   const isAuthenticated = computed(() => !!user.value);
+
+  const activeMode = computed(() => resolveUserMode(activeModeId.value));
+  const effectivePermissions = computed(() =>
+    resolveModePermissions(activeModeId.value),
+  );
+
+  const setMode = (modeId: UserModeId) => {
+    if (isUserModeId(modeId)) {
+      activeModeId.value = modeId;
+    }
+  };
 
   const setSession = (newUser: AuthUser, newPermissions: Permission[]) => {
     user.value = newUser;
@@ -58,7 +81,10 @@ export const useAuth = defineStore("auth", () => {
     }
   };
 
-  const can: (resource: Resource, action: Action) => boolean = () => true;
+  const can: (resource: Resource, action: Action) => boolean = (
+    resource,
+    action,
+  ) => modeAllows(effectivePermissions.value, resource, action);
 
   return {
     user,
@@ -66,6 +92,10 @@ export const useAuth = defineStore("auth", () => {
     loading,
     initialized,
     isAuthenticated,
+    activeModeId,
+    activeMode,
+    effectivePermissions,
+    setMode,
     setSession,
     clearSession,
     login,

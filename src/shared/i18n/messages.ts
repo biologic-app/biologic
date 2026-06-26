@@ -113,9 +113,34 @@ export const messages = {
       dark: "Тёмная",
       font: "Шрифт",
       fontSize: "Размер шрифта",
+      mode: "Режим работы",
       logout: "Выйти",
       logoutTitle: "Успешно",
       logoutDescription: "Вы вышли из аккаунта",
+    },
+    modes: {
+      changed: "Режим переключён",
+      changedTo: "Текущий режим: {mode}",
+      admin: {
+        label: "Администратор",
+        description: "Полный доступ ко всем модулям и действиям.",
+      },
+      registrar: {
+        label: "Регистратор",
+        description: "Приёмка: направления и образцы, импорт и регистрация.",
+      },
+      lab_head: {
+        label: "Заведующий лабораторией",
+        description: "Исследования, тесты и результаты лаборатории.",
+      },
+      branch_head: {
+        label: "Заведующий филиалом",
+        description: "Обзор филиала, справочники и подтверждение результатов.",
+      },
+      viewer: {
+        label: "Оператор (просмотр)",
+        description: "Доступ только на просмотр данных.",
+      },
     },
     dashboard: {
       notifications: "Уведомления",
@@ -479,9 +504,34 @@ export const messages = {
       dark: "Dark",
       font: "Font",
       fontSize: "Font size",
+      mode: "Working mode",
       logout: "Log out",
       logoutTitle: "Success",
       logoutDescription: "You have been signed out",
+    },
+    modes: {
+      changed: "Mode switched",
+      changedTo: "Current mode: {mode}",
+      admin: {
+        label: "Administrator",
+        description: "Full access to every module and action.",
+      },
+      registrar: {
+        label: "Registrar",
+        description: "Intake: directions and samples, import and registration.",
+      },
+      lab_head: {
+        label: "Lab head",
+        description: "Research, tests and laboratory results.",
+      },
+      branch_head: {
+        label: "Branch head",
+        description: "Branch overview, reference data and result approval.",
+      },
+      viewer: {
+        label: "Operator (read-only)",
+        description: "Read-only access to data.",
+      },
     },
     dashboard: {
       notifications: "Notifications",

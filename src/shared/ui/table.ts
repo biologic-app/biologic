@@ -5,7 +5,7 @@ export const borderedCrudTableUi = {
   base: "border-separate border-spacing-0",
   thead: "[&>tr]:bg-elevated/50 [&>tr]:after:content-none",
   tbody: "[&>tr]:last:[&>td]:border-b-0",
-  tr: "h-9 min-h-9 cursor-pointer transition-colors hover:bg-accented/70 data-[selected=true]:bg-accented/70",
+  tr: "h-9 min-h-9 cursor-pointer transition-colors hover:bg-accented/70 data-[selected=true]:bg-primary/10 data-[selected=true]:hover:bg-primary/15 data-[selected=true]:shadow-[inset_4px_0_0_var(--ui-primary)]",
   th: "h-9 border-r border-b border-default px-6 py-0 text-left text-sm font-semibold text-highlighted last:border-r-0",
   td: "h-9 border-r border-b border-default px-6 py-0 text-sm whitespace-nowrap text-muted last:border-r-0",
   empty: "p-0 align-middle",
