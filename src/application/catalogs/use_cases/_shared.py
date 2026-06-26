@@ -4,10 +4,10 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from src.contexts.catalogs.infrastructure.repositories import RepositoryPage
 from src.core.cursor_pagination import json_value
 from src.core.pagination import PageMeta, PaginationParams
 from src.core.responses import ListResponse, ResponseMeta, SingleResponse
+from src.infrastructure.repositories.catalogs import RepositoryPage
 
 
 def payload_dict(payload: BaseModel) -> dict[str, Any]:

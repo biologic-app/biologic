@@ -4,9 +4,9 @@ from fastapi.testclient import TestClient
 from pytest import MonkeyPatch
 
 from src.app_factory import create_app
-from src.contexts.dashboard.presentation.router import get_dashboard_use_case
 from src.core.config import get_settings
 from src.core.responses import ResponseMeta, SingleResponse
+from src.presentation.http.dashboard import get_dashboard_use_case
 
 
 class FakeDashboardUseCase:

@@ -1,7 +1,9 @@
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from uuid import UUID
 
 import httpx
+from fastapi import FastAPI
 from pytest import MonkeyPatch
 
 from src.app_factory import create_app
@@ -64,7 +66,7 @@ class FakeNotificationService:
         *,
         last_seen: datetime,
         poll_interval_seconds: float,
-    ):
+    ) -> AsyncIterator[NotificationRecord]:
         yield NotificationRecord(
             id=UUID("00000000-0000-0000-0000-000000000203"),
             kind="workflow.sample_rejected",
@@ -81,7 +83,7 @@ class FakeNotificationService:
         )
 
 
-def _app(monkeypatch: MonkeyPatch) -> tuple[object, FakeNotificationService]:
+def _app(monkeypatch: MonkeyPatch) -> tuple[FastAPI, FakeNotificationService]:
     monkeypatch.setenv("APP_DATABASE_URL", "postgresql+asyncpg://user:pass@localhost:5432/test")
     monkeypatch.setenv("APP_JWT_SECRET_KEY", "test-secret")
     monkeypatch.setenv("APP_AUTH_COOKIE_SECURE", "false")

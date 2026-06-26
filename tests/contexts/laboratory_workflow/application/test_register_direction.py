@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 import pytest
-from fakes import WorkflowRepositoryFake
+from fakes import FakeUnitOfWork, WorkflowRepositoryFake, fake_uow_factory
 
 from src.contexts.laboratory_workflow.application.commands import WorkflowCommandService
 from src.contexts.laboratory_workflow.application.dto import CommandResult, RegisterDirectionInput
@@ -29,7 +29,8 @@ class FakeWorkflowRepository(WorkflowRepositoryFake):
 @pytest.mark.asyncio
 async def test_register_direction_delegates_to_repository() -> None:
     repository = FakeWorkflowRepository()
-    service = WorkflowCommandService(repository=repository)
+    uow = FakeUnitOfWork(repository)
+    service = WorkflowCommandService(uow_factory=fake_uow_factory(uow))
     direction_id = UUID("00000000-0000-0000-0000-000000000001")
     actor_id = UUID("00000000-0000-0000-0000-000000000003")
 
@@ -43,3 +44,4 @@ async def test_register_direction_delegates_to_repository() -> None:
 
     assert result.id == direction_id
     assert repository.called_with == (direction_id, actor_id, "Ready for laboratory workflow")
+    assert uow.committed

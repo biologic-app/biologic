@@ -3,15 +3,15 @@ from pydantic import BaseModel
 from pytest import MonkeyPatch
 
 from src.app_factory import create_app
-from src.contexts.access_control.presentation.dependencies import (
+from src.core.config import get_settings
+from src.core.pagination import PageMeta, PaginationParams
+from src.core.responses import ListResponse, ResponseMeta, SingleResponse
+from src.presentation.http.access_control.dependencies import (
     get_permission_use_case,
     get_role_permission_set_use_case,
     get_user_permission_set_use_case,
     get_user_use_case,
 )
-from src.core.config import get_settings
-from src.core.pagination import PageMeta, PaginationParams
-from src.core.responses import ListResponse, ResponseMeta, SingleResponse
 
 
 class FakeUserCrudUseCase:

@@ -51,6 +51,10 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 pythonpath = "."
+# Restrict collection to the test suite. Without this, pytest's default
+# test_*.py glob also scans src/ and imports src/infrastructure/db/models/
+# test_status.py, re-registering its SQLAlchemy mapper → InvalidRequestError.
+testpaths = ["tests"]
 
 [tool.coverage.run]
 branch = true

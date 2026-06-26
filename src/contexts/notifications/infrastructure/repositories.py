@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import asc, desc, func, select
@@ -34,7 +35,10 @@ class SqlAlchemyNotificationRepository:
             for draft in drafts
         ]
         self.session.add_all(rows)
-        await self.session.commit()
+        # Only flush: notifications created from workflow events must commit
+        # atomically with the workflow change, so the single Unit of Work owns
+        # the commit. (mark_read below is a standalone write and commits itself.)
+        await self.session.flush()
         for row in rows:
             await self.session.refresh(row)
         return [self._record(row) for row in rows]
@@ -46,7 +50,7 @@ class SqlAlchemyNotificationRepository:
         status: str,
         created_after: datetime | None = None,
     ) -> tuple[list[NotificationRecord], int]:
-        filters = []
+        filters: list[Any] = []
         if status == "unread":
             filters.append(Notification.read_at.is_(None))
         elif status == "read":

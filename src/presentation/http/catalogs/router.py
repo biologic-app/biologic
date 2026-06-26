@@ -3,24 +3,26 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Response, status
 
-from src.contexts.catalogs.application.use_cases.branch_crud import BranchCrudUseCase
-from src.contexts.catalogs.application.use_cases.conclusion_crud import ConclusionCrudUseCase
-from src.contexts.catalogs.application.use_cases.direction_status_crud import (
+from src.application.catalogs.use_cases.branch_crud import BranchCrudUseCase
+from src.application.catalogs.use_cases.conclusion_crud import ConclusionCrudUseCase
+from src.application.catalogs.use_cases.direction_status_crud import (
     DirectionStatusCrudUseCase,
 )
-from src.contexts.catalogs.application.use_cases.doctor_crud import DoctorCrudUseCase
-from src.contexts.catalogs.application.use_cases.indicator_crud import IndicatorCrudUseCase
-from src.contexts.catalogs.application.use_cases.lab_crud import LabCrudUseCase
-from src.contexts.catalogs.application.use_cases.object_crud import ObjectCrudUseCase
-from src.contexts.catalogs.application.use_cases.protocol_type_crud import ProtocolTypeCrudUseCase
-from src.contexts.catalogs.application.use_cases.research_goal_crud import ResearchGoalCrudUseCase
-from src.contexts.catalogs.application.use_cases.research_status_crud import (
+from src.application.catalogs.use_cases.doctor_crud import DoctorCrudUseCase
+from src.application.catalogs.use_cases.indicator_crud import IndicatorCrudUseCase
+from src.application.catalogs.use_cases.lab_crud import LabCrudUseCase
+from src.application.catalogs.use_cases.object_crud import ObjectCrudUseCase
+from src.application.catalogs.use_cases.protocol_type_crud import ProtocolTypeCrudUseCase
+from src.application.catalogs.use_cases.research_goal_crud import ResearchGoalCrudUseCase
+from src.application.catalogs.use_cases.research_status_crud import (
     ResearchStatusCrudUseCase,
 )
-from src.contexts.catalogs.application.use_cases.sample_status_crud import SampleStatusCrudUseCase
-from src.contexts.catalogs.application.use_cases.sample_type_crud import SampleTypeCrudUseCase
-from src.contexts.catalogs.application.use_cases.test_status_crud import TestStatusCrudUseCase
-from src.contexts.catalogs.presentation.dependencies import (
+from src.application.catalogs.use_cases.sample_status_crud import SampleStatusCrudUseCase
+from src.application.catalogs.use_cases.sample_type_crud import SampleTypeCrudUseCase
+from src.application.catalogs.use_cases.test_status_crud import TestStatusCrudUseCase
+from src.core.pagination import PaginationDependency
+from src.core.responses import ListResponse, SingleResponse
+from src.presentation.http.catalogs.dependencies import (
     get_branch_use_case,
     get_conclusion_use_case,
     get_direction_status_use_case,
@@ -35,7 +37,7 @@ from src.contexts.catalogs.presentation.dependencies import (
     get_sample_type_use_case,
     get_test_status_use_case,
 )
-from src.contexts.catalogs.presentation.schemas import (
+from src.presentation.http.catalogs.schemas import (
     BranchCreateRequest,
     BranchUpdateRequest,
     ConclusionCreateRequest,
@@ -56,8 +58,6 @@ from src.contexts.catalogs.presentation.schemas import (
     SampleTypeUpdateRequest,
     StatusUpdateRequest,
 )
-from src.core.pagination import PaginationDependency
-from src.core.responses import ListResponse, SingleResponse
 
 router = APIRouter(tags=["catalogs"])
 

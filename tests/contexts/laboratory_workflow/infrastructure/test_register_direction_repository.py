@@ -79,13 +79,15 @@ class FakeAsyncSession:
     ) -> None:
         self.direction = direction
         self.current_status_code = current_status_code
-        self.samples = samples if samples is not None else [(SAMPLE_ID, "Sample", SAMPLE_TYPE_ID)]
+        self.samples: list[tuple[UUID, str, UUID | None]] = (
+            samples if samples is not None else [(SAMPLE_ID, "Sample", SAMPLE_TYPE_ID)]
+        )
         self.research_sample_ids = (
             research_sample_ids if research_sample_ids is not None else [SAMPLE_ID]
         )
         self.statements: list[Select[tuple[Any, ...]]] = []
         self.added: list[object] = []
-        self.committed = False
+        self.flushed = False
 
     async def execute(
         self,
@@ -105,8 +107,8 @@ class FakeAsyncSession:
     def add(self, instance: object) -> None:
         self.added.append(instance)
 
-    async def commit(self) -> None:
-        self.committed = True
+    async def flush(self) -> None:
+        self.flushed = True
 
 
 @pytest.mark.asyncio
@@ -127,7 +129,7 @@ async def test_register_direction_changes_draft_to_registered_and_writes_audit()
     assert result.updated_at.utcoffset() == UTC.utcoffset(result.updated_at)
     assert direction.status_id == REGISTERED_STATUS_ID
     assert direction.updated_by == ACTOR_ID
-    assert fake_session.committed
+    assert fake_session.flushed
 
     audit_entry = next(item for item in fake_session.added if isinstance(item, ChangeLog))
     assert audit_entry.entity_type == "directions"
@@ -159,7 +161,7 @@ async def test_register_direction_rejects_invalid_initial_status() -> None:
 
     assert exc.value.extra["code"] == "invalid_status_transition"
     assert direction.status_id == REGISTERED_STATUS_ID
-    assert not fake_session.committed
+    assert not fake_session.flushed
 
 
 @pytest.mark.parametrize(
@@ -193,7 +195,7 @@ async def test_register_direction_validates_required_samples_and_research(
 
     assert exc.value.extra["code"] == error_code
     assert direction.status_id == DRAFT_STATUS_ID
-    assert not fake_session.committed
+    assert not fake_session.flushed
 
 
 @pytest.mark.asyncio
@@ -208,7 +210,7 @@ async def test_register_direction_returns_not_found_for_missing_direction() -> N
             comment=None,
         )
 
-    assert not fake_session.committed
+    assert not fake_session.flushed
 
 
 @pytest.mark.asyncio
@@ -225,7 +227,7 @@ async def test_register_direction_rejects_missing_or_deleted_current_status() ->
         )
 
     assert exc.value.extra["code"] == "status_not_configured"
-    assert not fake_session.committed
+    assert not fake_session.flushed
 
 
 @pytest.mark.asyncio

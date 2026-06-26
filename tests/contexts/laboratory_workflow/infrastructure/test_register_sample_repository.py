@@ -54,7 +54,7 @@ class FakeAsyncSession:
         self.target_status_id = target_status_id
         self.statements: list[Select[tuple[Any, ...]]] = []
         self.added: list[object] = []
-        self.committed = False
+        self.flushed = False
 
     async def execute(
         self,
@@ -70,8 +70,8 @@ class FakeAsyncSession:
     def add(self, instance: object) -> None:
         self.added.append(instance)
 
-    async def commit(self) -> None:
-        self.committed = True
+    async def flush(self) -> None:
+        self.flushed = True
 
 
 @pytest.mark.asyncio
@@ -95,7 +95,7 @@ async def test_register_sample_changes_pending_to_registered_and_writes_audit() 
     assert sample.received_at == RECEIVED_AT
     assert sample.deadline == DEADLINE
     assert sample.updated_by == ACTOR_ID
-    assert fake_session.committed
+    assert fake_session.flushed
 
     audit_entry = next(item for item in fake_session.added if isinstance(item, ChangeLog))
     assert audit_entry.entity_type == "samples"
@@ -145,7 +145,7 @@ async def test_register_sample_rejects_invalid_initial_status() -> None:
 
     assert exc.value.extra["code"] == "invalid_status_transition"
     assert sample.status_id == REGISTERED_STATUS_ID
-    assert not fake_session.committed
+    assert not fake_session.flushed
 
 
 @pytest.mark.asyncio
@@ -161,7 +161,7 @@ async def test_register_sample_returns_not_found_for_missing_sample() -> None:
             deadline=DEADLINE,
         )
 
-    assert not fake_session.committed
+    assert not fake_session.flushed
 
 
 @pytest.mark.asyncio
@@ -179,7 +179,7 @@ async def test_register_sample_rejects_missing_or_deleted_current_status() -> No
         )
 
     assert exc.value.extra["code"] == "status_not_configured"
-    assert not fake_session.committed
+    assert not fake_session.flushed
 
 
 @pytest.mark.asyncio

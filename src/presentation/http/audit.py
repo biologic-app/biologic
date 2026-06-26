@@ -4,12 +4,12 @@ from uuid import UUID
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.contexts.audit.infrastructure.repositories import ChangeLogAuditRepository
 from src.core.cursor_pagination import json_value
 from src.core.database import get_db_session
 from src.core.pagination import PageMeta, PaginationDependency, PaginationParams
 from src.core.responses import ListResponse, ResponseMeta, SingleResponse
 from src.infrastructure.db.models import ChangeLog
+from src.infrastructure.repositories.audit import ChangeLogAuditRepository
 
 router = APIRouter(tags=["audit"])
 

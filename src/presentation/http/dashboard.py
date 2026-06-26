@@ -6,10 +6,10 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.contexts.dashboard.application.service import DashboardUseCase
-from src.contexts.dashboard.infrastructure.repositories import SqlAlchemyDashboardRepository
+from src.application.dashboard.service import DashboardUseCase
 from src.core.database import get_db_session
 from src.core.responses import SingleResponse
+from src.infrastructure.repositories.dashboard import SqlAlchemyDashboardRepository
 
 router = APIRouter(tags=["dashboard"])
 

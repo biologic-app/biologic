@@ -6,10 +6,10 @@ from fastapi.testclient import TestClient
 from pytest import MonkeyPatch
 
 from src.app_factory import create_app
-from src.contexts.audit.presentation.router import get_audit_repository
 from src.core.config import get_settings
 from src.core.pagination import PaginationParams
 from src.infrastructure.db.models import ChangeLog
+from src.presentation.http.audit import get_audit_repository
 
 HISTORY_ID = UUID("00000000-0000-0000-0000-000000000001")
 RESEARCH_ID = UUID("00000000-0000-0000-0000-000000000002")

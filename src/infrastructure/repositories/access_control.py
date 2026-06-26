@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -147,20 +148,20 @@ class RolePermissionRepository:
     async def delete(self, role_permission_id: UUID) -> None:
         await _delete_row(self.session, await self.read(role_permission_id))
 
-    async def list_for_role(self, role_id: UUID) -> list[tuple[Any, Any]]:
+    async def list_for_role(self, role_id: UUID) -> builtins.list[tuple[Any, Any]]:
         result = await self.session.execute(
             select(RolePermission, Permission)
             .join(Permission, Permission.id == RolePermission.permission_id)
             .where(RolePermission.role_id == role_id)
             .order_by(Permission.resource, Permission.action, Permission.id),
         )
-        return list(result.all())
+        return [(role_permission, permission) for role_permission, permission in result.all()]
 
     async def replace_for_role(
         self,
         role_id: UUID,
-        permissions: list[dict[str, Any]],
-    ) -> list[tuple[Any, Any]]:
+        permissions: builtins.list[dict[str, Any]],
+    ) -> builtins.list[tuple[Any, Any]]:
         await self.session.execute(delete(RolePermission).where(RolePermission.role_id == role_id))
         for item in permissions:
             self.session.add(
@@ -185,7 +186,7 @@ class UserPermissionOverrideRepository:
             .where(UserPermissionOverride.user_id == user_id)
             .order_by(Permission.resource, Permission.action, Permission.id),
         )
-        return list(result.all())
+        return [(override, permission) for override, permission in result.all()]
 
     async def replace_for_user(
         self,
@@ -298,7 +299,7 @@ async def _read_row(
 async def _create_row(session: AsyncSession, model: type[Any], values: dict[str, Any]) -> Any:
     row = model(**values)
     session.add(row)
-    await session.commit()
+    await session.flush()
     await session.refresh(row)
     return row
 
@@ -309,7 +310,7 @@ async def _update_row(session: AsyncSession, row: Any, values: dict[str, Any]) -
     if hasattr(row, "updated_at"):
         setattr(row, "updated_at", datetime.now(UTC))
     session.add(row)
-    await session.commit()
+    await session.flush()
     await session.refresh(row)
     return row
 
@@ -322,7 +323,7 @@ async def _delete_row(session: AsyncSession, row: Any) -> None:
         session.add(row)
     else:
         await session.execute(delete(type(row)).where(type(row).id == row.id))
-    await session.commit()
+    await session.flush()
 
 
 def _base_filters(model: type[Any]) -> list[Any]:

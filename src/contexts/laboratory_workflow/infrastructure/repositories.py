@@ -53,6 +53,10 @@ class SqlAlchemyWorkflowRepository:
         self.session = session
         self.events: list[StatusChanged] = []
 
+    # NOTE: this repository only flushes. The transaction boundary is owned by
+    # the single Unit of Work (src.infrastructure.uow.SqlAlchemyUnitOfWork), so a
+    # workflow command and the notification/audit rows it emits commit atomically.
+
     async def register_direction(
         self,
         direction_id: UUID,
@@ -112,7 +116,7 @@ class SqlAlchemyWorkflowRepository:
                 },
             ),
         )
-        await self.session.commit()
+        await self.session.flush()
         return CommandResult(id=direction_id, status_id=target_status_id, updated_at=now)
 
     async def _direction_status_code(self, status_id: UUID | None) -> str:
@@ -265,7 +269,7 @@ class SqlAlchemyWorkflowRepository:
                 },
             ),
         )
-        await self.session.commit()
+        await self.session.flush()
         return CommandResult(id=sample_id, status_id=target_status_id, updated_at=now)
 
     async def _sample_status_code(self, status_id: UUID | None) -> str:
@@ -369,7 +373,7 @@ class SqlAlchemyWorkflowRepository:
         await self._reject_sample_children(sample_id, actor_id, "sample_rejected")
         if sample.direction_id is not None:
             await self._recalculate_direction_status(sample.direction_id, actor_id)
-        await self.session.commit()
+        await self.session.flush()
         return CommandResult(id=sample_id, status_id=target_status_id, updated_at=now)
 
     async def assign_research(
@@ -431,7 +435,7 @@ class SqlAlchemyWorkflowRepository:
             actor_id=actor_id,
             diff={"sample_id": str(sample_id), "research_goal_id": str(research_goal_id)},
         )
-        await self.session.commit()
+        await self.session.flush()
         return CommandResult(id=research.id, status_id=research_status_id, updated_at=now)
 
     async def complete_test(
@@ -454,7 +458,7 @@ class SqlAlchemyWorkflowRepository:
             reason=comment,
         )
         await self._complete_parents_when_terminal(test.research_id, actor_id)
-        await self.session.commit()
+        await self.session.flush()
         return result
 
     async def confirm_research(self, research_id: UUID, actor_id: UUID) -> CommandResult:
@@ -507,7 +511,7 @@ class SqlAlchemyWorkflowRepository:
                     action="direction_started",
                     commit=False,
                 )
-        await self.session.commit()
+        await self.session.flush()
         return result
 
     async def start_test(self, test_id: UUID, actor_id: UUID) -> CommandResult:
@@ -540,7 +544,7 @@ class SqlAlchemyWorkflowRepository:
             commit=False,
         )
         await self._complete_parents_when_terminal(test.research_id, actor_id)
-        await self.session.commit()
+        await self.session.flush()
         return result
 
     async def close_sample(
@@ -569,7 +573,7 @@ class SqlAlchemyWorkflowRepository:
         )
         if sample.direction_id is not None:
             await self._recalculate_direction_status(sample.direction_id, actor_id)
-        await self.session.commit()
+        await self.session.flush()
         return result
 
     async def create_protocol(
@@ -617,7 +621,7 @@ class SqlAlchemyWorkflowRepository:
             actor_id=actor_id,
             diff={"sample_ids": [str(sample_id) for sample_id in sample_ids]},
         )
-        await self.session.commit()
+        await self.session.flush()
         return CommandResult(id=protocol.id, status_id=protocol.id, updated_at=now)
 
     async def update_protocol(
@@ -647,7 +651,7 @@ class SqlAlchemyWorkflowRepository:
             actor_id=actor_id,
             diff={"copies": copies},
         )
-        await self.session.commit()
+        await self.session.flush()
         return CommandResult(id=protocol_id, status_id=protocol_id, updated_at=now)
 
     async def issue_protocol(
@@ -674,7 +678,7 @@ class SqlAlchemyWorkflowRepository:
             actor_id=actor_id,
             diff={"issued_at": self._json_timestamp(protocol.issued_at)},
         )
-        await self.session.commit()
+        await self.session.flush()
         return CommandResult(id=protocol_id, status_id=protocol_id, updated_at=now)
 
     async def _get_sample_for_update(self, sample_id: UUID) -> Sample:
@@ -836,7 +840,7 @@ class SqlAlchemyWorkflowRepository:
             reason,
         )
         if commit:
-            await self.session.commit()
+            await self.session.flush()
         return CommandResult(id=direction.id, status_id=status_id, updated_at=now)
 
     async def _transition_sample(
@@ -858,7 +862,7 @@ class SqlAlchemyWorkflowRepository:
         sample.updated_at = now
         self._add_status_audit("samples", sample.id, action, actor_id, from_code, to_code, reason)
         if commit:
-            await self.session.commit()
+            await self.session.flush()
         return CommandResult(id=sample.id, status_id=status_id, updated_at=now)
 
     async def _transition_research(
@@ -892,7 +896,7 @@ class SqlAlchemyWorkflowRepository:
             reason,
         )
         if commit:
-            await self.session.commit()
+            await self.session.flush()
         return CommandResult(id=research.id, status_id=status_id, updated_at=now)
 
     async def _transition_test(
@@ -914,7 +918,7 @@ class SqlAlchemyWorkflowRepository:
         test.updated_at = now
         self._add_status_audit("tests", test.id, action, actor_id, from_code, to_code, reason)
         if commit:
-            await self.session.commit()
+            await self.session.flush()
         return CommandResult(id=test.id, status_id=status_id, updated_at=now)
 
     def _ensure_transition(self, resource: str, from_code: str, to_code: str) -> None:

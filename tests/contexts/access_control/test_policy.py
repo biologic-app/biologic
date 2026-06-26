@@ -1,4 +1,4 @@
-from src.contexts.access_control.domain.policy import is_action_allowed
+from src.domain.access_control.policy import is_action_allowed
 
 
 def test_developer_has_global_wildcard() -> None:

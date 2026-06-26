@@ -1,8 +1,20 @@
+from __future__ import annotations
+
 from datetime import datetime
+from types import TracebackType
+from typing import Self, cast
 from uuid import UUID
 
+from src.application.access_control.ports import (
+    AccessControlCrudRepository,
+    RolePermissionRepositoryPort,
+    UserPermissionOverrideRepositoryPort,
+)
+from src.application.catalogs.ports import CatalogCrudRepository, CatalogStatusRepository
 from src.contexts.laboratory_workflow.application.dto import CommandResult
 from src.contexts.laboratory_workflow.application.ports import WorkflowRepository
+from src.contexts.notifications.application.service import NotificationRepository
+from src.domain.uow import UnitOfWork, UnitOfWorkFactory
 
 
 class WorkflowRepositoryFake(WorkflowRepository):
@@ -114,3 +126,61 @@ class WorkflowRepositoryFake(WorkflowRepository):
         issued_at: datetime | None,
     ) -> CommandResult:
         raise AssertionError("issue_protocol should not be called")
+
+
+class FakeUnitOfWork:
+    """Single Unit of Work test double wrapping a fake workflow repository.
+
+    Mirrors the real ``SqlAlchemyUnitOfWork`` surface: aggregate repositories as
+    attributes plus the async-context-manager / commit / rollback protocol.
+    """
+
+    def __init__(self, workflow: WorkflowRepository) -> None:
+        self.workflow = workflow
+        # Never exercised by these fakes (no domain events are emitted), but the
+        # attribute must satisfy the UnitOfWork protocol for the type checker.
+        self.notifications = cast(NotificationRepository, None)
+        self.branches = cast(CatalogCrudRepository, None)
+        self.labs = cast(CatalogCrudRepository, None)
+        self.objects = cast(CatalogCrudRepository, None)
+        self.doctors = cast(CatalogCrudRepository, None)
+        self.sample_types = cast(CatalogCrudRepository, None)
+        self.research_goals = cast(CatalogCrudRepository, None)
+        self.indicators = cast(CatalogCrudRepository, None)
+        self.conclusions = cast(CatalogCrudRepository, None)
+        self.protocol_types = cast(CatalogCrudRepository, None)
+        self.direction_statuses = cast(CatalogStatusRepository, None)
+        self.sample_statuses = cast(CatalogStatusRepository, None)
+        self.research_statuses = cast(CatalogStatusRepository, None)
+        self.test_statuses = cast(CatalogStatusRepository, None)
+        self.users = cast(AccessControlCrudRepository, None)
+        self.roles = cast(AccessControlCrudRepository, None)
+        self.permissions = cast(AccessControlCrudRepository, None)
+        self.role_permissions = cast(RolePermissionRepositoryPort, None)
+        self.user_permission_overrides = cast(UserPermissionOverrideRepositoryPort, None)
+        self.user_scopes = cast(AccessControlCrudRepository, None)
+        self.committed = False
+        self.rolled_back = False
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        if exc_type is not None:
+            await self.rollback()
+
+    async def commit(self) -> None:
+        self.committed = True
+
+    async def rollback(self) -> None:
+        self.rolled_back = True
+
+
+def fake_uow_factory(uow: UnitOfWork) -> UnitOfWorkFactory:
+    """Return a factory that always yields the given UoW double."""
+    return lambda: uow

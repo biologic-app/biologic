@@ -1,11 +1,11 @@
 from fastapi import APIRouter
 
-from src.contexts.access_control.presentation.router import router as access_control_router
-from src.contexts.audit.presentation.router import router as audit_router
-from src.contexts.catalogs.presentation.router import router as catalogs_router
-from src.contexts.dashboard.presentation.router import router as dashboard_router
 from src.contexts.laboratory_workflow.presentation.router import router as workflow_router
 from src.contexts.notifications.presentation.router import router as notifications_router
+from src.presentation.http.access_control.router import router as access_control_router
+from src.presentation.http.audit import router as audit_router
+from src.presentation.http.catalogs.router import router as catalogs_router
+from src.presentation.http.dashboard import router as dashboard_router
 
 router = APIRouter()
 

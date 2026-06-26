@@ -79,7 +79,7 @@ def apply_outer_joins(statement: Any, joins: tuple[JoinSpec, ...]) -> Any:
     return statement
 
 
-def attach_sort_values(rows: list[tuple[Any, Any]]) -> list[Any]:
+def attach_sort_values(rows: list[Any]) -> list[Any]:
     items = []
     for item, sort_value in rows:
         setattr(item, "_crud_sort_value", sort_value)
@@ -240,10 +240,12 @@ def _merge_joins(
 
 def _python_type(column: Any) -> type[Any] | None:
     try:
-        return column.property.columns[0].type.python_type
+        prop_type: type[Any] = column.property.columns[0].type.python_type
+        return prop_type
     except (AttributeError, NotImplementedError):
         try:
-            return column.type.python_type
+            col_type: type[Any] = column.type.python_type
+            return col_type
         except (AttributeError, NotImplementedError):
             return None
 

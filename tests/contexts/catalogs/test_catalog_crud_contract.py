@@ -1,19 +1,20 @@
 from uuid import UUID
 
 import httpx
+from fastapi import FastAPI
 from pydantic import BaseModel
 from pytest import MonkeyPatch
 
 from src.app_factory import create_app
-from src.contexts.catalogs.presentation.dependencies import (
-    get_branch_use_case,
-    get_direction_status_use_case,
-)
 from src.contexts.laboratory_workflow.presentation.router import get_workflow_crud_use_case
 from src.core.config import get_settings
 from src.core.errors import DomainConflictError
 from src.core.pagination import PageMeta, PaginationParams, get_pagination_params
 from src.core.responses import ListResponse, ResponseMeta, SingleResponse
+from src.presentation.http.catalogs.dependencies import (
+    get_branch_use_case,
+    get_direction_status_use_case,
+)
 
 
 class FakeBranchUseCase:
@@ -77,7 +78,7 @@ class FakeWorkflowCrudUseCase:
         )
 
 
-def _app(monkeypatch: MonkeyPatch):
+def _app(monkeypatch: MonkeyPatch) -> FastAPI:
     monkeypatch.setenv("APP_DATABASE_URL", "postgresql+asyncpg://user:pass@localhost:5432/test")
     monkeypatch.setenv("APP_JWT_SECRET_KEY", "test-secret")
     monkeypatch.setenv("APP_AUTH_COOKIE_SECURE", "false")

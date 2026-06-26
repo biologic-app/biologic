@@ -44,6 +44,7 @@ def build_global_search_filter(
 
 def _python_type(column: Any) -> type[Any] | None:
     try:
-        return column.type.python_type
+        col_type: type[Any] = column.type.python_type
+        return col_type
     except (AttributeError, NotImplementedError):
         return None

@@ -1,4 +1,4 @@
-from src.contexts.dashboard.infrastructure.repositories import _postgres_period
+from src.infrastructure.repositories.dashboard import _postgres_period
 
 
 def test_postgres_period_maps_api_period_values() -> None:

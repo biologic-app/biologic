@@ -18,7 +18,7 @@ def test_env_example_documents_required_local_database_settings() -> None:
 
 
 def test_docker_compose_provisions_postgresql_15() -> None:
-    compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    compose = (ROOT / "docker-compose.yaml").read_text(encoding="utf-8")
 
     assert "postgres:15" in compose
     assert "POSTGRES_DB: biologic" in compose

@@ -27,9 +27,6 @@ from src.contexts.laboratory_workflow.infrastructure.crud_repositories import (
     SampleCrudRepository,
     TestCrudRepository,
 )
-from src.contexts.laboratory_workflow.infrastructure.repositories import (
-    SqlAlchemyWorkflowRepository,
-)
 from src.contexts.laboratory_workflow.presentation.schemas import (
     ActorRequest,
     AssignResearchRequest,
@@ -51,24 +48,16 @@ from src.contexts.laboratory_workflow.presentation.schemas import (
     TestUpdateRequest,
     UpdateProtocolRequest,
 )
-from src.contexts.notifications.application.service import NotificationService
-from src.contexts.notifications.infrastructure.repositories import SqlAlchemyNotificationRepository
 from src.core.database import get_db_session
 from src.core.pagination import PaginationDependency
 from src.core.responses import ListResponse, ResponseMeta, SingleResponse
+from src.infrastructure.uow import build_uow_factory
 
 router = APIRouter(tags=["workflow"])
 
 
-async def get_workflow_command_service(
-    session: Annotated[AsyncSession, Depends(get_db_session)],
-) -> WorkflowCommandService:
-    return WorkflowCommandService(
-        repository=SqlAlchemyWorkflowRepository(session=session),
-        notification_service=NotificationService(
-            repository=SqlAlchemyNotificationRepository(session=session),
-        ),
-    )
+async def get_workflow_command_service() -> WorkflowCommandService:
+    return WorkflowCommandService(uow_factory=build_uow_factory())
 
 
 async def get_workflow_crud_use_case(

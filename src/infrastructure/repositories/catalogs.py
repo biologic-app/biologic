@@ -412,7 +412,7 @@ async def _read_row(
 async def _create_row(session: AsyncSession, model: type[Any], values: dict[str, Any]) -> Any:
     row = model(**values)
     session.add(row)
-    await session.commit()
+    await session.flush()
     await session.refresh(row)
     return row
 
@@ -423,7 +423,7 @@ async def _update_row(session: AsyncSession, row: Any, values: dict[str, Any]) -
     if hasattr(row, "updated_at"):
         setattr(row, "updated_at", datetime.now(UTC))
     session.add(row)
-    await session.commit()
+    await session.flush()
     await session.refresh(row)
     return row
 
@@ -436,7 +436,7 @@ async def _delete_row(session: AsyncSession, row: Any) -> None:
         session.add(row)
     else:
         await session.execute(delete(type(row)).where(type(row).id == row.id))
-    await session.commit()
+    await session.flush()
 
 
 def reject_status_write(resource: str) -> None:
