@@ -10,14 +10,17 @@ import {
   modeAllows,
   resolveModePermissions,
   resolveUserMode,
+  type ModePermission,
   type UserModeId,
 } from "@/shared/config/user-modes";
+import { roleCredentials } from "@/shared/config/role-credentials";
+import { router } from "@/app/router";
 
 export const useAuth = defineStore("auth", () => {
   const user = useStorage<AuthUser | null>("auth:user", null);
-  // Права роли с бэкенда (наполняются при логине). Пока не используются `can()`:
-  // источник истины — активный режим (frontend-пресет). Будут задействованы,
-  // когда разграничение прав переедет на бэкенд.
+  // Права роли с бэкенда (наполняются при логине/restoreSession).
+  // Источник истины для can(): если массив непустой — берём его, иначе
+  // фронтовый пресет активного режима (см. effectivePermissions ниже).
   const permissions = useStorage<Permission[]>("auth:permissions", []);
   const activeModeId = useStorage<UserModeId>("auth:mode", defaultUserModeId);
   const loading = ref(false);
@@ -26,11 +29,19 @@ export const useAuth = defineStore("auth", () => {
   const isAuthenticated = computed(() => !!user.value);
 
   const activeMode = computed(() => resolveUserMode(activeModeId.value));
-  const effectivePermissions = computed(() =>
-    resolveModePermissions(activeModeId.value),
-  );
+  // Источник истины — права с бэкенда. Пустой массив ⇒ default-deny.
+  // Фронтовый пресет режима остаётся только дев-удобством (см. setMode).
+  const effectivePermissions = computed<ModePermission[]>(() => {
+    if (permissions.value.length > 0) {
+      return permissions.value as unknown as ModePermission[];
+    }
+    return import.meta.env.DEV
+      ? resolveModePermissions(activeModeId.value)
+      : [];
+  });
 
   const setMode = (modeId: UserModeId) => {
+    if (!import.meta.env.DEV) return;
     if (isUserModeId(modeId)) {
       activeModeId.value = modeId;
     }
@@ -59,6 +70,15 @@ export const useAuth = defineStore("auth", () => {
     }
   };
 
+  const loginAs = async (modeId: UserModeId) => {
+    const creds = roleCredentials[modeId];
+    if (!creds) return;
+    if (isUserModeId(modeId)) {
+      activeModeId.value = modeId;
+    }
+    await login(creds.username, creds.password);
+  };
+
   const logout = async () => {
     loading.value = true;
     try {
@@ -66,6 +86,7 @@ export const useAuth = defineStore("auth", () => {
     } finally {
       clearSession();
       loading.value = false;
+      await router.push({ name: "login" });
     }
   };
 
@@ -99,6 +120,7 @@ export const useAuth = defineStore("auth", () => {
     setSession,
     clearSession,
     login,
+    loginAs,
     logout,
     restoreSession,
     logoutLocal: clearSession,

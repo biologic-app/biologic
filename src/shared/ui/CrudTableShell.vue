@@ -33,8 +33,7 @@ let mo: MutationObserver | null = null;
 let observeQueued = false;
 
 function findTbody(): HTMLTableSectionElement | null {
-  // Search from section down — UTable renders table with tbody even inside scroll wrapper
-  return sectionRef.value?.querySelector("tbody") ?? document.querySelector("tbody");
+  return sectionRef.value?.querySelector("tbody") ?? null;
 }
 
 function findScrollRoot(): HTMLElement | null {
@@ -69,10 +68,13 @@ function queueObserveLastRow() {
 
 onMounted(() => {
   queueObserveLastRow();
-  if (sectionRef.value) {
-    mo = new MutationObserver(() => queueObserveLastRow());
-    mo.observe(sectionRef.value, { childList: true, subtree: true });
-  }
+  nextTick(() => {
+    const tbody = findTbody();
+    if (tbody) {
+      mo = new MutationObserver(() => queueObserveLastRow());
+      mo.observe(tbody, { childList: true });
+    }
+  });
 });
 
 watch(
@@ -88,10 +90,12 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <section ref="sectionRef" class="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+  <section ref="sectionRef" class="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
     <div class="min-h-0 flex-1 overflow-hidden">
       <slot name="table" />
     </div>
+
+    <slot name="overlay" />
 
     <div v-if="mode === 'paginated'" class="flex shrink-0 flex-col gap-3 py-4 pr-4 sm:flex-row sm:items-center sm:justify-between">
       <div class="flex items-center gap-3 text-sm text-toned">

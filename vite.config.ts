@@ -5,7 +5,7 @@ import VueDevTools from 'vite-plugin-vue-devtools'
 import ui from '@nuxt/ui/vite'
 // import { VitePWA } from 'vite-plugin-pwa'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
@@ -13,7 +13,7 @@ export default defineConfig({
   },
   plugins: [
     vue(),
-    VueDevTools(),
+    ...(mode !== 'production' ? [VueDevTools()] : []),
     ui({
       ui: {
         colors: {
@@ -41,4 +41,4 @@ export default defineConfig({
     //   }
     // })
   ]
-})
+}))

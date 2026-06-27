@@ -11,10 +11,6 @@ const dictionaryCrudContentSource = readFileSync(
   resolve(import.meta.dir, "../../../src/modules/dictionaries/pages/DictionaryCrudContent.vue"),
   "utf8",
 );
-const crudModulePageSource = readFileSync(
-  resolve(import.meta.dir, "../../../src/pages/CrudModulePage.vue"),
-  "utf8",
-);
 const workflowPageSources = [
   "DirectionsPage.vue",
   "SamplesPage.vue",
@@ -23,6 +19,12 @@ const workflowPageSources = [
 ].map((file) =>
   readFileSync(resolve(import.meta.dir, "../../../src/pages", file), "utf8"),
 );
+
+// Все workflow-страницы переведены на WorkflowCrudPage — он единственный
+// владелец локального состояния фильтра (открытие фильтра без дочерних ref).
+const filterStateOwnerSources = [
+  resolve(import.meta.dir, "../../../src/shared/ui/WorkflowCrudPage.vue"),
+].map((path) => readFileSync(path, "utf8"));
 
 const dictionaryCrudMountedHook =
   dictionaryCrudContentSource.match(/onMounted\(async \(\) => \{([\s\S]*?)\n\}\);/)?.[1] ?? "";
@@ -74,16 +76,19 @@ describe("filter select model helpers", () => {
   });
 
   test("workflow pages open filters from local state instead of waiting for child refs", () => {
-    workflowPageSources.forEach((source) => {
+    filterStateOwnerSources.forEach((source) => {
       expect(source).toContain("const filterModalOpen = ref");
       expect(source).toContain("@open=\"filterModalOpen = true\"");
       expect(source).toContain("v-model:filter-open=\"filterModalOpen\"");
+    });
+
+    // Ни одна страница не должна открывать фильтр мутацией ref дочернего компонента.
+    workflowPageSources.forEach((source) => {
       expect(source).not.toContain("crudContent!.filterModalOpen = true");
     });
   });
 
   test("renders every filter select as single selection", () => {
     expect(dictionaryCrudContentSource).not.toContain("multiple");
-    expect(crudModulePageSource).not.toContain("multiple");
   });
 });

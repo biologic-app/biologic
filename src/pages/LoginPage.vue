@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import * as z from "zod";
-import type { AuthFormField, FormSubmitEvent } from "@nuxt/ui";
+import type { FormSubmitEvent } from "@nuxt/ui";
 import { useI18n } from "vue-i18n";
 import { LoginControls, LoginHero, useAuth } from "@/modules/auth";
-import {} from "@/modules/auth";
+import { userModeList } from "@/shared/config/user-modes";
 import type { ApiError } from "@/shared/types/api";
 
 const auth = useAuth();
@@ -14,32 +14,7 @@ const toast = useToast();
 const { t } = useI18n();
 const showPassword = ref(false);
 
-const fields = computed<AuthFormField[]>(() => [
-  {
-    name: "username",
-    type: "text",
-    label: t("login.username"),
-    placeholder: t("login.usernamePlaceholder"),
-    autocomplete: "username",
-    icon: "i-lucide-user-round",
-    size: "md",
-  },
-  {
-    name: "password",
-    type: showPassword.value ? "text" : "password",
-    label: t("login.password"),
-    placeholder: t("login.passwordPlaceholder"),
-    autocomplete: "current-password",
-    icon: "i-lucide-lock",
-    size: "md",
-  },
-  {
-    name: "remember",
-    type: "checkbox",
-    description: t("login.rememberHint"),
-    label: t("login.remember"),
-  },
-]);
+const state = reactive({ username: "", password: "", remember: false });
 
 const schema = computed(() =>
   z.object({
@@ -65,7 +40,6 @@ type LoginSchema = z.output<typeof schema.value>;
 async function onSubmit(payload: FormSubmitEvent<LoginSchema>) {
   const username = payload.data.username.trim();
   const password = payload.data.password;
-
   try {
     await auth.login(username, password);
     await router.push({ name: "dashboard" });
@@ -77,7 +51,6 @@ async function onSubmit(payload: FormSubmitEvent<LoginSchema>) {
     });
   } catch (error) {
     const apiError = error as ApiError;
-
     toast.add({
       title: t("login.errorTitle"),
       description: apiError.message || t("login.errorDescription"),
@@ -86,6 +59,32 @@ async function onSubmit(payload: FormSubmitEvent<LoginSchema>) {
     });
   }
 }
+
+const roleItems = computed(() =>
+  userModeList.map((mode) => ({
+    label: t(mode.labelKey),
+    icon: mode.icon,
+    async onSelect() {
+      try {
+        await auth.loginAs(mode.id);
+        await router.push({ name: "dashboard" });
+        toast.add({
+          title: t("common.success"),
+          description: t("login.successDescription", { username: mode.id }),
+          color: "success",
+          icon: "i-lucide-circle-check",
+        });
+      } catch {
+        toast.add({
+          title: t("login.errorTitle"),
+          description: t("login.errorDescription"),
+          color: "error",
+          icon: "i-lucide-circle-alert",
+        });
+      }
+    },
+  })),
+);
 </script>
 
 <template>
@@ -118,16 +117,59 @@ async function onSubmit(payload: FormSubmitEvent<LoginSchema>) {
             </p>
           </div>
 
-          <UAuthForm
-            :schema="schema"
-            :fields="fields"
-            :submit="{
-              label: t('login.submit'),
-              size: 'xl',
-              loading: auth.loading,
-            }"
-            @submit="onSubmit($event)"
-          />
+          <UForm :schema="schema" :state="state" class="space-y-4" @submit="onSubmit($event)">
+            <UFormField name="username" :label="t('login.username')">
+              <UInput
+                v-model="state.username"
+                :placeholder="t('login.usernamePlaceholder')"
+                icon="i-lucide-user-round"
+                autocomplete="username"
+                size="md"
+                class="w-full"
+              />
+            </UFormField>
+
+            <UFormField name="password" :label="t('login.password')">
+              <UInput
+                v-model="state.password"
+                :type="showPassword ? 'text' : 'password'"
+                :placeholder="t('login.passwordPlaceholder')"
+                icon="i-lucide-lock"
+                autocomplete="current-password"
+                size="md"
+                class="w-full"
+              />
+            </UFormField>
+
+            <UFormField name="remember">
+              <UCheckbox
+                v-model="state.remember"
+                :label="t('login.remember')"
+                :description="t('login.rememberHint')"
+              />
+            </UFormField>
+
+            <UFieldGroup size="xl" class="w-full">
+              <UButton
+                type="submit"
+                :label="t('login.submit')"
+                class="flex-1"
+                :loading="auth.loading"
+              />
+              <UDropdownMenu
+                :items="roleItems"
+                :content="{ align: 'end', side: 'top' }"
+              >
+                <UButton
+                  color="neutral"
+                  variant="outline"
+                  icon="i-lucide-chevron-down"
+                  :disabled="auth.loading"
+                  aria-label="Войти как роль"
+                />
+              </UDropdownMenu>
+            </UFieldGroup>
+          </UForm>
         </UPageCard>
       </div>
     </section>

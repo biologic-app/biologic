@@ -11,8 +11,10 @@ import {
   watch,
 } from "vue";
 import type { DropdownMenuItem, TableColumn as NuxtTableColumn, TableRow } from "@nuxt/ui";
-import type { CrudModuleConfig } from "@/pages/CrudModulePage.vue";
+import type { CrudModuleConfig, CrudRow } from '@/shared/types/crud';
 import type { FormField } from "@/shared/types/form";
+import { workflowCommands } from "@/shared/domain/workflow-commands";
+import type { WorkflowCommand, WorkflowCommandKey } from "@/shared/domain/workflow-commands";
 import type { TableColumn, TableFilters } from "@/shared/types/table";
 import CrudFormModal from "@/shared/ui/CrudFormModal.vue";
 import CrudDataTable from "@/shared/ui/CrudDataTable.vue";
@@ -23,6 +25,7 @@ import ConfirmDialog from "@/shared/ui/ConfirmDialog.vue";
 import RowContextMenu from "@/shared/ui/RowContextMenu.vue";
 import BusinessEntityDetailModal from "@/shared/ui/BusinessEntityDetailModal.vue";
 import DictionaryCrudDetailModal from "@/shared/ui/DictionaryCrudDetailModal.vue";
+import type { DetailListItem } from "@/shared/ui/EntityDetailModalShell.vue";
 import {
   filterSelectOverlayUi,
   getFilterSelectModelValue,
@@ -51,46 +54,16 @@ import {
   loadReferenceOptions,
 } from "@/shared/api/client.api";
 import { crudModules, getCrudModuleFilterFields } from "@/shared/config/crud-modules";
+import { clone } from "@/shared/utils/clone";
 import { formatDateTime } from "@/shared/utils/format";
 import { getValueByPath } from "@/shared/utils/object";
+import { getStatusBadgeColor as resolveStatusBadgeColor, resolveStatusCode } from "@/shared/domain/status";
+import { getEntityRule, type EntityDetailKind } from "@/shared/domain/entity-rules";
 
-type CrudRow = {
-  id: string | number;
-  [key: string]: unknown;
-};
-
-type DetailKind = "directions" | "samples" | "research";
-type BadgeColor = "neutral" | "primary" | "info" | "success" | "warning" | "error";
+type DetailKind = EntityDetailKind;
+type BadgeColor = ReturnType<typeof resolveStatusBadgeColor>;
 type ReferenceValue = string | number | boolean | null;
 type ReferenceOption = { label: string; value: ReferenceValue };
-type WorkflowCommandKey =
-  | "directions.register"
-  | "samples.register"
-  | "samples.reject"
-  | "samples.close"
-  | "research.confirm"
-  | "research.start"
-  | "research.reject"
-  | "tests.start"
-  | "tests.complete"
-  | "tests.requeue"
-  | "tests.reject";
-
-type WorkflowCommand = {
-  key: WorkflowCommandKey;
-  label: string;
-  title: string;
-  icon: string;
-  color?: "primary" | "success" | "warning" | "error" | "neutral";
-  resource: "directions" | "samples" | "research" | "tests";
-  action: "register" | "reject" | "close" | "confirm" | "start" | "complete" | "requeue";
-  statuses: string[];
-  endpoint: (row: CrudRow) => string;
-  fields: FormField[];
-  successTitle: string;
-  errorTitle: string;
-  body: (actorId: string, payload: Record<string, unknown>) => Record<string, unknown>;
-};
 
 const props = withDefaults(
   defineProps<{
@@ -189,11 +162,9 @@ const saving = ref(false);
 const detailOpen = ref(false);
 const detailItem = ref<CrudRow | null>(null);
 const detailConfig = ref<CrudModuleConfig>(props.config);
-const detailKind = ref<DetailKind | null>(
-  ["directions", "samples", "research"].includes(props.config.presetKey)
-    ? props.config.presetKey as DetailKind
-    : null,
-);
+// Правила сущности (удаление/карточка/создание) — из данных, без preset-веток.
+const entityRule = computed(() => getEntityRule(props.config.presetKey));
+const detailKind = ref<DetailKind | null>(entityRule.value.detailKind ?? null);
 const formFields = ref<FormField[]>(
   props.config.fields.map((field) => ({ ...field })),
 );
@@ -209,7 +180,7 @@ const contextMenuOpen = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
 const skeletonRows = createSkeletonRows<CrudRow>(17);
 const filters = reactive<TableFilters>(
-  JSON.parse(JSON.stringify(props.config.initialFilters)),
+  clone(props.config.initialFilters),
 );
 
 const filterFields = computed(() =>
@@ -217,7 +188,7 @@ const filterFields = computed(() =>
 );
 
 const cloneFilterMeta = (value: TableFilters[string]) =>
-  JSON.parse(JSON.stringify(value)) as TableFilters[string];
+  clone(value);
 
 const createFilterMeta = (field: TableColumn) => {
   if (field.filter?.type === "dateRange") {
@@ -426,51 +397,46 @@ const getStatusLabel = (row: CrudRow) => {
 const normalizeStatusCode = (row: CrudRow) => {
   const rawCode = getValueByPath(row, "status.code");
   const value = String(rawCode || getStatusLabel(row)).trim().toLowerCase();
-
-  if (value.includes("draft") || value.includes("чернов")) return "draft";
-  if (value.includes("pending") || value.includes("регистрац")) return "pending";
-  if (value.includes("queued") || value.includes("очеред")) return "queued";
-  if (value.includes("ordered") || value.includes("назнач")) return "ordered";
-  if (value.includes("registered") || value.includes("зарегистр")) return "registered";
-  if (value.includes("in_progress") || value.includes("работ") || value.includes("исслед")) return "in_progress";
-  if (value.includes("rejected") || value.includes("отклон") || value.includes("брак")) return "rejected";
-  if (value.includes("completed") || value.includes("заверш")) return "completed";
-  if (value.includes("partially")) return "partially_completed";
-  if (value.includes("analyzed") || value.includes("анализ")) return "analyzed";
-  return value;
+  return resolveStatusCode(value);
 };
 
-const getStatusBadgeColor = (row: CrudRow): BadgeColor => {
-  const code = normalizeStatusCode(row);
-  if (code === "draft") return "neutral";
-  if (code === "pending" || code === "queued" || code === "ordered") return "warning";
-  if (code === "registered" || code === "in_progress" || code === "analyzed") return "info";
-  if (code === "completed" || code === "partially_completed") return "success";
-  if (code === "rejected") return "error";
-  return "primary";
+const getStatusBadgeColor = (row: CrudRow): BadgeColor =>
+  resolveStatusBadgeColor(normalizeStatusCode(row));
+
+// Левый master-список детальной модалки: текущие строки таблицы (тот же
+// бесконечный скролл, что и в таблице — через table.loadMore).
+const detailListItems = computed<DetailListItem[]>(() =>
+  table.data.value.map((row) => ({
+    id: row.id,
+    title:
+      getStringValue(getValueByPath(row, "name"))
+      || getStringValue(getValueByPath(row, "full_name"))
+      || getStringValue(getValueByPath(row, "code"))
+      || `Запись ${formatShortEntityCode(row.id)}`,
+    subtitle:
+      getStringValue(getValueByPath(row, "code"))
+      || getStatusLabel(row),
+    color: getStatusBadgeColor(row),
+  })),
+);
+
+const selectDetailRow = (id: string | number) => {
+  const row = table.data.value.find((entry) => String(entry.id) === String(id));
+  if (row) {
+    detailItem.value = row;
+  }
 };
 
-const rendersStatusBadge = (columnField: string) =>
-  columnField === "status.name"
-  && ["directions", "samples", "research", "tests"].includes(props.config.presetKey);
 
 const getColumnId = (columnField: string) =>
-  rendersStatusBadge(columnField) ? "status" : columnField;
+  columnField === "status.name" ? "status" : columnField;
 
 const isDeleteAllowed = (row: CrudRow) => {
-  const code = normalizeStatusCode(row);
-  if (props.config.presetKey === "directions") return code === "draft";
-  if (props.config.presetKey === "samples") return code === "pending";
-  if (props.config.presetKey === "research") return code === "draft";
-  return true;
+  const allowed = entityRule.value.deletableStatuses;
+  return allowed ? allowed.includes(normalizeStatusCode(row)) : true;
 };
 
-const deleteRestriction = computed(() => {
-  if (props.config.presetKey === "directions") return "Удалять можно только направления в статусе «Черновик».";
-  if (props.config.presetKey === "samples") return "Удалять можно только образцы в статусе «На регистрации».";
-  if (props.config.presetKey === "research") return "Удалять можно только исследования в статусе «Черновик».";
-  return "";
-});
+const deleteRestriction = computed(() => entityRule.value.deleteRestriction ?? "");
 
 const getActorId = () => {
   if (auth.user?.id) {
@@ -485,197 +451,6 @@ const getActorId = () => {
   });
   return null;
 };
-
-const workflowCommands: WorkflowCommand[] = [
-  {
-    key: "directions.register",
-    label: "REG",
-    title: "Зарегистрировать направление",
-    icon: "i-lucide-clipboard-check",
-    color: "primary",
-    resource: "directions",
-    action: "register",
-    statuses: ["draft"],
-    endpoint: (row) => `/directions/${row.id}/register`,
-    fields: [{ key: "comment", label: "Комментарий", type: "textarea" }],
-    successTitle: "Направления зарегистрированы",
-    errorTitle: "Не удалось зарегистрировать направления",
-    body: (actorId, payload) => ({ actor_id: actorId, comment: payload.comment }),
-  },
-  {
-    key: "samples.register",
-    label: "REG",
-    title: "Зарегистрировать образец",
-    icon: "i-lucide-clipboard-check",
-    color: "primary",
-    resource: "samples",
-    action: "register",
-    statuses: ["pending"],
-    endpoint: (row) => `/samples/${row.id}/register`,
-    fields: [
-      { key: "received_at", label: "Дата получения", type: "date", required: true, layout: { span: 6 } },
-      { key: "deadline", label: "Срок", type: "date", layout: { span: 6 } },
-    ],
-    successTitle: "Образцы зарегистрированы",
-    errorTitle: "Не удалось зарегистрировать образцы",
-    body: (actorId, payload) => ({
-      actor_id: actorId,
-      received_at: payload.received_at,
-      deadline: payload.deadline,
-    }),
-  },
-  {
-    key: "samples.reject",
-    label: "REJ",
-    title: "Забраковать образец",
-    icon: "i-lucide-ban",
-    color: "error",
-    resource: "samples",
-    action: "reject",
-    statuses: ["pending"],
-    endpoint: (row) => `/samples/${row.id}/reject`,
-    fields: [{ key: "reason", label: "Причина", type: "textarea", required: true }],
-    successTitle: "Образцы помечены как брак",
-    errorTitle: "Не удалось забраковать образцы",
-    body: (actorId, payload) => ({ actor_id: actorId, reason: payload.reason }),
-  },
-  {
-    key: "samples.close",
-    label: "CLO",
-    title: "Закрыть образец",
-    icon: "i-lucide-lock-keyhole",
-    color: "success",
-    resource: "samples",
-    action: "close",
-    statuses: ["analyzed"],
-    endpoint: (row) => `/samples/${row.id}/close`,
-    fields: [
-      { key: "verdict", label: "Вердикт", required: true },
-      { key: "comment", label: "Комментарий", type: "textarea" },
-    ],
-    successTitle: "Образцы закрыты",
-    errorTitle: "Не удалось закрыть образцы",
-    body: (actorId, payload) => ({
-      actor_id: actorId,
-      verdict: payload.verdict,
-      comment: payload.comment,
-    }),
-  },
-  {
-    key: "research.confirm",
-    label: "CNF",
-    title: "Подтвердить исследование",
-    icon: "i-lucide-check-check",
-    color: "primary",
-    resource: "research",
-    action: "confirm",
-    statuses: ["draft"],
-    endpoint: (row) => `/research/${row.id}/confirm`,
-    fields: [],
-    successTitle: "Исследования подтверждены",
-    errorTitle: "Не удалось подтвердить исследования",
-    body: (actorId) => ({ actor_id: actorId }),
-  },
-  {
-    key: "research.start",
-    label: "STR",
-    title: "Взять исследование в работу",
-    icon: "i-lucide-play",
-    color: "primary",
-    resource: "research",
-    action: "start",
-    statuses: ["ordered"],
-    endpoint: (row) => `/research/${row.id}/start`,
-    fields: [],
-    successTitle: "Исследования взяты в работу",
-    errorTitle: "Не удалось взять исследования в работу",
-    body: (actorId) => ({ actor_id: actorId }),
-  },
-  {
-    key: "research.reject",
-    label: "REJ",
-    title: "Отклонить исследование",
-    icon: "i-lucide-ban",
-    color: "error",
-    resource: "research",
-    action: "reject",
-    statuses: ["draft", "ordered"],
-    endpoint: (row) => `/research/${row.id}/reject`,
-    fields: [{ key: "reason", label: "Причина", type: "textarea", required: true }],
-    successTitle: "Исследования отклонены",
-    errorTitle: "Не удалось отклонить исследования",
-    body: (actorId, payload) => ({ actor_id: actorId, reason: payload.reason }),
-  },
-  {
-    key: "tests.start",
-    label: "STR",
-    title: "Взять тест в работу",
-    icon: "i-lucide-play",
-    color: "primary",
-    resource: "tests",
-    action: "start",
-    statuses: ["queued"],
-    endpoint: (row) => `/tests/${row.id}/start`,
-    fields: [],
-    successTitle: "Тесты взяты в работу",
-    errorTitle: "Не удалось взять тесты в работу",
-    body: (actorId) => ({ actor_id: actorId }),
-  },
-  {
-    key: "tests.complete",
-    label: "RES",
-    title: "Внести результат теста",
-    icon: "i-lucide-check",
-    color: "success",
-    resource: "tests",
-    action: "complete",
-    statuses: ["in_progress"],
-    endpoint: (row) => `/tests/${row.id}/complete`,
-    fields: [
-      { key: "value", label: "Значение", required: true, layout: { span: 6 } },
-      { key: "norm", label: "Норма", layout: { span: 6 } },
-      { key: "comment", label: "Комментарий", type: "textarea" },
-    ],
-    successTitle: "Результаты тестов сохранены",
-    errorTitle: "Не удалось сохранить результаты тестов",
-    body: (actorId, payload) => ({
-      actor_id: actorId,
-      value: payload.value,
-      norm: payload.norm,
-      comment: payload.comment,
-    }),
-  },
-  {
-    key: "tests.requeue",
-    label: "REQ",
-    title: "Вернуть тест в очередь",
-    icon: "i-lucide-rotate-ccw",
-    color: "warning",
-    resource: "tests",
-    action: "requeue",
-    statuses: ["in_progress"],
-    endpoint: (row) => `/tests/${row.id}/requeue`,
-    fields: [],
-    successTitle: "Тесты возвращены в очередь",
-    errorTitle: "Не удалось вернуть тесты в очередь",
-    body: (actorId) => ({ actor_id: actorId }),
-  },
-  {
-    key: "tests.reject",
-    label: "REJ",
-    title: "Отклонить тест",
-    icon: "i-lucide-ban",
-    color: "error",
-    resource: "tests",
-    action: "reject",
-    statuses: ["queued", "in_progress"],
-    endpoint: (row) => `/tests/${row.id}/reject`,
-    fields: [{ key: "reason", label: "Причина", type: "textarea", required: true }],
-    successTitle: "Тесты отклонены",
-    errorTitle: "Не удалось отклонить тесты",
-    body: (actorId, payload) => ({ actor_id: actorId, reason: payload.reason }),
-  },
-];
 
 const selectedRowsHaveStatus = (allowed: string[]) =>
   selectedRows.value.length > 0
@@ -718,14 +493,6 @@ const uiColumns = computed(() => {
         const value = getValueByPath(rowItem, column.field);
         const referenceCell = value ?? resolveReferenceCell(rowItem, column.field);
 
-        if (rendersStatusBadge(column.field)) {
-          return h(UBadge, {
-            color: getStatusBadgeColor(rowItem),
-            variant: "subtle",
-            label: getStatusLabel(rowItem),
-          });
-        }
-
         if (typeof referenceCell === "boolean") {
           return h(
             UBadge,
@@ -754,7 +521,7 @@ const uiColumns = computed(() => {
 });
 
 const applyFilters = (debounceGlobal = false) => {
-  table.updateFilters(JSON.parse(JSON.stringify(filters)), debounceGlobal);
+  table.updateFilters(clone(filters), debounceGlobal);
 };
 
 const resetFilters = () => {
@@ -878,12 +645,10 @@ const confirmDelete = async (row: CrudRow) => {
   };
 };
 
-const selectedRows = computed(() =>
-  Object.keys(rowSelection.value)
-    .filter((key) => rowSelection.value[key])
-    .map((key) => table.data.value[Number(key)])
-    .filter(Boolean),
-);
+const selectedRows = computed(() => {
+  const ids = new Set(Object.keys(rowSelection.value).filter((k) => rowSelection.value[k]));
+  return table.data.value.filter((row) => ids.has(String(row.id)));
+});
 
 const selectedCount = computed(() => selectedRows.value.length);
 const canDeleteSelected = computed(() =>
@@ -911,17 +676,12 @@ const canRunCommandOnSelection = (key: WorkflowCommandKey) => {
   );
 };
 
-const canRegisterSelectedDirections = computed(() => canRunCommandOnSelection("directions.register"));
-const canRegisterSelectedSamples = computed(() => canRunCommandOnSelection("samples.register"));
-const canRejectSelectedSamples = computed(() => canRunCommandOnSelection("samples.reject"));
-const canCloseSelectedSamples = computed(() => canRunCommandOnSelection("samples.close"));
-const canConfirmSelectedResearch = computed(() => canRunCommandOnSelection("research.confirm"));
-const canRejectSelectedResearch = computed(() => canRunCommandOnSelection("research.reject"));
-const canStartSelectedResearch = computed(() => canRunCommandOnSelection("research.start"));
-const canStartSelectedTests = computed(() => canRunCommandOnSelection("tests.start"));
-const canCompleteSelectedTests = computed(() => canRunCommandOnSelection("tests.complete"));
-const canRequeueSelectedTests = computed(() => canRunCommandOnSelection("tests.requeue"));
-const canRejectSelectedTests = computed(() => canRunCommandOnSelection("tests.reject"));
+// Команды этой страницы — единый источник для кнопок массовых действий.
+// Каждая кнопка рисуется по данным команды (label/color/icon), доступность
+// считается через canRunCommandOnSelection — без 11 ручных computeds/обёрток.
+const pageWorkflowCommands = computed(() =>
+  workflowCommands.filter(commandBelongsToPage),
+);
 
 const commandInitialItem = computed(() => {
   if (!activeCommand.value) {
@@ -1080,43 +840,11 @@ const deleteSelected = async () => {
   };
 };
 
-const registerSelectedDirections = () =>
-  openWorkflowCommand("directions.register", selectedRows.value);
-
-const registerSelectedSamples = () =>
-  openWorkflowCommand("samples.register", selectedRows.value);
-
-const rejectSelectedSamples = () =>
-  openWorkflowCommand("samples.reject", selectedRows.value);
-
-const closeSelectedSamples = () =>
-  openWorkflowCommand("samples.close", selectedRows.value);
-
-const confirmSelectedResearch = () =>
-  openWorkflowCommand("research.confirm", selectedRows.value);
-
-const rejectSelectedResearch = () =>
-  openWorkflowCommand("research.reject", selectedRows.value);
-
-const startSelectedResearch = () =>
-  openWorkflowCommand("research.start", selectedRows.value);
-
-const startSelectedTests = () =>
-  openWorkflowCommand("tests.start", selectedRows.value);
-
-const completeSelectedTests = () =>
-  openWorkflowCommand("tests.complete", selectedRows.value);
-
-const requeueSelectedTests = () =>
-  openWorkflowCommand("tests.requeue", selectedRows.value);
-
-const rejectSelectedTests = () =>
-  openWorkflowCommand("tests.reject", selectedRows.value);
+const runSelectedCommand = (key: WorkflowCommandKey) =>
+  openWorkflowCommand(key, selectedRows.value);
 
 const resolveDetailKind = (config: CrudModuleConfig): DetailKind | null =>
-  ["directions", "samples", "research"].includes(config.presetKey)
-    ? config.presetKey as DetailKind
-    : null;
+  getEntityRule(config.presetKey).detailKind ?? null;
 
 const openDetail = (row: CrudRow, config: CrudModuleConfig = props.config) => {
   detailItem.value = row;
@@ -1196,7 +924,7 @@ const handleRowContextmenu = async (event: Event, row: { original: CrudRow }) =>
 };
 
 const createDisabled = computed(() =>
-  props.config.presetKey === "tests" || !can(props.config.resource, "create"),
+  Boolean(entityRule.value.createDisabled) || !can(props.config.resource, "create"),
 );
 const activeFilterCount = computed(() =>
   Object.entries(filters).filter(([key, filter]) => {
@@ -1266,34 +994,12 @@ defineExpose({
   openCreate,
   createDisabled,
   activeFilterCount,
-  selectedCount,
-  canDeleteSelected,
-  canRegisterSelectedDirections,
-  canRegisterSelectedSamples,
-  canRejectSelectedSamples,
-  canCloseSelectedSamples,
-  canConfirmSelectedResearch,
-  canRejectSelectedResearch,
-  canStartSelectedResearch,
-  canStartSelectedTests,
-  canCompleteSelectedTests,
-  canRequeueSelectedTests,
-  canRejectSelectedTests,
-  deleteSelected,
-  registerSelectedDirections,
-  registerSelectedSamples,
-  rejectSelectedSamples,
-  closeSelectedSamples,
-  confirmSelectedResearch,
-  rejectSelectedResearch,
-  startSelectedResearch,
-  startSelectedTests,
-  completeSelectedTests,
-  requeueSelectedTests,
-  rejectSelectedTests,
   columnMenuItems,
   filterModalOpen,
   clearSelection,
+  // Используется страницей справочников (только массовое удаление).
+  selectedCount,
+  deleteSelected,
 });
 </script>
 
@@ -1364,9 +1070,11 @@ defineExpose({
     :loading-more="table.loadingMore.value"
     :has-more="table.hasMore.value"
     :selectable="selectable"
+    :can-delete="canDeleteSelected"
     @load-more="table.loadMore()"
     @row-select="handleRowSelect"
     @row-contextmenu="handleRowContextmenu"
+    @delete-selected="deleteSelected"
   >
     <template #before-table>
       <RowContextMenu
@@ -1398,6 +1106,20 @@ defineExpose({
         :color="getStatusBadgeColor(row.original)"
         variant="subtle"
         :label="getStatusLabel(row.original)"
+      />
+    </template>
+    <template #selection-actions="{ actionClass }">
+      <UButton
+        v-for="command in pageWorkflowCommands"
+        :key="command.key"
+        :label="command.selection.label"
+        :icon="command.icon"
+        :color="command.selection.color"
+        variant="ghost"
+        size="sm"
+        :disabled="!canRunCommandOnSelection(command.key)"
+        :class="actionClass"
+        @click="runSelectedCommand(command.key)"
       />
     </template>
     <template #empty>
@@ -1448,8 +1170,13 @@ defineExpose({
     :config="detailConfig"
     :item="detailItem"
     :business-kind="detailKind"
+    :list-items="detailListItems"
+    :list-has-more="table.hasMore.value"
+    :list-loading-more="table.loadingMore.value"
     @saved="onDetailSaved"
     @open-related="openRelatedDetail"
+    @select="selectDetailRow"
+    @list-load-more="table.loadMore()"
   />
 
   <DictionaryCrudDetailModal
@@ -1457,7 +1184,12 @@ defineExpose({
     v-model:open="detailOpen"
     :config="detailConfig"
     :item="detailItem"
+    :list-items="detailListItems"
+    :list-has-more="table.hasMore.value"
+    :list-loading-more="table.loadingMore.value"
     @saved="onDetailSaved"
+    @select="selectDetailRow"
+    @list-load-more="table.loadMore()"
   />
 
   <ConfirmDialog

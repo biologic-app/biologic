@@ -2,6 +2,9 @@ import { computed, nextTick, onMounted, ref } from 'vue'
 import type { Ref, InjectionKey } from 'vue'
 import type { ApiViewResponse } from '@/shared/types/api'
 import type { TableFilters } from '@/shared/types/table'
+import { clone } from '@/shared/utils/clone'
+import { readJson, writeJson } from '@/shared/composables/useJsonStorage'
+import { readTableSettings, writeTableSettings, type TableSettings } from '@/shared/composables/useTableSettings'
 
 export interface ServerTableOptions {
   initialPageSize?: number
@@ -32,66 +35,20 @@ type TableQueryParams = Record<string, unknown>
 const DEFAULT_PAGE_SIZE = 100
 const GLOBAL_SEARCH_DEBOUNCE_MS = 500
 
-const cloneFilters = (filters: TableFilters) => {
-  const entries = Object.entries(filters).map(([key, meta]) => [key, { ...meta }])
-  return Object.fromEntries(entries) as TableFilters
-}
-
-interface TableSettings {
-  filters?: TableFilters
-  sorting?: { field: string; order: 1 | -1 }
-  pageSize?: number
-  columnVisibility?: Record<string, boolean>
-}
+const cloneFilters = (filters: TableFilters) => clone(filters)
 
 const buildPresetKey = (key?: string) =>
   key || (typeof window !== 'undefined' ? `table-presets:${window.location.pathname}` : 'table-presets')
 
-const loadPresets = (key: string) => {
-  if (typeof window === 'undefined') {
-    return []
-  }
+const loadPresets = (key: string): TablePreset[] => readJson(key, [])
 
-  try {
-    const raw = localStorage.getItem(key)
-    return raw ? (JSON.parse(raw) as TablePreset[]) : []
-  } catch {
-    return []
-  }
-}
+const persistPresets = (key: string, presets: TablePreset[]) => writeJson(key, presets)
 
-const persistPresets = (key: string, presets: TablePreset[]) => {
-  if (typeof window === 'undefined') {
-    return
-  }
+const loadTableSettings = (key?: string) => key ? readTableSettings(key) : {}
 
-  localStorage.setItem(key, JSON.stringify(presets))
-}
-
-const loadTableSettings = (key?: string): TableSettings => {
-  if (!key || typeof window === 'undefined') {
-    return {}
-  }
-
-  try {
-    const raw = localStorage.getItem(key)
-    return raw ? (JSON.parse(raw) as TableSettings) : {}
-  } catch {
-    return {}
-  }
-}
-
-const persistTableSettings = (key: string | undefined, patch: TableSettings) => {
-  if (!key || typeof window === 'undefined') {
-    return
-  }
-
-  try {
-    const current = loadTableSettings(key)
-    localStorage.setItem(key, JSON.stringify({ ...current, ...patch }))
-  } catch {
-    // Ignore storage errors so table interaction is not blocked.
-  }
+const persistTableSettings = (key: string | undefined, patch: Parameters<typeof writeTableSettings>[1]) => {
+  if (!key) return
+  writeTableSettings(key, patch)
 }
 
 const mergeStoredFilters = (initialFilters: TableFilters, storedFilters?: TableFilters) => {
@@ -153,7 +110,7 @@ export const useServerTable = <T>(
   const cursor = ref<string | null>(null)
   const nextCursor = ref<string | null>(null)
   const sorting = ref(resolveInitialSorting(tableSettings, options))
-  const filters = ref<TableFilters>(mergeStoredFilters(initialFilters, tableSettings.filters))
+  const filters = ref<TableFilters>(mergeStoredFilters(initialFilters, tableSettings.filters as TableFilters | undefined))
   const lastGlobalValue = ref(filters.value.global?.value ?? '')
   const presetKey = buildPresetKey(options.presetKey)
   const presets = ref<TablePreset[]>([])

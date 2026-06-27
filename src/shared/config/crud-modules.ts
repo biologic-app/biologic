@@ -1,4 +1,4 @@
-import type { CrudModuleConfig } from '@/pages/CrudModulePage.vue'
+import type { CrudModuleConfig } from '@/shared/types/crud'
 import type { TableFilterField } from '@/shared/types/table'
 
 const textFilter = () => ({ value: '', matchMode: 'contains' })
@@ -684,9 +684,6 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       selectFilterField('research_goal_id', 'Цель исследования', '/research_goals'),
       selectFilterField('lab_id', 'Лаборатория', '/labs'),
       selectFilterField('status_id', 'Статус', '/research_statuses'),
-      textFilterField('comment', 'Комментарий'),
-      textFilterField('recommendation', 'Рекомендация'),
-      dateFilterField('created_at', 'Создано'),
       dateFilterField('received_at', 'Получен'),
       dateFilterField('completed_at', 'Завершён')
     ],

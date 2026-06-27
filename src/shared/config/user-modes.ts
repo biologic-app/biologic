@@ -10,11 +10,14 @@ import { crudActions } from "@/shared/constants/permissions";
  * переключатель режима — ограничен ролью администратора.
  */
 export type UserModeId =
-  | "admin"
-  | "registrar"
-  | "lab_head"
-  | "branch_head"
-  | "viewer";
+  | "developer"          // РАЗ — полный доступ
+  | "user_admin"         // АП  — управление пользователями и ролями
+  | "registrar"          // РЕГ — приёмка образцов, направления, протоколы
+  | "sanitary_inspector" // СВ  — санитарный врач (только просмотр своих)
+  | "lab_doctor"         // ВЛ  — врач-лаборант (исследования и тесты)
+  | "lab_assistant"      // АЛ  — ассистент-лаборант (только просмотр)
+  | "lab_chief"          // НЛ  — начальник лаборатории
+  | "branch_chief";      // НФ  — начальник филиала
 
 /** Правило режима. Поддерживает wildcard `*` для ресурса и/или действия. */
 export interface ModePermission {
@@ -48,20 +51,19 @@ const cmd = (resource: Resource, action: Action): ModePermission => ({
 const viewOnly = (resources: Resource[]): ModePermission[] =>
   resources.map((resource) => ({ resource, action: "view" as Action }));
 
-const referenceResources: Resource[] = [
-  "objects",
-  "doctors",
-  "branches",
-  "labs",
-  "sample-types",
-  "statuses",
-  "research-goals",
-  "indicators",
-  "protocol-types",
-  "conclusions",
-  "protocol-types",
+// ─── Наборы прав по ролям ──────────────────────────────────────────────────
+
+// РАЗ — разработчик: полный доступ
+const developer: ModePermission[] = [{ resource: "*", action: "*" }];
+
+// АП — администратор пользователей: только управление доступом
+const userAdmin: ModePermission[] = [
+  { resource: "dashboard", action: "view" },
+  ...crud("users"),
+  ...crud("user-types"),
 ];
 
+// РЕГ — регистратор: приёмка, направления, образцы, протоколы, справочники
 const registrar: ModePermission[] = [
   { resource: "dashboard", action: "view" },
   ...crud("directions", ["view", "create", "edit"]),
@@ -69,80 +71,106 @@ const registrar: ModePermission[] = [
   cmd("directions", "register"),
   cmd("directions", "release"),
   ...crud("samples", ["view", "create", "edit"]),
-  cmd("samples", "import"),
   cmd("samples", "register"),
   cmd("samples", "reject"),
-  { resource: "research", action: "view" },
-  { resource: "tests", action: "view" },
-  { resource: "protocols", action: "view" },
-  { resource: "results", action: "view" },
-  ...viewOnly(referenceResources),
+  ...crud("research", ["view", "create"]),
+  cmd("research", "reject"),
+  ...crud("protocols", ["view", "create", "edit"]),
+  ...crud("conclusions", ["view", "create", "edit"]),
+  ...crud("objects", ["view", "create", "edit"]),
+  { resource: "labs", action: "view" },
+  { resource: "users", action: "view" },
+  ...viewOnly(["sample-types", "statuses", "protocol-types", "indicators", "research-goals"]),
 ];
 
-const labHead: ModePermission[] = [
+// СВ — санитарный врач: просмотр своих направлений/образцов/исследований
+const sanitaryInspector: ModePermission[] = [
   { resource: "dashboard", action: "view" },
   { resource: "directions", action: "view" },
-  ...crud("research"),
+  { resource: "samples", action: "view" },
+  { resource: "research", action: "view" },
+  { resource: "protocols", action: "view" },
+  ...viewOnly(["sample-types", "statuses", "protocol-types"]),
+];
+
+// ВЛ — врач-лаборант: исследования и испытания своей лаборатории
+const labDoctor: ModePermission[] = [
+  { resource: "dashboard", action: "view" },
+  { resource: "directions", action: "view" },
+  { resource: "samples", action: "view" },
+  cmd("samples", "reject"),
+  { resource: "research", action: "view" },
   cmd("research", "confirm"),
   cmd("research", "start"),
-  cmd("research", "complete"),
-  ...crud("tests", ["view", "edit"]),
+  cmd("research", "reject"),
+  { resource: "tests", action: "view" },
   cmd("tests", "start"),
   cmd("tests", "complete"),
-  cmd("tests", "reject"),
   cmd("tests", "requeue"),
-  { resource: "samples", action: "view" },
-  cmd("samples", "close"),
-  { resource: "results", action: "view" },
-  cmd("results", "approve"),
-  { resource: "conclusions", action: "view" },
-  cmd("conclusions", "release"),
+  cmd("tests", "reject"),
   { resource: "protocols", action: "view" },
-  cmd("protocols", "release"),
-  ...crud("indicators", ["view", "create", "edit"]),
-  ...crud("research-goals", ["view", "create", "edit"]),
-  ...viewOnly([
-    "objects",
-    "doctors",
-    "branches",
-    "labs",
-    "sample-types",
-    "statuses",
-    "protocol-types",
-  ]),
+  ...viewOnly(["sample-types", "statuses", "protocol-types", "research-goals", "indicators"]),
 ];
 
-const branchHead: ModePermission[] = [
+// АЛ — ассистент-лаборант: только просмотр рабочих объектов лаборатории
+const labAssistant: ModePermission[] = [
   { resource: "dashboard", action: "view" },
-  // Обзор по всем сущностям филиала
-  ...viewOnly([
-    "directions",
-    "research",
-    "samples",
-    "tests",
-    "protocols",
-    "results",
-    "conclusions",
-    "users",
-    "user-types",
-  ]),
-  ...crud("branches"),
-  ...crud("labs"),
-  ...crud("objects"),
-  ...crud("doctors"),
-  cmd("directions", "register"),
-  cmd("results", "approve"),
-  cmd("conclusions", "release"),
-  cmd("protocols", "release"),
+  { resource: "directions", action: "view" },
+  { resource: "samples", action: "view" },
+  { resource: "research", action: "view" },
+  { resource: "tests", action: "view" },
+  ...viewOnly(["sample-types", "statuses", "research-goals", "indicators"]),
 ];
+
+// НЛ — начальник лаборатории: всё что ВЛ + закрытие образцов + CRUD справочников
+const labChief: ModePermission[] = [
+  { resource: "dashboard", action: "view" },
+  { resource: "directions", action: "view" },
+  { resource: "samples", action: "view" },
+  cmd("samples", "reject"),
+  cmd("samples", "close"),
+  { resource: "research", action: "view" },
+  cmd("research", "confirm"),
+  cmd("research", "start"),
+  cmd("research", "reject"),
+  { resource: "tests", action: "view" },
+  cmd("tests", "start"),
+  cmd("tests", "complete"),
+  cmd("tests", "requeue"),
+  cmd("tests", "reject"),
+  { resource: "protocols", action: "view" },
+  ...crud("indicators"),
+  ...crud("research-goals"),
+  ...viewOnly(["sample-types", "statuses", "protocol-types"]),
+];
+
+// НФ — начальник филиала: обзор филиала, нет исследований/тестов/заключений
+const branchChief: ModePermission[] = [
+  { resource: "dashboard", action: "view" },
+  { resource: "directions", action: "view" },
+  { resource: "samples", action: "view" },
+  { resource: "protocols", action: "view" },
+  { resource: "labs", action: "view" },
+  { resource: "users", action: "view" },
+  ...viewOnly(["sample-types", "statuses", "protocol-types"]),
+];
+
+// ─── Реестр режимов ────────────────────────────────────────────────────────
 
 export const userModes: Record<UserModeId, UserMode> = {
-  admin: {
-    id: "admin",
-    labelKey: "modes.admin.label",
-    descriptionKey: "modes.admin.description",
+  developer: {
+    id: "developer",
+    labelKey: "modes.developer.label",
+    descriptionKey: "modes.developer.description",
+    icon: "i-lucide-code",
+    permissions: developer,
+  },
+  user_admin: {
+    id: "user_admin",
+    labelKey: "modes.user_admin.label",
+    descriptionKey: "modes.user_admin.description",
     icon: "i-lucide-shield-check",
-    permissions: [{ resource: "*", action: "*" }],
+    permissions: userAdmin,
   },
   registrar: {
     id: "registrar",
@@ -151,33 +179,47 @@ export const userModes: Record<UserModeId, UserMode> = {
     icon: "i-lucide-clipboard-pen",
     permissions: registrar,
   },
-  lab_head: {
-    id: "lab_head",
-    labelKey: "modes.lab_head.label",
-    descriptionKey: "modes.lab_head.description",
+  sanitary_inspector: {
+    id: "sanitary_inspector",
+    labelKey: "modes.sanitary_inspector.label",
+    descriptionKey: "modes.sanitary_inspector.description",
+    icon: "i-lucide-stethoscope",
+    permissions: sanitaryInspector,
+  },
+  lab_doctor: {
+    id: "lab_doctor",
+    labelKey: "modes.lab_doctor.label",
+    descriptionKey: "modes.lab_doctor.description",
     icon: "i-lucide-flask-conical",
-    permissions: labHead,
+    permissions: labDoctor,
   },
-  branch_head: {
-    id: "branch_head",
-    labelKey: "modes.branch_head.label",
-    descriptionKey: "modes.branch_head.description",
-    icon: "i-lucide-building-2",
-    permissions: branchHead,
-  },
-  viewer: {
-    id: "viewer",
-    labelKey: "modes.viewer.label",
-    descriptionKey: "modes.viewer.description",
+  lab_assistant: {
+    id: "lab_assistant",
+    labelKey: "modes.lab_assistant.label",
+    descriptionKey: "modes.lab_assistant.description",
     icon: "i-lucide-eye",
-    permissions: [{ resource: "*", action: "view" }],
+    permissions: labAssistant,
+  },
+  lab_chief: {
+    id: "lab_chief",
+    labelKey: "modes.lab_chief.label",
+    descriptionKey: "modes.lab_chief.description",
+    icon: "i-lucide-award",
+    permissions: labChief,
+  },
+  branch_chief: {
+    id: "branch_chief",
+    labelKey: "modes.branch_chief.label",
+    descriptionKey: "modes.branch_chief.description",
+    icon: "i-lucide-building-2",
+    permissions: branchChief,
   },
 };
 
 export const userModeList: UserMode[] = Object.values(userModes);
 
-/** Режим по умолчанию: пока бэкенд не разграничивает права — полный доступ. */
-export const defaultUserModeId: UserModeId = "admin";
+/** Режим по умолчанию: разработчик (полный доступ). */
+export const defaultUserModeId: UserModeId = "developer";
 
 export const isUserModeId = (value: unknown): value is UserModeId =>
   typeof value === "string" && value in userModes;

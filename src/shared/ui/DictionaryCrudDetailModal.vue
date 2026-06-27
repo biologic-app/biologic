@@ -1,16 +1,12 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
 import type { TabsItem } from "@nuxt/ui";
-import type { CrudModuleConfig } from "@/pages/CrudModulePage.vue";
+import type { CrudModuleConfig, CrudRow } from '@/shared/types/crud';
 import { apiUpdateRequest, loadReferenceOptions } from "@/shared/api/client.api";
+import EntityDetailModalShell, { type DetailListItem } from "@/shared/ui/EntityDetailModalShell.vue";
 import TechnicalAuditTimeline from "@/shared/ui/TechnicalAuditTimeline.vue";
 import { formatDateTime } from "@/shared/utils/format";
 import { getValueByPath } from "@/shared/utils/object";
-
-type CrudRow = {
-  id: string | number;
-  [key: string]: unknown;
-};
 
 type FieldValue = string | number | boolean | null;
 
@@ -20,34 +16,27 @@ const props = defineProps<{
   open: boolean;
   config: CrudModuleConfig;
   item: CrudRow | null;
+  listItems?: DetailListItem[];
+  listHasMore?: boolean;
+  listLoadingMore?: boolean;
 }>();
 
 const emit = defineEmits<{
   (event: "update:open", value: boolean): void;
   (event: "saved", item: CrudRow): void;
+  (event: "select", id: string | number): void;
+  (event: "list-load-more"): void;
 }>();
 
-const activeTab = ref<"fields" | "technical" | "notes">("fields");
+const activeTab = ref("fields");
 const editing = ref(false);
-const fullscreen = ref(false);
 const saving = ref(false);
-const note = ref("");
 const formState = reactive<Record<string, FieldValue>>({});
 const referenceOptions = ref<Record<string, Array<{ label: string; value: FieldValue }>>>({});
-
-const modalUi = computed(() => ({
-  content: fullscreen.value
-    ? "h-[calc(100vh-1rem)] max-w-[calc(100vw-1rem)] overflow-hidden p-0"
-    : "h-[64vh] max-h-[680px] min-h-[30rem] max-w-[calc(100vw-2rem)] overflow-hidden p-0 sm:max-w-4xl",
-  header: "p-0",
-  body: "p-0",
-  footer: "p-0",
-}));
 
 const tabs = computed<TabsItem[]>(() => [
   { label: "Поля", icon: "i-lucide-list", value: "fields" },
   { label: "Технический аудит", icon: "i-lucide-history", value: "technical" },
-  { label: "Заметки", icon: "i-lucide-message-square", value: "notes" },
 ]);
 
 const title = computed(() => {
@@ -276,164 +265,117 @@ function inferFieldType(value: unknown) {
 </script>
 
 <template>
-  <UModal
+  <EntityDetailModalShell
+    v-model:active-tab="activeTab"
     :open="open"
-    :ui="modalUi"
-    :dismissible="false"
+    :eyebrow="`CRUD · ${config.title}`"
+    :title="title"
+    :subtitle="config.description"
+    :tabs="tabs"
+    size="md"
+    :list-items="listItems"
+    :selected-id="item?.id ?? null"
+    :list-has-more="listHasMore"
+    :list-loading-more="listLoadingMore"
     @update:open="emit('update:open', $event)"
+    @select="emit('select', $event)"
+    @list-load-more="emit('list-load-more')"
   >
-    <template #content>
-      <div v-if="item" class="flex h-full flex-col overflow-hidden bg-default">
-        <header class="border-b border-default px-5 py-4">
-          <div class="flex items-start justify-between gap-4">
-            <div class="min-w-0">
-              <p class="truncate text-xs font-semibold uppercase tracking-wide text-muted">
-                CRUD · {{ config.title }}
-              </p>
-              <h2 class="mt-1 truncate text-2xl font-semibold text-highlighted">
-                {{ title }}
-              </h2>
-              <p class="mt-1 text-sm text-muted">
-                {{ config.description }}
-              </p>
-            </div>
-            <div class="flex shrink-0 items-center gap-1">
-              <UTooltip :text="fullscreen ? 'Обычный размер' : 'На весь экран'">
-                <UButton
-                  :icon="fullscreen ? 'i-lucide-minimize-2' : 'i-lucide-maximize-2'"
-                  color="neutral"
-                  variant="ghost"
-                  square
-                  @click="fullscreen = !fullscreen"
-                />
-              </UTooltip>
-              <UButton
-                icon="i-lucide-x"
-                color="neutral"
-                variant="ghost"
-                square
-                @click="close"
-              />
-            </div>
-          </div>
-        </header>
-
-        <UTabs
-          v-model="activeTab"
-          :items="tabs"
-          variant="link"
-          :content="false"
-          class="border-b border-default px-5"
-        />
-
-        <main class="min-h-0 flex-1 overflow-auto px-5 py-5">
-          <section v-if="activeTab === 'fields'" class="space-y-3">
-            <div class="flex items-center justify-between gap-3">
-              <h3 class="text-sm font-semibold text-highlighted">
-                Поля записи
-              </h3>
-              <div class="flex gap-2">
-                <UButton
-                  v-if="!editing"
-                  label="Редактировать"
-                  icon="i-lucide-pencil"
-                  color="neutral"
-                  variant="outline"
-                  size="sm"
-                  @click="editing = true"
-                />
-                <template v-else>
-                  <UButton
-                    label="Отменить"
-                    color="neutral"
-                    variant="outline"
-                    size="sm"
-                    :disabled="saving"
-                    @click="editing = false; syncForm()"
-                  />
-                  <UButton
-                    label="Сохранить"
-                    icon="i-lucide-save"
-                    size="sm"
-                    :loading="saving"
-                    @click="saveInline"
-                  />
-                </template>
-              </div>
-            </div>
-
-            <div class="overflow-hidden rounded-lg border border-default">
-              <dl class="grid text-sm md:grid-cols-2">
-                <div
-                  v-for="field in visibleFields"
-                  :key="field.key"
-                  class="grid grid-cols-[9.5rem_minmax(0,1fr)] border-b border-default last:border-b-0 md:[&:nth-last-child(-n+2)]:border-b-0 md:odd:border-e"
-                >
-                  <dt class="bg-elevated/60 px-3 py-2 font-medium text-highlighted">
-                    {{ field.label }}
-                  </dt>
-                  <dd class="min-w-0 px-3 py-2 text-muted">
-                    <template v-if="editing && isEditableField(field)">
-                      <UTextarea
-                        v-if="field.type === 'textarea'"
-                        :model-value="formString(field.key)"
-                        autoresize
-                        :rows="2"
-                        @update:model-value="setFormValue(field.key, $event)"
-                      />
-                      <USwitch
-                        v-else-if="field.type === 'boolean'"
-                        :model-value="formBoolean(field.key)"
-                        @update:model-value="setFormValue(field.key, $event)"
-                      />
-                      <USelectMenu
-                        v-else-if="field.type === 'select'"
-                        v-model="formState[field.key]"
-                        :items="referenceOptions[field.key] || []"
-                        value-key="value"
-                        label-key="label"
-                        class="w-full"
-                      />
-                      <UInput
-                        v-else
-                        :model-value="formString(field.key)"
-                        :type="field.type === 'number' ? 'number' : 'text'"
-                        @update:model-value="setFormValue(field.key, $event)"
-                      />
-                    </template>
-                    <span v-else class="block truncate">
-                      {{ formatDisplay(field.value) }}
-                    </span>
-                  </dd>
-                </div>
-              </dl>
-            </div>
-          </section>
-
-          <TechnicalAuditTimeline
-            v-else-if="activeTab === 'technical'"
-            :events="technicalEvents"
-          />
-
-          <section v-else>
-            <UTextarea
-              v-model="note"
-              autoresize
-              :rows="4"
-              placeholder="Добавьте внутренний комментарий"
-            />
-          </section>
-        </main>
-
-        <footer class="flex justify-end border-t border-default bg-elevated/40 px-5 py-3">
+    <section v-if="activeTab === 'fields'" class="space-y-3">
+      <div class="flex items-center justify-between gap-3">
+        <h3 class="text-sm font-semibold text-highlighted">
+          Поля записи
+        </h3>
+        <div class="flex gap-2">
           <UButton
-            label="Закрыть"
+            v-if="!editing"
+            label="Редактировать"
+            icon="i-lucide-pencil"
             color="neutral"
             variant="outline"
-            @click="close"
+            size="sm"
+            @click="editing = true"
           />
-        </footer>
+          <template v-else>
+            <UButton
+              label="Отменить"
+              color="neutral"
+              variant="outline"
+              size="sm"
+              :disabled="saving"
+              @click="editing = false; syncForm()"
+            />
+            <UButton
+              label="Сохранить"
+              icon="i-lucide-save"
+              size="sm"
+              :loading="saving"
+              @click="saveInline"
+            />
+          </template>
+        </div>
       </div>
+
+      <div class="overflow-hidden rounded-lg border border-default">
+        <dl class="grid text-sm md:grid-cols-2">
+          <div
+            v-for="field in visibleFields"
+            :key="field.key"
+            class="grid grid-cols-[9.5rem_minmax(0,1fr)] border-b border-default last:border-b-0 md:[&:nth-last-child(-n+2)]:border-b-0 md:odd:border-e"
+          >
+            <dt class="bg-elevated/60 px-3 py-2 font-medium text-highlighted">
+              {{ field.label }}
+            </dt>
+            <dd class="min-w-0 px-3 py-2 text-muted">
+              <template v-if="editing && isEditableField(field)">
+                <UTextarea
+                  v-if="field.type === 'textarea'"
+                  :model-value="formString(field.key)"
+                  autoresize
+                  :rows="2"
+                  @update:model-value="setFormValue(field.key, $event)"
+                />
+                <USwitch
+                  v-else-if="field.type === 'boolean'"
+                  :model-value="formBoolean(field.key)"
+                  @update:model-value="setFormValue(field.key, $event)"
+                />
+                <USelectMenu
+                  v-else-if="field.type === 'select'"
+                  v-model="formState[field.key]"
+                  :items="referenceOptions[field.key] || []"
+                  value-key="value"
+                  label-key="label"
+                  class="w-full"
+                />
+                <UInput
+                  v-else
+                  :model-value="formString(field.key)"
+                  :type="field.type === 'number' ? 'number' : 'text'"
+                  @update:model-value="setFormValue(field.key, $event)"
+                />
+              </template>
+              <span v-else class="block truncate">
+                {{ formatDisplay(field.value) }}
+              </span>
+            </dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+
+    <TechnicalAuditTimeline
+      v-else
+      :events="technicalEvents"
+    />
+
+    <template #footer>
+      <UButton
+        label="Закрыть"
+        color="neutral"
+        variant="outline"
+        @click="close"
+      />
     </template>
-  </UModal>
+  </EntityDetailModalShell>
 </template>

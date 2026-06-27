@@ -56,10 +56,13 @@ const mapResource = (resource: string): Resource | null => {
   const mapped =
     normalized === "roles" || normalized === "role-permissions"
       ? "user-types"
+      : normalized === "results"
+        ? "research"
       : normalized === "direction-statuses" ||
           normalized === "sample-statuses" ||
           normalized === "research-statuses" ||
-          normalized === "test-statuses"
+          normalized === "test-statuses" ||
+          normalized === "conclusion-statuses"
         ? "statuses"
       : normalized;
   return knownResources.includes(mapped as Resource)

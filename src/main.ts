@@ -1,3 +1,6 @@
-import { application } from "@/app";
+import { application, store } from "@/app";
+import { useAuth } from "@/modules/auth";
 
-application.mount("#app");
+useAuth(store).restoreSession().finally(() => {
+  application.mount("#app");
+});

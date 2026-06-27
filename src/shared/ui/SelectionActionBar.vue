@@ -1,20 +1,22 @@
 <script setup lang="ts">
-export interface SelectionAction {
-  label: string
-  icon?: string
-  color?: "primary" | "success" | "warning" | "error" | "neutral"
-  disabled?: boolean
-  onClick: () => void
-}
-
-defineProps<{
-  count: number
-  actions: SelectionAction[]
-}>()
+withDefaults(
+  defineProps<{
+    count: number
+    canDelete?: boolean
+  }>(),
+  {
+    canDelete: true,
+  },
+)
 
 const emit = defineEmits<{
   clear: []
+  delete: []
 }>()
+
+// Extra (slot) actions inherit the pill surface and keep their own semantic
+// colors, so no forced text color is needed.
+const actionClass = ""
 </script>
 
 <template>
@@ -26,42 +28,41 @@ const emit = defineEmits<{
   >
     <div
       v-if="count > 0"
-      class="fixed bottom-6 left-1/2 z-50 -translate-x-1/2"
+      class="absolute bottom-6 left-1/2 z-50 -translate-x-1/2"
     >
-      <div class="flex items-center gap-0.5 rounded-full bg-inverted px-2 py-1.5 shadow-2xl ring-1 ring-inset ring-white/10">
-        <div class="flex items-center gap-1.5 rounded-full bg-primary px-3 py-1 text-sm font-semibold text-white">
-          <span>{{ count }}</span>
-          <span class="text-white/75 font-normal">выбрано</span>
-        </div>
+      <div class="flex items-center gap-0.5 rounded-2xl bg-elevated px-2 py-2 text-default shadow-2xl ring-1 ring-accented">
+        <UBadge
+          :label="`${count} выбрано`"
+          color="primary"
+          variant="subtle"
+          size="md"
+          class="shrink-0 rounded-xl"
+        />
 
-        <div class="mx-1.5 h-5 w-px bg-white/15 shrink-0" />
+        <div class="mx-2 h-5 w-px shrink-0 bg-accented" />
 
-        <template v-for="(action, i) in actions" :key="i">
-          <button
-            :disabled="action.disabled"
-            class="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40"
-            :class="{
-              'text-white/90 hover:bg-white/10 hover:text-white': !action.color || action.color === 'neutral',
-              'text-primary-300 hover:bg-white/10': action.color === 'primary',
-              'text-success-300 hover:bg-white/10': action.color === 'success',
-              'text-warning-300 hover:bg-white/10': action.color === 'warning',
-              'text-error-400 hover:bg-error/10': action.color === 'error',
-            }"
-            @click="!action.disabled && action.onClick()"
-          >
-            <UIcon v-if="action.icon" :name="action.icon" class="size-4 shrink-0" />
-            {{ action.label }}
-          </button>
-        </template>
+        <slot :action-class="actionClass" :clear="() => emit('clear')" />
 
-        <div class="mx-1.5 h-5 w-px bg-white/15 shrink-0" />
+        <UButton
+          label="Удалить"
+          icon="i-lucide-trash"
+          color="error"
+          variant="ghost"
+          size="sm"
+          :disabled="!canDelete"
+          @click="emit('delete')"
+        />
 
-        <button
-          class="flex size-7 items-center justify-center rounded-full text-white/50 transition-colors hover:bg-white/10 hover:text-white"
+        <div class="mx-2 h-5 w-px shrink-0 bg-accented" />
+
+        <UButton
+          color="neutral"
+          variant="ghost"
+          size="sm"
+          icon="i-lucide-x"
+          aria-label="Снять выделение"
           @click="emit('clear')"
-        >
-          <UIcon name="i-lucide-x" class="size-4" />
-        </button>
+        />
       </div>
     </div>
   </Transition>

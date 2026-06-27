@@ -1,37 +1,20 @@
 import { ref, watch } from "vue";
+import { readJson, writeJson } from "@/shared/composables/useJsonStorage";
 
-interface TableSettings {
+export interface TableSettings {
   filters?: Record<string, unknown>;
   sorting?: { field: string; order: 1 | -1 };
   pageSize?: number;
   columnVisibility?: Record<string, boolean>;
 }
 
-const readSettings = (key: string): TableSettings => {
-  if (typeof window === "undefined") {
-    return {};
-  }
+export const readTableSettings = (key: string): TableSettings => readJson(key, {} as TableSettings);
 
-  try {
-    const raw = window.localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as TableSettings) : {};
-  } catch {
-    return {};
-  }
-};
+export const writeTableSettings = (key: string, patch: TableSettings) =>
+  writeJson(key, { ...readTableSettings(key), ...patch });
 
-const writeSettings = (key: string, patch: TableSettings) => {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  try {
-    const current = readSettings(key);
-    window.localStorage.setItem(key, JSON.stringify({ ...current, ...patch }));
-  } catch {
-    // Storage can be unavailable in private mode; table controls should still work.
-  }
-};
+const readSettings = readTableSettings;
+const writeSettings = writeTableSettings;
 
 const defaultColumnVisibility: Record<string, boolean> = {
   id: false,

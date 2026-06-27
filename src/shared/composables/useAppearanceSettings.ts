@@ -1,4 +1,5 @@
 import { ref, watch } from "vue";
+import { readJson, writeJson } from "@/shared/composables/useJsonStorage";
 
 const STORAGE_KEY = "appearance-settings";
 
@@ -53,28 +54,10 @@ const defaultSettings: AppearanceSettings = {
   fontSize: "md",
 };
 
-const readSettings = (): AppearanceSettings => {
-  if (typeof window === "undefined") {
-    return defaultSettings;
-  }
+const readSettings = (): AppearanceSettings =>
+  ({ ...defaultSettings, ...readJson<Partial<AppearanceSettings>>(STORAGE_KEY, {}) });
 
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    return raw
-      ? { ...defaultSettings, ...JSON.parse(raw) }
-      : defaultSettings;
-  } catch {
-    return defaultSettings;
-  }
-};
-
-const persistSettings = (settings: AppearanceSettings) => {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-};
+const persistSettings = (settings: AppearanceSettings) => writeJson(STORAGE_KEY, settings);
 
 const applySettings = (settings: AppearanceSettings) => {
   if (typeof document === "undefined") {

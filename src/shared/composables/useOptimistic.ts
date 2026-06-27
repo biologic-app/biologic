@@ -1,6 +1,7 @@
 import type { Ref } from 'vue'
+import { clone } from '@/shared/utils/clone'
 
-const cloneList = <T>(list: T[]) => JSON.parse(JSON.stringify(list)) as T[]
+const cloneList = <T>(list: T[]) => clone(list)
 
 export const useOptimistic = <T extends { id: number | string }>() => {
   const snapshot = { current: null as T[] | null }

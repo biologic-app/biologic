@@ -18,6 +18,8 @@ import { useTableColumnVisibility } from '@/shared/composables/useTableSettings'
 import { summarizePermissions } from '@/shared/utils/permissions'
 import type { Permission, PermissionSummary } from '@/shared/types/permissions'
 import { usePermission } from '@/shared/composables/usePermission'
+import { clone } from '@/shared/utils/clone'
+import type { DetailListItem } from '@/shared/ui/EntityDetailMasterList.vue'
 
 const toast = useToast()
 const { can } = usePermission()
@@ -88,7 +90,7 @@ const table = useServerTable<RoleRow>(
   }
 )
 
-const filters = reactive(JSON.parse(JSON.stringify(table.filters.value)))
+const filters = reactive(clone(table.filters.value))
 const filterModalOpen = ref(false)
 const columnVisibility = useTableColumnVisibility(tableSettingsKey)
 const rowSelection = ref<Record<string, boolean>>({})
@@ -100,6 +102,22 @@ const skeletonRows = createSkeletonRows<RoleRow>(17)
 const tableRows = computed(() =>
   table.loading.value ? skeletonRows : table.data.value
 )
+
+// Левый master-список модалки доступа: текущие строки таблицы ролей.
+const detailListItems = computed<DetailListItem[]>(() =>
+  table.data.value.map((row) => ({
+    id: row.id,
+    title: String(row.name || row.key || `#${row.id}`),
+    subtitle: row.key || row.scope_type || '',
+  }))
+)
+
+const selectListRole = (id: string | number) => {
+  const row = table.data.value.find((entry) => String(entry.id) === String(id))
+  if (row) {
+    dialog.openView(row)
+  }
+}
 
 const syncFilters = () => {
   Object.entries(table.filters.value).forEach(([key, value]) => {
@@ -252,7 +270,7 @@ const accessDialogTitle = computed(() =>
 )
 
 const applyFilters = (debounceGlobal = false) => {
-  table.updateFilters(JSON.parse(JSON.stringify(filters)), debounceGlobal)
+  table.updateFilters(clone(filters), debounceGlobal)
 }
 
 const resetFilters = () => {
@@ -552,8 +570,12 @@ onMounted(async () => {
           <UDashboardSidebarCollapse />
         </template>
         <template #right>
-          <UButton label="Создать роль" :icon="can('user-types', 'create') ? 'i-lucide-plus' : 'i-lucide-lock'"
-            :disabled="!can('user-types', 'create')" @click="dialog.openCreate()" />
+          <UButton
+            label="Создать роль"
+            :icon="can('user-types', 'create') ? 'i-lucide-plus' : 'i-lucide-lock'"
+            :disabled="!can('user-types', 'create')"
+            @click="dialog.openCreate()"
+          />
         </template>
       </UDashboardNavbar>
 
@@ -564,25 +586,37 @@ onMounted(async () => {
       <UDashboardToolbar>
         <template #left>
           <div class="flex w-full flex-col gap-3 lg:flex-row lg:items-center">
-            <CrudSearchControl v-model="filters.global.value" placeholder="Поиск роли"
-              @update:model-value="applyFilters(true)" />
+            <CrudSearchControl
+              v-model="filters.global.value"
+              placeholder="Поиск роли"
+              @update:model-value="applyFilters(true)"
+            />
           </div>
         </template>
         <template #right>
           <div class="flex flex-wrap items-center gap-2">
-            <UButton v-show="selectedCount" color="error" variant="subtle" icon="i-lucide-trash" label="Удалить"
-              @click="deleteSelected">
+            <UButton
+              v-show="selectedCount"
+              color="error"
+              variant="subtle"
+              icon="i-lucide-trash"
+              label="Удалить"
+              @click="deleteSelected"
+            >
               <template #trailing>
                 <UKbd>{{ selectedCount }}</UKbd>
               </template>
             </UButton>
             <UTooltip text="Обновить данные">
-
-              <UButton color="neutral" variant="subtle" icon="i-lucide-refresh-cw" @click="table.refresh()" />
+              <UButton
+                color="neutral"
+                variant="subtle"
+                icon="i-lucide-refresh-cw"
+                @click="table.refresh()"
+              />
             </UTooltip>
             <UDropdownMenu :items="columnMenuItems" :content="{ align: 'end' }">
               <UTooltip text="Столбцы таблицы">
-
                 <UButton color="neutral" variant="subtle" trailing-icon="i-lucide-settings-2" />
               </UTooltip>
             </UDropdownMenu>
@@ -592,54 +626,117 @@ onMounted(async () => {
     </template>
 
     <template #body>
-      <CrudFilterModal v-model:open="filterModalOpen" :active-count="activeFilterCount" @apply="applyFilters()"
-        @reset="resetFilters()">
+      <CrudFilterModal
+        v-model:open="filterModalOpen"
+        :active-count="activeFilterCount"
+        @apply="applyFilters()"
+        @reset="resetFilters()"
+      >
         <div class="grid gap-3 md:grid-cols-3">
           <UInput v-model="filters.key.value" placeholder="Ключ" />
           <UInput v-model="filters.name.value" placeholder="Название" />
           <div class="grid gap-2 sm:grid-cols-2">
-            <UInput :model-value="filters.updated_at.value?.[0] || ''" type="date" @update:model-value="
-              filters.updated_at.value = [$event || null, filters.updated_at.value?.[1] || null]
-              " />
-            <UInput :model-value="filters.updated_at.value?.[1] || ''" type="date" @update:model-value="
-              filters.updated_at.value = [filters.updated_at.value?.[0] || null, $event || null]
-              " />
+            <UInput
+              :model-value="filters.updated_at.value?.[0] || ''"
+              type="date"
+              @update:model-value="
+                filters.updated_at.value = [$event || null, filters.updated_at.value?.[1] || null]
+              "
+            />
+            <UInput
+              :model-value="filters.updated_at.value?.[1] || ''"
+              type="date"
+              @update:model-value="
+                filters.updated_at.value = [filters.updated_at.value?.[0] || null, $event || null]
+              "
+            />
           </div>
         </div>
       </CrudFilterModal>
 
-      <CrudDataTable v-model:column-visibility="columnVisibility" v-model:row-selection="rowSelection" :data="tableRows"
-        :columns="uiColumns" :total="table.total.value" :loading="table.loading.value"
-        :loading-more="table.loadingMore.value" :has-more="table.hasMore.value" selectable @load-more="table.loadMore()"
-        @row-select="handleRowSelect" @row-contextmenu="handleRowContextmenu">
+      <CrudDataTable
+        v-model:column-visibility="columnVisibility"
+        v-model:row-selection="rowSelection"
+        :data="tableRows"
+        :columns="uiColumns"
+        :total="table.total.value"
+        :loading="table.loading.value"
+        :loading-more="table.loadingMore.value"
+        :has-more="table.hasMore.value"
+        selectable
+        :can-delete="can('user-types', 'delete')"
+        @load-more="table.loadMore()"
+        @row-select="handleRowSelect"
+        @row-contextmenu="handleRowContextmenu"
+        @delete-selected="deleteSelected"
+      >
         <template #before-table>
-          <RowContextMenu v-model:open="contextMenuOpen" :items="contextMenuItems" :x="contextMenuPosition.x"
-            :y="contextMenuPosition.y" />
+          <RowContextMenu
+            v-model:open="contextMenuOpen"
+            :items="contextMenuItems"
+            :x="contextMenuPosition.x"
+            :y="contextMenuPosition.y"
+          />
         </template>
         <template #actions-cell="{ row }">
           <USkeleton v-if="isSkeletonRow(row.original)" class="ml-auto h-4 w-8" />
           <UDropdownMenu v-else :content="{ align: 'end' }" :items="getRowActionItems(row.original)">
-            <UButton icon="i-lucide-ellipsis-vertical" color="neutral" variant="ghost" size="sm" />
+            <UButton
+              icon="i-lucide-ellipsis-vertical"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+            />
           </UDropdownMenu>
         </template>
         <template #empty>
-          <CrudTableEmptyState :title="activeFilterCount ? 'Ничего не найдено' : 'Роли не найдены'" :description="activeFilterCount
-            ? 'Нет ролей, соответствующих фильтрам. Измените условия поиска.'
-            : 'Измените фильтры или создайте новую роль.'" :filtered="activeFilterCount > 0" :error="table.error.value"
+          <CrudTableEmptyState
+            :title="activeFilterCount ? 'Ничего не найдено' : 'Роли не найдены'"
+            :description="activeFilterCount
+              ? 'Нет ролей, соответствующих фильтрам. Измените условия поиска.'
+              : 'Измените фильтры или создайте новую роль.'"
+            :filtered="activeFilterCount > 0"
+            :error="table.error.value"
             error-description="Не удалось загрузить роли. Проверьте подключение или повторите попытку позже."
-            @clear-filters="resetFilters" @retry="table.refresh()" />
+            @clear-filters="resetFilters"
+            @retry="table.refresh()"
+          />
         </template>
       </CrudDataTable>
     </template>
   </UDashboardPanel>
 
-  <AccessEntityDetailModal v-model:open="dialog.visible.value" :title="accessDialogTitle" kind="role"
-    :mode="dialog.mode.value" :item="dialog.selected.value" :loading="permissionsLoading" :saving="saving"
-    :read-only="dialog.readOnly.value" :editable="can('user-types', 'edit')" :permissions="permissions"
-    :field-options="roleFieldOptions" @update:permissions="updatePermissions" @edit="dialog.startEdit()"
-    @save="onSave" />
+  <AccessEntityDetailModal
+    v-model:open="dialog.visible.value"
+    :title="accessDialogTitle"
+    kind="role"
+    :mode="dialog.mode.value"
+    :item="dialog.selected.value"
+    :loading="permissionsLoading"
+    :saving="saving"
+    :read-only="dialog.readOnly.value"
+    :editable="can('user-types', 'edit')"
+    :permissions="permissions"
+    :field-options="roleFieldOptions"
+    :list-items="detailListItems"
+    :selected-id="dialog.selected.value?.id ?? null"
+    :list-has-more="table.hasMore.value"
+    :list-loading-more="table.loadingMore.value"
+    @update:permissions="updatePermissions"
+    @edit="dialog.startEdit()"
+    @save="onSave"
+    @select="selectListRole"
+    @list-load-more="table.loadMore()"
+  />
 
-  <ConfirmDialog v-model:open="confirmDialog.open" :title="confirmDialog.title" :description="confirmDialog.description"
-    :loading="deleting" confirm-color="error" confirm-label="Удалить" confirm-icon="i-lucide-trash-2"
-    @confirm="confirmDialog.onConfirm" />
+  <ConfirmDialog
+    v-model:open="confirmDialog.open"
+    :title="confirmDialog.title"
+    :description="confirmDialog.description"
+    :loading="deleting"
+    confirm-color="error"
+    confirm-label="Удалить"
+    confirm-icon="i-lucide-trash-2"
+    @confirm="confirmDialog.onConfirm"
+  />
 </template>

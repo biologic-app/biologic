@@ -3,6 +3,7 @@ import { computed, h, resolveComponent, useSlots } from "vue";
 import type { TableColumn, TableRow } from "@nuxt/ui";
 import CrudTableLoadingRows from "@/shared/ui/CrudTableLoadingRows.vue";
 import CrudTableShell from "@/shared/ui/CrudTableShell.vue";
+import SelectionActionBar from "@/shared/ui/SelectionActionBar.vue";
 import {
   borderedCrudTableUi,
   isSkeletonRow,
@@ -18,6 +19,7 @@ const props = withDefaults(
     loadingMore?: boolean;
     hasMore?: boolean;
     selectable?: boolean;
+    canDelete?: boolean;
     tableUi?: Record<string, unknown>;
   }>(),
   {
@@ -25,6 +27,7 @@ const props = withDefaults(
     loadingMore: false,
     hasMore: false,
     selectable: false,
+    canDelete: true,
     tableUi: undefined,
   },
 );
@@ -33,6 +36,7 @@ const emit = defineEmits<{
   (event: "loadMore"): void;
   (event: "rowSelect", nativeEvent: Event, row: { original: TRow }): void;
   (event: "rowContextmenu", nativeEvent: Event, row: { original: TRow }): void;
+  (event: "deleteSelected"): void;
 }>();
 
 const columnVisibility = defineModel<Record<string, boolean>>(
@@ -46,7 +50,22 @@ const rowSelection = defineModel<Record<string, boolean>>(
 
 const UCheckbox = resolveComponent("UCheckbox");
 const slots = useSlots();
-const reservedSlotNames = new Set(["before-table", "actions-cell", "empty"]);
+const reservedSlotNames = new Set([
+  "before-table",
+  "actions-cell",
+  "empty",
+  "selection-actions",
+]);
+
+const selectedRows = computed(() =>
+  props.data.filter(
+    (row) => rowSelection.value[String((row as Record<string, unknown>).id)],
+  ),
+);
+const selectedCount = computed(() => selectedRows.value.length);
+const clearSelection = () => {
+  rowSelection.value = {};
+};
 
 const selectColumn: TableColumn<TRow> = {
   id: "select",
@@ -145,6 +164,7 @@ const forwardedSlotNames = computed(() =>
       <UTable
         v-model:column-visibility="columnVisibility"
         v-model:row-selection="rowSelection"
+        :get-row-id="(row: TRow) => String((row as Record<string, unknown>).id)"
         :data="data"
         :columns="tableColumns"
         :loading="loading"
@@ -198,6 +218,25 @@ const forwardedSlotNames = computed(() =>
           <slot name="empty" />
         </template>
       </UTable>
+    </template>
+
+    <template v-if="selectable" #overlay>
+      <SelectionActionBar
+        :count="selectedCount"
+        :can-delete="canDelete"
+        @clear="clearSelection"
+        @delete="emit('deleteSelected')"
+      >
+        <template #default="{ actionClass }">
+          <slot
+            name="selection-actions"
+            :rows="selectedRows"
+            :count="selectedCount"
+            :clear="clearSelection"
+            :action-class="actionClass"
+          />
+        </template>
+      </SelectionActionBar>
     </template>
   </CrudTableShell>
 </template>

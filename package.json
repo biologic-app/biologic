@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint src",
-    "typecheck": "vue-tsc -p ./tsconfig.app.json"
+    "typecheck": "vue-tsc -p ./tsconfig.app.json",
+    "test": "bun test"
   },
   "dependencies": {
     "@fontsource-variable/onest": "^5.2.11",

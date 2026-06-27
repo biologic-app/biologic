@@ -5,6 +5,7 @@ import App from "./App.vue";
 import { router } from "./router";
 import { i18n } from "@/shared/i18n";
 import { store } from "./store";
+export { store };
 import { setApiHooks } from "@/shared/api/client.api";
 import { useAuth } from "@/modules/auth";
 
@@ -18,5 +19,8 @@ setApiHooks({
   onUnauthorized: () => {
     const auth = useAuth();
     auth.logoutLocal();
+    if (router.currentRoute.value.name !== "login") {
+      void router.push({ name: "login" });
+    }
   },
 });

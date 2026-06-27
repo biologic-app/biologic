@@ -121,25 +121,37 @@ export const messages = {
     modes: {
       changed: "Режим переключён",
       changedTo: "Текущий режим: {mode}",
-      admin: {
-        label: "Администратор",
+      developer: {
+        label: "Разработчик",
         description: "Полный доступ ко всем модулям и действиям.",
+      },
+      user_admin: {
+        label: "Администратор пользователей",
+        description: "Управление пользователями, ролями и правами доступа.",
       },
       registrar: {
         label: "Регистратор",
-        description: "Приёмка: направления и образцы, импорт и регистрация.",
+        description: "Приёмка: направления, образцы, импорт и протоколы.",
       },
-      lab_head: {
-        label: "Заведующий лабораторией",
-        description: "Исследования, тесты и результаты лаборатории.",
+      sanitary_inspector: {
+        label: "Санитарный врач",
+        description: "Просмотр своих направлений, образцов и протоколов.",
       },
-      branch_head: {
-        label: "Заведующий филиалом",
-        description: "Обзор филиала, справочники и подтверждение результатов.",
+      lab_doctor: {
+        label: "Врач-лаборант",
+        description: "Исследования и испытания своей лаборатории.",
       },
-      viewer: {
-        label: "Оператор (просмотр)",
-        description: "Доступ только на просмотр данных.",
+      lab_assistant: {
+        label: "Ассистент-лаборант",
+        description: "Наблюдение за ходом работ (только просмотр).",
+      },
+      lab_chief: {
+        label: "Начальник лаборатории",
+        description: "Управление лабораторией, закрытие образцов, справочники.",
+      },
+      branch_chief: {
+        label: "Начальник филиала",
+        description: "Обзор филиала: направления, образцы, протоколы.",
       },
     },
     dashboard: {
@@ -512,25 +524,37 @@ export const messages = {
     modes: {
       changed: "Mode switched",
       changedTo: "Current mode: {mode}",
-      admin: {
-        label: "Administrator",
+      developer: {
+        label: "Developer",
         description: "Full access to every module and action.",
+      },
+      user_admin: {
+        label: "User administrator",
+        description: "Manage users, roles and access permissions.",
       },
       registrar: {
         label: "Registrar",
-        description: "Intake: directions and samples, import and registration.",
+        description: "Intake: directions, samples, import and protocols.",
       },
-      lab_head: {
-        label: "Lab head",
-        description: "Research, tests and laboratory results.",
+      sanitary_inspector: {
+        label: "Sanitary inspector",
+        description: "View own directions, samples and protocols.",
       },
-      branch_head: {
-        label: "Branch head",
-        description: "Branch overview, reference data and result approval.",
+      lab_doctor: {
+        label: "Lab doctor",
+        description: "Research and tests within own laboratory.",
       },
-      viewer: {
-        label: "Operator (read-only)",
-        description: "Read-only access to data.",
+      lab_assistant: {
+        label: "Lab assistant",
+        description: "Monitor lab progress (read-only).",
+      },
+      lab_chief: {
+        label: "Lab chief",
+        description: "Manage laboratory, close samples, maintain references.",
+      },
+      branch_chief: {
+        label: "Branch chief",
+        description: "Branch overview: directions, samples and protocols.",
       },
     },
     dashboard: {

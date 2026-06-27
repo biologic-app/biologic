@@ -12,6 +12,7 @@ import UserMenu from "@/shared/ui/UserMenu.vue";
 import { useAuth } from "@/modules/auth";
 import { dictionaryItems } from "@/modules/dictionaries/config";
 import { accessItems } from "@/modules/access/config";
+import type { Resource } from "@/shared/types/permissions";
 
 const toast = useToast();
 const { t } = useI18n();
@@ -19,79 +20,112 @@ const auth = useAuth();
 
 const open = ref(false);
 
+const canViewDashboard = computed(() => auth.can("dashboard", "view"));
+const canViewResearch = computed(() => auth.can("research", "view"));
+const canViewDirections = computed(() => auth.can("directions", "view"));
+const canViewSamples = computed(() => auth.can("samples", "view"));
+const canViewTests = computed(() => auth.can("tests", "view"));
+const canViewDictionaries = computed(() =>
+  dictionaryItems.some((item) => auth.can(item.key as Resource, "view")),
+);
+const canViewAccess = computed(
+  () => auth.can("users", "view") || auth.can("user-types", "view"),
+);
+
+const accessKeyToResource: Record<string, Resource> = {
+  users: "users",
+  roles: "user-types",
+};
+
 const links = computed<NavigationMenuItem[][]>(() => [
   [
     {
       label: t("nav.home"),
-      icon: "i-lucide-layout-dashboard",
+      icon: canViewDashboard.value ? "i-lucide-layout-dashboard" : "i-lucide-lock",
       to: { name: "dashboard" },
+      disabled: !canViewDashboard.value,
       onSelect: () => {
         open.value = false;
       },
     },
     {
       label: t("nav.research"),
-      icon: "i-lucide-flask-conical",
+      icon: canViewResearch.value ? "i-lucide-flask-conical" : "i-lucide-lock",
       to: { name: "research" },
+      disabled: !canViewResearch.value,
       onSelect: () => {
         open.value = false;
       },
     },
     {
       label: t("nav.directions"),
-      icon: "i-lucide-book-copy",
+      icon: canViewDirections.value ? "i-lucide-book-copy" : "i-lucide-lock",
       to: { name: "directions" },
+      disabled: !canViewDirections.value,
       type: "trigger",
       defaultOpen: false,
     },
     {
       label: t("nav.samples"),
-      icon: "i-lucide-test-tube-2",
+      icon: canViewSamples.value ? "i-lucide-test-tube-2" : "i-lucide-lock",
       to: { name: "samples" },
+      disabled: !canViewSamples.value,
       onSelect: () => {
         open.value = false;
       },
     },
     {
       label: t("nav.tests"),
-      icon: "i-lucide-clipboard-list",
+      icon: canViewTests.value ? "i-lucide-clipboard-list" : "i-lucide-lock",
       to: { name: "tests" },
+      disabled: !canViewTests.value,
       onSelect: () => {
         open.value = false;
       },
     },
     {
       label: t("nav.dictionaries"),
-      icon: "i-lucide-library",
+      icon: canViewDictionaries.value ? "i-lucide-library" : "i-lucide-lock",
       to: { name: "dictionaries" },
+      disabled: !canViewDictionaries.value,
       type: "trigger",
       defaultOpen: false,
-      children: dictionaryItems.map((item) => ({
-        label: item.label,
-        icon: item.icon,
-        to:
-          item.key === "statuses"
-            ? "/dictionaries/statuses"
-            : `/dictionaries/${item.key}`,
-        onSelect: () => {
-          open.value = false;
-        },
-      })),
+      children: dictionaryItems.map((item) => {
+        const canView = auth.can(item.key as Resource, "view");
+        return {
+          label: item.label,
+          icon: canView ? item.icon : "i-lucide-lock",
+          disabled: !canView,
+          to:
+            item.key === "statuses"
+              ? "/dictionaries/statuses"
+              : `/dictionaries/${item.key}`,
+          onSelect: () => {
+            open.value = false;
+          },
+        };
+      }),
     },
     {
       label: t("nav.access"),
-      icon: "i-lucide-shield-check",
+      icon: canViewAccess.value ? "i-lucide-shield-check" : "i-lucide-lock",
       to: { name: "access-users" },
+      disabled: !canViewAccess.value,
       type: "trigger",
       defaultOpen: false,
-      children: accessItems.map((item) => ({
-        label: item.label,
-        icon: item.icon,
-        to: item.to,
-        onSelect: () => {
-          open.value = false;
-        },
-      })),
+      children: accessItems.map((item) => {
+        const resource = accessKeyToResource[item.key] ?? (item.key as Resource);
+        const canView = auth.can(resource, "view");
+        return {
+          label: item.label,
+          icon: canView ? item.icon : "i-lucide-lock",
+          disabled: !canView,
+          to: item.to,
+          onSelect: () => {
+            open.value = false;
+          },
+        };
+      }),
     },
   ],
   [

@@ -37,6 +37,8 @@ import type {
 } from "@/shared/types/permissions";
 import { useAuth } from "@/modules/auth/composables/useAuth";
 import { usePermission } from "@/shared/composables/usePermission";
+import { clone } from "@/shared/utils/clone";
+import type { DetailListItem } from "@/shared/ui/EntityDetailMasterList.vue";
 
 const toast = useToast();
 const auth = useAuth();
@@ -143,7 +145,7 @@ const table = useServerTable<UserRow>(
   },
 );
 
-const filters = reactive(JSON.parse(JSON.stringify(table.filters.value)));
+const filters = reactive(clone(table.filters.value));
 const filterModalOpen = ref(false);
 const columnVisibility = useTableColumnVisibility(tableSettingsKey);
 const rowSelection = ref<Record<string, boolean>>({});
@@ -373,7 +375,7 @@ const accessFieldOptions = computed(() => ({
 }));
 
 const applyFilters = (debounceGlobal = false) => {
-  table.updateFilters(JSON.parse(JSON.stringify(filters)), debounceGlobal);
+  table.updateFilters(clone(filters), debounceGlobal);
 };
 
 const resetFilters = () => {
@@ -443,12 +445,31 @@ const removeItem = async (row: UserRow) => {
   };
 };
 
-const selectedRows = computed(() =>
-  Object.keys(rowSelection.value)
-    .filter((key) => rowSelection.value[key])
-    .map((key) => table.data.value[Number(key)])
-    .filter(Boolean),
+// Левый master-список модалки доступа: текущие строки таблицы пользователей.
+const detailListItems = computed<DetailListItem[]>(() =>
+  table.data.value.map((row) => ({
+    id: row.id,
+    title: String(
+      [row.last_name, row.first_name].filter(Boolean).join(" ")
+      || row.username
+      || row.code
+      || `#${row.id}`,
+    ),
+    subtitle: row.role?.name || row.username || "",
+  })),
 );
+
+const selectListUser = (id: string | number) => {
+  const row = table.data.value.find((entry) => String(entry.id) === String(id));
+  if (row) {
+    dialog.openView(row);
+  }
+};
+
+const selectedRows = computed(() => {
+  const ids = new Set(Object.keys(rowSelection.value).filter((k) => rowSelection.value[k]));
+  return table.data.value.filter((row) => ids.has(String(row.id)));
+});
 
 const selectedCount = computed(() => selectedRows.value.length);
 
@@ -659,8 +680,12 @@ onMounted(async () => {
           <UDashboardSidebarCollapse />
         </template>
         <template #right>
-          <UButton label="Создать пользователя" :icon="can('users', 'create') ? 'i-lucide-plus' : 'i-lucide-lock'"
-            :disabled="!can('users', 'create')" @click="dialog.openCreate()" />
+          <UButton
+            label="Создать пользователя"
+            :icon="can('users', 'create') ? 'i-lucide-plus' : 'i-lucide-lock'"
+            :disabled="!can('users', 'create')"
+            @click="dialog.openCreate()"
+          />
         </template>
       </UDashboardNavbar>
 
@@ -671,24 +696,37 @@ onMounted(async () => {
       <UDashboardToolbar>
         <template #left>
           <div class="flex w-full flex-col gap-3 lg:flex-row lg:items-center">
-            <CrudSearchControl v-model="filters.global.value" placeholder="Поиск пользователя"
-              @update:model-value="applyFilters(true)" />
+            <CrudSearchControl
+              v-model="filters.global.value"
+              placeholder="Поиск пользователя"
+              @update:model-value="applyFilters(true)"
+            />
           </div>
         </template>
         <template #right>
           <div class="flex flex-wrap items-center gap-2">
-            <UButton v-show="selectedCount" color="error" variant="subtle" icon="i-lucide-trash" label="Удалить"
-              @click="deleteSelected">
+            <UButton
+              v-show="selectedCount"
+              color="error"
+              variant="subtle"
+              icon="i-lucide-trash"
+              label="Удалить"
+              @click="deleteSelected"
+            >
               <template #trailing>
                 <UKbd>{{ selectedCount }}</UKbd>
               </template>
             </UButton>
             <UTooltip text="Обновить данные">
-
-              <UButton color="neutral" variant="subtle" icon="i-lucide-refresh-cw" @click="refreshToken++" />
+              <UButton
+                color="neutral"
+                variant="subtle"
+                icon="i-lucide-refresh-cw"
+                @click="table.refresh()"
+              />
             </UTooltip>
 
-            <UDropdownMenu :items="crudContent?.columnMenuItems || []" :content="{ align: 'end' }">
+            <UDropdownMenu :items="columnMenuItems" :content="{ align: 'end' }">
               <UTooltip text="Столбцы таблицы">
                 <UButton color="neutral" variant="subtle" trailing-icon="i-lucide-settings-2" />
               </UTooltip>
@@ -699,8 +737,12 @@ onMounted(async () => {
     </template>
 
     <template #body>
-      <CrudFilterModal v-model:open="filterModalOpen" :active-count="activeFilterCount" @apply="applyFilters()"
-        @reset="resetFilters()">
+      <CrudFilterModal
+        v-model:open="filterModalOpen"
+        :active-count="activeFilterCount"
+        @apply="applyFilters()"
+        @reset="resetFilters()"
+      >
         <div class="grid gap-3 md:grid-cols-2">
           <UInput v-model="filters.username.value" placeholder="Логин" />
           <UInput v-model="filters.code.value" placeholder="Код" />
@@ -709,40 +751,90 @@ onMounted(async () => {
         </div>
       </CrudFilterModal>
 
-      <CrudDataTable v-model:column-visibility="columnVisibility" v-model:row-selection="rowSelection" :data="tableRows"
-        :columns="uiColumns" :total="table.total.value" :loading="table.loading.value"
-        :loading-more="table.loadingMore.value" :has-more="table.hasMore.value" selectable @load-more="table.loadMore()"
-        @row-select="handleRowSelect" @row-contextmenu="handleRowContextmenu">
+      <CrudDataTable
+        v-model:column-visibility="columnVisibility"
+        v-model:row-selection="rowSelection"
+        :data="tableRows"
+        :columns="uiColumns"
+        :total="table.total.value"
+        :loading="table.loading.value"
+        :loading-more="table.loadingMore.value"
+        :has-more="table.hasMore.value"
+        selectable
+        :can-delete="can('users', 'delete')"
+        @load-more="table.loadMore()"
+        @row-select="handleRowSelect"
+        @row-contextmenu="handleRowContextmenu"
+        @delete-selected="deleteSelected"
+      >
         <template #before-table>
-          <RowContextMenu v-model:open="contextMenuOpen" :items="contextMenuItems" :x="contextMenuPosition.x"
-            :y="contextMenuPosition.y" />
+          <RowContextMenu
+            v-model:open="contextMenuOpen"
+            :items="contextMenuItems"
+            :x="contextMenuPosition.x"
+            :y="contextMenuPosition.y"
+          />
         </template>
         <template #actions-cell="{ row }">
           <USkeleton v-if="isSkeletonRow(row.original)" class="ml-auto h-4 w-8" />
           <UDropdownMenu v-else :content="{ align: 'end' }" :items="getRowActionItems(row.original)">
-            <UButton icon="i-lucide-ellipsis-vertical" color="neutral" variant="ghost" size="sm" />
+            <UButton
+              icon="i-lucide-ellipsis-vertical"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+            />
           </UDropdownMenu>
         </template>
         <template #empty>
-          <CrudTableEmptyState :title="activeFilterCount ? 'Ничего не найдено' : 'Пользователи не найдены'"
+          <CrudTableEmptyState
+            :title="activeFilterCount ? 'Ничего не найдено' : 'Пользователи не найдены'"
             :description="activeFilterCount
               ? 'Нет пользователей, соответствующих фильтрам. Измените условия поиска.'
-              : 'Измените фильтры или создайте нового пользователя.'" :filtered="activeFilterCount > 0"
+              : 'Измените фильтры или создайте нового пользователя.'"
+            :filtered="activeFilterCount > 0"
             :error="table.error.value"
             error-description="Не удалось загрузить пользователей. Проверьте подключение или повторите попытку позже."
-            @clear-filters="resetFilters" @retry="table.refresh()" />
+            @clear-filters="resetFilters"
+            @retry="table.refresh()"
+          />
         </template>
       </CrudDataTable>
     </template>
   </UDashboardPanel>
 
-  <AccessEntityDetailModal v-model:open="dialog.visible.value" :title="accessDialogTitle" kind="user"
-    :mode="dialog.mode.value" :item="dialog.selected.value" :loading="permissionsLoading" :saving="saving"
-    :read-only="dialog.readOnly.value" :editable="can('users', 'edit')" :role-permissions="rolePermissions"
-    :overrides="overrides" :field-options="accessFieldOptions" @update:overrides="updateOverrides"
-    @edit="dialog.startEdit()" @save="onSave" />
+  <AccessEntityDetailModal
+    v-model:open="dialog.visible.value"
+    :title="accessDialogTitle"
+    kind="user"
+    :mode="dialog.mode.value"
+    :item="dialog.selected.value"
+    :loading="permissionsLoading"
+    :saving="saving"
+    :read-only="dialog.readOnly.value"
+    :editable="can('users', 'edit')"
+    :role-permissions="rolePermissions"
+    :overrides="overrides"
+    :field-options="accessFieldOptions"
+    :list-items="detailListItems"
+    :selected-id="dialog.selected.value?.id ?? null"
+    :list-has-more="table.hasMore.value"
+    :list-loading-more="table.loadingMore.value"
+    @update:overrides="updateOverrides"
+    @edit="dialog.startEdit()"
+    @save="onSave"
+    @select="selectListUser"
+    @list-load-more="table.loadMore()"
+  />
 
-  <ConfirmDialog v-model:open="confirmDialog.open" :title="confirmDialog.title" :description="confirmDialog.description"
-    :loading="deleting" confirm-color="error" confirm-label="Удалить" confirm-icon="i-lucide-trash-2"
-    @confirm="confirmDialog.onConfirm" />
+  <ConfirmDialog
+    v-model:open="confirmDialog.open"
+    :title="confirmDialog.title"
+    :description="confirmDialog.description"
+    :loading="deleting"
+    confirm-color="error"
+    confirm-label="Удалить"
+    confirm-icon="i-lucide-trash-2"
+    @confirm="confirmDialog.onConfirm"
+  />
 </template>

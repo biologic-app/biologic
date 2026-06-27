@@ -1,4 +1,5 @@
 import type { TourRecord, TourStorageState } from '@/shared/tour/types'
+import { readJson, writeJson } from '@/shared/composables/useJsonStorage'
 
 const STORAGE_PREFIX = 'biologic:tours'
 const STORAGE_VERSION = 1
@@ -15,32 +16,17 @@ function createEmptyState(): TourStorageState {
 }
 
 export function readTourState(userId: string | null | undefined): TourStorageState {
-  if (!userId || typeof window === 'undefined') {
-    return createEmptyState()
-  }
-
-  try {
-    const raw = window.localStorage.getItem(getStorageKey(userId))
-    if (!raw) {
-      return createEmptyState()
-    }
-
-    const parsed = JSON.parse(raw) as Partial<TourStorageState>
-    return {
-      version: STORAGE_VERSION,
-      records: Array.isArray(parsed.records) ? parsed.records : []
-    }
-  } catch {
-    return createEmptyState()
+  if (!userId) return createEmptyState()
+  const parsed = readJson<Partial<TourStorageState>>(getStorageKey(userId), {})
+  return {
+    version: STORAGE_VERSION,
+    records: Array.isArray(parsed.records) ? parsed.records : []
   }
 }
 
 export function writeTourState(userId: string | null | undefined, state: TourStorageState) {
-  if (!userId || typeof window === 'undefined') {
-    return
-  }
-
-  window.localStorage.setItem(getStorageKey(userId), JSON.stringify(state))
+  if (!userId) return
+  writeJson(getStorageKey(userId), state)
 }
 
 export function hasSeenTour(userId: string | null | undefined, key: string) {

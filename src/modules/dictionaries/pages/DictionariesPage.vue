@@ -79,9 +79,6 @@ watch(
   { immediate: true },
 );
 
-watch(moduleKey, () => {
-
-});
 </script>
 
 <template>

@@ -1,4 +1,4 @@
-import type { CrudModuleConfig } from "@/pages/CrudModulePage.vue";
+import type { CrudModuleConfig } from '@/shared/types/crud';
 import { crudModules } from "@/shared/config/crud-modules";
 
 type CrudModuleKey = keyof typeof crudModules;

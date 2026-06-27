@@ -24,44 +24,37 @@ export const routes: RouteRecordRaw[] = [
       {
         path: "/dashboard",
         name: "dashboard",
-        meta: { requiresAuth: false },
+        meta: { requiresAuth: true },
         component: () => import("@/pages/DashboardPage.vue"),
       },
-    ],
-  },
-
-  {
-    path: "/",
-    component: () => import("@/app/layouts/MainLayout.vue"),
-    children: [
       {
         name: "directions",
         path: "/directions",
-        meta: { requiresAuth: false },
+        meta: { requiresAuth: true },
         component: () => import("@/pages/DirectionsPage.vue"),
       },
       {
         path: "/research",
         name: "research",
-        meta: { requiresAuth: false },
+        meta: { requiresAuth: true },
         component: () => import("@/pages/ResearchPage.vue"),
       },
       {
         path: "/samples",
         name: "samples",
-        meta: { requiresAuth: false },
+        meta: { requiresAuth: true },
         component: () => import("@/pages/SamplesPage.vue"),
       },
       {
         path: "/tests",
         name: "tests",
-        meta: { requiresAuth: false },
+        meta: { requiresAuth: true },
         component: () => import("@/pages/TestsPage.vue"),
       },
       {
         path: "/dictionaries/:module?",
         name: "dictionaries",
-        meta: { requiresAuth: false },
+        meta: { requiresAuth: true },
         component: () => import("@/modules/dictionaries/pages/DictionariesPage.vue"),
       },
       {
@@ -71,13 +64,13 @@ export const routes: RouteRecordRaw[] = [
       {
         path: "/access/users",
         name: "access-users",
-        meta: { requiresAuth: false },
+        meta: { requiresAuth: true },
         component: () => import("@/modules/admin/pages/UsersPage.vue"),
       },
       {
         path: "/access/roles",
         name: "access-roles",
-        meta: { requiresAuth: false },
+        meta: { requiresAuth: true },
         component: () => import("@/modules/user-types/pages/UserTypesPage.vue"),
       },
     ],

@@ -200,14 +200,22 @@ const items = computed<DropdownMenuItem[][]>(() => [
         icon: mode.icon,
         type: "checkbox",
         checked: auth.activeModeId === mode.id,
-        onSelect(e: Event) {
+        async onSelect(e: Event) {
           e.preventDefault();
-          auth.setMode(mode.id);
-          toast.add({
-            title: t("modes.changed"),
-            description: t("modes.changedTo", { mode: t(mode.labelKey) }),
-            color: "success",
-          });
+          try {
+            await auth.loginAs(mode.id);
+            toast.add({
+              title: t("modes.changed"),
+              description: t("modes.changedTo", { mode: t(mode.labelKey) }),
+              color: "success",
+            });
+          } catch {
+            toast.add({
+              title: t("login.errorTitle"),
+              description: t("login.errorDescription"),
+              color: "error",
+            });
+          }
         },
       })),
     },
