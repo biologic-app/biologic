@@ -22,6 +22,8 @@ def test_direction_patch_status_transition_is_not_allowed() -> None:
     [
         ("samples", "pending", "registered"),
         ("samples", "pending", "rejected"),
+        ("samples", "registered", "rejected"),
+        ("samples", "in_progress", "rejected"),
         ("samples", "analyzed", "completed"),
         ("research", "draft", "ordered"),
         ("research", "ordered", "in_progress"),

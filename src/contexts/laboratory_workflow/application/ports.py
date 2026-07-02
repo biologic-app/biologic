@@ -115,3 +115,7 @@ class WorkflowRepository(Protocol):
         actor_id: UUID,
         issued_at: datetime | None,
     ) -> CommandResult: ...
+
+    async def resolve_notification_target(
+        self, entity_type: str, entity_id: UUID
+    ) -> UUID | None: ...

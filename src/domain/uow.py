@@ -19,6 +19,7 @@ from typing import Protocol, Self
 from src.application.access_control.ports import (
     AccessControlCrudRepository,
     RolePermissionRepositoryPort,
+    UserAuthRepository,
     UserPermissionOverrideRepositoryPort,
 )
 from src.application.catalogs.ports import CatalogCrudRepository, CatalogStatusRepository
@@ -52,7 +53,7 @@ class UnitOfWork(Protocol):
     test_statuses: CatalogStatusRepository
 
     # Access control repositories.
-    users: AccessControlCrudRepository
+    users: UserAuthRepository
     roles: AccessControlCrudRepository
     permissions: AccessControlCrudRepository
     role_permissions: RolePermissionRepositoryPort

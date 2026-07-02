@@ -48,9 +48,15 @@ class SqlAlchemyNotificationRepository:
         *,
         params: PaginationParams,
         status: str,
+        viewer_id: UUID,
         created_after: datetime | None = None,
     ) -> tuple[list[NotificationRecord], int]:
-        filters: list[Any] = []
+        # Each notification is targeted at a specific user (see
+        # WorkflowNotificationSubscriber) — a viewer only ever sees their
+        # own. target_role_key is reserved on the model for a future
+        # role-broadcast subscriber; nothing populates it yet, so it isn't
+        # matched here.
+        filters: list[Any] = [Notification.target_user_id == viewer_id]
         if status == "unread":
             filters.append(Notification.read_at.is_(None))
         elif status == "read":

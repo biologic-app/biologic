@@ -7,8 +7,7 @@ from datetime import UTC, datetime
 from typing import Any, Protocol
 from uuid import UUID
 
-from src.contexts.laboratory_workflow.domain.events import DomainEvent
-from src.contexts.notifications.domain.contracts import NotificationDraft, notification_from_event
+from src.contexts.notifications.domain.contracts import NotificationDraft
 from src.core.pagination import PaginationParams
 
 
@@ -39,6 +38,7 @@ class NotificationRepository(Protocol):
         *,
         params: PaginationParams,
         status: str,
+        viewer_id: UUID,
         created_after: datetime | None = None,
     ) -> tuple[list[NotificationRecord], int]: ...
 
@@ -49,23 +49,14 @@ class NotificationService:
     def __init__(self, *, repository: NotificationRepository) -> None:
         self.repository = repository
 
-    async def create_from_events(self, events: Iterable[DomainEvent]) -> list[NotificationRecord]:
-        drafts = [
-            draft
-            for event in events
-            if (draft := notification_from_event(event)) is not None
-        ]
-        if not drafts:
-            return []
-        return await self.repository.create_many(drafts)
-
     async def list_notifications(
         self,
         *,
         params: PaginationParams,
         status: str,
+        viewer_id: UUID,
     ) -> tuple[list[NotificationRecord], int]:
-        return await self.repository.list(params=params, status=status)
+        return await self.repository.list(params=params, status=status, viewer_id=viewer_id)
 
     async def mark_read(self, notification_id: UUID) -> NotificationRecord:
         return await self.repository.mark_read(notification_id, datetime.now(UTC))
@@ -74,6 +65,7 @@ class NotificationService:
         self,
         *,
         last_seen: datetime,
+        viewer_id: UUID,
         poll_interval_seconds: float = 1.0,
     ) -> AsyncIterator[NotificationRecord]:
         cursor = last_seen
@@ -82,6 +74,7 @@ class NotificationService:
             records, _total = await self.repository.list(
                 params=params,
                 status="all",
+                viewer_id=viewer_id,
                 created_after=cursor,
             )
             for record in records:

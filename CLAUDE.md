@@ -69,7 +69,7 @@ All lifecycle entities reference status tables by UUID. Stable `code` strings ar
 # src/core/status_codes.py
 DIRECTION: draft → registered → in_progress → partially_completed → completed
 SAMPLE:    pending → registered → in_progress → analyzed → completed
-           pending → rejected
+           pending/registered/in_progress → rejected
            analyzed → in_progress (reopen)
 RESEARCH:  draft → ordered → in_progress → completed
            draft/ordered → rejected

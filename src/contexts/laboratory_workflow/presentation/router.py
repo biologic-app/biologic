@@ -52,6 +52,7 @@ from src.core.database import get_db_session
 from src.core.pagination import PaginationDependency
 from src.core.responses import ListResponse, ResponseMeta, SingleResponse
 from src.infrastructure.uow import build_uow_factory
+from src.presentation.http.access_control.dependencies import get_current_user_id_optional
 
 router = APIRouter(tags=["workflow"])
 
@@ -96,8 +97,9 @@ async def read_direction(
 async def create_direction(
     payload: DirectionCreateRequest,
     use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+    actor_id: Annotated[UUID | None, Depends(get_current_user_id_optional)],
 ) -> SingleResponse[dict[str, object]]:
-    return await use_case.create_direction(payload)
+    return await use_case.create_direction(payload, actor_id=actor_id)
 
 
 @router.post("/directions/import")
@@ -106,6 +108,28 @@ async def import_directions(
     use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
 ) -> SingleResponse[dict[str, object]]:
     return await use_case.import_directions(file.filename or "", await file.read())
+
+
+@router.post("/directions/import-excel")
+async def import_directions_excel(
+    file: Annotated[UploadFile, File()],
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+    actor_id: Annotated[UUID | None, Depends(get_current_user_id_optional)],
+) -> SingleResponse[dict[str, object]]:
+    return await use_case.import_directions_excel(
+        file.filename or "", await file.read(), actor_id=actor_id
+    )
+
+
+@router.post("/directions/import-json")
+async def import_directions_json(
+    file: Annotated[UploadFile, File()],
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+    actor_id: Annotated[UUID | None, Depends(get_current_user_id_optional)],
+) -> SingleResponse[dict[str, object]]:
+    return await use_case.import_directions_json(
+        file.filename or "", await file.read(), actor_id=actor_id
+    )
 
 
 @router.patch("/directions/{direction_id}")

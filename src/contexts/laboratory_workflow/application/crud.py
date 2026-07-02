@@ -5,6 +5,10 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from src.contexts.laboratory_workflow.application.direction_sample_import import (
+    DirectionExcelImportService,
+    DirectionJsonImportService,
+)
 from src.contexts.laboratory_workflow.application.imports import DirectionImportService
 from src.contexts.laboratory_workflow.infrastructure.crud_repositories import (
     DirectionCrudRepository,
@@ -54,9 +58,9 @@ class WorkflowCrudUseCase:
         )
 
     async def create_direction(
-        self, payload: BaseModel
+        self, payload: BaseModel, *, actor_id: UUID | None = None
     ) -> SingleResponse[dict[str, object]]:
-        row = await self.directions.create(_payload(payload))
+        row = await self.directions.create(_payload(payload), created_by=actor_id)
         return _single_response(row, _direction_fields(), operation="directions.create")
 
     async def update_direction(
@@ -79,6 +83,28 @@ class WorkflowCrudUseCase:
         return SingleResponse(
             data=summary.model_dump(mode="json"),
             meta=ResponseMeta(operation="directions.import"),
+        )
+
+    async def import_directions_excel(
+        self, filename: str, content: bytes, *, actor_id: UUID | None = None
+    ) -> SingleResponse[dict[str, object]]:
+        summary = await DirectionExcelImportService(
+            directions=self.directions, samples=self.samples, created_by=actor_id
+        ).import_file(filename, content)
+        return SingleResponse(
+            data=summary.model_dump(mode="json"),
+            meta=ResponseMeta(operation="directions.import_excel"),
+        )
+
+    async def import_directions_json(
+        self, filename: str, content: bytes, *, actor_id: UUID | None = None
+    ) -> SingleResponse[dict[str, object]]:
+        summary = await DirectionJsonImportService(
+            directions=self.directions, samples=self.samples, created_by=actor_id
+        ).import_file(filename, content)
+        return SingleResponse(
+            data=summary.model_dump(mode="json"),
+            meta=ResponseMeta(operation="directions.import_json"),
         )
 
     async def list_samples(
@@ -260,6 +286,7 @@ def _direction_fields() -> tuple[str, ...]:
         "doctor_id",
         "object_id",
         "status_id",
+        "created_by",
         "sampled_at",
         "received_at",
         "completed_at",

@@ -14,6 +14,7 @@ from src.contexts.laboratory_workflow.domain.status_policy import (
 from src.core.errors import DomainConflictError, NotFoundError
 from src.core.status_codes import (
     DIRECTION_COMPLETED,
+    DIRECTION_DRAFT,
     DIRECTION_IN_PROGRESS,
     DIRECTION_PARTIALLY_COMPLETED,
     DIRECTION_REGISTERED,
@@ -52,6 +53,28 @@ class SqlAlchemyWorkflowRepository:
     def __init__(self, *, session: AsyncSession) -> None:
         self.session = session
         self.events: list[StatusChanged] = []
+
+    async def resolve_notification_target(
+        self, entity_type: str, entity_id: UUID
+    ) -> UUID | None:
+        """Looks up which user should be notified about an event on this
+        entity: whoever created the direction it belongs to (see
+        Direction.created_by). Used by the notifications context's
+        subscriber to target a specific user instead of broadcasting.
+        """
+        if entity_type == "directions":
+            result = await self.session.execute(
+                select(Direction.created_by).where(Direction.id == entity_id),
+            )
+        elif entity_type == "samples":
+            result = await self.session.execute(
+                select(Direction.created_by)
+                .join(Sample, Sample.direction_id == Direction.id)
+                .where(Sample.id == entity_id),
+            )
+        else:
+            return None
+        return result.scalar_one_or_none()
 
     # NOTE: this repository only flushes. The transaction boundary is owned by
     # the single Unit of Work (src.infrastructure.uow.SqlAlchemyUnitOfWork), so a
@@ -989,6 +1012,12 @@ class SqlAlchemyWorkflowRepository:
 
     async def _recalculate_direction_status(self, direction_id: UUID, actor_id: UUID) -> None:
         direction = await self._get_direction_for_update(direction_id)
+        if direction.status_id is not None:
+            current_code = await self._direction_status_code(direction.status_id)
+            if current_code == DIRECTION_DRAFT:
+                # Direction was never registered — completion/partial-completion
+                # cascades only make sense once work has actually started.
+                return
         completed_id = await self._sample_status_id(SAMPLE_COMPLETED)
         rejected_id = await self._sample_status_id(SAMPLE_REJECTED)
         result = await self.session.execute(

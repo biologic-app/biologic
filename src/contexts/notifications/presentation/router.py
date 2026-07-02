@@ -15,6 +15,7 @@ from src.contexts.notifications.infrastructure.repositories import SqlAlchemyNot
 from src.core.database import get_db_session
 from src.core.pagination import PageMeta, PaginationDependency, PaginationParams
 from src.core.responses import ListResponse, ResponseMeta, SingleResponse
+from src.presentation.http.access_control.dependencies import get_current_user_id
 
 router = APIRouter(tags=["notifications"])
 
@@ -73,9 +74,12 @@ def _meta(params: PaginationParams, *, total: int) -> PageMeta:
 async def list_alerts(
     params: PaginationDependency,
     service: Annotated[NotificationService, Depends(get_notification_service)],
+    viewer_id: Annotated[UUID, Depends(get_current_user_id)],
     status: AlertStatus = "unread",
 ) -> ListResponse[AlertItem]:
-    records, total = await service.list_notifications(params=params, status=status)
+    records, total = await service.list_notifications(
+        params=params, status=status, viewer_id=viewer_id
+    )
     return ListResponse(
         items=[_item(record) for record in records],
         meta=_meta(params, total=total),
@@ -98,9 +102,10 @@ async def mark_alert_read(
 @router.get("/alerts/stream")
 async def stream_alerts(
     service: Annotated[NotificationService, Depends(get_notification_service)],
+    viewer_id: Annotated[UUID, Depends(get_current_user_id)],
 ) -> StreamingResponse:
     return StreamingResponse(
-        _notification_stream(service),
+        _notification_stream(service, viewer_id),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
@@ -123,9 +128,12 @@ def _item(record: NotificationRecord) -> AlertItem:
     )
 
 
-async def _notification_stream(service: NotificationService) -> AsyncIterator[str]:
+async def _notification_stream(
+    service: NotificationService, viewer_id: UUID
+) -> AsyncIterator[str]:
     async for record in service.stream_after(
         last_seen=datetime.now(UTC),
+        viewer_id=viewer_id,
         poll_interval_seconds=1.0,
     ):
         yield _sse_event("notification.created", _item(record))

@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from src.contexts.laboratory_workflow.presentation.router import router as workflow_router
 from src.contexts.notifications.presentation.router import router as notifications_router
+from src.presentation.http.access_control.auth_router import router as auth_router
 from src.presentation.http.access_control.router import router as access_control_router
 from src.presentation.http.audit import router as audit_router
 from src.presentation.http.catalogs.router import router as catalogs_router
@@ -18,6 +19,7 @@ async def health() -> dict[str, str]:
 router.include_router(workflow_router)
 router.include_router(dashboard_router)
 router.include_router(notifications_router)
+router.include_router(auth_router)
 router.include_router(access_control_router)
 router.include_router(audit_router)
 router.include_router(catalogs_router)

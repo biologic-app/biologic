@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import and_, asc, delete, desc, func, or_, select
@@ -24,6 +24,7 @@ from src.core.cursor_pagination import (
 )
 from src.core.errors import BadRequestError, DomainConflictError, NotFoundError
 from src.core.pagination import PaginationParams
+from src.core.status_codes import DIRECTION_DRAFT, SAMPLE_PENDING
 from src.infrastructure.db.models import (
     ChangeLog,
     Conclusion,
@@ -70,10 +71,15 @@ class DirectionCrudRepository:
     async def read(self, direction_id: UUID) -> Any:
         return await _read_row(self.session, Direction, "directions", direction_id)
 
-    async def create(self, values: dict[str, Any]) -> Any:
-        return await _create_row(
-            self.session, Direction, _pick(values, _direction_write_fields())
+    async def create(self, values: dict[str, Any], *, created_by: UUID | None = None) -> Any:
+        payload = _pick(values, _direction_write_fields())
+        payload.setdefault(
+            "status_id",
+            await _default_status_id(self.session, DirectionStatus, DIRECTION_DRAFT),
         )
+        if created_by is not None:
+            payload["created_by"] = created_by
+        return await _create_row(self.session, Direction, payload)
 
     async def update(self, direction_id: UUID, values: dict[str, Any]) -> Any:
         _reject_status_update("directions", values)
@@ -103,9 +109,12 @@ class SampleCrudRepository:
         return await _read_row(self.session, Sample, "samples", sample_id)
 
     async def create(self, values: dict[str, Any]) -> Any:
-        return await _create_row(
-            self.session, Sample, _pick(values, _sample_write_fields())
+        payload = _pick(values, _sample_write_fields())
+        payload.setdefault(
+            "status_id",
+            await _default_status_id(self.session, SampleStatus, SAMPLE_PENDING),
         )
+        return await _create_row(self.session, Sample, payload)
 
     async def update(self, sample_id: UUID, values: dict[str, Any]) -> Any:
         _reject_status_update("samples", values)
@@ -731,6 +740,17 @@ def _default_sort_field(sortable_fields: tuple[str, ...]) -> str:
 
 def _pick(values: dict[str, Any], fields: tuple[str, ...]) -> dict[str, Any]:
     return {field: values[field] for field in fields if field in values}
+
+
+async def _default_status_id(session: AsyncSession, model: type[Any], code: str) -> UUID:
+    result = await session.execute(select(model.id).where(model.code == code))
+    status_id = result.scalar_one_or_none()
+    if status_id is None:
+        raise DomainConflictError(
+            code="missing_default_status",
+            detail=f"Default status '{code}' is not configured for {model.__tablename__}.",
+        )
+    return cast(UUID, status_id)
 
 
 def _direction_sortable_fields() -> tuple[str, ...]:

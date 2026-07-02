@@ -1,5 +1,5 @@
 from collections.abc import AsyncIterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import httpx
@@ -11,18 +11,24 @@ from src.contexts.notifications.application.service import NotificationRecord
 from src.contexts.notifications.presentation.router import get_notification_service
 from src.core.config import get_settings
 from src.core.pagination import PaginationParams, get_pagination_params
+from src.core.security import encode_jwt_token
+
+VIEWER_ID = UUID("00000000-0000-0000-0000-0000000000f1")
 
 
 class FakeNotificationService:
     def __init__(self) -> None:
         self.marked_read: list[UUID] = []
+        self.list_calls: list[UUID] = []
 
     async def list_notifications(
         self,
         *,
         params: PaginationParams,
         status: str,
+        viewer_id: UUID,
     ) -> tuple[list[NotificationRecord], int]:
+        self.list_calls.append(viewer_id)
         read_at = datetime(2026, 6, 2, 9, 0, tzinfo=UTC) if status == "read" else None
         return (
             [
@@ -65,8 +71,10 @@ class FakeNotificationService:
         self,
         *,
         last_seen: datetime,
+        viewer_id: UUID,
         poll_interval_seconds: float,
     ) -> AsyncIterator[NotificationRecord]:
+        self.list_calls.append(viewer_id)
         yield NotificationRecord(
             id=UUID("00000000-0000-0000-0000-000000000203"),
             kind="workflow.sample_rejected",
@@ -112,8 +120,20 @@ async def _request(
 ) -> tuple[httpx.Response, FakeNotificationService]:
     try:
         app, service = _app(monkeypatch)
+        settings = get_settings()
+        token, _expires_at = encode_jwt_token(
+            subject=VIEWER_ID,
+            token_type="access",
+            secret_key=settings.jwt_secret_key,
+            algorithm=settings.jwt_algorithm,
+            expires_delta=timedelta(hours=1),
+        )
         transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+            cookies={settings.access_cookie_name: token},
+        ) as client:
             return await client.request(method, path, json=json), service
     finally:
         get_settings.cache_clear()
@@ -130,6 +150,7 @@ async def test_list_alerts_returns_real_notification_contract(monkeypatch: Monke
     assert payload["items"][0]["target_user_id"] is None
     assert payload["items"][0]["target_role_key"] is None
     assert payload["meta"]["total"] == 1
+    assert _service.list_calls == [VIEWER_ID]
 
 
 async def test_mark_alert_read_sets_read_at(monkeypatch: MonkeyPatch) -> None:
@@ -152,4 +173,5 @@ async def test_alert_stream_emits_notification_created_sse(monkeypatch: MonkeyPa
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")
     assert "event: notification.created" in response.text
+    assert _service.list_calls == [VIEWER_ID]
     assert '"id":"00000000-0000-0000-0000-000000000203"' in response.text

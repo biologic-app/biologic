@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 from pytest import MonkeyPatch
@@ -21,7 +23,9 @@ class FakeWorkflowCrudUseCase:
             ),
         )
 
-    async def create_direction(self, payload: BaseModel) -> SingleResponse[dict[str, object]]:
+    async def create_direction(
+        self, payload: BaseModel, *, actor_id: UUID | None = None
+    ) -> SingleResponse[dict[str, object]]:
         return SingleResponse(
             data={"id": "00000000-0000-0000-0000-000000000001", **payload.model_dump()},
             meta=ResponseMeta(operation="directions.create"),

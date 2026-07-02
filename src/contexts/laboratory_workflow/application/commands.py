@@ -12,7 +12,8 @@ from src.contexts.laboratory_workflow.application.dto import (
     TestCommandInput,
     UpdateProtocolInput,
 )
-from src.contexts.notifications.application.service import NotificationService
+from src.contexts.notifications.application.subscribers import WorkflowNotificationSubscriber
+from src.core.events import EventPublisher
 from src.domain.uow import UnitOfWork, UnitOfWorkFactory
 
 
@@ -185,7 +186,16 @@ class WorkflowCommandService:
             return result
 
     async def _publish_events(self, uow: UnitOfWork) -> None:
+        """Publisher side of the workflow → notifications pub/sub (see
+        src.core.events.EventPublisher): every domain event the command
+        raised is delivered to the notification subscriber, which resolves
+        a specific target user per event rather than broadcasting it.
+        """
         events = getattr(uow.workflow, "events", [])
         if not events:
             return
-        await NotificationService(repository=uow.notifications).create_from_events(events)
+        publisher = EventPublisher()
+        publisher.subscribe(
+            WorkflowNotificationSubscriber(repository=uow.notifications, resolver=uow.workflow),
+        )
+        await publisher.publish_all(events)

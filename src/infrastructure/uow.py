@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from src.application.access_control.ports import (
     AccessControlCrudRepository,
     RolePermissionRepositoryPort,
+    UserAuthRepository,
     UserPermissionOverrideRepositoryPort,
 )
 from src.application.catalogs.ports import CatalogCrudRepository, CatalogStatusRepository
@@ -72,7 +73,7 @@ class SqlAlchemyUnitOfWork:
     sample_statuses: CatalogStatusRepository
     research_statuses: CatalogStatusRepository
     test_statuses: CatalogStatusRepository
-    users: AccessControlCrudRepository
+    users: UserAuthRepository
     roles: AccessControlCrudRepository
     permissions: AccessControlCrudRepository
     role_permissions: RolePermissionRepositoryPort

@@ -22,6 +22,10 @@ class AccessControlCrudRepository(Protocol):
     async def delete(self, item_id: UUID) -> None: ...
 
 
+class UserAuthRepository(AccessControlCrudRepository, Protocol):
+    async def get_by_username(self, username: str) -> Any | None: ...
+
+
 class RolePermissionRepositoryPort(Protocol):
     async def list(self, params: PaginationParams) -> RepositoryPage: ...
 

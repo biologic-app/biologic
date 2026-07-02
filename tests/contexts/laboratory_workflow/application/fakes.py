@@ -8,6 +8,7 @@ from uuid import UUID
 from src.application.access_control.ports import (
     AccessControlCrudRepository,
     RolePermissionRepositoryPort,
+    UserAuthRepository,
     UserPermissionOverrideRepositoryPort,
 )
 from src.application.catalogs.ports import CatalogCrudRepository, CatalogStatusRepository
@@ -127,6 +128,11 @@ class WorkflowRepositoryFake(WorkflowRepository):
     ) -> CommandResult:
         raise AssertionError("issue_protocol should not be called")
 
+    async def resolve_notification_target(
+        self, entity_type: str, entity_id: UUID
+    ) -> UUID | None:
+        raise AssertionError("resolve_notification_target should not be called")
+
 
 class FakeUnitOfWork:
     """Single Unit of Work test double wrapping a fake workflow repository.
@@ -153,7 +159,7 @@ class FakeUnitOfWork:
         self.sample_statuses = cast(CatalogStatusRepository, None)
         self.research_statuses = cast(CatalogStatusRepository, None)
         self.test_statuses = cast(CatalogStatusRepository, None)
-        self.users = cast(AccessControlCrudRepository, None)
+        self.users = cast(UserAuthRepository, None)
         self.roles = cast(AccessControlCrudRepository, None)
         self.permissions = cast(AccessControlCrudRepository, None)
         self.role_permissions = cast(RolePermissionRepositoryPort, None)

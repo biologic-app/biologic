@@ -108,7 +108,7 @@ async def test_reject_sample_changes_pending_to_rejected_and_writes_audit() -> N
 @pytest.mark.asyncio
 async def test_reject_sample_rejects_invalid_initial_status() -> None:
     sample = Sample(id=SAMPLE_ID, name="Sample", status_id=REJECTED_STATUS_ID)
-    fake_session = FakeAsyncSession(sample=sample, current_status_code="registered")
+    fake_session = FakeAsyncSession(sample=sample, current_status_code="completed")
     repository = SqlAlchemyWorkflowRepository(session=cast(AsyncSession, fake_session))
 
     with pytest.raises(DomainConflictError) as exc:

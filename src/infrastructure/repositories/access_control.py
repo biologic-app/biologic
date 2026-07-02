@@ -62,6 +62,15 @@ class UserRepository:
     async def delete(self, user_id: UUID) -> None:
         await _delete_row(self.session, await self.read(user_id))
 
+    async def get_by_username(self, username: str) -> Any | None:
+        result = await self.session.execute(
+            select(User).where(
+                User.username == username,
+                User.deleted_at.is_(None),
+            ),
+        )
+        return result.scalar_one_or_none()
+
 
 class RoleRepository:
     def __init__(self, *, session: AsyncSession) -> None:
