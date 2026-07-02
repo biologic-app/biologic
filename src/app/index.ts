@@ -1,4 +1,5 @@
 import "./styles/index.css";
+import "@/shared/icons";
 import ui from "@nuxt/ui/vue-plugin";
 import { createApp } from "vue";
 import App from "./App.vue";

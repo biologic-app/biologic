@@ -16,12 +16,14 @@ const props = defineProps<{
   loadingMore: boolean;
   hasMore: boolean;
   testsSaving: boolean;
+  canAddSample?: boolean;
 }>();
 
 const emit = defineEmits<{
   (event: "load-more"): void;
   (event: "save-tests"): void;
   (event: "open-related", payload: { kind: EntityKind; item: RelatedRow }): void;
+  (event: "add-sample"): void;
 }>();
 
 const UBadge = resolveComponent("UBadge");
@@ -122,6 +124,15 @@ function routeForRelated(kind: RelationKind) {
       </h3>
       <div class="flex items-center gap-2">
         <UBadge color="neutral" variant="outline" :label="`${rows.length} записей`" />
+        <UButton
+          v-if="canAddSample"
+          label="Добавить образец"
+          icon="i-lucide-plus"
+          size="sm"
+          color="primary"
+          data-testid="add-sample-to-direction"
+          @click="emit('add-sample')"
+        />
         <UButton
           v-if="businessKind === 'research' && rows.length"
           label="Сохранить тесты"

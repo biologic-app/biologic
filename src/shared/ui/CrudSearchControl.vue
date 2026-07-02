@@ -36,6 +36,7 @@ onMounted(() => {
       :model-value="modelValue"
       v-bind="$attrs"
       :placeholder="placeholder"
+      data-testid="crud-search-input"
       class="w-full pe-1 sm:w-72"
       @update:model-value="emit('update:modelValue', String($event || ''))"
     >

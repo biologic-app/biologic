@@ -3,11 +3,15 @@ import { computed, reactive, ref, resolveComponent, watch } from "vue";
 import type { TabsItem } from "@nuxt/ui";
 import type { CrudModuleConfig } from '@/shared/types/crud';
 import {
+  apiCreateRequest,
   apiReadListRequest,
   apiReadRequest,
   apiUpdateRequest,
   loadReferenceOptions,
 } from "@/shared/api/client.api";
+import { usePermission } from "@/shared/composables/usePermission";
+import { crudModules } from "@/shared/config/crud-modules";
+import CrudFormModal from "@/shared/ui/CrudFormModal.vue";
 import TechnicalAuditTimeline from "@/shared/ui/TechnicalAuditTimeline.vue";
 import EntityRelatedTab from "@/shared/ui/EntityRelatedTab.vue";
 import EntityDetailMasterList, { type DetailListItem } from "@/shared/ui/EntityDetailMasterList.vue";
@@ -77,9 +81,59 @@ const fullscreen = ref(false);
 const loadError = ref<string | null>(null);
 const formState = reactive<Record<string, FieldValue>>({});
 const referenceOptions = ref<Record<string, Array<{ label: string; value: FieldValue }>>>({});
+const addSampleOpen = ref(false);
+const addSampleSaving = ref(false);
+
+const { can } = usePermission();
 
 const currentItem = computed(() => detail.value ?? props.item);
 const isStatusTracked = computed(() => Boolean(props.businessKind));
+
+// Read-only roles (e.g. sanitary_inspector) must not see an edit affordance
+// here even though the row context menu already disables its own
+// "Редактировать" item — this in-card button is a separate entry point into
+// the same PATCH and was previously ungated.
+const canEditEntity = computed(
+  () => Boolean(props.businessKind) && can(props.businessKind!, "edit"),
+);
+
+// Регистратор добавляет образцы в направление из его карточки, а не со
+// страницы «Образцы» (createDisabled там, см. shared/domain/entity-rules.ts).
+// Доступно только пока направление в статусе «Черновик».
+const canAddSampleToDirection = computed(() => {
+  const row = currentItem.value;
+  const status = row?.status;
+  const statusCode =
+    status && typeof status === "object" ? (status as { code?: string }).code : undefined;
+  return (
+    props.businessKind === "directions" && statusCode === "draft" && can("samples", "create")
+  );
+});
+
+const sampleCreateFields = computed(() =>
+  crudModules.samples.fields.filter((field) => field.key !== "direction_id"),
+);
+
+function openAddSample() {
+  addSampleOpen.value = true;
+}
+
+async function saveNewSample(payload: Record<string, unknown>) {
+  const row = currentItem.value;
+  if (!row) return;
+
+  addSampleSaving.value = true;
+  try {
+    await apiCreateRequest("/samples", {
+      method: "POST",
+      body: { ...payload, direction_id: row.id },
+    });
+    addSampleOpen.value = false;
+    await loadRelatedRows(true);
+  } finally {
+    addSampleSaving.value = false;
+  }
+}
 
 const {
   relatedRows,
@@ -537,7 +591,7 @@ function close() {
                     </h3>
                     <div class="flex gap-2">
                       <UButton
-                        v-if="!editing"
+                        v-if="!editing && canEditEntity"
                         label="Редактировать"
                         icon="i-lucide-pencil"
                         color="neutral"
@@ -545,7 +599,7 @@ function close() {
                         size="sm"
                         @click="editing = true"
                       />
-                      <template v-else>
+                      <template v-else-if="editing">
                         <UButton
                           label="Отменить"
                           color="neutral"
@@ -704,9 +758,11 @@ function close() {
               :loading-more="relatedLoadingMore"
               :has-more="relatedHasMore"
               :tests-saving="testsSaving"
+              :can-add-sample="canAddSampleToDirection"
               @load-more="loadRelatedRows(false)"
               @save-tests="saveRelatedTests"
               @open-related="emit('open-related', $event)"
+              @add-sample="openAddSample"
             />
           </main>
 
@@ -728,4 +784,14 @@ function close() {
       </div>
     </template>
   </UModal>
+
+  <CrudFormModal
+    v-model:open="addSampleOpen"
+    title="Добавить образец в направление"
+    :fields="sampleCreateFields"
+    :item="null"
+    mode="create"
+    :loading="addSampleSaving"
+    @save="saveNewSample"
+  />
 </template>

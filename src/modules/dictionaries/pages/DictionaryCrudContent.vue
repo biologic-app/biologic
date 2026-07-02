@@ -432,6 +432,9 @@ const getColumnId = (columnField: string) =>
   columnField === "status.name" ? "status" : columnField;
 
 const isDeleteAllowed = (row: CrudRow) => {
+  if (!can(props.config.resource, "delete")) {
+    return false;
+  }
   const allowed = entityRule.value.deletableStatuses;
   return allowed ? allowed.includes(normalizeStatusCode(row)) : true;
 };
@@ -885,7 +888,12 @@ const getRowActionItems = (row: CrudRow): DropdownMenuItem[] => {
   const workflowItems = getRowWorkflowActionItems(row);
   return [
     { label: "Просмотр", icon: "i-lucide-eye", onSelect: () => openDetail(row) },
-    { label: "Редактировать", icon: "i-lucide-pencil", onSelect: () => openEdit(row) },
+    {
+      label: "Редактировать",
+      icon: can(props.config.resource, "edit") ? "i-lucide-pencil" : "i-lucide-lock",
+      disabled: !can(props.config.resource, "edit"),
+      onSelect: () => openEdit(row),
+    },
     ...workflowItems,
     {
       label: "Удалить",

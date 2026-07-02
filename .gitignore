@@ -36,3 +36,14 @@ tsconfig.node.tsbuildinfo
 # OMC / Claude Code agent artifacts (centralized in parent bio/.omc via .omc-workspace)
 /.omc/
 /.claude/settings.local.json
+
+# Playwright e2e run artifacts
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
+# playwright-cli local state (machine-specific browser path, session snapshots/logs)
+/.playwright/
+/.playwright-cli/
+/recordings/

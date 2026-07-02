@@ -9,11 +9,15 @@
     "preview": "vite preview",
     "lint": "eslint src",
     "typecheck": "vue-tsc -p ./tsconfig.app.json",
-    "test": "bun test"
+    "test": "bun test tests/shared",
+    "test:e2e": "playwright test",
+    "test:e2e:video": "playwright test --config=playwright.video.config.ts"
   },
   "dependencies": {
     "@fontsource-variable/onest": "^5.2.11",
     "@hey-api/client-fetch": "^0.13.1",
+    "@iconify-json/lucide": "^1.2.115",
+    "@iconify/vue": "^5.0.1",
     "@internationalized/date": "^3.12.0",
     "@nuxt/ui": "^4.5.1",
     "@tanstack/table-core": "^8.21.3",
@@ -33,6 +37,7 @@
   },
   "devDependencies": {
     "@hey-api/openapi-ts": "^0.97.3",
+    "@playwright/test": "^1.61.1",
     "@vitejs/plugin-vue": "^6.0.4",
     "eslint": "^10.0.3",
     "eslint-plugin-vue": "^10.8.0",

@@ -24,6 +24,9 @@ export const entityRules: Record<string, EntityRule> = {
     deletableStatuses: ["pending"],
     deleteRestriction: "Удалять можно только образцы в статусе «На регистрации».",
     detailKind: "samples",
+    // Образцы создаются только импортом направления или вручную внутри карточки
+    // направления — не со страницы «Образцы» (см. docs/flows/registrator.flow.md).
+    createDisabled: true,
   },
   research: {
     deletableStatuses: ["draft"],

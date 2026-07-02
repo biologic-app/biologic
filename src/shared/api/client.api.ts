@@ -146,11 +146,29 @@ const normalizeQueryParams = (params?: ApiParams) => {
   )
 }
 
-const createHeaders = (headers: HeadersInit | undefined, hasJsonBody: boolean) => {
+const createHeaders = (
+  headers: HeadersInit | undefined,
+  hasJsonBody: boolean,
+  isFormData: boolean
+): HeadersInit => {
   const requestHeaders = new Headers(headers)
 
   if (hasJsonBody && !requestHeaders.has('Content-Type')) {
     requestHeaders.set('Content-Type', 'application/json')
+  }
+
+  if (isFormData) {
+    // The generated client's default config always carries
+    // `Content-Type: application/json`, and its header merge only drops a
+    // key when the incoming value is a literal `null` on a plain object
+    // (a `Headers` instance can't express that — its values are always
+    // strings). Without this, that stale default header wins over the
+    // browser's own `multipart/form-data; boundary=...` header and the
+    // server can't parse the upload at all.
+    return {
+      ...Object.fromEntries(requestHeaders.entries()),
+      'Content-Type': null
+    } as unknown as HeadersInit
   }
 
   return requestHeaders
@@ -229,7 +247,7 @@ export const apiRequest = async <T>(
     body: requestBody,
     bodySerializer: isFormData ? undefined : jsonBodySerializer.bodySerializer,
     credentials: 'include',
-    headers: createHeaders(headers, !isFormData && requestBody !== undefined),
+    headers: createHeaders(headers, !isFormData && requestBody !== undefined, isFormData),
     responseStyle: 'fields',
     throwOnError: false
   })

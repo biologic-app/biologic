@@ -7,7 +7,8 @@ import { crudModules } from '@/shared/config/crud-modules'
 
 const { can } = usePermission()
 const toast = useToast()
-const importInput = ref<HTMLInputElement | null>(null)
+const importExcelInput = ref<HTMLInputElement | null>(null)
+const importJsonInput = ref<HTMLInputElement | null>(null)
 const importing = ref(false)
 
 const selectedConfig = crudModules.directions
@@ -15,27 +16,40 @@ const createDisabled = computed(() => !can(selectedConfig.resource, 'create'))
 const importDisabled = computed(() => !can(selectedConfig.resource, 'import'))
 const createMenuDisabled = computed(() => createDisabled.value && importDisabled.value)
 
-interface DirectionImportSummary {
+interface WorkflowImportSummary {
   filename: string
-  processed: number
-  imported: number
-  skipped: number
+  rows_processed: number
+  directions_created: number
+  samples_created: number
+  skipped_rows: number
   errors: Array<Record<string, unknown>>
   warnings: Array<Record<string, unknown>>
 }
 
 const buildCreateMenu = (openCreate: () => void) => [
   {
-    label: 'Импортировать CSV',
-    icon: importDisabled.value ? 'i-lucide-lock' : 'i-lucide-upload',
+    label: 'Импортировать Excel',
+    icon: importDisabled.value ? 'i-lucide-lock' : 'i-lucide-file-spreadsheet',
     disabled: importDisabled.value || importing.value,
     onSelect() {
-      importInput.value?.click()
+      importExcelInput.value?.click()
+    }
+  },
+  {
+    label: 'Импортировать JSON (резервный способ)',
+    icon: importDisabled.value ? 'i-lucide-lock' : 'i-lucide-file-json',
+    disabled: importDisabled.value || importing.value,
+    onSelect() {
+      importJsonInput.value?.click()
     }
   }
 ]
 
-const handleImportFile = async (event: Event, refresh: () => void) => {
+const handleImportFile = async (
+  event: Event,
+  refresh: () => void,
+  endpoint: '/directions/import-excel' | '/directions/import-json'
+) => {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   input.value = ''
@@ -45,10 +59,10 @@ const handleImportFile = async (event: Event, refresh: () => void) => {
 
   importing.value = true
   try {
-    const response = await apiUploadRequest<DirectionImportSummary>('/directions/import', file)
+    const response = await apiUploadRequest<WorkflowImportSummary>(endpoint, file)
     toast.add({
       title: 'Импорт направлений завершён',
-      description: `Добавлено: ${response.data.imported}, пропущено: ${response.data.skipped}`,
+      description: `Направлений: ${response.data.directions_created}, образцов: ${response.data.samples_created}, пропущено строк: ${response.data.skipped_rows}`,
       color: response.data.errors.length ? 'warning' : 'success',
       icon: response.data.errors.length ? 'i-lucide-triangle-alert' : 'i-lucide-circle-check'
     })
@@ -78,11 +92,20 @@ const handleImportFile = async (event: Event, refresh: () => void) => {
   >
     <template #navbar-right="{ openCreate, refresh }">
       <input
-        ref="importInput"
+        ref="importExcelInput"
         type="file"
-        accept=".csv,text/csv"
+        accept=".xlsx"
         class="hidden"
-        @change="handleImportFile($event, refresh)"
+        data-testid="import-excel-input"
+        @change="handleImportFile($event, refresh, '/directions/import-excel')"
+      >
+      <input
+        ref="importJsonInput"
+        type="file"
+        accept=".json,application/json"
+        class="hidden"
+        data-testid="import-json-input"
+        @change="handleImportFile($event, refresh, '/directions/import-json')"
       >
       <UFieldGroup>
         <UTooltip :text="createMenuDisabled ? 'Нет прав на создание или импорт' : 'Создать или импортировать'">
@@ -98,11 +121,11 @@ const handleImportFile = async (event: Event, refresh: () => void) => {
           :items="buildCreateMenu(openCreate)"
           :content="{ align: 'end' }"
         >
-          
-          <UButton variant="outline" icon="i-lucide-chevron-down" />
+
+          <UButton variant="outline" icon="i-lucide-chevron-down" data-testid="direction-import-menu-trigger" />
         </UDropdownMenu>
       </UFieldGroup>
-      
+
     </template>
   </WorkflowCrudPage>
 </template>
