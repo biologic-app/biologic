@@ -150,6 +150,14 @@ class ResearchCrudRepository:
             self.session, Research, _pick(values, _research_write_fields())
         )
 
+    async def get_goal_id_by_code(self, code: str) -> UUID | None:
+        result = await self.session.execute(
+            select(ResearchGoal.id).where(
+                ResearchGoal.code == code, ResearchGoal.deleted_at.is_(None)
+            )
+        )
+        return result.scalars().first()
+
     async def update(self, research_id: UUID, values: dict[str, Any]) -> Any:
         _reject_status_update("research", values)
         return await _update_row(
@@ -195,9 +203,13 @@ class ProtocolCrudRepository:
         self.session = session
 
     async def list(self, params: PaginationParams) -> RepositoryPage:
-        return await _list_rows(
+        page = await _list_rows(
             self.session, Protocol, params, _protocol_sortable_fields()
         )
+        await _populate_protocol_includes(
+            self.session, page.items, params.includes_requested
+        )
+        return page
 
     async def read(self, protocol_id: UUID) -> Any:
         return await _read_row(self.session, Protocol, "protocols", protocol_id)
@@ -419,6 +431,80 @@ async def _populate_sample_includes(
     statuses = await _sample_status_includes(session, status_ids)
     for item in items:
         setattr(item, "status", statuses.get(item.status_id))
+
+
+async def _populate_protocol_includes(
+    session: AsyncSession,
+    items: list[Any],
+    includes_requested: list[str],
+) -> None:
+    includes = set(includes_requested) & {"protocol_type", "conclusion"}
+    if not items or not includes:
+        return
+
+    if "protocol_type" in includes:
+        protocol_type_ids = {
+            item.protocol_type_id for item in items if item.protocol_type_id is not None
+        }
+        protocol_types = await _protocol_type_includes(session, protocol_type_ids)
+        for item in items:
+            setattr(item, "protocol_type", protocol_types.get(item.protocol_type_id))
+
+    if "conclusion" in includes:
+        conclusion_ids = {
+            item.conclusion_id for item in items if item.conclusion_id is not None
+        }
+        conclusions = await _conclusion_includes(session, conclusion_ids)
+        for item in items:
+            setattr(item, "conclusion", conclusions.get(item.conclusion_id))
+
+
+async def _protocol_type_includes(
+    session: AsyncSession,
+    protocol_type_ids: set[UUID],
+) -> dict[UUID, dict[str, object]]:
+    if not protocol_type_ids:
+        return {}
+    result = await session.execute(
+        select(ProtocolType.id, ProtocolType.code, ProtocolType.name).where(
+            ProtocolType.id.in_(protocol_type_ids),
+            *_base_filters(ProtocolType),
+        ),
+    )
+    return {
+        row_id: {"id": row_id, "code": code, "name": name}
+        for row_id, code, name in result.all()
+    }
+
+
+async def _conclusion_includes(
+    session: AsyncSession,
+    conclusion_ids: set[UUID],
+) -> dict[UUID, dict[str, object]]:
+    if not conclusion_ids:
+        return {}
+    result = await session.execute(
+        select(
+            Conclusion.id,
+            Conclusion.code,
+            Conclusion.name,
+            Conclusion.text_singular,
+            Conclusion.text_plural,
+        ).where(
+            Conclusion.id.in_(conclusion_ids),
+            *_base_filters(Conclusion),
+        ),
+    )
+    return {
+        row_id: {
+            "id": row_id,
+            "code": code,
+            "name": name,
+            "text_singular": text_singular,
+            "text_plural": text_plural,
+        }
+        for row_id, code, name, text_singular, text_plural in result.all()
+    }
 
 
 async def _populate_test_includes(

@@ -10,6 +10,9 @@ from src.contexts.laboratory_workflow.application.direction_sample_import import
     DirectionJsonImportService,
 )
 from src.contexts.laboratory_workflow.application.imports import DirectionImportService
+from src.contexts.laboratory_workflow.application.legacy_direction_import import (
+    LegacyDirectionXlsImportService,
+)
 from src.contexts.laboratory_workflow.infrastructure.crud_repositories import (
     DirectionCrudRepository,
     ProtocolCrudRepository,
@@ -105,6 +108,20 @@ class WorkflowCrudUseCase:
         return SingleResponse(
             data=summary.model_dump(mode="json"),
             meta=ResponseMeta(operation="directions.import_json"),
+        )
+
+    async def import_directions_legacy_xls(
+        self, filename: str, content: bytes, *, actor_id: UUID | None = None
+    ) -> SingleResponse[dict[str, object]]:
+        summary = await LegacyDirectionXlsImportService(
+            directions=self.directions,
+            samples=self.samples,
+            research=self.research,
+            created_by=actor_id,
+        ).import_file(filename, content)
+        return SingleResponse(
+            data=summary.model_dump(mode="json"),
+            meta=ResponseMeta(operation="directions.import_legacy_xls"),
         )
 
     async def list_samples(

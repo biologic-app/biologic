@@ -132,6 +132,17 @@ async def import_directions_json(
     )
 
 
+@router.post("/directions/import-legacy-xls")
+async def import_directions_legacy_xls(
+    file: Annotated[UploadFile, File()],
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+    actor_id: Annotated[UUID | None, Depends(get_current_user_id_optional)],
+) -> SingleResponse[dict[str, object]]:
+    return await use_case.import_directions_legacy_xls(
+        file.filename or "", await file.read(), actor_id=actor_id
+    )
+
+
 @router.patch("/directions/{direction_id}")
 async def update_direction(
     direction_id: UUID,
