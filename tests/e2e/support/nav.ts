@@ -20,6 +20,10 @@ export async function goToSamples(page: Page) {
   await clickNavLink(page, 'Samples')
 }
 
+export async function goToProtocols(page: Page) {
+  await clickNavLink(page, 'Protocols')
+}
+
 export async function goToDashboard(page: Page) {
   await clickNavLink(page, 'Home')
 }

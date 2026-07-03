@@ -25,6 +25,7 @@ import ConfirmDialog from "@/shared/ui/ConfirmDialog.vue";
 import RowContextMenu from "@/shared/ui/RowContextMenu.vue";
 import BusinessEntityDetailModal from "@/shared/ui/BusinessEntityDetailModal.vue";
 import DictionaryCrudDetailModal from "@/shared/ui/DictionaryCrudDetailModal.vue";
+import ProtocolPreviewModal from "@/shared/ui/ProtocolPreviewModal.vue";
 import type { DetailListItem } from "@/shared/ui/EntityDetailModalShell.vue";
 import {
   filterSelectOverlayUi,
@@ -40,6 +41,7 @@ import {
 import { useCrudDialog } from "@/shared/composables/useCrudDialog";
 import { useOptimistic } from "@/shared/composables/useOptimistic";
 import { usePermission } from "@/shared/composables/usePermission";
+import { useRelatedEntities } from "@/shared/composables/useRelatedEntities";
 import { useTableColumnVisibility } from "@/shared/composables/useTableSettings";
 import { useAuth } from "@/modules/auth/composables/useAuth";
 import {
@@ -110,6 +112,9 @@ const commandDialogOpen = ref(false);
 const activeCommand = ref<WorkflowCommand | null>(null);
 const commandRows = ref<CrudRow[]>([]);
 const commandFields = ref<FormField[]>([]);
+const protocolSaving = ref(false);
+const protocolDialogOpen = ref(false);
+const protocolFields = ref<FormField[]>([]);
 const pendingUndo = ref<Array<{ item: CrudRow; timeout: ReturnType<typeof setTimeout> }>>([]);
 
 function undoDelete(undoEntry: { item: CrudRow; timeout: ReturnType<typeof setTimeout> }) {
@@ -178,6 +183,18 @@ const rowSelection = ref<Record<string, boolean>>({});
 const contextRow = ref<CrudRow | null>(null);
 const contextMenuOpen = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
+const previewRow = ref<CrudRow | null>(null);
+const previewOpen = ref(false);
+const { relatedRows: previewSamples, loadRelatedRows: loadPreviewSamples } = useRelatedEntities({
+  currentItem: () => previewRow.value,
+  businessKind: () => "protocols",
+});
+
+async function openPreview(row: CrudRow) {
+  previewRow.value = row;
+  await loadPreviewSamples(true);
+  previewOpen.value = true;
+}
 const skeletonRows = createSkeletonRows<CrudRow>(17);
 const filters = reactive<TableFilters>(
   clone(props.config.initialFilters),
@@ -788,6 +805,84 @@ const saveWorkflowCommand = async (payload: Record<string, unknown>) => {
   await runWorkflowCommand(activeCommand.value, commandRows.value, payload);
 };
 
+// Протокол связывает N образцов одним POST /protocols — это фан-ин, а не
+// «одна и та же команда на каждую строку», поэтому не укладывается в
+// workflowCommands (endpoint per-row) и живёт отдельным путём, доступным
+// только со страницы образцов (см. docs/flows/registrator.flow.md §16).
+const canCreateProtocolFromSelection = computed(() => {
+  if (props.config.presetKey !== "samples" || !can("protocols", "create")) {
+    return false;
+  }
+  const rows = selectedRows.value;
+  if (!rows.length) {
+    return false;
+  }
+  const directionId = getValueByPath(rows[0], "direction_id");
+  return rows.every(
+    (row) =>
+      normalizeStatusCode(row) === "completed"
+      && getValueByPath(row, "direction_id") === directionId
+      && !getValueByPath(row, "protocol_id"),
+  );
+});
+
+const openProtocolDialog = async () => {
+  if (!canCreateProtocolFromSelection.value) {
+    toast.add({
+      title: "Создание протокола недоступно",
+      description: "Выберите завершённые образцы одного направления.",
+      color: "warning",
+      icon: "i-lucide-circle-alert",
+    });
+    return;
+  }
+
+  const fields = crudModules.protocols.fields.filter((field) =>
+    ["protocol_type_id", "conclusion_id", "copies"].includes(field.key),
+  );
+  await loadCommandFieldOptions(fields);
+  protocolFields.value = commandFields.value;
+  protocolDialogOpen.value = true;
+};
+
+const saveProtocolCommand = async (payload: Record<string, unknown>) => {
+  const actorId = getActorId();
+  if (!actorId || !canCreateProtocolFromSelection.value) {
+    return;
+  }
+
+  protocolSaving.value = true;
+  try {
+    await apiRequest("/protocols", {
+      method: "POST",
+      body: {
+        actor_id: actorId,
+        sample_ids: selectedRows.value.map((row) => row.id),
+        protocol_type_id: payload.protocol_type_id || null,
+        conclusion_id: payload.conclusion_id || null,
+        copies: payload.copies ? Number(payload.copies) : null,
+      },
+    });
+    rowSelection.value = {};
+    protocolDialogOpen.value = false;
+    await table.refresh();
+    toast.add({
+      title: "Протокол создан",
+      color: "success",
+      icon: "i-lucide-circle-check",
+    });
+  } catch (error: unknown) {
+    toast.add({
+      title: "Не удалось создать протокол",
+      description: errorMessage(error),
+      color: "error",
+      icon: "i-lucide-circle-alert",
+    });
+  } finally {
+    protocolSaving.value = false;
+  }
+};
+
 const deleteSelected = async () => {
   if (!selectedRows.value.length) {
     return;
@@ -888,6 +983,9 @@ const getRowActionItems = (row: CrudRow): DropdownMenuItem[] => {
   const workflowItems = getRowWorkflowActionItems(row);
   return [
     { label: "Просмотр", icon: "i-lucide-eye", onSelect: () => openDetail(row) },
+    ...(props.config.presetKey === "protocols"
+      ? [{ label: "Предпросмотр", icon: "i-lucide-file-search", onSelect: () => openPreview(row) }]
+      : []),
     {
       label: "Редактировать",
       icon: can(props.config.resource, "edit") ? "i-lucide-pencil" : "i-lucide-lock",
@@ -1129,6 +1227,18 @@ defineExpose({
         :class="actionClass"
         @click="runSelectedCommand(command.key)"
       />
+      <UButton
+        v-if="config.presetKey === 'samples' && can('protocols', 'create')"
+        label="Создать протокол"
+        icon="i-lucide-file-check-2"
+        color="primary"
+        variant="ghost"
+        size="sm"
+        data-testid="create-protocol-from-selection"
+        :disabled="!canCreateProtocolFromSelection"
+        :class="actionClass"
+        @click="openProtocolDialog()"
+      />
     </template>
     <template #empty>
       <CrudTableEmptyState
@@ -1172,6 +1282,16 @@ defineExpose({
     @save="saveWorkflowCommand"
   />
 
+  <CrudFormModal
+    v-model:open="protocolDialogOpen"
+    :title="`Создать протокол (${selectedCount} образцов)`"
+    :fields="protocolFields"
+    :item="{}"
+    mode="create"
+    :loading="protocolSaving"
+    @save="saveProtocolCommand"
+  />
+
   <BusinessEntityDetailModal
     v-if="detailKind"
     v-model:open="detailOpen"
@@ -1198,6 +1318,13 @@ defineExpose({
     @saved="onDetailSaved"
     @select="selectDetailRow"
     @list-load-more="table.loadMore()"
+  />
+
+  <ProtocolPreviewModal
+    v-if="config.presetKey === 'protocols'"
+    v-model:open="previewOpen"
+    :protocol="previewRow"
+    :samples="previewSamples"
   />
 
   <ConfirmDialog

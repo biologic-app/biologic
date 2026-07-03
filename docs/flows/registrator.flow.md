@@ -17,6 +17,12 @@ tags:
 > Стенд: backend `http://localhost:8080` (`/api/v1`), frontend
 > `http://localhost:5177`. Демо-учётка: `registrator` / `registrator123`
 > (роль `registrar`, см. `src/shared/config/role-credentials.ts`).
+>
+> Видео: `docs/flows/videos/registrator-full-flow.webm` (импорт/регистрация/брак),
+> `docs/flows/videos/registrator-legacy-import-and-protocol-flow.webm`
+> (импорт реального .xls-документа + создание протокола, §§2, 16-17),
+> `docs/flows/videos/protocol-preview-flow.webm` (кнопка «Предпросмотр»
+> для регистратора и санитарного врача, §17).
 
 ## 0. Что было починено для этого потока
 
@@ -53,10 +59,29 @@ tags:
 - Страница `/directions` (`src/pages/DirectionsPage.vue`), кнопка «Создать» →
   выпадающее меню (`data-testid="direction-import-menu-trigger"`):
   - **«Импортировать Excel»** (основной способ) — `input[data-testid="import-excel-input"]`,
-    принимает `.xlsx` → `POST /api/v1/directions/import-excel`.
+    принимает `.xlsx` → `POST /api/v1/directions/import-excel`. Это построчный
+    машинный формат (см. ниже), а не реальный бланк лаборатории.
+  - **«Импортировать реальный документ (.xls)»** — `input[data-testid="import-legacy-xls-input"]`,
+    принимает `.xls` → `POST /api/v1/directions/import-legacy-xls`. Парсит
+    реальный бланк «НАПРАВЛЕНИЕ проб пищевых продуктов на лабораторные
+    исследования», который санитарный врач оформляет на объекте (см.
+    `sanitary-doctor.flow.md` §0) — шапку (номер направления, подразделения,
+    дата/время отбора и доставки, подписант) и построчную таблицу образцов
+    (наименование, масса, отметки Бак/Т-Х/Т-Б/РВ/ПЦР, секция, поставка,
+    номенклатура, партия, поставщик). Один файл = одно направление
+    (`src/contexts/laboratory_workflow/application/legacy_direction_import.py`).
+    Поля шапки без прямого совпадения с колонками направления (подразделения,
+    подписант, название документа) сохраняются как есть в
+    `Direction.import_warnings` — регистратор сверяет и заполняет `doctor_id`/
+    `object_id` вручную. Отметки исследований резолвятся по коду catalog’а
+    `research_goals` (`BAK`/`TH`/`TB`/`RV`/`PCR`) — если лаборатория такие
+    коды не завела, отметка попадает в `warnings` ответа, а не создаёт
+    `Research` молча. Ответ: `LegacyDirectionImportSummary` — `{ filename,
+    direction_id, samples_processed, samples_imported, skipped_samples,
+    marks_created, errors[], warnings[] }`.
   - **«Импортировать JSON (резервный способ)»** — `input[data-testid="import-json-input"]`,
     принимает `.json` → `POST /api/v1/directions/import-json`.
-- Оба эндпоинта на бэкенде (`src/contexts/laboratory_workflow/application/direction_sample_import.py`)
+- Оба построчных эндпоинта (Excel/JSON, `src/contexts/laboratory_workflow/application/direction_sample_import.py`)
   принимают одну и ту же построчную форму данных: одна строка = один образец,
   поля направления повторяются в каждой строке своего направления. Строки
   группируются по паре `(year_no, base_no)` — первая строка с новым ключом
@@ -225,6 +250,69 @@ tags:
 - Отметить прочитанным: `POST /alerts/{id}/mark-read` (кнопка в панели) →
   `read_at` проставляется, элемент переезжает во вкладку «Прочитанные».
 
+## 16. Создание протокола
+
+- Протокол — командная сущность (`POST /protocols`, требует `actor_id` +
+  `sample_ids[]`), а не плоская CRUD-запись: он привязывает N уже
+  **завершённых** (`sample_statuses.code = completed`) образцов одной
+  проводкой. Это не укладывается в общий механизм `workflowCommands`
+  (эндпоинт на каждую выбранную строку по отдельности) — команда
+  «Создать протокол» реализована отдельно в `DictionaryCrudContent.vue`
+  и доступна **только со страницы `/samples`**, только тем, у кого есть
+  `protocols:create` (роль `registrar`).
+- Путь: `/samples` → выделить чекбоксами образцы **одного направления**, все
+  в статусе «Закрыт» (`completed`), ни один ещё не привязан к другому
+  протоколу (`sample.protocol_id` пуст) → в панели массовых действий
+  (`SelectionActionBar`) появляется активная кнопка **«Создать протокол»**
+  (`data-testid="create-protocol-from-selection"`; задизейблена, если условия
+  не выполнены). Так делается протокол «на направление целиком» (выделить
+  все его образцы) или «на часть образцов направления» (выделить подмножество).
+- Диалог (`CrudFormModal`, поля `crudModules.protocols.fields`, отфильтрованные
+  до `copies`/`protocol_type_id`/`conclusion_id`) — все поля необязательны.
+  «Заключение» (`conclusion_id`) выбирается из справочника `/dictionaries/conclusions`
+  — заключения засеяны миграцией `20260702_0016_seed_conclusions` (типовые:
+  «Соответствует требованиям», «Не соответствует требованиям», «Соответствует
+  с замечаниями», «Требуется повторное исследование», «Превышение допустимых
+  норм»), т.к. в реальной практике заключения почти всегда одни и те же
+  несколько формулировок, а не свободный текст на каждый протокол.
+- `POST /protocols` создаёт `Protocol` в текущем году (`year_no`) и
+  проставляет `sample.protocol_id` каждому выбранному образцу одной
+  транзакцией. Повторно выбрать уже привязанный образец нельзя — кнопка
+  остаётся задизейбленной (проверка `!sample.protocol_id` на фронте).
+- Результат сразу виден на `/protocols` (см. §17).
+
+## 17. Просмотр и техаудит протокола
+
+- Страница `/protocols` (`src/pages/ProtocolsPage.vue`) — та же трёхвкладочная
+  карточка (`businessKind="protocols"`), что и у направлений/образцов:
+  **«Карточка»** (поля протокола + степпер «Создано» → «Выдано», последнее
+  только если `issued_at` заполнен через `POST /protocols/{id}/issue`),
+  **«Технический аудит»** (`change_log` по `entity_type="protocols"`:
+  `protocol_created`/`protocol_updated`/`protocol_issued`),
+  **«Связанные»** (образцы этого протокола, `GET /samples?filters={protocol_id}`).
+  Кнопки «Создать» на странице нет (`entity-rules.ts: protocols.createDisabled
+  = true` — создание только через §16); «Редактировать» есть при наличии
+  `protocols:update`, но `PATCH /protocols/{id}` требует `actor_id` в теле
+  (протокол — командная сущность) — фронт подставляет его автоматически
+  для `businessKind="protocols"` (`EntityDetailDialogBase.vue::saveInline`).
+- Кнопка **«Предпросмотр»** на вкладке «Карточка» (видна любому с
+  `protocols:view`, не только регистратору) открывает
+  `ProtocolPreviewModal.vue` — черновой, чисто фронтовый рендер документа,
+  стилизованный под реальный бланк «ПРОТОКОЛ ЛАБОРАТОРНЫХ ИСПЫТАНИЙ»
+  (A4-карточка, Times New Roman): дата выдачи по правому краю, заголовок с
+  номером (`protocol.year_no`), подзаголовок с датой поступления направления,
+  строки «По направлению:» / «Объект:» (резолвятся напрямую через
+  `GET /directions/{id}` → `doctor_id`/`object_id`, т.к. включения
+  `direction`/`doctor`/`object` не проставляются на `/samples`), таблица
+  образцов (рег. номер, название, дата результата), примечания по образцам
+  с комментарием, абзац «ЗАКЛЮЧЕНИЕ:» (`conclusion.text_singular` при одном
+  образце / `text_plural` при нескольких — подгружается отдельным
+  `GET /conclusions/{id}`, т.к. список/карточка протокола отдают только
+  `conclusion.name`), строка подписи «Ответственный за выпуск:». Это
+  временная заглушка — настоящий документ будет формироваться на бэкенде по
+  Excel-шаблону при экспорте; модалка явно помечена как черновой
+  предпросмотр.
+
 ## Быстрая справка: статус-коды
 
 ```
@@ -241,7 +329,8 @@ SAMPLE:    pending → registered → in_progress → analyzed → completed
 | Логин | `POST /auth/login` |
 | Профиль/сессия | `GET /auth/me` |
 | Выход | `POST /auth/logout` |
-| Импорт направлений (Excel) | `POST /directions/import-excel` |
+| Импорт направлений (Excel, построчный формат) | `POST /directions/import-excel` |
+| Импорт направления (реальный документ .xls) | `POST /directions/import-legacy-xls` |
 | Импорт направлений (JSON, резерв) | `POST /directions/import-json` |
 | Список/карточка направлений | `GET /directions`, `GET /directions/{id}` |
 | Создать направление вручную | `POST /directions` |
@@ -252,6 +341,9 @@ SAMPLE:    pending → registered → in_progress → analyzed → completed
 | Зарегистрировать образец | `POST /samples/{id}/register` |
 | Забраковать образец | `POST /samples/{id}/reject` |
 | Назначить исследование образцу | `POST /samples/{id}/assign-research` |
+| Создать протокол (образцы одного направления) | `POST /protocols` |
+| Список/карточка протоколов | `GET /protocols`, `GET /protocols/{id}` |
+| Выдать протокол | `POST /protocols/{id}/issue` |
 | Технический аудит | `GET /history?filters={entity_type,entity_id}` |
 | Уведомления (список) | `GET /alerts?status=` |
 | Уведомления (поток) | `GET /alerts/stream` (SSE) |

@@ -9,6 +9,7 @@ const { can } = usePermission()
 const toast = useToast()
 const importExcelInput = ref<HTMLInputElement | null>(null)
 const importJsonInput = ref<HTMLInputElement | null>(null)
+const importLegacyXlsInput = ref<HTMLInputElement | null>(null)
 const importing = ref(false)
 
 const selectedConfig = crudModules.directions
@@ -26,6 +27,20 @@ interface WorkflowImportSummary {
   warnings: Array<Record<string, unknown>>
 }
 
+interface LegacyDirectionImportSummary {
+  filename: string
+  direction_id: string | null
+  samples_processed: number
+  samples_imported: number
+  skipped_samples: number
+  marks_created: number
+  errors: Array<Record<string, unknown>>
+  warnings: Array<Record<string, unknown>>
+}
+
+type ImportEndpoint = '/directions/import-excel' | '/directions/import-json'
+  | '/directions/import-legacy-xls'
+
 const buildCreateMenu = (openCreate: () => void) => [
   {
     label: 'Импортировать Excel',
@@ -33,6 +48,14 @@ const buildCreateMenu = (openCreate: () => void) => [
     disabled: importDisabled.value || importing.value,
     onSelect() {
       importExcelInput.value?.click()
+    }
+  },
+  {
+    label: 'Импортировать реальный документ (.xls)',
+    icon: importDisabled.value ? 'i-lucide-lock' : 'i-lucide-file-text',
+    disabled: importDisabled.value || importing.value,
+    onSelect() {
+      importLegacyXlsInput.value?.click()
     }
   },
   {
@@ -45,11 +68,7 @@ const buildCreateMenu = (openCreate: () => void) => [
   }
 ]
 
-const handleImportFile = async (
-  event: Event,
-  refresh: () => void,
-  endpoint: '/directions/import-excel' | '/directions/import-json'
-) => {
+const handleImportFile = async (event: Event, refresh: () => void, endpoint: ImportEndpoint) => {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   input.value = ''
@@ -59,13 +78,23 @@ const handleImportFile = async (
 
   importing.value = true
   try {
-    const response = await apiUploadRequest<WorkflowImportSummary>(endpoint, file)
-    toast.add({
-      title: 'Импорт направлений завершён',
-      description: `Направлений: ${response.data.directions_created}, образцов: ${response.data.samples_created}, пропущено строк: ${response.data.skipped_rows}`,
-      color: response.data.errors.length ? 'warning' : 'success',
-      icon: response.data.errors.length ? 'i-lucide-triangle-alert' : 'i-lucide-circle-check'
-    })
+    if (endpoint === '/directions/import-legacy-xls') {
+      const response = await apiUploadRequest<LegacyDirectionImportSummary>(endpoint, file)
+      toast.add({
+        title: 'Импорт направления завершён',
+        description: `Образцов: ${response.data.samples_imported} из ${response.data.samples_processed}, отметок исследований: ${response.data.marks_created}, пропущено: ${response.data.skipped_samples}`,
+        color: response.data.errors.length ? 'warning' : 'success',
+        icon: response.data.errors.length ? 'i-lucide-triangle-alert' : 'i-lucide-circle-check'
+      })
+    } else {
+      const response = await apiUploadRequest<WorkflowImportSummary>(endpoint, file)
+      toast.add({
+        title: 'Импорт направлений завершён',
+        description: `Направлений: ${response.data.directions_created}, образцов: ${response.data.samples_created}, пропущено строк: ${response.data.skipped_rows}`,
+        color: response.data.errors.length ? 'warning' : 'success',
+        icon: response.data.errors.length ? 'i-lucide-triangle-alert' : 'i-lucide-circle-check'
+      })
+    }
     refresh()
   } catch (error) {
     const message = typeof error === 'object' && error !== null && 'message' in error
@@ -106,6 +135,14 @@ const handleImportFile = async (
         class="hidden"
         data-testid="import-json-input"
         @change="handleImportFile($event, refresh, '/directions/import-json')"
+      >
+      <input
+        ref="importLegacyXlsInput"
+        type="file"
+        accept=".xls"
+        class="hidden"
+        data-testid="import-legacy-xls-input"
+        @change="handleImportFile($event, refresh, '/directions/import-legacy-xls')"
       >
       <UFieldGroup>
         <UTooltip :text="createMenuDisabled ? 'Нет прав на создание или импорт' : 'Создать или импортировать'">

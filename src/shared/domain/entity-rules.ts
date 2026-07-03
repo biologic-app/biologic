@@ -1,7 +1,7 @@
 // Правила сущностей, вынесенные из per-preset веток god-компонента
 // (Open/Closed): удаление по статусу, тип карточки, запрет ручного создания.
 // Добавление сущности = строка здесь, а не новый `if (presetKey === …)`.
-export type EntityDetailKind = "directions" | "samples" | "research";
+export type EntityDetailKind = "directions" | "samples" | "research" | "protocols";
 
 export type EntityRule = {
   // Статусы, в которых запись можно удалить. undefined ⇒ удаление всегда разрешено.
@@ -34,6 +34,13 @@ export const entityRules: Record<string, EntityRule> = {
     detailKind: "research",
   },
   tests: {
+    createDisabled: true,
+  },
+  protocols: {
+    detailKind: "protocols",
+    // Протокол связывает несколько образцов одним POST /protocols
+    // (sample_ids) — создаётся через выделение образцов на /samples
+    // (см. DictionaryCrudContent.vue), не через общую форму «Создать».
     createDisabled: true,
   },
 };

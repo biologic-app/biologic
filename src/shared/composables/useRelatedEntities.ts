@@ -32,6 +32,9 @@ function relationRequest(businessKind: EntityKind | null | undefined): RelationR
   if (businessKind === "research") {
     return { endpoint: "/tests", include: "research,indicator,status", filterKey: "research_id", kind: "tests" };
   }
+  if (businessKind === "protocols") {
+    return { endpoint: "/samples", include: "sample_type,status,direction,protocol", filterKey: "protocol_id", kind: "samples" };
+  }
   return null;
 }
 

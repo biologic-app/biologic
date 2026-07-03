@@ -25,6 +25,7 @@ const canViewResearch = computed(() => auth.can("research", "view"));
 const canViewDirections = computed(() => auth.can("directions", "view"));
 const canViewSamples = computed(() => auth.can("samples", "view"));
 const canViewTests = computed(() => auth.can("tests", "view"));
+const canViewProtocols = computed(() => auth.can("protocols", "view"));
 const canViewDictionaries = computed(() =>
   dictionaryItems.some((item) => auth.can(item.key as Resource, "view")),
 );
@@ -79,6 +80,15 @@ const links = computed<NavigationMenuItem[][]>(() => [
       icon: canViewTests.value ? "i-lucide-clipboard-list" : "i-lucide-lock",
       to: { name: "tests" },
       disabled: !canViewTests.value,
+      onSelect: () => {
+        open.value = false;
+      },
+    },
+    {
+      label: t("nav.protocols"),
+      icon: canViewProtocols.value ? "i-lucide-file-check-2" : "i-lucide-lock",
+      to: { name: "protocols" },
+      disabled: !canViewProtocols.value,
       onSelect: () => {
         open.value = false;
       },

@@ -13,7 +13,7 @@ export type DetailRow = {
 
 export type RelationKind = "directions" | "samples" | "research" | "tests";
 
-export type EntityKind = "directions" | "samples" | "research";
+export type EntityKind = "directions" | "samples" | "research" | "protocols";
 
 export interface RelatedRow extends DetailRow {
   relationKind: RelationKind;

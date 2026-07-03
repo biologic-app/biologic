@@ -2,8 +2,7 @@
 import type { CrudModuleConfig, CrudRow } from '@/shared/types/crud';
 import EntityDetailDialogBase from "@/shared/ui/EntityDetailDialogBase.vue";
 import type { DetailListItem } from "@/shared/ui/EntityDetailMasterList.vue";
-
-type EntityKind = "directions" | "samples" | "research";
+import type { EntityKind } from "@/shared/ui/entity-detail.helpers";
 
 defineProps<{
   open: boolean;

@@ -11,6 +11,9 @@ const EXCEL_BASE_NO_MULTI = 900101 // 2 samples
 const EXCEL_BASE_NO_SINGLE = 900102 // 1 sample
 const JSON_BASE_NO_MULTI = 900201
 const JSON_BASE_NO_SINGLE = 900202
+// Baked into the real document's header cell ("№ 000000460") — the legacy
+// .xls parser reads it verbatim as base_no, it isn't test-controlled.
+const LEGACY_XLS_BASE_NO = 460
 
 const fixturesDir = path.join(__dirname, 'fixtures')
 
@@ -20,7 +23,8 @@ test.describe('direction import (flow #2, #3)', () => {
       EXCEL_BASE_NO_MULTI,
       EXCEL_BASE_NO_SINGLE,
       JSON_BASE_NO_MULTI,
-      JSON_BASE_NO_SINGLE
+      JSON_BASE_NO_SINGLE,
+      LEGACY_XLS_BASE_NO
     ]) {
       await cleanupDirectionsByBaseNo(request, baseNo)
     }
@@ -93,5 +97,35 @@ test.describe('direction import (flow #2, #3)', () => {
     await yearFieldRow.locator('input').fill('2027')
     await page.getByRole('button', { name: 'Сохранить' }).click()
     await expect(yearFieldRow).toContainText('2027')
+  })
+
+  test('imports a real institutional .xls direction document (legacy scanned-form layout)', async ({
+    page
+  }) => {
+    await loginAsRegistrar(page)
+    await goToDirections(page)
+
+    await page.getByTestId('direction-import-menu-trigger').click()
+    const fileChooserPromise = page.waitForEvent('filechooser')
+    await page.getByRole('menuitem', { name: 'Импортировать реальный документ (.xls)' }).click()
+    const fileChooser = await fileChooserPromise
+    await fileChooser.setFiles(path.join(fixturesDir, 'legacy-direction.xls'))
+
+    await expect(page.getByText('Импорт направления завершён').last()).toBeVisible()
+    await expect(page.getByText(/Образцов: 94 из 94/).last()).toBeVisible()
+
+    await page.getByTestId('crud-search-input').fill(String(LEGACY_XLS_BASE_NO))
+    const row = page.locator('tbody tr').filter({ hasText: String(LEGACY_XLS_BASE_NO) })
+    await expect(row.first()).toBeVisible()
+    await expect(row.first().getByText('Черновик')).toBeVisible()
+
+    await row.first().click({ button: 'right' })
+    await page.getByRole('menuitem', { name: 'Просмотр' }).click()
+    await page.getByRole('tab', { name: 'Связанные' }).click()
+    // Related tab paginates 20 rows at a time (see RELATED_PAGE_SIZE);
+    // 94 imported samples means the first page is full and "Load more" shows.
+    await expect(page.getByText('20 записей')).toBeVisible()
+    await expect(page.getByText('Грецкий орех 130 гр')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Загрузить ещё' })).toBeVisible()
   })
 })

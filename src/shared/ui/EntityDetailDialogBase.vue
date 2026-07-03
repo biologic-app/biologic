@@ -10,8 +10,10 @@ import {
   loadReferenceOptions,
 } from "@/shared/api/client.api";
 import { usePermission } from "@/shared/composables/usePermission";
+import { useAuth } from "@/modules/auth";
 import { crudModules } from "@/shared/config/crud-modules";
 import CrudFormModal from "@/shared/ui/CrudFormModal.vue";
+import ProtocolPreviewModal from "@/shared/ui/ProtocolPreviewModal.vue";
 import TechnicalAuditTimeline from "@/shared/ui/TechnicalAuditTimeline.vue";
 import EntityRelatedTab from "@/shared/ui/EntityRelatedTab.vue";
 import EntityDetailMasterList, { type DetailListItem } from "@/shared/ui/EntityDetailMasterList.vue";
@@ -83,8 +85,10 @@ const formState = reactive<Record<string, FieldValue>>({});
 const referenceOptions = ref<Record<string, Array<{ label: string; value: FieldValue }>>>({});
 const addSampleOpen = ref(false);
 const addSampleSaving = ref(false);
+const previewOpen = ref(false);
 
 const { can } = usePermission();
+const auth = useAuth();
 
 const currentItem = computed(() => detail.value ?? props.item);
 const isStatusTracked = computed(() => Boolean(props.businessKind));
@@ -116,6 +120,13 @@ const sampleCreateFields = computed(() =>
 
 function openAddSample() {
   addSampleOpen.value = true;
+}
+
+async function openPreview() {
+  if (!relatedRows.value.length) {
+    await loadRelatedRows(true);
+  }
+  previewOpen.value = true;
 }
 
 async function saveNewSample(payload: Record<string, unknown>) {
@@ -273,6 +284,15 @@ const statusHistory = computed<TimelineEvent[]>(() => {
       makeEvent("assigned", "Назначено", "Исследование прикреплено к образцу.", relationDisplayLabel(row, "research_goal"), row.created_at ?? row.received_at),
       makeEvent("started", "В работе", "Лаборатория получила исследование.", relationDisplayLabel(row, "lab"), row.received_at),
       row.completed_at ? makeEvent("completed", "Завершено", row.recommendation ? String(row.recommendation) : "Результат зафиксирован.", "process", row.completed_at) : null,
+    ]);
+  }
+
+  if (props.businessKind === "protocols") {
+    return compactEvents([
+      makeEvent("created", "Создано", "Протокол сформирован по завершённым образцам.", "registrar", row.created_at),
+      row.issued_at
+        ? makeEvent("issued", "Выдано", row.is_signed ? "Протокол подписан и выдан." : "Протокол выдан.", "process", row.issued_at)
+        : null,
     ]);
   }
 
@@ -438,9 +458,15 @@ async function saveInline() {
 
   saving.value = true;
   try {
-    const payload = Object.fromEntries(
+    const payload: Record<string, unknown> = Object.fromEntries(
       props.config.fields.map((field) => [field.key, formState[field.key] ?? null]),
     );
+    // Протокол — командная сущность: PATCH /protocols/{id} требует actor_id
+    // в теле (см. UpdateProtocolRequest), в отличие от плоского CRUD
+    // направлений/образцов.
+    if (props.businessKind === "protocols" && auth.user?.id) {
+      payload.actor_id = auth.user.id;
+    }
     const response = await apiUpdateRequest<CrudRow>(`${props.config.endpoint}/${row.id}`, {
       method: "PATCH",
       body: payload,
@@ -544,7 +570,16 @@ function close() {
                 </div>
               </div>
 
-              <div class="flex shrink-0 items-center gap-1">
+              <div class="flex shrink-0 items-center gap-2">
+                <UButton
+                  v-if="!editing && businessKind === 'protocols'"
+                  label="Предпросмотр"
+                  icon="i-lucide-file-search"
+                  color="neutral"
+                  variant="outline"
+                  size="sm"
+                  @click="openPreview"
+                />
                 <UTooltip :text="fullscreen ? 'Обычный размер' : 'На весь экран'">
                   <UButton
                     :icon="fullscreen ? 'i-lucide-minimize-2' : 'i-lucide-maximize-2'"
@@ -793,5 +828,12 @@ function close() {
     mode="create"
     :loading="addSampleSaving"
     @save="saveNewSample"
+  />
+
+  <ProtocolPreviewModal
+    v-if="businessKind === 'protocols'"
+    v-model:open="previewOpen"
+    :protocol="currentItem"
+    :samples="relatedRows"
   />
 </template>
