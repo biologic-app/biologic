@@ -27,3 +27,11 @@ export async function goToProtocols(page: Page) {
 export async function goToDashboard(page: Page) {
   await clickNavLink(page, 'Home')
 }
+
+export async function goToResearch(page: Page) {
+  await clickNavLink(page, 'Research')
+}
+
+export async function goToTests(page: Page) {
+  await clickNavLink(page, 'Tests')
+}

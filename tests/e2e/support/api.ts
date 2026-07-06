@@ -167,6 +167,57 @@ export async function closeSample(
   })
 }
 
+export async function rejectResearch(
+  request: APIRequestContext,
+  researchId: string,
+  actorId: string,
+  reason: string
+) {
+  return request.post(`${API_BASE}/research/${researchId}/reject`, {
+    data: { actor_id: actorId, reason }
+  })
+}
+
+export async function requeueTest(request: APIRequestContext, testId: string, actorId: string) {
+  return request.post(`${API_BASE}/tests/${testId}/requeue`, { data: { actor_id: actorId } })
+}
+
+export async function rejectTest(
+  request: APIRequestContext,
+  testId: string,
+  actorId: string,
+  reason: string
+) {
+  return request.post(`${API_BASE}/tests/${testId}/reject`, { data: { actor_id: actorId, reason } })
+}
+
+/** Creates a dedicated research_goal reference-data row for a fixture — used
+ * instead of `firstReferenceItem(request, 'research_goals')` when the test
+ * needs to control exactly how many indicators (and therefore how many
+ * `tests` rows) the goal produces on `assign-research`. */
+export async function createResearchGoal(
+  request: APIRequestContext,
+  payload: Record<string, unknown>
+) {
+  const response = await request.post(`${API_BASE}/research_goals`, { data: payload })
+  const body = await response.json()
+  return body.data as { id: string; code: string; name: string }
+}
+
+export async function createIndicator(request: APIRequestContext, payload: Record<string, unknown>) {
+  const response = await request.post(`${API_BASE}/indicators`, { data: payload })
+  const body = await response.json()
+  return body.data as { id: string; name: string }
+}
+
+export async function deleteResearchGoal(request: APIRequestContext, researchGoalId: string) {
+  await request.delete(`${API_BASE}/research_goals/${researchGoalId}`).catch(() => undefined)
+}
+
+export async function deleteIndicator(request: APIRequestContext, indicatorId: string) {
+  await request.delete(`${API_BASE}/indicators/${indicatorId}`).catch(() => undefined)
+}
+
 /** Drives a freshly-created sample all the way to `completed`, via the same
  * command sequence a lab technician would run — used to set up protocol
  * e2e fixtures without re-testing the research/tests workflow itself. */

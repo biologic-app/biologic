@@ -2,6 +2,7 @@ import type { Page } from '@playwright/test'
 
 export const REGISTRATOR = { username: 'registrator', password: 'registrator123' }
 export const SANITARY_INSPECTOR = { username: 'sandoctor', password: 'sandoctor123' }
+export const LAB_DOCTOR = { username: 'doctor', password: 'doctor123' }
 
 /**
  * Dismisses the first-run product tour (driver.js) and the cookie-consent
@@ -17,6 +18,22 @@ export async function dismissOnboarding(page: Page) {
     .getByRole('button', { name: 'Decline' })
     .click({ timeout: 2000 })
     .catch(() => undefined)
+
+  // The driver.js product tour (TourMenu.vue → startAutostart on mount) mounts
+  // *asynchronously*, only after the dashboard summary request resolves — so a
+  // single early Escape can fire before the tour exists and miss it entirely,
+  // leaving a full-viewport `.driver-overlay` that silently intercepts every
+  // later click (observed as nav-link clicks timing out). Give the overlay a
+  // moment to appear, then press Escape until it actually detaches.
+  const overlay = page.locator('.driver-overlay')
+  await overlay
+    .first()
+    .waitFor({ state: 'visible', timeout: 3000 })
+    .catch(() => undefined)
+  for (let attempt = 0; attempt < 12 && (await overlay.count()) > 0; attempt++) {
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(250)
+  }
 }
 
 /**
@@ -54,4 +71,9 @@ export async function loginAsRegistrar(page: Page) {
 /** Logs in through the real /login form (manual credential entry), as the sanitary inspector. */
 export async function loginAsSanitaryInspector(page: Page) {
   await loginAs(page, SANITARY_INSPECTOR)
+}
+
+/** Logs in through the real /login form (manual credential entry), as the lab doctor (ВЛ, role_key=lab_doctor). */
+export async function loginAsLabDoctor(page: Page) {
+  await loginAs(page, LAB_DOCTOR)
 }
