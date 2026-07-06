@@ -18,9 +18,15 @@ export async function createDirection(
 }
 
 export async function createSample(request: APIRequestContext, payload: Record<string, unknown>) {
-  const response = await request.post(`${API_BASE}/samples`, { data: payload })
-  const body = await response.json()
-  return body.data as { id: string; status_id: string; name: string; direction_id: string }
+  // Direct POST /samples is forbidden after the workflow refactor — a sample is
+  // created nested under its (draft) direction, and direction_id travels in the
+  // path rather than the body.
+  const { direction_id, ...body } = payload as { direction_id?: string } & Record<string, unknown>
+  const response = await request.post(`${API_BASE}/directions/${direction_id}/samples`, {
+    data: body
+  })
+  const parsed = await response.json()
+  return parsed.data as { id: string; status_id: string; name: string; direction_id: string }
 }
 
 export async function assignResearch(

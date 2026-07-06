@@ -15,6 +15,7 @@ const emit = defineEmits<{
   <UModal
     :open="open"
     title="Фильтры"
+    :dismissible="false"
     :ui="{ content: 'max-w-3xl' }"
     @update:open="emit('update:open', $event)"
   >

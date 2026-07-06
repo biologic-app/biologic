@@ -310,20 +310,6 @@ export const apiCommandRequest = async <T>(
   options: ApiRequestOptions = {}
 ) => apiRequest<ApiCommandResponse<T>>(path, options)
 
-export const apiUploadRequest = async <T>(
-  path: string,
-  file: File,
-  options: Omit<ApiRequestOptions, 'body' | 'method'> = {}
-) => {
-  const formData = new FormData()
-  formData.append('file', file)
-  return apiCommandRequest<T>(path, {
-    ...options,
-    method: 'POST',
-    body: formData
-  })
-}
-
 const REFERENCE_PAGE_SIZE = 100
 const REFERENCE_MAX_ITEMS = 5000
 

@@ -5,6 +5,11 @@ export type ClientOptions = {
 };
 
 /**
+ * AccessScopeType
+ */
+export type AccessScopeType = 'own' | 'own_lab' | 'all_labs' | 'own_branch' | 'all_branches' | 'all';
+
+/**
  * ActorRequest
  */
 export type ActorRequest = {
@@ -25,17 +30,59 @@ export type AlertCommandRequest = {
 };
 
 /**
- * AlertCommandResult
+ * AlertItem
  */
-export type AlertCommandResult = {
+export type AlertItem = {
     /**
      * Id
      */
-    id?: string | null;
+    id: string | null;
     /**
-     * Affected
+     * Kind
      */
-    affected?: number;
+    kind: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Entity Type
+     */
+    entity_type: string;
+    /**
+     * Entity Id
+     */
+    entity_id: string | null;
+    /**
+     * Source Event Type
+     */
+    source_event_type: string;
+    /**
+     * Payload
+     */
+    payload: {
+        [key: string]: unknown;
+    };
+    /**
+     * Read At
+     */
+    read_at: string | null;
+    /**
+     * Created At
+     */
+    created_at: string | null;
+    /**
+     * Target User Id
+     */
+    target_user_id: string | null;
+    /**
+     * Target Role Key
+     */
+    target_role_key: string | null;
 };
 
 /**
@@ -54,6 +101,20 @@ export type AssignResearchRequest = {
      * Comment
      */
     comment?: string | null;
+};
+
+/**
+ * Body_import_directions_api_v1_directions_import_post
+ */
+export type BodyImportDirectionsApiV1DirectionsImportPost = {
+    /**
+     * File
+     */
+    file: Blob | File;
+    /**
+     * Type
+     */
+    type: string;
 };
 
 /**
@@ -501,6 +562,17 @@ export type LabUpdateRequest = {
 };
 
 /**
+ * ListResponse[AlertItem]
+ */
+export type ListResponseAlertItem = {
+    /**
+     * Items
+     */
+    items: Array<AlertItem>;
+    meta: PageMeta;
+};
+
+/**
  * ListResponse[dict[str, object]]
  */
 export type ListResponseDictStrObject = {
@@ -511,6 +583,20 @@ export type ListResponseDictStrObject = {
         [key: string]: unknown;
     }>;
     meta: PageMeta;
+};
+
+/**
+ * LoginRequest
+ */
+export type LoginRequest = {
+    /**
+     * Username
+     */
+    username: string;
+    /**
+     * Password
+     */
+    password: string;
 };
 
 /**
@@ -700,6 +786,20 @@ export type RegisterSampleRequest = {
 };
 
 /**
+ * RejectResearchRequest
+ */
+export type RejectResearchRequest = {
+    /**
+     * Actor Id
+     */
+    actor_id: string;
+    /**
+     * Reason
+     */
+    reason: string;
+};
+
+/**
  * RejectSampleRequest
  */
 export type RejectSampleRequest = {
@@ -725,40 +825,6 @@ export type RejectTestRequest = {
      * Reason
      */
     reason: string;
-};
-
-/**
- * ResearchCreateRequest
- */
-export type ResearchCreateRequest = {
-    /**
-     * Sample Id
-     */
-    sample_id: string;
-    /**
-     * Research Goal Id
-     */
-    research_goal_id: string;
-    /**
-     * Lab Id
-     */
-    lab_id?: string | null;
-    /**
-     * Comment
-     */
-    comment?: string | null;
-    /**
-     * Recommendation
-     */
-    recommendation?: string | null;
-    /**
-     * Received At
-     */
-    received_at?: string | null;
-    /**
-     * Completed At
-     */
-    completed_at?: string | null;
 };
 
 /**
@@ -897,6 +963,17 @@ export type RoleCreateRequest = {
 };
 
 /**
+ * RolePermissionAssignmentRequest
+ */
+export type RolePermissionAssignmentRequest = {
+    /**
+     * Permission Id
+     */
+    permission_id: string;
+    scope?: AccessScopeType;
+};
+
+/**
  * RolePermissionCreateRequest
  */
 export type RolePermissionCreateRequest = {
@@ -908,6 +985,7 @@ export type RolePermissionCreateRequest = {
      * Permission Id
      */
     permission_id: string;
+    scope?: AccessScopeType;
 };
 
 /**
@@ -922,6 +1000,17 @@ export type RolePermissionUpdateRequest = {
      * Permission Id
      */
     permission_id?: string | null;
+    scope?: AccessScopeType | null;
+};
+
+/**
+ * RolePermissionsReplaceRequest
+ */
+export type RolePermissionsReplaceRequest = {
+    /**
+     * Permissions
+     */
+    permissions: Array<RolePermissionAssignmentRequest>;
 };
 
 /**
@@ -1157,10 +1246,10 @@ export type SampleUpdateRequest = {
 };
 
 /**
- * SingleResponse[AlertCommandResult]
+ * SingleResponse[AlertItem]
  */
-export type SingleResponseAlertCommandResult = {
-    data: AlertCommandResult;
+export type SingleResponseAlertItem = {
+    data: AlertItem;
     meta: ResponseMeta;
 };
 
@@ -1183,6 +1272,16 @@ export type SingleResponseDictStrObject = {
         [key: string]: unknown;
     };
     meta: ResponseMeta;
+};
+
+/**
+ * StatusUpdateRequest
+ */
+export type StatusUpdateRequest = {
+    /**
+     * Name
+     */
+    name: string;
 };
 
 /**
@@ -1293,6 +1392,31 @@ export type UserCreateRequest = {
      * Lab Id
      */
     lab_id?: string | null;
+};
+
+/**
+ * UserPermissionOverrideRequest
+ */
+export type UserPermissionOverrideRequest = {
+    /**
+     * Permission Id
+     */
+    permission_id: string;
+    /**
+     * Allowed
+     */
+    allowed: boolean;
+    scope?: AccessScopeType | null;
+};
+
+/**
+ * UserPermissionOverridesReplaceRequest
+ */
+export type UserPermissionOverridesReplaceRequest = {
+    /**
+     * Overrides
+     */
+    overrides: Array<UserPermissionOverrideRequest>;
 };
 
 /**
@@ -1450,6 +1574,10 @@ export type ListDirectionsApiV1DirectionsGetData = {
          */
         filters?: string | null;
         /**
+         * Search
+         */
+        search?: string | null;
+        /**
          * Include
          */
         include?: string | null;
@@ -1590,6 +1718,61 @@ export type UpdateDirectionApiV1DirectionsDirectionIdPatchResponses = {
 
 export type UpdateDirectionApiV1DirectionsDirectionIdPatchResponse = UpdateDirectionApiV1DirectionsDirectionIdPatchResponses[keyof UpdateDirectionApiV1DirectionsDirectionIdPatchResponses];
 
+export type ImportDirectionsApiV1DirectionsImportPostData = {
+    body: BodyImportDirectionsApiV1DirectionsImportPost;
+    path?: never;
+    query?: never;
+    url: '/api/v1/directions/import';
+};
+
+export type ImportDirectionsApiV1DirectionsImportPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ImportDirectionsApiV1DirectionsImportPostError = ImportDirectionsApiV1DirectionsImportPostErrors[keyof ImportDirectionsApiV1DirectionsImportPostErrors];
+
+export type ImportDirectionsApiV1DirectionsImportPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SingleResponseDictStrObject;
+};
+
+export type ImportDirectionsApiV1DirectionsImportPostResponse = ImportDirectionsApiV1DirectionsImportPostResponses[keyof ImportDirectionsApiV1DirectionsImportPostResponses];
+
+export type AddDirectionSampleApiV1DirectionsDirectionIdSamplesPostData = {
+    body: SampleCreateRequest;
+    path: {
+        /**
+         * Direction Id
+         */
+        direction_id: string;
+    };
+    query?: never;
+    url: '/api/v1/directions/{direction_id}/samples';
+};
+
+export type AddDirectionSampleApiV1DirectionsDirectionIdSamplesPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AddDirectionSampleApiV1DirectionsDirectionIdSamplesPostError = AddDirectionSampleApiV1DirectionsDirectionIdSamplesPostErrors[keyof AddDirectionSampleApiV1DirectionsDirectionIdSamplesPostErrors];
+
+export type AddDirectionSampleApiV1DirectionsDirectionIdSamplesPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: SingleResponseDictStrObject;
+};
+
+export type AddDirectionSampleApiV1DirectionsDirectionIdSamplesPostResponse = AddDirectionSampleApiV1DirectionsDirectionIdSamplesPostResponses[keyof AddDirectionSampleApiV1DirectionsDirectionIdSamplesPostResponses];
+
 export type ListSamplesApiV1SamplesGetData = {
     body?: never;
     path?: never;
@@ -1615,6 +1798,10 @@ export type ListSamplesApiV1SamplesGetData = {
          */
         filters?: string | null;
         /**
+         * Search
+         */
+        search?: string | null;
+        /**
          * Include
          */
         include?: string | null;
@@ -1639,31 +1826,6 @@ export type ListSamplesApiV1SamplesGetResponses = {
 };
 
 export type ListSamplesApiV1SamplesGetResponse = ListSamplesApiV1SamplesGetResponses[keyof ListSamplesApiV1SamplesGetResponses];
-
-export type CreateSampleApiV1SamplesPostData = {
-    body: SampleCreateRequest;
-    path?: never;
-    query?: never;
-    url: '/api/v1/samples';
-};
-
-export type CreateSampleApiV1SamplesPostErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type CreateSampleApiV1SamplesPostError = CreateSampleApiV1SamplesPostErrors[keyof CreateSampleApiV1SamplesPostErrors];
-
-export type CreateSampleApiV1SamplesPostResponses = {
-    /**
-     * Successful Response
-     */
-    201: SingleResponseDictStrObject;
-};
-
-export type CreateSampleApiV1SamplesPostResponse = CreateSampleApiV1SamplesPostResponses[keyof CreateSampleApiV1SamplesPostResponses];
 
 export type DeleteSampleApiV1SamplesSampleIdDeleteData = {
     body?: never;
@@ -1780,6 +1942,10 @@ export type ListResearchApiV1ResearchGetData = {
          */
         filters?: string | null;
         /**
+         * Search
+         */
+        search?: string | null;
+        /**
          * Include
          */
         include?: string | null;
@@ -1804,31 +1970,6 @@ export type ListResearchApiV1ResearchGetResponses = {
 };
 
 export type ListResearchApiV1ResearchGetResponse = ListResearchApiV1ResearchGetResponses[keyof ListResearchApiV1ResearchGetResponses];
-
-export type CreateResearchApiV1ResearchPostData = {
-    body: ResearchCreateRequest;
-    path?: never;
-    query?: never;
-    url: '/api/v1/research';
-};
-
-export type CreateResearchApiV1ResearchPostErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type CreateResearchApiV1ResearchPostError = CreateResearchApiV1ResearchPostErrors[keyof CreateResearchApiV1ResearchPostErrors];
-
-export type CreateResearchApiV1ResearchPostResponses = {
-    /**
-     * Successful Response
-     */
-    201: SingleResponseDictStrObject;
-};
-
-export type CreateResearchApiV1ResearchPostResponse = CreateResearchApiV1ResearchPostResponses[keyof CreateResearchApiV1ResearchPostResponses];
 
 export type DeleteResearchApiV1ResearchResearchIdDeleteData = {
     body?: never;
@@ -1945,6 +2086,10 @@ export type ListTestsApiV1TestsGetData = {
          */
         filters?: string | null;
         /**
+         * Search
+         */
+        search?: string | null;
+        /**
          * Include
          */
         include?: string | null;
@@ -1969,20 +2114,6 @@ export type ListTestsApiV1TestsGetResponses = {
 };
 
 export type ListTestsApiV1TestsGetResponse = ListTestsApiV1TestsGetResponses[keyof ListTestsApiV1TestsGetResponses];
-
-export type CreateTestApiV1TestsPostData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/api/v1/tests';
-};
-
-export type CreateTestApiV1TestsPostErrors = {
-    /**
-     * Successful Response
-     */
-    409: unknown;
-};
 
 export type DeleteTestApiV1TestsTestIdDeleteData = {
     body?: never;
@@ -2098,6 +2229,10 @@ export type ListProtocolsApiV1ProtocolsGetData = {
          * Filters
          */
         filters?: string | null;
+        /**
+         * Search
+         */
+        search?: string | null;
         /**
          * Include
          */
@@ -2419,6 +2554,36 @@ export type ConfirmResearchApiV1ResearchResearchIdConfirmPostResponses = {
 
 export type ConfirmResearchApiV1ResearchResearchIdConfirmPostResponse = ConfirmResearchApiV1ResearchResearchIdConfirmPostResponses[keyof ConfirmResearchApiV1ResearchResearchIdConfirmPostResponses];
 
+export type RejectResearchApiV1ResearchResearchIdRejectPostData = {
+    body: RejectResearchRequest;
+    path: {
+        /**
+         * Research Id
+         */
+        research_id: string;
+    };
+    query?: never;
+    url: '/api/v1/research/{research_id}/reject';
+};
+
+export type RejectResearchApiV1ResearchResearchIdRejectPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RejectResearchApiV1ResearchResearchIdRejectPostError = RejectResearchApiV1ResearchResearchIdRejectPostErrors[keyof RejectResearchApiV1ResearchResearchIdRejectPostErrors];
+
+export type RejectResearchApiV1ResearchResearchIdRejectPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SingleResponseCommandResult;
+};
+
+export type RejectResearchApiV1ResearchResearchIdRejectPostResponse = RejectResearchApiV1ResearchResearchIdRejectPostResponses[keyof RejectResearchApiV1ResearchResearchIdRejectPostResponses];
+
 export type StartResearchApiV1ResearchResearchIdStartPostData = {
     body: ActorRequest;
     path: {
@@ -2599,10 +2764,52 @@ export type IssueProtocolApiV1ProtocolsProtocolIdIssuePostResponses = {
 
 export type IssueProtocolApiV1ProtocolsProtocolIdIssuePostResponse = IssueProtocolApiV1ProtocolsProtocolIdIssuePostResponses[keyof IssueProtocolApiV1ProtocolsProtocolIdIssuePostResponses];
 
+export type DashboardSummaryApiV1DashboardSummaryGetData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Date From
+         */
+        date_from: string;
+        /**
+         * Date To
+         */
+        date_to: string;
+        /**
+         * Period
+         */
+        period?: 'daily' | 'weekly' | 'monthly';
+    };
+    url: '/api/v1/dashboard/summary';
+};
+
+export type DashboardSummaryApiV1DashboardSummaryGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DashboardSummaryApiV1DashboardSummaryGetError = DashboardSummaryApiV1DashboardSummaryGetErrors[keyof DashboardSummaryApiV1DashboardSummaryGetErrors];
+
+export type DashboardSummaryApiV1DashboardSummaryGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: SingleResponseDictStrObject;
+};
+
+export type DashboardSummaryApiV1DashboardSummaryGetResponse = DashboardSummaryApiV1DashboardSummaryGetResponses[keyof DashboardSummaryApiV1DashboardSummaryGetResponses];
+
 export type ListAlertsApiV1AlertsGetData = {
     body?: never;
     path?: never;
     query?: {
+        /**
+         * Status
+         */
+        status?: 'unread' | 'read' | 'all';
         /**
          * Limit
          */
@@ -2624,6 +2831,10 @@ export type ListAlertsApiV1AlertsGetData = {
          */
         filters?: string | null;
         /**
+         * Search
+         */
+        search?: string | null;
+        /**
          * Include
          */
         include?: string | null;
@@ -2644,7 +2855,7 @@ export type ListAlertsApiV1AlertsGetResponses = {
     /**
      * Successful Response
      */
-    200: ListResponseDictStrObject;
+    200: ListResponseAlertItem;
 };
 
 export type ListAlertsApiV1AlertsGetResponse = ListAlertsApiV1AlertsGetResponses[keyof ListAlertsApiV1AlertsGetResponses];
@@ -2674,65 +2885,81 @@ export type MarkAlertReadApiV1AlertsAlertIdMarkReadPostResponses = {
     /**
      * Successful Response
      */
-    200: SingleResponseAlertCommandResult;
+    200: SingleResponseAlertItem;
 };
 
 export type MarkAlertReadApiV1AlertsAlertIdMarkReadPostResponse = MarkAlertReadApiV1AlertsAlertIdMarkReadPostResponses[keyof MarkAlertReadApiV1AlertsAlertIdMarkReadPostResponses];
 
-export type HideAlertApiV1AlertsAlertIdHidePostData = {
-    body: AlertCommandRequest;
-    path: {
-        /**
-         * Alert Id
-         */
-        alert_id: string;
-    };
-    query?: never;
-    url: '/api/v1/alerts/{alert_id}/hide';
-};
-
-export type HideAlertApiV1AlertsAlertIdHidePostErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type HideAlertApiV1AlertsAlertIdHidePostError = HideAlertApiV1AlertsAlertIdHidePostErrors[keyof HideAlertApiV1AlertsAlertIdHidePostErrors];
-
-export type HideAlertApiV1AlertsAlertIdHidePostResponses = {
-    /**
-     * Successful Response
-     */
-    200: SingleResponseAlertCommandResult;
-};
-
-export type HideAlertApiV1AlertsAlertIdHidePostResponse = HideAlertApiV1AlertsAlertIdHidePostResponses[keyof HideAlertApiV1AlertsAlertIdHidePostResponses];
-
-export type MarkAllAlertsReadApiV1AlertsMarkAllReadPostData = {
-    body: AlertCommandRequest;
+export type StreamAlertsApiV1AlertsStreamGetData = {
+    body?: never;
     path?: never;
     query?: never;
-    url: '/api/v1/alerts/mark-all-read';
+    url: '/api/v1/alerts/stream';
 };
 
-export type MarkAllAlertsReadApiV1AlertsMarkAllReadPostErrors = {
+export type StreamAlertsApiV1AlertsStreamGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type LoginApiV1AuthLoginPostData = {
+    body: LoginRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/auth/login';
+};
+
+export type LoginApiV1AuthLoginPostErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type MarkAllAlertsReadApiV1AlertsMarkAllReadPostError = MarkAllAlertsReadApiV1AlertsMarkAllReadPostErrors[keyof MarkAllAlertsReadApiV1AlertsMarkAllReadPostErrors];
+export type LoginApiV1AuthLoginPostError = LoginApiV1AuthLoginPostErrors[keyof LoginApiV1AuthLoginPostErrors];
 
-export type MarkAllAlertsReadApiV1AlertsMarkAllReadPostResponses = {
+export type LoginApiV1AuthLoginPostResponses = {
     /**
      * Successful Response
      */
-    200: SingleResponseAlertCommandResult;
+    200: SingleResponseDictStrObject;
 };
 
-export type MarkAllAlertsReadApiV1AlertsMarkAllReadPostResponse = MarkAllAlertsReadApiV1AlertsMarkAllReadPostResponses[keyof MarkAllAlertsReadApiV1AlertsMarkAllReadPostResponses];
+export type LoginApiV1AuthLoginPostResponse = LoginApiV1AuthLoginPostResponses[keyof LoginApiV1AuthLoginPostResponses];
+
+export type MeApiV1AuthMeGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/auth/me';
+};
+
+export type MeApiV1AuthMeGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: SingleResponseDictStrObject;
+};
+
+export type MeApiV1AuthMeGetResponse = MeApiV1AuthMeGetResponses[keyof MeApiV1AuthMeGetResponses];
+
+export type LogoutApiV1AuthLogoutPostData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/auth/logout';
+};
+
+export type LogoutApiV1AuthLogoutPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SingleResponseDictStrObject;
+};
+
+export type LogoutApiV1AuthLogoutPostResponse = LogoutApiV1AuthLogoutPostResponses[keyof LogoutApiV1AuthLogoutPostResponses];
 
 export type ListUsersApiV1UsersGetData = {
     body?: never;
@@ -2758,6 +2985,10 @@ export type ListUsersApiV1UsersGetData = {
          * Filters
          */
         filters?: string | null;
+        /**
+         * Search
+         */
+        search?: string | null;
         /**
          * Include
          */
@@ -2899,6 +3130,127 @@ export type UpdateUserApiV1UsersUserIdPatchResponses = {
 
 export type UpdateUserApiV1UsersUserIdPatchResponse = UpdateUserApiV1UsersUserIdPatchResponses[keyof UpdateUserApiV1UsersUserIdPatchResponses];
 
+export type ReadUserPermissionsApiV1UsersUserIdPermissionsGetData = {
+    body?: never;
+    path: {
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/v1/users/{user_id}/permissions';
+};
+
+export type ReadUserPermissionsApiV1UsersUserIdPermissionsGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadUserPermissionsApiV1UsersUserIdPermissionsGetError = ReadUserPermissionsApiV1UsersUserIdPermissionsGetErrors[keyof ReadUserPermissionsApiV1UsersUserIdPermissionsGetErrors];
+
+export type ReadUserPermissionsApiV1UsersUserIdPermissionsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: SingleResponseDictStrObject;
+};
+
+export type ReadUserPermissionsApiV1UsersUserIdPermissionsGetResponse = ReadUserPermissionsApiV1UsersUserIdPermissionsGetResponses[keyof ReadUserPermissionsApiV1UsersUserIdPermissionsGetResponses];
+
+export type ReadCurrentUserPermissionsApiV1UserMePermissionsGetData = {
+    body?: never;
+    headers: {
+        /**
+         * X-Actor-Id
+         */
+        'X-Actor-Id': string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/user/me/permissions';
+};
+
+export type ReadCurrentUserPermissionsApiV1UserMePermissionsGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadCurrentUserPermissionsApiV1UserMePermissionsGetError = ReadCurrentUserPermissionsApiV1UserMePermissionsGetErrors[keyof ReadCurrentUserPermissionsApiV1UserMePermissionsGetErrors];
+
+export type ReadCurrentUserPermissionsApiV1UserMePermissionsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: SingleResponseDictStrObject;
+};
+
+export type ReadCurrentUserPermissionsApiV1UserMePermissionsGetResponse = ReadCurrentUserPermissionsApiV1UserMePermissionsGetResponses[keyof ReadCurrentUserPermissionsApiV1UserMePermissionsGetResponses];
+
+export type ReadUserPermissionOverridesApiV1UsersUserIdOverridesGetData = {
+    body?: never;
+    path: {
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/v1/users/{user_id}/overrides';
+};
+
+export type ReadUserPermissionOverridesApiV1UsersUserIdOverridesGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadUserPermissionOverridesApiV1UsersUserIdOverridesGetError = ReadUserPermissionOverridesApiV1UsersUserIdOverridesGetErrors[keyof ReadUserPermissionOverridesApiV1UsersUserIdOverridesGetErrors];
+
+export type ReadUserPermissionOverridesApiV1UsersUserIdOverridesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: SingleResponseDictStrObject;
+};
+
+export type ReadUserPermissionOverridesApiV1UsersUserIdOverridesGetResponse = ReadUserPermissionOverridesApiV1UsersUserIdOverridesGetResponses[keyof ReadUserPermissionOverridesApiV1UsersUserIdOverridesGetResponses];
+
+export type ReplaceUserPermissionOverridesApiV1UsersUserIdOverridesPutData = {
+    body: UserPermissionOverridesReplaceRequest;
+    path: {
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/v1/users/{user_id}/overrides';
+};
+
+export type ReplaceUserPermissionOverridesApiV1UsersUserIdOverridesPutErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReplaceUserPermissionOverridesApiV1UsersUserIdOverridesPutError = ReplaceUserPermissionOverridesApiV1UsersUserIdOverridesPutErrors[keyof ReplaceUserPermissionOverridesApiV1UsersUserIdOverridesPutErrors];
+
+export type ReplaceUserPermissionOverridesApiV1UsersUserIdOverridesPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: SingleResponseDictStrObject;
+};
+
+export type ReplaceUserPermissionOverridesApiV1UsersUserIdOverridesPutResponse = ReplaceUserPermissionOverridesApiV1UsersUserIdOverridesPutResponses[keyof ReplaceUserPermissionOverridesApiV1UsersUserIdOverridesPutResponses];
+
 export type ListRolesApiV1RolesGetData = {
     body?: never;
     path?: never;
@@ -2923,6 +3275,10 @@ export type ListRolesApiV1RolesGetData = {
          * Filters
          */
         filters?: string | null;
+        /**
+         * Search
+         */
+        search?: string | null;
         /**
          * Include
          */
@@ -3064,6 +3420,66 @@ export type UpdateRoleApiV1RolesRoleIdPatchResponses = {
 
 export type UpdateRoleApiV1RolesRoleIdPatchResponse = UpdateRoleApiV1RolesRoleIdPatchResponses[keyof UpdateRoleApiV1RolesRoleIdPatchResponses];
 
+export type ReadRolePermissionsApiV1RolesRoleIdPermissionsGetData = {
+    body?: never;
+    path: {
+        /**
+         * Role Id
+         */
+        role_id: string;
+    };
+    query?: never;
+    url: '/api/v1/roles/{role_id}/permissions';
+};
+
+export type ReadRolePermissionsApiV1RolesRoleIdPermissionsGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadRolePermissionsApiV1RolesRoleIdPermissionsGetError = ReadRolePermissionsApiV1RolesRoleIdPermissionsGetErrors[keyof ReadRolePermissionsApiV1RolesRoleIdPermissionsGetErrors];
+
+export type ReadRolePermissionsApiV1RolesRoleIdPermissionsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: SingleResponseDictStrObject;
+};
+
+export type ReadRolePermissionsApiV1RolesRoleIdPermissionsGetResponse = ReadRolePermissionsApiV1RolesRoleIdPermissionsGetResponses[keyof ReadRolePermissionsApiV1RolesRoleIdPermissionsGetResponses];
+
+export type ReplaceRolePermissionsApiV1RolesRoleIdPermissionsPutData = {
+    body: RolePermissionsReplaceRequest;
+    path: {
+        /**
+         * Role Id
+         */
+        role_id: string;
+    };
+    query?: never;
+    url: '/api/v1/roles/{role_id}/permissions';
+};
+
+export type ReplaceRolePermissionsApiV1RolesRoleIdPermissionsPutErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReplaceRolePermissionsApiV1RolesRoleIdPermissionsPutError = ReplaceRolePermissionsApiV1RolesRoleIdPermissionsPutErrors[keyof ReplaceRolePermissionsApiV1RolesRoleIdPermissionsPutErrors];
+
+export type ReplaceRolePermissionsApiV1RolesRoleIdPermissionsPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: SingleResponseDictStrObject;
+};
+
+export type ReplaceRolePermissionsApiV1RolesRoleIdPermissionsPutResponse = ReplaceRolePermissionsApiV1RolesRoleIdPermissionsPutResponses[keyof ReplaceRolePermissionsApiV1RolesRoleIdPermissionsPutResponses];
+
 export type ListPermissionsApiV1PermissionsGetData = {
     body?: never;
     path?: never;
@@ -3088,6 +3504,10 @@ export type ListPermissionsApiV1PermissionsGetData = {
          * Filters
          */
         filters?: string | null;
+        /**
+         * Search
+         */
+        search?: string | null;
         /**
          * Include
          */
@@ -3254,6 +3674,10 @@ export type ListRolePermissionsApiV1RolePermissionsGetData = {
          */
         filters?: string | null;
         /**
+         * Search
+         */
+        search?: string | null;
+        /**
          * Include
          */
         include?: string | null;
@@ -3418,6 +3842,10 @@ export type ListUserScopesApiV1UserScopesGetData = {
          * Filters
          */
         filters?: string | null;
+        /**
+         * Search
+         */
+        search?: string | null;
         /**
          * Include
          */
@@ -3584,6 +4012,10 @@ export type ListHistoryApiV1HistoryGetData = {
          */
         filters?: string | null;
         /**
+         * Search
+         */
+        search?: string | null;
+        /**
          * Include
          */
         include?: string | null;
@@ -3663,6 +4095,10 @@ export type ListBranchesApiV1BranchesGetData = {
          * Filters
          */
         filters?: string | null;
+        /**
+         * Search
+         */
+        search?: string | null;
         /**
          * Include
          */
@@ -3829,6 +4265,10 @@ export type ListLabsApiV1LabsGetData = {
          */
         filters?: string | null;
         /**
+         * Search
+         */
+        search?: string | null;
+        /**
          * Include
          */
         include?: string | null;
@@ -3993,6 +4433,10 @@ export type ListObjectsApiV1ObjectsGetData = {
          * Filters
          */
         filters?: string | null;
+        /**
+         * Search
+         */
+        search?: string | null;
         /**
          * Include
          */
@@ -4159,6 +4603,10 @@ export type ListDoctorsApiV1DoctorsGetData = {
          */
         filters?: string | null;
         /**
+         * Search
+         */
+        search?: string | null;
+        /**
          * Include
          */
         include?: string | null;
@@ -4323,6 +4771,10 @@ export type ListSampleTypesApiV1SampleTypesGetData = {
          * Filters
          */
         filters?: string | null;
+        /**
+         * Search
+         */
+        search?: string | null;
         /**
          * Include
          */
@@ -4489,6 +4941,10 @@ export type ListResearchGoalsApiV1ResearchGoalsGetData = {
          */
         filters?: string | null;
         /**
+         * Search
+         */
+        search?: string | null;
+        /**
          * Include
          */
         include?: string | null;
@@ -4653,6 +5109,10 @@ export type ListIndicatorsApiV1IndicatorsGetData = {
          * Filters
          */
         filters?: string | null;
+        /**
+         * Search
+         */
+        search?: string | null;
         /**
          * Include
          */
@@ -4819,6 +5279,10 @@ export type ListConclusionsApiV1ConclusionsGetData = {
          */
         filters?: string | null;
         /**
+         * Search
+         */
+        search?: string | null;
+        /**
          * Include
          */
         include?: string | null;
@@ -4983,6 +5447,10 @@ export type ListProtocolTypesApiV1ProtocolTypesGetData = {
          * Filters
          */
         filters?: string | null;
+        /**
+         * Search
+         */
+        search?: string | null;
         /**
          * Include
          */
@@ -5149,6 +5617,10 @@ export type ListDirectionStatusesApiV1DirectionStatusesGetData = {
          */
         filters?: string | null;
         /**
+         * Search
+         */
+        search?: string | null;
+        /**
          * Include
          */
         include?: string | null;
@@ -5244,7 +5716,7 @@ export type ReadDirectionStatusApiV1DirectionStatusesItemIdGetResponses = {
 export type ReadDirectionStatusApiV1DirectionStatusesItemIdGetResponse = ReadDirectionStatusApiV1DirectionStatusesItemIdGetResponses[keyof ReadDirectionStatusApiV1DirectionStatusesItemIdGetResponses];
 
 export type UpdateDirectionStatusApiV1DirectionStatusesItemIdPatchData = {
-    body?: never;
+    body: StatusUpdateRequest;
     path: {
         /**
          * Item Id
@@ -5257,16 +5729,21 @@ export type UpdateDirectionStatusApiV1DirectionStatusesItemIdPatchData = {
 
 export type UpdateDirectionStatusApiV1DirectionStatusesItemIdPatchErrors = {
     /**
-     * Successful Response
-     */
-    409: unknown;
-    /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
 export type UpdateDirectionStatusApiV1DirectionStatusesItemIdPatchError = UpdateDirectionStatusApiV1DirectionStatusesItemIdPatchErrors[keyof UpdateDirectionStatusApiV1DirectionStatusesItemIdPatchErrors];
+
+export type UpdateDirectionStatusApiV1DirectionStatusesItemIdPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: SingleResponseDictStrObject;
+};
+
+export type UpdateDirectionStatusApiV1DirectionStatusesItemIdPatchResponse = UpdateDirectionStatusApiV1DirectionStatusesItemIdPatchResponses[keyof UpdateDirectionStatusApiV1DirectionStatusesItemIdPatchResponses];
 
 export type ListSampleStatusesApiV1SampleStatusesGetData = {
     body?: never;
@@ -5292,6 +5769,10 @@ export type ListSampleStatusesApiV1SampleStatusesGetData = {
          * Filters
          */
         filters?: string | null;
+        /**
+         * Search
+         */
+        search?: string | null;
         /**
          * Include
          */
@@ -5388,7 +5869,7 @@ export type ReadSampleStatusApiV1SampleStatusesItemIdGetResponses = {
 export type ReadSampleStatusApiV1SampleStatusesItemIdGetResponse = ReadSampleStatusApiV1SampleStatusesItemIdGetResponses[keyof ReadSampleStatusApiV1SampleStatusesItemIdGetResponses];
 
 export type UpdateSampleStatusApiV1SampleStatusesItemIdPatchData = {
-    body?: never;
+    body: StatusUpdateRequest;
     path: {
         /**
          * Item Id
@@ -5401,16 +5882,21 @@ export type UpdateSampleStatusApiV1SampleStatusesItemIdPatchData = {
 
 export type UpdateSampleStatusApiV1SampleStatusesItemIdPatchErrors = {
     /**
-     * Successful Response
-     */
-    409: unknown;
-    /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
 export type UpdateSampleStatusApiV1SampleStatusesItemIdPatchError = UpdateSampleStatusApiV1SampleStatusesItemIdPatchErrors[keyof UpdateSampleStatusApiV1SampleStatusesItemIdPatchErrors];
+
+export type UpdateSampleStatusApiV1SampleStatusesItemIdPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: SingleResponseDictStrObject;
+};
+
+export type UpdateSampleStatusApiV1SampleStatusesItemIdPatchResponse = UpdateSampleStatusApiV1SampleStatusesItemIdPatchResponses[keyof UpdateSampleStatusApiV1SampleStatusesItemIdPatchResponses];
 
 export type ListResearchStatusesApiV1ResearchStatusesGetData = {
     body?: never;
@@ -5436,6 +5922,10 @@ export type ListResearchStatusesApiV1ResearchStatusesGetData = {
          * Filters
          */
         filters?: string | null;
+        /**
+         * Search
+         */
+        search?: string | null;
         /**
          * Include
          */
@@ -5532,7 +6022,7 @@ export type ReadResearchStatusApiV1ResearchStatusesItemIdGetResponses = {
 export type ReadResearchStatusApiV1ResearchStatusesItemIdGetResponse = ReadResearchStatusApiV1ResearchStatusesItemIdGetResponses[keyof ReadResearchStatusApiV1ResearchStatusesItemIdGetResponses];
 
 export type UpdateResearchStatusApiV1ResearchStatusesItemIdPatchData = {
-    body?: never;
+    body: StatusUpdateRequest;
     path: {
         /**
          * Item Id
@@ -5545,16 +6035,21 @@ export type UpdateResearchStatusApiV1ResearchStatusesItemIdPatchData = {
 
 export type UpdateResearchStatusApiV1ResearchStatusesItemIdPatchErrors = {
     /**
-     * Successful Response
-     */
-    409: unknown;
-    /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
 export type UpdateResearchStatusApiV1ResearchStatusesItemIdPatchError = UpdateResearchStatusApiV1ResearchStatusesItemIdPatchErrors[keyof UpdateResearchStatusApiV1ResearchStatusesItemIdPatchErrors];
+
+export type UpdateResearchStatusApiV1ResearchStatusesItemIdPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: SingleResponseDictStrObject;
+};
+
+export type UpdateResearchStatusApiV1ResearchStatusesItemIdPatchResponse = UpdateResearchStatusApiV1ResearchStatusesItemIdPatchResponses[keyof UpdateResearchStatusApiV1ResearchStatusesItemIdPatchResponses];
 
 export type ListTestStatusesApiV1TestStatusesGetData = {
     body?: never;
@@ -5580,6 +6075,10 @@ export type ListTestStatusesApiV1TestStatusesGetData = {
          * Filters
          */
         filters?: string | null;
+        /**
+         * Search
+         */
+        search?: string | null;
         /**
          * Include
          */
@@ -5676,7 +6175,7 @@ export type ReadTestStatusApiV1TestStatusesItemIdGetResponses = {
 export type ReadTestStatusApiV1TestStatusesItemIdGetResponse = ReadTestStatusApiV1TestStatusesItemIdGetResponses[keyof ReadTestStatusApiV1TestStatusesItemIdGetResponses];
 
 export type UpdateTestStatusApiV1TestStatusesItemIdPatchData = {
-    body?: never;
+    body: StatusUpdateRequest;
     path: {
         /**
          * Item Id
@@ -5689,13 +6188,18 @@ export type UpdateTestStatusApiV1TestStatusesItemIdPatchData = {
 
 export type UpdateTestStatusApiV1TestStatusesItemIdPatchErrors = {
     /**
-     * Successful Response
-     */
-    409: unknown;
-    /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
 export type UpdateTestStatusApiV1TestStatusesItemIdPatchError = UpdateTestStatusApiV1TestStatusesItemIdPatchErrors[keyof UpdateTestStatusApiV1TestStatusesItemIdPatchErrors];
+
+export type UpdateTestStatusApiV1TestStatusesItemIdPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: SingleResponseDictStrObject;
+};
+
+export type UpdateTestStatusApiV1TestStatusesItemIdPatchResponse = UpdateTestStatusApiV1TestStatusesItemIdPatchResponses[keyof UpdateTestStatusApiV1TestStatusesItemIdPatchResponses];

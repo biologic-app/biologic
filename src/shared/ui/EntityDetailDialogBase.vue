@@ -11,8 +11,6 @@ import {
 } from "@/shared/api/client.api";
 import { usePermission } from "@/shared/composables/usePermission";
 import { useAuth } from "@/modules/auth";
-import { crudModules } from "@/shared/config/crud-modules";
-import CrudFormModal from "@/shared/ui/CrudFormModal.vue";
 import ProtocolPreviewModal from "@/shared/ui/ProtocolPreviewModal.vue";
 import TechnicalAuditTimeline from "@/shared/ui/TechnicalAuditTimeline.vue";
 import EntityRelatedTab from "@/shared/ui/EntityRelatedTab.vue";
@@ -52,21 +50,50 @@ type CrudRow = {
 type FieldValue = string | number | boolean | null;
 type TimelineEvent = DetailTimelineEvent;
 
-const props = defineProps<{
-  open: boolean;
-  config: CrudModuleConfig;
-  item: CrudRow | null;
-  businessKind?: EntityKind | null;
-  listItems?: DetailListItem[];
-  selectedId?: string | number | null;
-  listHasMore?: boolean;
-  listLoadingMore?: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    open: boolean;
+    config: CrudModuleConfig;
+    item: CrudRow | null;
+    businessKind?: EntityKind | null;
+    listItems?: DetailListItem[];
+    listLabel?: string;
+    selectedId?: string | number | null;
+    listHasMore?: boolean;
+    listLoadingMore?: boolean;
+    // "create" открывает карточку как форму создания новой записи (без чтения
+    // с бэкенда, сразу в editing), "view" — обычный просмотр существующей.
+    mode?: "view" | "create";
+    // Открыть карточку существующей записи сразу в режиме редактирования
+    // (точка входа "Редактировать" из таблицы).
+    startInEdit?: boolean;
+    // Предзаполненные значения полей для create-режима (например direction_id
+    // при создании образца из карточки родительского направления).
+    initialValues?: Record<string, unknown> | null;
+    // Хлебные крошки стека открытых карточек (см. DictionaryCrudContent).
+    // Показываются всегда, когда карточка открыта (даже одна крошка).
+    breadcrumbs?: Array<{ label: string }>;
+  }>(),
+  {
+    businessKind: null,
+    listItems: undefined,
+    listLabel: "",
+    selectedId: null,
+    listHasMore: false,
+    listLoadingMore: false,
+    mode: "view",
+    startInEdit: false,
+    initialValues: null,
+    breadcrumbs: () => [],
+  },
+);
 
 const emit = defineEmits<{
   (event: "update:open", value: boolean): void;
   (event: "saved", item: CrudRow): void;
   (event: "open-related", payload: { kind: EntityKind; item: CrudRow }): void;
+  (event: "create-related", payload: { kind: EntityKind }): void;
+  (event: "go-to-level", index: number): void;
   (event: "select", id: string | number): void;
   (event: "list-load-more"): void;
 }>();
@@ -79,19 +106,26 @@ const loading = ref(false);
 const saving = ref(false);
 const testsSaving = ref(false);
 const editing = ref(false);
-const fullscreen = ref(false);
+const fullscreen = ref(true);
 const loadError = ref<string | null>(null);
 const formState = reactive<Record<string, FieldValue>>({});
 const referenceOptions = ref<Record<string, Array<{ label: string; value: FieldValue }>>>({});
-const addSampleOpen = ref(false);
-const addSampleSaving = ref(false);
 const previewOpen = ref(false);
 
 const { can } = usePermission();
 const auth = useAuth();
+const toast = useToast();
 
-const currentItem = computed(() => detail.value ?? props.item);
-const isStatusTracked = computed(() => Boolean(props.businessKind));
+// Режим определяется внутренне: после успешного создания карточка сама
+// переключается в "view" на только что созданную запись (prop mode неизменен).
+const internalMode = ref<"view" | "create">("view");
+const isCreate = computed(() => internalMode.value === "create");
+
+const currentItem = computed<CrudRow | null>(() => {
+  if (isCreate.value) return detail.value ?? ({ id: "" } as CrudRow);
+  return detail.value ?? props.item;
+});
+const isStatusTracked = computed(() => Boolean(props.businessKind) && !isCreate.value);
 
 // Read-only roles (e.g. sanitary_inspector) must not see an edit affordance
 // here even though the row context menu already disables its own
@@ -110,40 +144,18 @@ const canAddSampleToDirection = computed(() => {
   const statusCode =
     status && typeof status === "object" ? (status as { code?: string }).code : undefined;
   return (
-    props.businessKind === "directions" && statusCode === "draft" && can("samples", "create")
+    !isCreate.value
+    && props.businessKind === "directions"
+    && statusCode === "draft"
+    && can("samples", "create")
   );
 });
-
-const sampleCreateFields = computed(() =>
-  crudModules.samples.fields.filter((field) => field.key !== "direction_id"),
-);
-
-function openAddSample() {
-  addSampleOpen.value = true;
-}
 
 async function openPreview() {
   if (!relatedRows.value.length) {
     await loadRelatedRows(true);
   }
   previewOpen.value = true;
-}
-
-async function saveNewSample(payload: Record<string, unknown>) {
-  const row = currentItem.value;
-  if (!row) return;
-
-  addSampleSaving.value = true;
-  try {
-    await apiCreateRequest("/samples", {
-      method: "POST",
-      body: { ...payload, direction_id: row.id },
-    });
-    addSampleOpen.value = false;
-    await loadRelatedRows(true);
-  } finally {
-    addSampleSaving.value = false;
-  }
 }
 
 const {
@@ -167,13 +179,19 @@ const modalUi = computed(() => ({
   footer: "p-0",
 }));
 
-const tabs = computed<TabsItem[]>(() => [
-  { label: "Карточка", icon: "i-lucide-panel-top", value: "card" },
-  { label: "Технический аудит", icon: "i-lucide-list", value: "technical" },
-  { label: "Связанные", icon: "i-lucide-link", value: "related" },
-]);
+const tabs = computed<TabsItem[]>(() => {
+  const cardTab = { label: "Карточка", icon: "i-lucide-panel-top", value: "card" as const };
+  // У новой записи ещё нет истории/аудита/связанных — оставляем только карточку.
+  if (isCreate.value) return [cardTab];
+  return [
+    cardTab,
+    { label: "Технический аудит", icon: "i-lucide-list", value: "technical" },
+    { label: "Связанные", icon: "i-lucide-link", value: "related" },
+  ];
+});
 
 const title = computed(() => {
+  if (isCreate.value) return "Новая запись";
   const row = currentItem.value;
   if (!row) return props.config.title;
 
@@ -326,15 +344,36 @@ const technicalAudit = computed<TimelineEvent[]>(() => {
 });
 
 watch(
-  () => [props.open, props.item?.id, props.config.endpoint] as const,
-  async ([open]) => {
-    if (!open || !props.item?.id) {
+  () => [props.open, props.item?.id, props.config.endpoint, props.mode, props.startInEdit] as const,
+  async ([open, , , mode]) => {
+    if (!open) {
+      resetState();
+      return;
+    }
+
+    if (mode === "create") {
+      internalMode.value = "create";
+      activeTab.value = "card";
+      detail.value = null;
+      auditHistory.value = [];
+      relatedRows.value = [];
+      loadError.value = null;
+      loading.value = false;
+      editing.value = true;
+      syncForm();
+      void loadSelectOptions();
+      return;
+    }
+
+    internalMode.value = "view";
+
+    if (!props.item?.id) {
       resetState();
       return;
     }
 
     activeTab.value = "card";
-    editing.value = false;
+    editing.value = Boolean(props.startInEdit);
     loading.value = true;
     loadError.value = null;
 
@@ -363,12 +402,18 @@ function resetState() {
   relatedHasMore.value = false;
   loadError.value = null;
   editing.value = false;
+  internalMode.value = "view";
 }
 
 function syncForm() {
   const row = currentItem.value;
   props.config.fields.forEach((field) => {
-    const value = row ? getValueByPath(row, field.key) : null;
+    let value = row ? getValueByPath(row, field.key) : null;
+    // В create-режиме предзаполняем поля переданными значениями (например
+    // direction_id при создании образца из карточки направления).
+    if (isCreate.value && props.initialValues && field.key in props.initialValues) {
+      value = props.initialValues[field.key] as FieldValue;
+    }
     formState[field.key] = normalizeFormValue(value);
   });
 }
@@ -452,9 +497,78 @@ async function loadAuditHistory(row: CrudRow | null) {
   }
 }
 
+function isEmptyFieldValue(value: FieldValue) {
+  return value === null || value === undefined || value === "";
+}
+
+function validateRequiredFields(): boolean {
+  const missing = props.config.fields.filter(
+    (field) => field.required && isEmptyFieldValue(formState[field.key] ?? null),
+  );
+  if (missing.length) {
+    toast.add({
+      title: "Заполните обязательные поля",
+      description: missing.map((field) => field.label).join(", "),
+      color: "error",
+      icon: "i-lucide-circle-alert",
+    });
+    return false;
+  }
+  return true;
+}
+
+function cancelEdit() {
+  // В режиме создания отмена = закрытие модалки (пустая read-only карточка
+  // без записи не имеет смысла).
+  if (isCreate.value) {
+    close();
+    return;
+  }
+  editing.value = false;
+  syncForm();
+}
+
+async function saveCreate() {
+  if (!validateRequiredFields()) return;
+
+  saving.value = true;
+  try {
+    const payload: Record<string, unknown> = Object.fromEntries(
+      props.config.fields.map((field) => [field.key, formState[field.key] ?? null]),
+    );
+    // Образцы больше не создаются напрямую (POST /samples удалён) — только
+    // вложенно в направление: POST /directions/{direction_id}/samples,
+    // direction_id берётся из пути, поэтому убираем его из тела.
+    let endpoint = props.config.endpoint;
+    if (props.businessKind === "samples" && payload.direction_id) {
+      endpoint = `/directions/${payload.direction_id}/samples`;
+      delete payload.direction_id;
+    }
+    const response = await apiCreateRequest<CrudRow>(endpoint, {
+      method: "POST",
+      body: payload,
+    });
+    // Показываем регистратору только что созданную запись (ID/статус/история).
+    detail.value = response.data;
+    internalMode.value = "view";
+    editing.value = false;
+    emit("saved", detail.value);
+    void loadAuditHistory(detail.value);
+    void loadRelatedRows(true);
+  } finally {
+    saving.value = false;
+  }
+}
+
 async function saveInline() {
+  if (isCreate.value) {
+    await saveCreate();
+    return;
+  }
+
   const row = currentItem.value;
   if (!row) return;
+  if (!validateRequiredFields()) return;
 
   saving.value = true;
   try {
@@ -521,6 +635,7 @@ function close() {
         <EntityDetailMasterList
           v-if="listItems"
           :items="listItems ?? []"
+          :label="listLabel"
           :selected-id="selectedId"
           :has-more="listHasMore"
           :loading-more="listLoadingMore"
@@ -529,6 +644,25 @@ function close() {
         />
         <div class="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
           <header class="border-b border-default px-5 py-4">
+            <UBreadcrumb
+              v-if="breadcrumbs.length"
+              :items="breadcrumbs"
+              class="mb-3"
+            >
+              <template #item-label="{ item: crumb, index }">
+                <button
+                  type="button"
+                  class="truncate"
+                  :class="index === breadcrumbs.length - 1
+                    ? 'cursor-default text-highlighted'
+                    : 'cursor-pointer text-muted hover:text-primary'"
+                  :disabled="index === breadcrumbs.length - 1"
+                  @click="emit('go-to-level', index)"
+                >
+                  {{ crumb.label }}
+                </button>
+              </template>
+            </UBreadcrumb>
             <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div class="flex min-w-0 gap-3">
                 <div class="flex size-11 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
@@ -539,7 +673,7 @@ function close() {
                 </div>
                 <div class="min-w-0">
                   <p class="truncate text-xs font-semibold uppercase tracking-wide text-muted">
-                    Карточка · {{ config.title }}
+                    {{ isCreate ? 'Создание' : 'Карточка' }} · {{ config.title }}
                   </p>
                   <h2 class="mt-1 truncate text-2xl font-semibold text-highlighted">
                     {{ title }}
@@ -547,7 +681,7 @@ function close() {
                   <p class="mt-1 truncate text-sm text-muted">
                     {{ subtitle }}
                   </p>
-                  <div class="mt-3 flex flex-wrap items-center gap-2">
+                  <div v-if="!isCreate" class="mt-3 flex flex-wrap items-center gap-2">
                     <UBadge
                       v-if="statusLabel"
                       :color="statusColor"
@@ -636,12 +770,12 @@ function close() {
                       />
                       <template v-else-if="editing">
                         <UButton
-                          label="Отменить"
+                          :label="isCreate ? 'Отмена' : 'Отменить'"
                           color="neutral"
                           variant="outline"
                           size="sm"
                           :disabled="saving"
-                          @click="editing = false; syncForm()"
+                          @click="cancelEdit"
                         />
                         <UButton
                           label="Сохранить"
@@ -663,7 +797,7 @@ function close() {
                         class="grid grid-cols-[9.5rem_minmax(0,1fr)] border-b border-default last:border-b-0 md:[&:nth-last-child(-n+2)]:border-b-0 md:odd:border-e"
                       >
                         <dt class="bg-elevated/60 px-3 py-2 font-medium text-highlighted">
-                          {{ field.label }}
+                          {{ field.label }}<span v-if="editing && field.required" class="text-error"> *</span>
                         </dt>
                         <dd class="min-w-0 px-3 py-2 text-muted">
                           <template v-if="editing">
@@ -740,7 +874,7 @@ function close() {
                 />
               </section>
 
-              <aside class="min-w-0">
+              <aside v-if="!isCreate" class="min-w-0">
                 <div class="mb-3 flex items-center justify-between gap-3">
                   <h3 class="text-sm font-semibold text-highlighted">
                     История переходов статуса
@@ -797,7 +931,7 @@ function close() {
               @load-more="loadRelatedRows(false)"
               @save-tests="saveRelatedTests"
               @open-related="emit('open-related', $event)"
-              @add-sample="openAddSample"
+              @add-sample="emit('create-related', { kind: 'samples' })"
             />
           </main>
 
@@ -819,16 +953,6 @@ function close() {
       </div>
     </template>
   </UModal>
-
-  <CrudFormModal
-    v-model:open="addSampleOpen"
-    title="Добавить образец в направление"
-    :fields="sampleCreateFields"
-    :item="null"
-    mode="create"
-    :loading="addSampleSaving"
-    @save="saveNewSample"
-  />
 
   <ProtocolPreviewModal
     v-if="businessKind === 'protocols'"

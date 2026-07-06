@@ -9,7 +9,11 @@ import type { Page } from '@playwright/test'
  * authenticated after login, so just click the nav link like a real user.
  */
 async function clickNavLink(page: Page, name: string) {
-  await page.getByRole('link', { name, exact: true }).click()
+  // The sidebar link renders two text nodes — the localized label plus the
+  // lowercase route key (e.g. accessible name "Directions directions"), so an
+  // exact-name match never resolves. A substring match on the label is enough
+  // to target the right link.
+  await page.getByRole('link', { name }).first().click()
 }
 
 export async function goToDirections(page: Page) {

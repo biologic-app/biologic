@@ -32,6 +32,9 @@ export const entityRules: Record<string, EntityRule> = {
     deletableStatuses: ["draft"],
     deleteRestriction: "Удалять можно только исследования в статусе «Черновик».",
     detailKind: "research",
+    // Исследования создаются только через POST /samples/{id}/assign-research —
+    // standalone POST /research backend больше не поддерживает.
+    createDisabled: true,
   },
   tests: {
     createDisabled: true,

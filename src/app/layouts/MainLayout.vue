@@ -42,6 +42,7 @@ const links = computed<NavigationMenuItem[][]>(() => [
   [
     {
       label: t("nav.home"),
+      resource: "dashboard" as Resource,
       icon: canViewDashboard.value ? "i-lucide-layout-dashboard" : "i-lucide-lock",
       to: { name: "dashboard" },
       disabled: !canViewDashboard.value,
@@ -51,6 +52,7 @@ const links = computed<NavigationMenuItem[][]>(() => [
     },
     {
       label: t("nav.research"),
+      resource: "research" as Resource,
       icon: canViewResearch.value ? "i-lucide-flask-conical" : "i-lucide-lock",
       to: { name: "research" },
       disabled: !canViewResearch.value,
@@ -60,6 +62,7 @@ const links = computed<NavigationMenuItem[][]>(() => [
     },
     {
       label: t("nav.directions"),
+      resource: "directions" as Resource,
       icon: canViewDirections.value ? "i-lucide-book-copy" : "i-lucide-lock",
       to: { name: "directions" },
       disabled: !canViewDirections.value,
@@ -68,6 +71,7 @@ const links = computed<NavigationMenuItem[][]>(() => [
     },
     {
       label: t("nav.samples"),
+      resource: "samples" as Resource,
       icon: canViewSamples.value ? "i-lucide-test-tube-2" : "i-lucide-lock",
       to: { name: "samples" },
       disabled: !canViewSamples.value,
@@ -77,6 +81,7 @@ const links = computed<NavigationMenuItem[][]>(() => [
     },
     {
       label: t("nav.tests"),
+      resource: "tests" as Resource,
       icon: canViewTests.value ? "i-lucide-clipboard-list" : "i-lucide-lock",
       to: { name: "tests" },
       disabled: !canViewTests.value,
@@ -86,6 +91,7 @@ const links = computed<NavigationMenuItem[][]>(() => [
     },
     {
       label: t("nav.protocols"),
+      resource: "protocols" as Resource,
       icon: canViewProtocols.value ? "i-lucide-file-check-2" : "i-lucide-lock",
       to: { name: "protocols" },
       disabled: !canViewProtocols.value,
@@ -104,6 +110,7 @@ const links = computed<NavigationMenuItem[][]>(() => [
         const canView = auth.can(item.key as Resource, "view");
         return {
           label: item.label,
+          description: item.key,
           icon: canView ? item.icon : "i-lucide-lock",
           disabled: !canView,
           to:
@@ -128,6 +135,7 @@ const links = computed<NavigationMenuItem[][]>(() => [
         const canView = auth.can(resource, "view");
         return {
           label: item.label,
+          description: resource,
           icon: canView ? item.icon : "i-lucide-lock",
           disabled: !canView,
           to: item.to,
@@ -224,7 +232,17 @@ if (cookie.value !== "accepted") {
           orientation="vertical"
           tooltip
           popover
-        />
+        >
+          <template #item-label="{ item }">
+            <span class="flex min-w-0 flex-col items-start">
+              <span class="truncate">{{ item.label }}</span>
+              <span
+                v-if="item.resource"
+                class="truncate text-xs text-muted"
+              >{{ item.resource }}</span>
+            </span>
+          </template>
+        </UNavigationMenu>
 
         <UNavigationMenu
           :collapsed="collapsed"

@@ -41,7 +41,11 @@ import {
 import { useCrudDialog } from "@/shared/composables/useCrudDialog";
 import { useOptimistic } from "@/shared/composables/useOptimistic";
 import { usePermission } from "@/shared/composables/usePermission";
-import { useRelatedEntities } from "@/shared/composables/useRelatedEntities";
+import {
+  RELATED_PAGE_SIZE,
+  relationRequest,
+  useRelatedEntities,
+} from "@/shared/composables/useRelatedEntities";
 import { useTableColumnVisibility } from "@/shared/composables/useTableSettings";
 import { useAuth } from "@/modules/auth/composables/useAuth";
 import {
@@ -54,6 +58,7 @@ import {
   apiRequest,
   apiUpdateRequest,
   loadReferenceOptions,
+  type ApiClientError,
 } from "@/shared/api/client.api";
 import { crudModules, getCrudModuleFilterFields } from "@/shared/config/crud-modules";
 import { clone } from "@/shared/utils/clone";
@@ -164,12 +169,35 @@ provide(TABLE_PRESETS_KEY, {
 const dialog = useCrudDialog<CrudRow>(props.config.resource);
 const optimistic = useOptimistic<CrudRow>();
 const saving = ref(false);
+// Стек открытых карточек: переход "вглубь" (связанная запись, создание
+// вложенного образца) добавляет элемент поверх, не затирая родителя. Верхний
+// элемент — то, что показывается в модалке. Крестик/Esc/«Закрыть» снимают
+// верхний уровень (popDetail); модалка закрывается только когда стек пуст.
+type DetailStackEntry = {
+  item: CrudRow | null;
+  config: CrudModuleConfig;
+  kind: DetailKind | null;
+  // "create" — создание новой записи прямо в карточке, "view" — просмотр.
+  mode: "view" | "create";
+  startInEdit: boolean;
+  initialValues?: Record<string, unknown>;
+};
+
 const detailOpen = ref(false);
-const detailItem = ref<CrudRow | null>(null);
-const detailConfig = ref<CrudModuleConfig>(props.config);
+const detailStack = ref<DetailStackEntry[]>([]);
 // Правила сущности (удаление/карточка/создание) — из данных, без preset-веток.
 const entityRule = computed(() => getEntityRule(props.config.presetKey));
-const detailKind = ref<DetailKind | null>(entityRule.value.detailKind ?? null);
+const detailTop = computed<DetailStackEntry | null>(
+  () => detailStack.value[detailStack.value.length - 1] ?? null,
+);
+const detailItem = computed<CrudRow | null>(() => detailTop.value?.item ?? null);
+const detailConfig = computed<CrudModuleConfig>(
+  () => detailTop.value?.config ?? props.config,
+);
+const detailKind = computed<DetailKind | null>(() => detailTop.value?.kind ?? null);
+const detailMode = computed<"view" | "create">(() => detailTop.value?.mode ?? "view");
+const detailStartInEdit = computed(() => detailTop.value?.startInEdit ?? false);
+const detailInitialValues = computed(() => detailTop.value?.initialValues ?? null);
 const formFields = ref<FormField[]>(
   props.config.fields.map((field) => ({ ...field })),
 );
@@ -420,28 +448,160 @@ const normalizeStatusCode = (row: CrudRow) => {
 const getStatusBadgeColor = (row: CrudRow): BadgeColor =>
   resolveStatusBadgeColor(normalizeStatusCode(row));
 
+// Нормализация строки в элемент левого master-списка (общий маппер для
+// корневой таблицы и контекстного списка соседей вложенного уровня).
+const toDetailListItem = (row: CrudRow): DetailListItem => ({
+  id: row.id,
+  title:
+    getStringValue(getValueByPath(row, "name"))
+    || getStringValue(getValueByPath(row, "full_name"))
+    || getStringValue(getValueByPath(row, "code"))
+    || `Запись ${formatShortEntityCode(row.id)}`,
+  subtitle:
+    getStringValue(getValueByPath(row, "code"))
+    || getStatusLabel(row),
+  color: getStatusBadgeColor(row),
+});
+
 // Левый master-список детальной модалки: текущие строки таблицы (тот же
 // бесконечный скролл, что и в таблице — через table.loadMore).
 const detailListItems = computed<DetailListItem[]>(() =>
-  table.data.value.map((row) => ({
-    id: row.id,
-    title:
-      getStringValue(getValueByPath(row, "name"))
-      || getStringValue(getValueByPath(row, "full_name"))
-      || getStringValue(getValueByPath(row, "code"))
-      || `Запись ${formatShortEntityCode(row.id)}`,
-    subtitle:
-      getStringValue(getValueByPath(row, "code"))
-      || getStatusLabel(row),
-    color: getStatusBadgeColor(row),
-  })),
+  table.data.value.map(toDetailListItem),
 );
 
-const selectDetailRow = (id: string | number) => {
-  const row = table.data.value.find((entry) => String(entry.id) === String(id));
-  if (row) {
-    detailItem.value = row;
+// Контекстный master-список соседей на вложенных уровнях стека: когда есть
+// родитель (depth > 1), слева показываем не корневую таблицу, а детей родителя
+// (образцы направления, исследования образца и т.д.). Источник — тот же
+// relationRequest, что и во вкладке «Связанные», но состояние живёт здесь,
+// независимо от единственного инстанса EntityDetailDialogBase.
+const siblingListRows = ref<CrudRow[]>([]);
+const siblingListLoading = ref(false);
+const siblingListLoadingMore = ref(false);
+const siblingListCursor = ref<string | null>(null);
+const siblingListHasMore = ref(false);
+
+// Родительский уровень стека (тот, из чьих детей состоит контекстный список).
+const detailParentEntry = computed<DetailStackEntry | null>(() =>
+  detailStack.value.length > 1
+    ? detailStack.value[detailStack.value.length - 2]
+    : null,
+);
+
+async function loadSiblingList(isReset = false) {
+  const parent = detailParentEntry.value;
+  const relation = relationRequest(parent?.kind);
+  const parentId = parent?.item?.id;
+  if (!parent || !relation || parentId == null) {
+    siblingListRows.value = [];
+    siblingListCursor.value = null;
+    siblingListHasMore.value = false;
+    return;
   }
+
+  if (isReset) {
+    siblingListRows.value = [];
+    siblingListCursor.value = null;
+    siblingListHasMore.value = false;
+    siblingListLoading.value = true;
+  } else {
+    siblingListLoadingMore.value = true;
+  }
+
+  try {
+    const response = await apiReadListRequest<CrudRow>(relation.endpoint, {
+      method: "GET",
+      params: {
+        limit: RELATED_PAGE_SIZE,
+        cursor: isReset ? undefined : siblingListCursor.value,
+        include: relation.include,
+        filters: JSON.stringify({ [relation.filterKey]: parentId }),
+      },
+    });
+    siblingListRows.value = isReset
+      ? response.items
+      : [...siblingListRows.value, ...response.items];
+    siblingListCursor.value = response.meta.nextCursor ?? null;
+    siblingListHasMore.value = Boolean(response.meta.hasMore ?? response.meta.nextCursor);
+  } catch {
+    if (isReset) {
+      siblingListRows.value = [];
+      siblingListCursor.value = null;
+      siblingListHasMore.value = false;
+    }
+  } finally {
+    siblingListLoading.value = false;
+    siblingListLoadingMore.value = false;
+  }
+}
+
+// Перезагружаем контекстный список при смене глубины/родителя стека.
+watch(
+  () => [detailStack.value.length, detailParentEntry.value?.item?.id ?? null] as const,
+  () => {
+    if (detailParentEntry.value) {
+      void loadSiblingList(true);
+    } else {
+      siblingListRows.value = [];
+      siblingListCursor.value = null;
+      siblingListHasMore.value = false;
+    }
+  },
+);
+
+// Заголовок над master-списком отражает, ЧТО в нём показано (сущности текущего
+// верхнего уровня стека). Для detail-сущностей достаточно словаря kind → метка.
+const detailKindLabels: Record<string, string> = {
+  directions: "Направления",
+  samples: "Образцы",
+  research: "Исследования",
+  tests: "Тесты",
+  protocols: "Протоколы",
+};
+
+// Есть ли контекстный (по родителю) список вместо корневой таблицы.
+const hasContextualList = computed(() =>
+  detailMode.value !== "create" && Boolean(detailParentEntry.value),
+);
+
+// Master-список для карточки: корневая таблица на верхнем уровне, дети родителя
+// на вложенных уровнях.
+const contextualListItems = computed<DetailListItem[]>(() =>
+  hasContextualList.value
+    ? siblingListRows.value.map(toDetailListItem)
+    : detailListItems.value,
+);
+
+const contextualListHasMore = computed(() =>
+  hasContextualList.value ? siblingListHasMore.value : table.hasMore.value,
+);
+
+const contextualListLoadingMore = computed(() =>
+  hasContextualList.value ? siblingListLoadingMore.value : table.loadingMore.value,
+);
+
+const contextualListLabel = computed(() =>
+  detailKind.value ? detailKindLabels[detailKind.value] ?? "" : "",
+);
+
+const loadContextualList = () => {
+  if (hasContextualList.value) {
+    void loadSiblingList(false);
+  } else {
+    table.loadMore();
+  }
+};
+
+const selectDetailRow = (id: string | number) => {
+  const source = hasContextualList.value ? siblingListRows.value : table.data.value;
+  const row = source.find((entry) => String(entry.id) === String(id));
+  if (!row || !detailStack.value.length) {
+    return;
+  }
+  // Выбор записи в master-списке подменяет только верхний уровень стека
+  // (боковая навигация на том же уровне, не углубление).
+  const next = [...detailStack.value];
+  next[next.length - 1] = { ...next[next.length - 1], item: row };
+  detailStack.value = next;
 };
 
 
@@ -556,8 +716,15 @@ const resetFilters = () => {
   applyFilters();
 };
 
-const errorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : "Попробуйте ещё раз";
+const isApiClientError = (error: unknown): error is ApiClientError =>
+  typeof error === "object" && error !== null && "message" in error
+  && typeof (error as { message: unknown }).message === "string";
+
+const errorMessage = (error: unknown) => {
+  if (isApiClientError(error)) return error.message;
+  if (error instanceof Error) return error.message;
+  return "Попробуйте ещё раз";
+};
 
 const onSave = async (payload: Record<string, unknown>) => {
   const requestPayload = {
@@ -617,10 +784,17 @@ const confirmDelete = async (row: CrudRow) => {
     return;
   }
 
+  // Удаление черновика направления каскадно удаляет все связанные образцы
+  // (и их исследования/тесты) на бэкенде — предупреждаем об этом явно.
+  const description =
+    props.config.presetKey === "directions"
+      ? `Направление и все связанные с ним образцы будут удалены безвозвратно. Продолжить?`
+      : `Вы уверены, что хотите удалить запись ${row.id}? Это действие нельзя отменить.`;
+
   confirmDialog.value = {
     open: true,
     title: "Удалить запись",
-    description: `Вы уверены, что хотите удалить запись ${row.id}? Это действие нельзя отменить.`,
+    description,
     async onConfirm() {
       deleting.value = true;
       const deletedRow = { ...table.data.value.find((r) => r.id === row.id) || row };
@@ -944,28 +1118,139 @@ const runSelectedCommand = (key: WorkflowCommandKey) =>
 const resolveDetailKind = (config: CrudModuleConfig): DetailKind | null =>
   getEntityRule(config.presetKey).detailKind ?? null;
 
-const openDetail = (row: CrudRow, config: CrudModuleConfig = props.config) => {
-  detailItem.value = row;
-  detailConfig.value = config;
-  detailKind.value = resolveDetailKind(config);
+type PushDetailOptions = {
+  startEditing?: boolean;
+  mode?: "view" | "create";
+  initialValues?: Record<string, unknown>;
+};
+
+// Кладёт карточку поверх текущего стека, не затирая родителя (переход "вглубь").
+const pushDetail = (
+  row: CrudRow | null,
+  config: CrudModuleConfig = props.config,
+  options: PushDetailOptions = {},
+) => {
+  detailStack.value = [
+    ...detailStack.value,
+    {
+      item: row,
+      config,
+      kind: resolveDetailKind(config),
+      mode: options.mode ?? "view",
+      startInEdit: Boolean(options.startEditing),
+      initialValues: options.initialValues,
+    },
+  ];
   detailOpen.value = true;
 };
 
+// Первое открытие: сбрасывает стек и кладёт единственный элемент.
+const openDetail = (
+  row: CrudRow,
+  config: CrudModuleConfig = props.config,
+  options: { startEditing?: boolean } = {},
+) => {
+  detailStack.value = [];
+  pushDetail(row, config, { startEditing: options.startEditing });
+};
+
+// Снимает верхний уровень стека; при опустошении закрывает модалку.
+const popDetail = () => {
+  if (detailStack.value.length <= 1) {
+    detailStack.value = [];
+    detailOpen.value = false;
+    return;
+  }
+  detailStack.value = detailStack.value.slice(0, -1);
+};
+
+// Переход на произвольный уровень крошек: усекаем стек до этого индекса.
+const goToDetailLevel = (index: number) => {
+  if (index < 0 || index >= detailStack.value.length - 1) {
+    return;
+  }
+  detailStack.value = detailStack.value.slice(0, index + 1);
+};
+
+// Крестик/Esc/«Закрыть» карточки возвращают на предыдущий уровень стека,
+// а не закрывают всё окно (закрытие — только когда стек опустел).
+const onDetailOpenChange = (value: boolean) => {
+  if (value) {
+    detailOpen.value = true;
+    return;
+  }
+  popDetail();
+};
+
+const getEntityDisplayName = (row: CrudRow | null): string => {
+  if (!row) {
+    return "";
+  }
+  return (
+    getStringValue(getValueByPath(row, "name"))
+    || getStringValue(getValueByPath(row, "full_name"))
+    || getStringValue(getValueByPath(row, "base_no"))
+    || getStringValue(getValueByPath(row, "code"))
+    || formatShortEntityCode(row.id)
+  );
+};
+
+const stackEntryLabel = (entry: DetailStackEntry): string => {
+  if (entry.mode === "create") {
+    return `${entry.config.title}: новая запись`;
+  }
+  const name = getEntityDisplayName(entry.item);
+  return name ? `${entry.config.title} · ${name}` : entry.config.title;
+};
+
+const detailBreadcrumbs = computed(() =>
+  detailStack.value.map((entry) => ({ label: stackEntryLabel(entry) })),
+);
+
 const onDetailSaved = (row: CrudRow) => {
+  const top = detailTop.value;
+  // Вложенное создание (например образец из карточки направления): возвращаем
+  // пользователя на родительский уровень — карточка направления перечитает
+  // вкладку «Связанные» и покажет новую запись.
+  if (top && top.mode === "create" && detailStack.value.length > 1) {
+    popDetail();
+    return;
+  }
+
   if (detailConfig.value.presetKey !== props.config.presetKey) {
     return;
   }
 
-  table.data.value = table.data.value.map((item) =>
-    item.id === row.id ? { ...item, ...row } : item,
-  );
+  // Создание из карточки: записи ещё нет в таблице — добавляем её в начало.
+  const exists = table.data.value.some((item) => item.id === row.id);
+  table.data.value = exists
+    ? table.data.value.map((item) =>
+        item.id === row.id ? { ...item, ...row } : item,
+      )
+    : [row, ...table.data.value];
 };
 
 const openRelatedDetail = (payload: { kind: DetailKind; item: CrudRow }) => {
   const config = crudModules[payload.kind];
   if (config) {
-    openDetail(payload.item, config);
+    pushDetail(payload.item, config);
   }
+};
+
+// Создание вложенной записи из карточки (например «Добавить образец» в
+// направлении) открывает полную карточку в create-режиме с предзаполненным
+// FK родителя, а не отдельную лёгкую форму.
+const openCreateRelated = (payload: { kind: DetailKind }) => {
+  const config = crudModules[payload.kind];
+  if (!config) {
+    return;
+  }
+  const parentId = detailTop.value?.item?.id;
+  const initialValues: Record<string, unknown> = {};
+  if (payload.kind === "samples" && parentId != null) {
+    initialValues.direction_id = parentId;
+  }
+  pushDetail(null, config, { mode: "create", initialValues });
 };
 
 const getRowWorkflowActionItems = (row: CrudRow): DropdownMenuItem[] =>
@@ -1081,13 +1366,31 @@ const columnMenuItems = computed(() =>
 );
 
 const openCreate = () => {
-  if (!createDisabled.value) {
-    dialog.openCreate();
-    void loadFormReferenceOptions();
+  if (createDisabled.value) {
+    return;
   }
+
+  // Бизнес-сущности с карточкой (detailKind) создаются прямо в карточке
+  // EntityDetailDialogBase, а не в отдельной CrudFormModal. Обычные справочники
+  // (без detailKind) продолжают использовать CrudFormModal как раньше.
+  if (resolveDetailKind(props.config)) {
+    detailStack.value = [];
+    pushDetail(null, props.config, { mode: "create" });
+    return;
+  }
+
+  dialog.openCreate();
+  void loadFormReferenceOptions();
 };
 
 const openEdit = (row: CrudRow) => {
+  // Для бизнес-сущностей редактирование идёт в той же карточке, сразу в режиме
+  // редактирования. Для обычных справочников — прежняя CrudFormModal.
+  if (resolveDetailKind(props.config)) {
+    openDetail(row, props.config, { startEditing: true });
+    return;
+  }
+
   dialog.openEdit(row);
   void loadFormReferenceOptions();
 };
@@ -1294,27 +1597,36 @@ defineExpose({
 
   <BusinessEntityDetailModal
     v-if="detailKind"
-    v-model:open="detailOpen"
+    :open="detailOpen"
     :config="detailConfig"
     :item="detailItem"
     :business-kind="detailKind"
-    :list-items="detailListItems"
-    :list-has-more="table.hasMore.value"
-    :list-loading-more="table.loadingMore.value"
+    :mode="detailMode"
+    :start-in-edit="detailStartInEdit"
+    :initial-values="detailInitialValues"
+    :breadcrumbs="detailBreadcrumbs"
+    :list-items="detailMode !== 'create' ? contextualListItems : undefined"
+    :list-label="contextualListLabel"
+    :list-has-more="contextualListHasMore"
+    :list-loading-more="contextualListLoadingMore"
+    @update:open="onDetailOpenChange"
     @saved="onDetailSaved"
     @open-related="openRelatedDetail"
+    @create-related="openCreateRelated"
+    @go-to-level="goToDetailLevel"
     @select="selectDetailRow"
-    @list-load-more="table.loadMore()"
+    @list-load-more="loadContextualList"
   />
 
   <DictionaryCrudDetailModal
     v-else
-    v-model:open="detailOpen"
+    :open="detailOpen"
     :config="detailConfig"
     :item="detailItem"
     :list-items="detailListItems"
     :list-has-more="table.hasMore.value"
     :list-loading-more="table.loadingMore.value"
+    @update:open="onDetailOpenChange"
     @saved="onDetailSaved"
     @select="selectDetailRow"
     @list-load-more="table.loadMore()"

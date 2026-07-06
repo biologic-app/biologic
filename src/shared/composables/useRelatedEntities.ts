@@ -12,9 +12,9 @@ import {
   type RelationKind,
 } from "@/shared/ui/entity-detail.helpers";
 
-const RELATED_PAGE_SIZE = 20;
+export const RELATED_PAGE_SIZE = 20;
 
-type RelationRequest = {
+export type RelationRequest = {
   endpoint: string;
   include: string;
   filterKey: string;
@@ -22,7 +22,7 @@ type RelationRequest = {
 };
 
 // Связь бизнес-сущности с дочерней коллекцией (направление → образцы и т.д.).
-function relationRequest(businessKind: EntityKind | null | undefined): RelationRequest | null {
+export function relationRequest(businessKind: EntityKind | null | undefined): RelationRequest | null {
   if (businessKind === "directions") {
     return { endpoint: "/samples", include: "sample_type,status,direction,protocol", filterKey: "direction_id", kind: "samples" };
   }

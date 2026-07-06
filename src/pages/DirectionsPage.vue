@@ -2,14 +2,13 @@
 import { computed, ref } from 'vue'
 import WorkflowCrudPage from '@/shared/ui/WorkflowCrudPage.vue'
 import { usePermission } from '@/shared/composables/usePermission'
-import { apiUploadRequest } from '@/shared/api/client.api'
+import { apiCommandRequest } from '@/shared/api/client.api'
 import { crudModules } from '@/shared/config/crud-modules'
 
 const { can } = usePermission()
 const toast = useToast()
 const importExcelInput = ref<HTMLInputElement | null>(null)
 const importJsonInput = ref<HTMLInputElement | null>(null)
-const importLegacyXlsInput = ref<HTMLInputElement | null>(null)
 const importing = ref(false)
 
 const selectedConfig = crudModules.directions
@@ -17,31 +16,21 @@ const createDisabled = computed(() => !can(selectedConfig.resource, 'create'))
 const importDisabled = computed(() => !can(selectedConfig.resource, 'import'))
 const createMenuDisabled = computed(() => createDisabled.value && importDisabled.value)
 
+// Единый DTO ответа POST /directions/import (см. backend WorkflowImportSummary) —
+// один и тот же для xlsx/.xls и json.
 interface WorkflowImportSummary {
   filename: string
-  rows_processed: number
   directions_created: number
   samples_created: number
-  skipped_rows: number
+  research_created: number
+  skipped: number
   errors: Array<Record<string, unknown>>
   warnings: Array<Record<string, unknown>>
 }
 
-interface LegacyDirectionImportSummary {
-  filename: string
-  direction_id: string | null
-  samples_processed: number
-  samples_imported: number
-  skipped_samples: number
-  marks_created: number
-  errors: Array<Record<string, unknown>>
-  warnings: Array<Record<string, unknown>>
-}
+type ImportType = 'xlsx' | 'json'
 
-type ImportEndpoint = '/directions/import-excel' | '/directions/import-json'
-  | '/directions/import-legacy-xls'
-
-const buildCreateMenu = (openCreate: () => void) => [
+const buildCreateMenu = () => [
   {
     label: 'Импортировать Excel',
     icon: importDisabled.value ? 'i-lucide-lock' : 'i-lucide-file-spreadsheet',
@@ -51,15 +40,7 @@ const buildCreateMenu = (openCreate: () => void) => [
     }
   },
   {
-    label: 'Импортировать реальный документ (.xls)',
-    icon: importDisabled.value ? 'i-lucide-lock' : 'i-lucide-file-text',
-    disabled: importDisabled.value || importing.value,
-    onSelect() {
-      importLegacyXlsInput.value?.click()
-    }
-  },
-  {
-    label: 'Импортировать JSON (резервный способ)',
+    label: 'Импортировать JSON',
     icon: importDisabled.value ? 'i-lucide-lock' : 'i-lucide-file-json',
     disabled: importDisabled.value || importing.value,
     onSelect() {
@@ -68,33 +49,22 @@ const buildCreateMenu = (openCreate: () => void) => [
   }
 ]
 
-const handleImportFile = async (event: Event, refresh: () => void, endpoint: ImportEndpoint) => {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = ''
-  if (!file || importDisabled.value || importing.value) {
-    return
-  }
-
+const runImport = async (file: File, type: ImportType, refresh: () => void) => {
   importing.value = true
   try {
-    if (endpoint === '/directions/import-legacy-xls') {
-      const response = await apiUploadRequest<LegacyDirectionImportSummary>(endpoint, file)
-      toast.add({
-        title: 'Импорт направления завершён',
-        description: `Образцов: ${response.data.samples_imported} из ${response.data.samples_processed}, отметок исследований: ${response.data.marks_created}, пропущено: ${response.data.skipped_samples}`,
-        color: response.data.errors.length ? 'warning' : 'success',
-        icon: response.data.errors.length ? 'i-lucide-triangle-alert' : 'i-lucide-circle-check'
-      })
-    } else {
-      const response = await apiUploadRequest<WorkflowImportSummary>(endpoint, file)
-      toast.add({
-        title: 'Импорт направлений завершён',
-        description: `Направлений: ${response.data.directions_created}, образцов: ${response.data.samples_created}, пропущено строк: ${response.data.skipped_rows}`,
-        color: response.data.errors.length ? 'warning' : 'success',
-        icon: response.data.errors.length ? 'i-lucide-triangle-alert' : 'i-lucide-circle-check'
-      })
-    }
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('type', type)
+    const response = await apiCommandRequest<WorkflowImportSummary>('/directions/import', {
+      method: 'POST',
+      body: formData
+    })
+    toast.add({
+      title: 'Импорт направлений завершён',
+      description: `Направлений: ${response.data.directions_created}, образцов: ${response.data.samples_created}, исследований: ${response.data.research_created}, пропущено: ${response.data.skipped}`,
+      color: response.data.errors.length ? 'warning' : 'success',
+      icon: response.data.errors.length ? 'i-lucide-triangle-alert' : 'i-lucide-circle-check'
+    })
     refresh()
   } catch (error) {
     const message = typeof error === 'object' && error !== null && 'message' in error
@@ -110,6 +80,19 @@ const handleImportFile = async (event: Event, refresh: () => void, endpoint: Imp
     importing.value = false
   }
 }
+
+const handleImportFile = (type: ImportType) => async (event: Event, refresh: () => void) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file || importDisabled.value || importing.value) {
+    return
+  }
+  await runImport(file, type, refresh)
+}
+
+const handleImportExcelFile = handleImportFile('xlsx')
+const handleImportJsonFile = handleImportFile('json')
 </script>
 
 <template>
@@ -123,26 +106,18 @@ const handleImportFile = async (event: Event, refresh: () => void, endpoint: Imp
       <input
         ref="importExcelInput"
         type="file"
-        accept=".xlsx"
+        accept=".xls,.xlsx"
         class="hidden"
         data-testid="import-excel-input"
-        @change="handleImportFile($event, refresh, '/directions/import-excel')"
+        @change="handleImportExcelFile($event, refresh)"
       >
       <input
         ref="importJsonInput"
         type="file"
-        accept=".json,application/json"
+        accept=".json"
         class="hidden"
         data-testid="import-json-input"
-        @change="handleImportFile($event, refresh, '/directions/import-json')"
-      >
-      <input
-        ref="importLegacyXlsInput"
-        type="file"
-        accept=".xls"
-        class="hidden"
-        data-testid="import-legacy-xls-input"
-        @change="handleImportFile($event, refresh, '/directions/import-legacy-xls')"
+        @change="handleImportJsonFile($event, refresh)"
       >
       <UFieldGroup>
         <UTooltip :text="createMenuDisabled ? 'Нет прав на создание или импорт' : 'Создать или импортировать'">
@@ -155,7 +130,7 @@ const handleImportFile = async (event: Event, refresh: () => void, endpoint: Imp
           />
         </UTooltip>
         <UDropdownMenu
-          :items="buildCreateMenu(openCreate)"
+          :items="buildCreateMenu()"
           :content="{ align: 'end' }"
         >
 

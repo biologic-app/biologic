@@ -107,12 +107,15 @@ test.describe('direction import (flow #2, #3)', () => {
 
     await page.getByTestId('direction-import-menu-trigger').click()
     const fileChooserPromise = page.waitForEvent('filechooser')
-    await page.getByRole('menuitem', { name: 'Импортировать реальный документ (.xls)' }).click()
+    // The legacy .xls now goes through the single "Импортировать Excel" entry —
+    // the backend routes a .xls file to the legacy parser (type=xlsx, dispatched
+    // by extension), so there is no longer a separate legacy menu item.
+    await page.getByRole('menuitem', { name: 'Импортировать Excel' }).click()
     const fileChooser = await fileChooserPromise
     await fileChooser.setFiles(path.join(fixturesDir, 'legacy-direction.xls'))
 
-    await expect(page.getByText('Импорт направления завершён').last()).toBeVisible()
-    await expect(page.getByText(/Образцов: 94 из 94/).last()).toBeVisible()
+    await expect(page.getByText('Импорт направлений завершён').last()).toBeVisible()
+    await expect(page.getByText(/образцов: 94/).last()).toBeVisible()
 
     await page.getByTestId('crud-search-input').fill(String(LEGACY_XLS_BASE_NO))
     const row = page.locator('tbody tr').filter({ hasText: String(LEGACY_XLS_BASE_NO) })
