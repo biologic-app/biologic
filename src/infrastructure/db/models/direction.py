@@ -22,6 +22,13 @@ class Direction(Base):
     __tablename__ = "directions"
     __table_args__ = (
         Index("directions_directions_year_no", "year_no"),
+        Index(
+            "directions_directions_year_no_base_no",
+            "year_no",
+            "base_no",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
+        ),
         Index("directions_directions_doctor_id", "doctor_id"),
         Index("directions_directions_object_id", "object_id"),
         Index("directions_directions_status_id", "status_id"),

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -104,6 +105,22 @@ class ObjectRepository:
     async def read(self, item_id: UUID) -> Any:
         return await _read_row(self.session, Object, "objects", item_id)
 
+    async def find_by_name(self, name: str) -> Sequence[Any]:
+        cleaned = name.strip()
+        if not cleaned:
+            return []
+        cleaned_lower = cleaned.lower()
+        result = await self.session.execute(
+            select(Object).where(
+                Object.deleted_at.is_(None),
+                or_(
+                    func.lower(func.trim(Object.name)) == cleaned_lower,
+                    func.lower(func.trim(Object.full_name)) == cleaned_lower,
+                ),
+            )
+        )
+        return list(result.scalars().all())
+
     async def create(self, values: dict[str, Any]) -> Any:
         return await _create_row(
             self.session,
@@ -132,6 +149,18 @@ class DoctorRepository:
 
     async def read(self, item_id: UUID) -> Any:
         return await _read_row(self.session, Doctor, "doctors", item_id)
+
+    async def find_by_last_name(self, last_name: str) -> Sequence[Any]:
+        cleaned = last_name.strip()
+        if not cleaned:
+            return []
+        result = await self.session.execute(
+            select(Doctor).where(
+                Doctor.deleted_at.is_(None),
+                func.lower(func.trim(Doctor.last_name)) == cleaned.lower(),
+            )
+        )
+        return list(result.scalars().all())
 
     async def create(self, values: dict[str, Any]) -> Any:
         return await _create_row(

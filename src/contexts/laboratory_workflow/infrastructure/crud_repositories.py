@@ -5,7 +5,8 @@ from datetime import UTC, datetime
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import and_, asc, delete, desc, func, or_, select
+from sqlalchemy import and_, asc, delete, desc, func, or_, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.crud_query import (
@@ -71,6 +72,23 @@ class DirectionCrudRepository:
     async def read(self, direction_id: UUID) -> Any:
         return await _read_row(self.session, Direction, "directions", direction_id)
 
+    async def find_by_year_and_base_no(
+        self,
+        year_no: int,
+        base_no: int | None,
+        *,
+        exclude_id: UUID | None = None,
+    ) -> Any | None:
+        filters = [
+            Direction.year_no == year_no,
+            Direction.base_no.is_(None) if base_no is None else Direction.base_no == base_no,
+            Direction.deleted_at.is_(None),
+        ]
+        if exclude_id is not None:
+            filters.append(Direction.id != exclude_id)
+        result = await self.session.execute(select(Direction).where(*filters))
+        return result.scalars().first()
+
     async def create(self, values: dict[str, Any], *, created_by: UUID | None = None) -> Any:
         payload = _pick(values, _direction_write_fields())
         payload.setdefault(
@@ -79,19 +97,128 @@ class DirectionCrudRepository:
         )
         if created_by is not None:
             payload["created_by"] = created_by
-        return await _create_row(self.session, Direction, payload)
+        if "year_no" in payload:
+            await self._ensure_year_base_no_available(payload["year_no"], payload.get("base_no"))
+        try:
+            return await _create_row(self.session, Direction, payload)
+        except IntegrityError as exc:
+            await self.session.rollback()
+            raise _direction_duplicate_conflict() from exc
 
     async def update(self, direction_id: UUID, values: dict[str, Any]) -> Any:
         _reject_status_update("directions", values)
-        return await _update_row(
-            self.session,
-            await self.read(direction_id),
-            _pick(values, _direction_write_fields()),
-            audit_resource="directions",
+        payload = _pick(values, _direction_write_fields())
+        row = await self.read(direction_id)
+        if "year_no" in payload or "base_no" in payload:
+            year_no = payload.get("year_no", row.year_no)
+            base_no = payload.get("base_no", row.base_no)
+            await self._ensure_year_base_no_available(
+                year_no, base_no, exclude_id=direction_id
+            )
+        try:
+            return await _update_row(
+                self.session,
+                row,
+                payload,
+                audit_resource="directions",
+            )
+        except IntegrityError as exc:
+            await self.session.rollback()
+            raise _direction_duplicate_conflict() from exc
+
+    async def _read_draft(self, direction_id: UUID, *, action: str) -> Any:
+        direction = await self.read(direction_id)
+        status_code = await _row_status_code(
+            self.session, DirectionStatus, direction.status_id
         )
+        if status_code != DIRECTION_DRAFT:
+            raise DomainConflictError(
+                code="direction_not_draft",
+                detail=(
+                    f"Direction can be {action} only in draft status. "
+                    f"Current status is {status_code}."
+                ),
+            )
+        return direction
+
+    async def _ensure_year_base_no_available(
+        self,
+        year_no: int,
+        base_no: int | None,
+        *,
+        exclude_id: UUID | None = None,
+    ) -> None:
+        existing = await self.find_by_year_and_base_no(
+            year_no, base_no, exclude_id=exclude_id
+        )
+        if existing is not None:
+            raise _direction_duplicate_conflict()
 
     async def delete(self, direction_id: UUID) -> None:
         await _delete_row(self.session, await self.read(direction_id))
+
+    async def assert_draft(self, direction_id: UUID) -> None:
+        """Raises NotFoundError if the direction does not exist, DomainConflictError
+        if it exists but is not in draft status."""
+        await self._read_draft(direction_id, action="modified")
+
+    async def delete_draft_cascade(self, direction_id: UUID) -> None:
+        """Soft-deletes a draft direction together with every sample it owns,
+        their research and the research' tests, atomically in one transaction.
+        Deletion is only allowed while the direction is still a draft."""
+        direction = await self._read_draft(direction_id, action="deleted")
+
+        now = datetime.now(UTC)
+        sample_ids = list(
+            (
+                await self.session.execute(
+                    select(Sample.id).where(
+                        Sample.direction_id == direction_id,
+                        Sample.deleted_at.is_(None),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        research_ids: list[UUID] = []
+        if sample_ids:
+            research_ids = list(
+                (
+                    await self.session.execute(
+                        select(Research.id).where(
+                            Research.sample_id.in_(sample_ids),
+                            Research.deleted_at.is_(None),
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        if research_ids:
+            await self.session.execute(
+                update(Test)
+                .where(
+                    Test.research_id.in_(research_ids),
+                    Test.deleted_at.is_(None),
+                )
+                .values(deleted_at=now, updated_at=now)
+            )
+            await self.session.execute(
+                update(Research)
+                .where(Research.id.in_(research_ids))
+                .values(deleted_at=now, updated_at=now)
+            )
+        if sample_ids:
+            await self.session.execute(
+                update(Sample)
+                .where(Sample.id.in_(sample_ids))
+                .values(deleted_at=now, updated_at=now)
+            )
+        direction.deleted_at = now
+        direction.updated_at = now
+        self.session.add(direction)
+        await self.session.commit()
 
 
 class SampleCrudRepository:
@@ -218,10 +345,10 @@ class ProtocolCrudRepository:
         await _delete_row(self.session, await self.read(protocol_id))
 
 
-def reject_test_create() -> None:
-    raise DomainConflictError(
-        code="resource_read_only",
-        detail="tests cannot be created through generic CRUD.",
+def _direction_duplicate_conflict() -> DomainConflictError:
+    return DomainConflictError(
+        code="direction_duplicate",
+        detail="Направление с таким годом и номером уже существует.",
     )
 
 
@@ -826,6 +953,17 @@ def _default_sort_field(sortable_fields: tuple[str, ...]) -> str:
 
 def _pick(values: dict[str, Any], fields: tuple[str, ...]) -> dict[str, Any]:
     return {field: values[field] for field in fields if field in values}
+
+
+async def _row_status_code(
+    session: AsyncSession, model: type[Any], status_id: UUID | None
+) -> str | None:
+    if status_id is None:
+        return None
+    result = await session.execute(
+        select(model.code).where(model.id == status_id, *_base_filters(model))
+    )
+    return cast(str | None, result.scalar_one_or_none())
 
 
 async def _default_status_id(session: AsyncSession, model: type[Any], code: str) -> UUID:

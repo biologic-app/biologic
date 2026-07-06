@@ -84,16 +84,6 @@ class SampleUpdateRequest(StrictRequest):
     status_id: UUID | None = None
 
 
-class ResearchCreateRequest(StrictRequest):
-    sample_id: UUID
-    research_goal_id: UUID
-    lab_id: UUID | None = None
-    comment: str | None = None
-    recommendation: str | None = None
-    received_at: datetime | None = None
-    completed_at: datetime | None = None
-
-
 class ResearchUpdateRequest(StrictRequest):
     sample_id: UUID | None = None
     research_goal_id: UUID | None = None

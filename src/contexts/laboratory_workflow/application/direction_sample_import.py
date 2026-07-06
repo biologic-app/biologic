@@ -143,6 +143,7 @@ def _parse_row(row: dict[str, Any]) -> tuple[dict[str, object], list[dict[str, o
 class _PendingDirection:
     fields: dict[str, object]
     samples: list[dict[str, object]] = field(default_factory=list)
+    row_numbers: list[int] = field(default_factory=list)
 
 
 _SAMPLE_COPY_FIELDS = (
@@ -197,6 +198,7 @@ class DirectionSampleImporter:
                 order.append(key)
 
             pending = directions_by_key[key]
+            pending.row_numbers.append(row_number)
             sample_values: dict[str, object] = {"name": values["sample_name"]}
             for source_field, target_field in _SAMPLE_COPY_FIELDS:
                 if source_field in values:
@@ -210,6 +212,19 @@ class DirectionSampleImporter:
         samples_created = 0
         for key in order:
             pending = directions_by_key[key]
+            year_no, base_no = key
+            existing = await self.directions.find_by_year_and_base_no(year_no, base_no)
+            if existing is not None:
+                skipped_rows += len(pending.row_numbers)
+                duplicate_issue = _issue(
+                    None,
+                    "year_no",
+                    "Направление с таким годом и номером уже существует, пропущено.",
+                )
+                for row_number in pending.row_numbers:
+                    errors.append({"row": row_number, "errors": [duplicate_issue]})
+                continue
+
             direction_row = await self.directions.create(
                 pending.fields, created_by=self.created_by
             )

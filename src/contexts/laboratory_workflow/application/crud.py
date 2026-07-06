@@ -9,7 +9,10 @@ from src.contexts.laboratory_workflow.application.direction_sample_import import
     DirectionExcelImportService,
     DirectionJsonImportService,
 )
-from src.contexts.laboratory_workflow.application.imports import DirectionImportService
+from src.contexts.laboratory_workflow.application.import_summary import (
+    from_direction_sample_summary,
+    from_legacy_summary,
+)
 from src.contexts.laboratory_workflow.application.legacy_direction_import import (
     LegacyDirectionXlsImportService,
 )
@@ -20,9 +23,9 @@ from src.contexts.laboratory_workflow.infrastructure.crud_repositories import (
     ResearchCrudRepository,
     SampleCrudRepository,
     TestCrudRepository,
-    reject_test_create,
 )
 from src.core.cursor_pagination import json_value
+from src.core.errors import BadRequestError
 from src.core.pagination import PageMeta, PaginationParams
 from src.core.responses import ListResponse, ResponseMeta, SingleResponse
 
@@ -36,12 +39,16 @@ class WorkflowCrudUseCase:
         research: ResearchCrudRepository,
         tests: TestCrudRepository,
         protocols: ProtocolCrudRepository,
+        doctors: Any | None = None,
+        objects: Any | None = None,
     ) -> None:
         self.directions = directions
         self.samples = samples
         self.research = research
         self.tests = tests
         self.protocols = protocols
+        self.doctors = doctors
+        self.objects = objects
 
     async def list_directions(
         self, params: PaginationParams
@@ -75,54 +82,64 @@ class WorkflowCrudUseCase:
         return _single_response(row, _direction_fields(), operation="directions.update")
 
     async def delete_direction(self, direction_id: UUID) -> None:
-        await self.directions.delete(direction_id)
+        await self.directions.delete_draft_cascade(direction_id)
 
     async def import_directions(
-        self, filename: str, content: bytes
+        self,
+        filename: str,
+        content: bytes,
+        *,
+        type_: str,
+        actor_id: UUID | None = None,
     ) -> SingleResponse[dict[str, object]]:
-        summary = await DirectionImportService(directions=self.directions).import_file(
-            filename, content
-        )
+        ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+        if type_ == "json":
+            summary = from_direction_sample_summary(
+                await DirectionJsonImportService(
+                    directions=self.directions, samples=self.samples, created_by=actor_id
+                ).import_file(filename, content)
+            )
+        elif type_ == "xlsx":
+            if ext == "xls":
+                summary = from_legacy_summary(
+                    await LegacyDirectionXlsImportService(
+                        directions=self.directions,
+                        samples=self.samples,
+                        research=self.research,
+                        doctors=self.doctors,
+                        objects=self.objects,
+                        created_by=actor_id,
+                    ).import_file(filename, content)
+                )
+            elif ext == "xlsx":
+                summary = from_direction_sample_summary(
+                    await DirectionExcelImportService(
+                        directions=self.directions, samples=self.samples, created_by=actor_id
+                    ).import_file(filename, content)
+                )
+            else:
+                raise BadRequestError("type=xlsx требует файл .xls или .xlsx")
+        else:
+            raise BadRequestError("Поддерживаются type=xlsx и type=json")
         return SingleResponse(
             data=summary.model_dump(mode="json"),
             meta=ResponseMeta(operation="directions.import"),
         )
 
-    async def import_directions_excel(
-        self, filename: str, content: bytes, *, actor_id: UUID | None = None
+    async def add_direction_sample(
+        self,
+        direction_id: UUID,
+        payload: BaseModel,
+        *,
+        actor_id: UUID | None = None,
     ) -> SingleResponse[dict[str, object]]:
-        summary = await DirectionExcelImportService(
-            directions=self.directions, samples=self.samples, created_by=actor_id
-        ).import_file(filename, content)
-        return SingleResponse(
-            data=summary.model_dump(mode="json"),
-            meta=ResponseMeta(operation="directions.import_excel"),
-        )
-
-    async def import_directions_json(
-        self, filename: str, content: bytes, *, actor_id: UUID | None = None
-    ) -> SingleResponse[dict[str, object]]:
-        summary = await DirectionJsonImportService(
-            directions=self.directions, samples=self.samples, created_by=actor_id
-        ).import_file(filename, content)
-        return SingleResponse(
-            data=summary.model_dump(mode="json"),
-            meta=ResponseMeta(operation="directions.import_json"),
-        )
-
-    async def import_directions_legacy_xls(
-        self, filename: str, content: bytes, *, actor_id: UUID | None = None
-    ) -> SingleResponse[dict[str, object]]:
-        summary = await LegacyDirectionXlsImportService(
-            directions=self.directions,
-            samples=self.samples,
-            research=self.research,
-            created_by=actor_id,
-        ).import_file(filename, content)
-        return SingleResponse(
-            data=summary.model_dump(mode="json"),
-            meta=ResponseMeta(operation="directions.import_legacy_xls"),
-        )
+        # samples have no created_by write field yet, so actor_id is unused for now;
+        # kept for signature symmetry with create_direction/import_directions.
+        await self.directions.assert_draft(direction_id)
+        values = _payload(payload)
+        values["direction_id"] = direction_id
+        row = await self.samples.create(values)
+        return _single_response(row, _sample_fields(), operation="samples.create")
 
     async def list_samples(
         self, params: PaginationParams
@@ -136,12 +153,6 @@ class WorkflowCrudUseCase:
 
     async def read_sample(self, sample_id: UUID) -> SingleResponse[dict[str, object]]:
         return _single_response(await self.samples.read(sample_id), _sample_fields())
-
-    async def create_sample(
-        self, payload: BaseModel
-    ) -> SingleResponse[dict[str, object]]:
-        row = await self.samples.create(_payload(payload))
-        return _single_response(row, _sample_fields(), operation="samples.create")
 
     async def update_sample(
         self,
@@ -171,12 +182,6 @@ class WorkflowCrudUseCase:
             await self.research.read(research_id), _research_fields()
         )
 
-    async def create_research(
-        self, payload: BaseModel
-    ) -> SingleResponse[dict[str, object]]:
-        row = await self.research.create(_payload(payload))
-        return _single_response(row, _research_fields(), operation="research.create")
-
     async def update_research(
         self,
         research_id: UUID,
@@ -200,9 +205,6 @@ class WorkflowCrudUseCase:
 
     async def read_test(self, test_id: UUID) -> SingleResponse[dict[str, object]]:
         return _single_response(await self.tests.read(test_id), _test_fields())
-
-    def reject_test_create(self) -> None:
-        reject_test_create()
 
     async def update_test(
         self,

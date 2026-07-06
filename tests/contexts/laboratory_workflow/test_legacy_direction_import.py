@@ -21,9 +21,10 @@ class RecordingDirection:
 
 
 class RecordingDirectionRepository:
-    def __init__(self) -> None:
+    def __init__(self, *, existing: set[tuple[int, int | None]] | None = None) -> None:
         self.created: list[dict[str, Any]] = []
         self.created_by_values: list[UUID | None] = []
+        self._existing = existing or set()
 
     async def create(
         self, values: dict[str, Any], *, created_by: UUID | None = None
@@ -31,6 +32,11 @@ class RecordingDirectionRepository:
         self.created.append(values)
         self.created_by_values.append(created_by)
         return RecordingDirection("00000000-0000-0000-0000-000000000001")
+
+    async def find_by_year_and_base_no(
+        self, year_no: int, base_no: int | None, *, exclude_id: UUID | None = None
+    ) -> object | None:
+        return object() if (year_no, base_no) in self._existing else None
 
 
 class RecordingSample:
@@ -61,6 +67,46 @@ class RecordingResearchRepository:
     async def create(self, values: dict[str, Any]) -> object:
         self.created.append(values)
         return object()
+
+
+class FakeDoctor:
+    def __init__(
+        self, doctor_id: UUID, first_name: str, last_name: str, patronymic: str | None
+    ) -> None:
+        self.id = doctor_id
+        self.first_name = first_name
+        self.last_name = last_name
+        self.patronymic = patronymic
+
+
+class FakeDoctorRepository:
+    def __init__(self, doctors: list[FakeDoctor] | None = None) -> None:
+        self._doctors = doctors or []
+
+    async def find_by_last_name(self, last_name: str) -> list[FakeDoctor]:
+        cleaned = last_name.strip().lower()
+        return [d for d in self._doctors if d.last_name.strip().lower() == cleaned]
+
+
+class FakeObject:
+    def __init__(self, object_id: UUID, name: str, full_name: str | None = None) -> None:
+        self.id = object_id
+        self.name = name
+        self.full_name = full_name
+
+
+class FakeObjectRepository:
+    def __init__(self, objects: list[FakeObject] | None = None) -> None:
+        self._objects = objects or []
+
+    async def find_by_name(self, name: str) -> list[FakeObject]:
+        cleaned = name.strip().lower()
+        return [
+            o
+            for o in self._objects
+            if o.name.strip().lower() == cleaned
+            or (o.full_name and o.full_name.strip().lower() == cleaned)
+        ]
 
 
 def _write_row(sheet: xlwt.Worksheet, row: int, values: dict[int, Any]) -> None:
@@ -156,6 +202,26 @@ async def test_parses_real_document_end_to_end() -> None:
     assert len(first_sample_research) == 4
 
 
+async def test_skips_direction_duplicating_existing_db_row() -> None:
+    directions = RecordingDirectionRepository(existing={(2025, 460)})
+    samples = RecordingSampleRepository()
+    research = RecordingResearchRepository()
+    service = LegacyDirectionXlsImportService(
+        directions=directions, samples=samples, research=research
+    )
+
+    summary = await service.import_file("direction.xls", FIXTURE_PATH.read_bytes())
+
+    assert summary.direction_id is None
+    assert summary.samples_processed == 0
+    assert summary.samples_imported == 0
+    assert summary.marks_created == 0
+    assert len(summary.errors) == 1
+    assert directions.created == []
+    assert samples.created == []
+    assert research.created == []
+
+
 async def test_rejects_non_xls_filename() -> None:
     service = LegacyDirectionXlsImportService(
         directions=RecordingDirectionRepository(),
@@ -237,4 +303,99 @@ async def test_warns_when_research_goal_code_is_unseeded() -> None:
     assert summary.samples_imported == 1
     assert summary.marks_created == 0
     assert research.created == []
+    mark_warnings = [w for w in summary.warnings if w["field"] in ("BAK", "TH")]
+    assert len(mark_warnings) == 2
+
+
+async def test_auto_matches_doctor_and_object_on_exact_match() -> None:
+    directions = RecordingDirectionRepository()
+    doctors = FakeDoctorRepository(
+        [FakeDoctor(UUID(int=1), "Андрей", "Куликов", "Александрович")]
+    )
+    objects = FakeObjectRepository([FakeObject(UUID(int=2), "УПОО")])
+    service = LegacyDirectionXlsImportService(
+        directions=directions,
+        samples=RecordingSampleRepository(),
+        research=RecordingResearchRepository(),
+        doctors=doctors,
+        objects=objects,
+    )
+    content = _minimal_xls_bytes(
+        sample_rows=[{2: 1, 3: "Образец"}], signer_name="Куликов А.А."
+    )
+
+    summary = await service.import_file("direction.xls", content)
+
+    direction_values = directions.created[0]
+    assert direction_values["doctor_id"] == UUID(int=1)
+    assert direction_values["object_id"] == UUID(int=2)
+    assert direction_values["import_warnings"]["unresolved"] == []
+    assert summary.warnings == []
+
+
+async def test_no_match_leaves_ids_none_and_adds_warnings() -> None:
+    directions = RecordingDirectionRepository()
+    doctors = FakeDoctorRepository([])
+    objects = FakeObjectRepository([])
+    service = LegacyDirectionXlsImportService(
+        directions=directions,
+        samples=RecordingSampleRepository(),
+        research=RecordingResearchRepository(),
+        doctors=doctors,
+        objects=objects,
+    )
+    content = _minimal_xls_bytes(
+        sample_rows=[{2: 1, 3: "Образец"}], signer_name="Незнакомцев Н.Н."
+    )
+
+    summary = await service.import_file("direction.xls", content)
+
+    direction_values = directions.created[0]
+    assert "doctor_id" not in direction_values
+    assert "object_id" not in direction_values
+    assert set(direction_values["import_warnings"]["unresolved"]) == {"doctor_id", "object_id"}
     assert len(summary.warnings) == 2
+
+
+async def test_ambiguous_doctor_match_leaves_id_none() -> None:
+    directions = RecordingDirectionRepository()
+    doctors = FakeDoctorRepository(
+        [
+            FakeDoctor(UUID(int=1), "Андрей", "Куликов", "Александрович"),
+            FakeDoctor(UUID(int=2), "Алексей", "Куликов", "Артёмович"),
+        ]
+    )
+    service = LegacyDirectionXlsImportService(
+        directions=directions,
+        samples=RecordingSampleRepository(),
+        research=RecordingResearchRepository(),
+        doctors=doctors,
+        objects=None,
+    )
+    content = _minimal_xls_bytes(
+        sample_rows=[{2: 1, 3: "Образец"}], signer_name="Куликов А.А."
+    )
+
+    summary = await service.import_file("direction.xls", content)
+
+    direction_values = directions.created[0]
+    assert "doctor_id" not in direction_values
+    assert "doctor_id" in direction_values["import_warnings"]["unresolved"]
+    assert any(w["field"] == "doctor_id" for w in summary.warnings)
+
+
+async def test_without_catalog_repositories_behaves_as_before() -> None:
+    directions = RecordingDirectionRepository()
+    service = LegacyDirectionXlsImportService(
+        directions=directions,
+        samples=RecordingSampleRepository(),
+        research=RecordingResearchRepository(),
+    )
+    content = _minimal_xls_bytes(sample_rows=[{2: 1, 3: "Образец"}])
+
+    await service.import_file("direction.xls", content)
+
+    direction_values = directions.created[0]
+    assert "doctor_id" not in direction_values
+    assert "object_id" not in direction_values
+    assert set(direction_values["import_warnings"]["unresolved"]) == {"doctor_id", "object_id"}

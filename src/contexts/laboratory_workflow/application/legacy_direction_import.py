@@ -8,9 +8,16 @@ single direction with nested samples — one file is one direction.
 
 Header fields that have no matching direction column (department names,
 signer name/position, document title) are kept verbatim under
-``Direction.import_warnings`` for the registrar to reconcile by hand;
-``doctor_id``/``object_id``/``sample_type_id`` are intentionally left
-unset since the workbook only carries free-text names, not catalog ids.
+``Direction.import_warnings`` for the registrar to reconcile by hand.
+``sample_type_id`` is intentionally left unset since the workbook only
+carries free-text names, not catalog ids. ``doctor_id``/``object_id`` are
+best-effort auto-matched against the ``doctors``/``objects`` catalogs by
+exact (case-insensitive, trimmed) name match — the signer name ("Фамилия
+И.О.") against ``doctors.last_name`` + first-letter check on
+``first_name``/``patronymic``, and the sampling department against
+``objects.name``/``objects.full_name``. When no match or more than one
+match is found, the field is left ``None`` and a warning is recorded so
+the registrar still reconciles it by hand, as before.
 The Бак/Т-Х/Т-Б/РВ/ПЦР mark columns are resolved against the
 ``research_goals`` catalog by code (``BAK``/``TH``/``TB``/``RV``/``PCR``);
 a lab must seed those codes for marks to turn into ``Research`` rows.
@@ -21,7 +28,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 import xlrd
@@ -191,6 +198,55 @@ def _parse_footer(rows: list[list[Any]], footer_start: int) -> tuple[str | None,
     return signer_name, signer_position
 
 
+def _split_signer_name(signer_name: str) -> tuple[str, str, str] | None:
+    """Split "Фамилия И.О." into (surname, first_initial, patronymic_initial)."""
+    match = _NAME_PATTERN.search(signer_name)
+    if match is None:
+        return None
+    letters = re.findall(r"[А-ЯЁ]", match.group(0))
+    if len(letters) < 2:
+        return None
+    surname = signer_name[: match.start()].strip()
+    if not surname:
+        return None
+    return surname, letters[0], letters[1]
+
+
+async def _match_doctor(signer_name: str | None, doctors: Any) -> UUID | None:
+    if doctors is None or not signer_name:
+        return None
+    split = _split_signer_name(signer_name)
+    if split is None:
+        return None
+    surname, first_initial, patronymic_initial = split
+
+    candidates = await doctors.find_by_last_name(surname)
+    matches = [
+        candidate
+        for candidate in candidates
+        if _initial_matches(candidate.first_name, first_initial)
+        and _initial_matches(candidate.patronymic, patronymic_initial)
+    ]
+    if len(matches) == 1:
+        return cast(UUID, matches[0].id)
+    return None
+
+
+def _initial_matches(name: str | None, initial: str) -> bool:
+    if not name:
+        return False
+    return name.strip()[:1].upper() == initial.upper()
+
+
+async def _match_object(sampling_department: str | None, objects: Any) -> UUID | None:
+    if objects is None or not sampling_department:
+        return None
+    candidates = await objects.find_by_name(sampling_department)
+    if len(candidates) == 1:
+        return cast(UUID, candidates[0].id)
+    return None
+
+
 def _mass_text(weight: Any, unit: Any) -> str | None:
     weight = _clean(weight)
     unit = _clean(unit)
@@ -216,11 +272,20 @@ class LegacyDirectionXlsImportService:
     """Imports one direction and its samples from a legacy institutional .xls form."""
 
     def __init__(
-        self, *, directions: Any, samples: Any, research: Any, created_by: UUID | None = None
+        self,
+        *,
+        directions: Any,
+        samples: Any,
+        research: Any,
+        doctors: Any | None = None,
+        objects: Any | None = None,
+        created_by: UUID | None = None,
     ) -> None:
         self.directions = directions
         self.samples = samples
         self.research = research
+        self.doctors = doctors
+        self.objects = objects
         self.created_by = created_by
 
     async def import_file(self, filename: str, content: bytes) -> LegacyDirectionImportSummary:
@@ -274,9 +339,37 @@ class LegacyDirectionXlsImportService:
                     )
                 )
 
+        doctor_id = await _match_doctor(signer_name, self.doctors)
+        object_id = await _match_object(header.sampling_department, self.objects)
+
+        unresolved: list[str] = []
+        if doctor_id is not None:
+            direction_fields["doctor_id"] = doctor_id
+        else:
+            unresolved.append("doctor_id")
+            warnings.append(
+                _issue(
+                    None,
+                    "doctor_id",
+                    "Could not auto-match a doctor from the signer name; reconcile manually.",
+                )
+            )
+        if object_id is not None:
+            direction_fields["object_id"] = object_id
+        else:
+            unresolved.append("object_id")
+            warnings.append(
+                _issue(
+                    None,
+                    "object_id",
+                    "Could not auto-match an object from the sampling department; "
+                    "reconcile manually.",
+                )
+            )
+
         direction_fields["import_warnings"] = {
             "source": "legacy_xls",
-            "unresolved": ["doctor_id", "object_id"],
+            "unresolved": unresolved,
             "document": {
                 "document_number": header.document_number,
                 "lab_department": header.lab_department,
@@ -286,9 +379,38 @@ class LegacyDirectionXlsImportService:
             },
         }
 
+        errors: list[dict[str, object]] = []
+
+        existing = await self.directions.find_by_year_and_base_no(
+            direction_fields["year_no"], direction_fields.get("base_no")
+        )
+        if existing is not None:
+            errors.append(
+                {
+                    "row": None,
+                    "errors": [
+                        _issue(
+                            None,
+                            "year_no",
+                            "Направление с таким годом и номером уже существует, "
+                            "пропущено.",
+                        )
+                    ],
+                }
+            )
+            return LegacyDirectionImportSummary(
+                filename=filename,
+                direction_id=None,
+                samples_processed=0,
+                samples_imported=0,
+                skipped_samples=0,
+                marks_created=0,
+                errors=errors,
+                warnings=warnings,
+            )
+
         direction_row = await self.directions.create(direction_fields, created_by=self.created_by)
 
-        errors: list[dict[str, object]] = []
         samples_processed = 0
         samples_imported = 0
         skipped_samples = 0

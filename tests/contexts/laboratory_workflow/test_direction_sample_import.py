@@ -19,10 +19,11 @@ class RecordingDirection:
 
 
 class RecordingDirectionRepository:
-    def __init__(self) -> None:
+    def __init__(self, *, existing: set[tuple[int, int | None]] | None = None) -> None:
         self.created: list[dict[str, object]] = []
         self.created_by_values: list[UUID | None] = []
         self._next_id = 1
+        self._existing = existing or set()
 
     async def create(
         self, values: dict[str, object], *, created_by: UUID | None = None
@@ -32,6 +33,11 @@ class RecordingDirectionRepository:
         direction_id = f"00000000-0000-0000-0000-{self._next_id:012d}"
         self._next_id += 1
         return RecordingDirection(direction_id)
+
+    async def find_by_year_and_base_no(
+        self, year_no: int, base_no: int | None, *, exclude_id: UUID | None = None
+    ) -> object | None:
+        return object() if (year_no, base_no) in self._existing else None
 
 
 class RecordingSampleRepository:
@@ -81,6 +87,31 @@ async def test_excel_import_groups_rows_into_directions_with_samples() -> None:
     assert samples.created[0]["name"] == "Sample A"
     assert samples.created[0]["direction_id"] == UUID("00000000-0000-0000-0000-000000000001")
     assert samples.created[2]["direction_id"] == UUID("00000000-0000-0000-0000-000000000002")
+
+
+async def test_excel_import_skips_direction_duplicating_existing_db_row() -> None:
+    directions = RecordingDirectionRepository(existing={(2026, 5001)})
+    samples = RecordingSampleRepository()
+    service = DirectionExcelImportService(directions=directions, samples=samples)
+
+    content = _xlsx_bytes(
+        [
+            [2026, 5001, "Duplicate Sample"],
+            [2026, 5002, "New Sample"],
+        ],
+        ["year_no", "base_no", "sample_name"],
+    )
+
+    summary = await service.import_file("directions.xlsx", content)
+
+    assert summary.rows_processed == 2
+    assert summary.directions_created == 1
+    assert summary.samples_created == 1
+    assert summary.skipped_rows == 1
+    assert len(summary.errors) == 1
+    assert summary.errors[0]["row"] == 2
+    assert len(directions.created) == 1
+    assert directions.created[0]["base_no"] == 5002
 
 
 async def test_excel_import_rejects_non_xlsx_filename() -> None:
@@ -157,6 +188,26 @@ async def test_json_import_accepts_bare_array() -> None:
 
     assert summary.directions_created == 1
     assert summary.samples_created == 1
+
+
+async def test_json_import_skips_direction_duplicating_existing_db_row() -> None:
+    directions = RecordingDirectionRepository(existing={(2026, 6001)})
+    samples = RecordingSampleRepository()
+    service = DirectionJsonImportService(directions=directions, samples=samples)
+
+    payload = (
+        b'{"rows": ['
+        b'{"year_no": 2026, "base_no": 6001, "sample_name": "Duplicate Sample"},'
+        b'{"year_no": 2026, "base_no": 6002, "sample_name": "New Sample"}'
+        b"]}"
+    )
+
+    summary = await service.import_file("directions.json", payload)
+
+    assert summary.directions_created == 1
+    assert summary.samples_created == 1
+    assert summary.skipped_rows == 1
+    assert len(summary.errors) == 1
 
 
 async def test_json_import_rejects_non_json_filename() -> None:

@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Response, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.contexts.laboratory_workflow.application.commands import WorkflowCommandService
@@ -41,7 +41,6 @@ from src.contexts.laboratory_workflow.presentation.schemas import (
     RejectResearchRequest,
     RejectSampleRequest,
     RejectTestRequest,
-    ResearchCreateRequest,
     ResearchUpdateRequest,
     SampleCreateRequest,
     SampleUpdateRequest,
@@ -51,6 +50,7 @@ from src.contexts.laboratory_workflow.presentation.schemas import (
 from src.core.database import get_db_session
 from src.core.pagination import PaginationDependency
 from src.core.responses import ListResponse, ResponseMeta, SingleResponse
+from src.infrastructure.repositories.catalogs import DoctorRepository, ObjectRepository
 from src.infrastructure.uow import build_uow_factory
 from src.presentation.http.access_control.dependencies import get_current_user_id_optional
 
@@ -70,6 +70,8 @@ async def get_workflow_crud_use_case(
         research=ResearchCrudRepository(session=session),
         tests=TestCrudRepository(session=session),
         protocols=ProtocolCrudRepository(session=session),
+        doctors=DoctorRepository(session=session),
+        objects=ObjectRepository(session=session),
     )
 
 
@@ -105,42 +107,23 @@ async def create_direction(
 @router.post("/directions/import")
 async def import_directions(
     file: Annotated[UploadFile, File()],
-    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
-) -> SingleResponse[dict[str, object]]:
-    return await use_case.import_directions(file.filename or "", await file.read())
-
-
-@router.post("/directions/import-excel")
-async def import_directions_excel(
-    file: Annotated[UploadFile, File()],
+    type: Annotated[str, Form()],
     use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
     actor_id: Annotated[UUID | None, Depends(get_current_user_id_optional)],
 ) -> SingleResponse[dict[str, object]]:
-    return await use_case.import_directions_excel(
-        file.filename or "", await file.read(), actor_id=actor_id
+    return await use_case.import_directions(
+        file.filename or "", await file.read(), type_=type, actor_id=actor_id
     )
 
 
-@router.post("/directions/import-json")
-async def import_directions_json(
-    file: Annotated[UploadFile, File()],
+@router.post("/directions/{direction_id}/samples", status_code=status.HTTP_201_CREATED)
+async def add_direction_sample(
+    direction_id: UUID,
+    payload: SampleCreateRequest,
     use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
     actor_id: Annotated[UUID | None, Depends(get_current_user_id_optional)],
 ) -> SingleResponse[dict[str, object]]:
-    return await use_case.import_directions_json(
-        file.filename or "", await file.read(), actor_id=actor_id
-    )
-
-
-@router.post("/directions/import-legacy-xls")
-async def import_directions_legacy_xls(
-    file: Annotated[UploadFile, File()],
-    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
-    actor_id: Annotated[UUID | None, Depends(get_current_user_id_optional)],
-) -> SingleResponse[dict[str, object]]:
-    return await use_case.import_directions_legacy_xls(
-        file.filename or "", await file.read(), actor_id=actor_id
-    )
+    return await use_case.add_direction_sample(direction_id, payload, actor_id=actor_id)
 
 
 @router.patch("/directions/{direction_id}")
@@ -177,14 +160,6 @@ async def read_sample(
     return await use_case.read_sample(sample_id)
 
 
-@router.post("/samples", status_code=status.HTTP_201_CREATED)
-async def create_sample(
-    payload: SampleCreateRequest,
-    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
-) -> SingleResponse[dict[str, object]]:
-    return await use_case.create_sample(payload)
-
-
 @router.patch("/samples/{sample_id}")
 async def update_sample(
     sample_id: UUID,
@@ -219,14 +194,6 @@ async def read_research(
     return await use_case.read_research(research_id)
 
 
-@router.post("/research", status_code=status.HTTP_201_CREATED)
-async def create_research(
-    payload: ResearchCreateRequest,
-    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
-) -> SingleResponse[dict[str, object]]:
-    return await use_case.create_research(payload)
-
-
 @router.patch("/research/{research_id}")
 async def update_research(
     research_id: UUID,
@@ -259,13 +226,6 @@ async def read_test(
     use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
 ) -> SingleResponse[dict[str, object]]:
     return await use_case.read_test(test_id)
-
-
-@router.post("/tests", status_code=status.HTTP_409_CONFLICT)
-async def create_test(
-    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
-) -> None:
-    use_case.reject_test_create()
 
 
 @router.patch("/tests/{test_id}")
