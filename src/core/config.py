@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     auth_cookie_secure: bool
     auth_cookie_domain: str
     auth_cookie_path: str = "/"
+    # Absolute path to the built frontend (Vite `dist`). When set and the
+    # directory exists, the app serves the SPA + static assets itself, so a
+    # single uvicorn process covers both `/api/v1` and the UI (offline Windows
+    # deploy). Left unset in development, where Vite serves the frontend.
+    static_dir: str | None = None
 
     @property
     def plugins_dir(self) -> Path:

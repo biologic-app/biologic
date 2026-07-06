@@ -17,12 +17,13 @@ dependencies = [
     "pygments>=2.19.2",
     "openpyxl>=3.1.5",
     "xlrd>=2.0.1",
+    # Runtime dependency: imported unconditionally by src/plugins/scalar and
+    # mounted in create_app() to serve /docs. Must ship in production installs.
+    "scalar-fastapi>=1.6.2",
 ]
 
 [dependency-groups]
 dev = [
-    
-    "scalar-fastapi>=1.6.2",
     "factory-boy>=3.3.3",
     "faker>=40.4.0",
     "httpx>=0.28.1",
