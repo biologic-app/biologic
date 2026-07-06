@@ -46,13 +46,19 @@ const colors = [
 ];
 const neutrals = ["slate", "gray", "zinc", "neutral", "stone"];
 
-const user = computed(() => ({
-  name: auth.user?.fullName || auth.user?.login || "User",
-  avatar: {
-    src: "https://github.com/benjamincanac.png",
-    alt: auth.user?.fullName || auth.user?.login || "User",
-  },
-}));
+const user = computed(() => {
+  const name = auth.user?.fullName || auth.user?.login;
+
+  return {
+    name: name || "User",
+    // No external avatar source: UAvatar falls back to initials derived
+    // from `alt` (or a generic icon when no name is known), so the fully
+    // offline deployment never requests an image from the network.
+    avatar: name
+      ? { alt: name }
+      : { icon: "i-lucide-user" },
+  };
+});
 
 const items = computed<DropdownMenuItem[][]>(() => [
   [
