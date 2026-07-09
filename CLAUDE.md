@@ -13,9 +13,9 @@ biologic/            ← единый репозиторий (git)
 └── .github/         ← CI (path-filtered)
 ```
 
-> Это **единственный** файл правил агента в репозитории (отдельных `AGENTS.md` в
-> подсистемах нет). Детали backend — в `backend/CLAUDE.md`; соглашения frontend — в
-> разделе ниже.
+> Это **единственный** файл правил агента в репозитории: отдельных `AGENTS.md` и
+> `backend/CLAUDE.md` нет — всё здесь. Соглашения frontend и команды/архитектура backend —
+> в разделах ниже.
 
 ## Контракт: OpenAPI
 
@@ -42,7 +42,7 @@ backend (FastAPI) → /openapi.json → bun run sdk:generate → frontend/src/sh
 
 ## Порядок для фичи «сквозь стек»
 
-1. **Backend** — реализовать и протестировать API (`make -C backend test lint`).
+1. **Backend** — реализовать и протестировать API (`make be-test be-lint`).
 2. **SDK** — регенерировать клиент (`cd frontend && bun run sdk:generate`).
 3. **Frontend** — реализовать UI поверх нового клиента (`bun run typecheck lint build`).
 4. Один PR на весь слайс; e2e (k6 + Playwright) и запись видео — по конвейеру (ROADMAP §A3).
@@ -50,7 +50,7 @@ backend (FastAPI) → /openapi.json → bun run sdk:generate → frontend/src/sh
 ## Верификация (определение «готово»)
 
 - Из корня: `make lint` (ruff+mypy + eslint+vue-tsc), `make test`, `make build`.
-- Backend: `make -C backend lint test` (детали — `backend/CLAUDE.md`).
+- Backend: `make be-lint be-test` (детали — раздел «Backend» ниже).
 - Frontend: `cd frontend && bun run lint typecheck build` + `bun test tests/shared`.
 - Контракт: после изменения API сгенерированный SDK компилируется без ошибок.
 
@@ -73,6 +73,77 @@ backend (FastAPI) → /openapi.json → bun run sdk:generate → frontend/src/sh
 - Проверка (тест-раннера как такового мало): `bun run lint typecheck build` +
   `bun test tests/shared` + e2e `bun run test:e2e` (Playwright).
 - `.editorconfig`: 2 пробела, LF, UTF-8, финальный перевод строки.
+
+## Backend — команды и архитектура
+
+FastAPI, SQLAlchemy 2.0 async, PostgreSQL 15, DDD. Команды — через корневой Makefile
+(`make be-*`) или напрямую в `backend/`.
+
+### Команды
+- `make be-dev` — uvicorn --reload :8080
+- `make be-test` — pytest
+- `make be-lint` — ruff check + mypy
+- `make be-format` — ruff format
+- `make be-audit` — pip-audit
+- `make be-seed-data` — справочные данные
+- `make be-k6-scenarios` — k6-сценарии (нужен запущенный API)
+
+Один тест: `cd backend && uv run pytest -v tests/path/to/test_file.py::test_name`.
+Миграции: `cd backend && uv run alembic upgrade head` /
+`uv run alembic revision --autogenerate -m "description"`.
+Docker dev: `cd backend && docker compose up --build` — API :8080, PostgreSQL 15.
+
+### DDD Bounded Contexts
+
+> Текущий снимок; DDD-консолидация до одного контекста — в процессе (ROADMAP D1).
+
+Контексты под `src/contexts/` (часть уже вынесена в плоские `src/{domain,application,
+infrastructure,presentation}`): `laboratory_workflow` (направления, образцы, исследования,
+тесты, протоколы — ядро), `catalogs` (справочники CRUD), `access_control` (RBAC),
+`audit` (`change_log`), `notifications` (alerts), `dashboard` (read-проекции).
+
+### Слои (DIP-стек)
+- `domain/` — чистый Python, без framework-импортов (статус-политики, доменные события,
+  value objects). Не импортирует FastAPI/SQLAlchemy (тест `test_domain_does_not_import_...`).
+- `application/` — порты (Protocol), DTO, command-сервисы. Зависит только от domain.
+- `infrastructure/` — SQLAlchemy-репозитории, реализующие порты application.
+- `presentation/` — FastAPI-роутеры, Pydantic-схемы, DI. `core/` не импортирует из contexts.
+
+### API Design
+Префикс `/api/v1`. Два паттерна: **CRUD** (`GET/POST/PATCH/DELETE /{resource}`, пагинация
+`offset/limit/sort_by/sort_order/filters/include`; список `{items, meta}`, чтение `{data, meta}`)
+и **Команды** (`POST /{resource}/{id}/{action}` → `{data: CommandResult, meta: {operation}}`).
+Смена статуса жизненного цикла — только через команды, никогда `PATCH status_id`. Спецификация:
+`docs/architecture/2026-05-14-backend-mvp-ddd-api-design.md`.
+
+### Status Codes
+Лайфсайкл-сущности ссылаются на статус-таблицы по UUID; стабильные `code`-строки — авторитет
+для UI и переходов (`src/core/status_codes.py`):
+```
+DIRECTION: draft → registered → in_progress → partially_completed → completed
+SAMPLE:    pending → registered → in_progress → analyzed → completed;  → rejected;  analyzed → in_progress (reopen)
+RESEARCH:  draft → ordered → in_progress → completed;  draft/ordered → rejected
+TEST:      queued → in_progress → completed;  → rejected;  in_progress → queued (requeue)
+```
+Правила переходов — `src/contexts/laboratory_workflow/domain/status_policy.py`.
+
+### Errors
+Problem-details (`application/problem+json`, `src/core/errors.py`): `AppError` (база),
+`NotFoundError(404)`, `BadRequestError(400)`, `ValidationError(422)`, `DomainConflictError(409)`,
+`UnauthorizedError(401)`, `ForbiddenError(403)`. Правило scope: сущность вне scope → 404;
+в scope без права → 403.
+
+### Database / Auth
+SQLAlchemy 2.0 async + asyncpg; модели в `src/infrastructure/db/models/`, все от `Base`;
+UUIDv7 PK (`uuidv7()` server default), поля `created_at/updated_at/deleted_at`. Сессия —
+`get_db_session` в `src/core/database.py`. Auth: JWT access/refresh в cookie; настройки —
+`APP_`-префикс (`src/core/config.py`); bcrypt via `passlib`; RBAC-политика —
+`src/contexts/access_control/domain/policy.py`.
+
+### Ключевые файлы
+`src/main.py` (entry), `src/app_factory.py` (сборка app), `src/api/v1/router.py`,
+`src/core/{config,database,errors,handlers,responses,pagination,status_codes}.py`,
+`src/infrastructure/db/models/`.
 
 ## Инструментарий (не смешивать)
 

@@ -1,44 +1,105 @@
-# Biologic monorepo — оркестрация обеих подсистем.
-# Backend (uv/make, Python 3.11) и frontend (bun) сохраняют свои инструменты;
-# этот Makefile только запускает их из корня одной командой.
+# Biologic monorepo — единый Makefile для backend (uv, Python 3.11) и frontend (bun).
+# Backend-цели (be-*) выполняются внутри backend/, frontend-цели (fe-*) — внутри frontend/.
+# Агрегаты (lint/test/format/...) вызывают обе подсистемы.
 
-.PHONY: help install lint format test build typecheck e2e sdk-generate
+# --- backend vars (из бывшего backend/Makefile) ---
+SEED_ARGS ?=
+ANALYZE_QUERY_ARGS ?= --seed-profile perf-lite --truncate --database-url postgresql://biologic:biologic@localhost:5433/biologic
+K6_BASE_URL ?= http://localhost:8080/api/v1
+K6_CONTEXTS ?= workflow
+K6_ALL_JSON := $(foreach c,$(K6_CONTEXTS),reports/k6/$(c)-results.json)
+
+.PHONY: help install lint format test typecheck build e2e sdk-generate \
+        be-dev be-test be-lint be-format be-audit be-seed-data be-analyze-orm-queries \
+        be-k6-workflow be-k6-scenarios \
+        fe-dev fe-lint fe-typecheck fe-build fe-test fe-e2e fe-format fe-sdk-generate
 
 help:
 	@echo "Biologic monorepo"
 	@echo "  make install       backend: uv sync  +  frontend: bun install"
-	@echo "  make lint          backend: ruff+mypy  +  frontend: eslint+vue-tsc"
-	@echo "  make format        backend: ruff format  +  frontend: eslint --fix"
-	@echo "  make test          backend: pytest  +  frontend: bun test tests/shared"
-	@echo "  make typecheck     frontend: vue-tsc"
-	@echo "  make build         frontend: production build"
-	@echo "  make e2e           frontend: playwright"
+	@echo "  make lint          be-lint + fe-lint (ruff+mypy / eslint)"
+	@echo "  make test          be-test + fe-test (pytest / bun test)"
+	@echo "  make format        be-format + fe-format"
+	@echo "  make typecheck     fe-typecheck (vue-tsc)"
+	@echo "  make build         fe-build (production)"
+	@echo "  make e2e           fe-e2e (playwright)"
 	@echo "  make sdk-generate  regenerate FE SDK from a running backend (:8080)"
+	@echo "  backend: be-dev be-test be-lint be-format be-audit be-seed-data be-k6-scenarios"
+	@echo "  frontend: fe-dev fe-lint fe-typecheck fe-build fe-test fe-e2e"
 
+# --- aggregates ---
 install:
 	cd backend && uv sync --all-extras
 	cd frontend && bun install
 
-lint:
-	$(MAKE) -C backend lint
-	cd frontend && bun run lint && bun run typecheck
+lint: be-lint fe-lint
+format: be-format fe-format
+test: be-test fe-test
+typecheck: fe-typecheck
+build: fe-build
+e2e: fe-e2e
+sdk-generate: fe-sdk-generate
 
-format:
-	$(MAKE) -C backend format
-	cd frontend && bun run lint --fix || true
+# --- backend (бывший backend/Makefile; выполняется в backend/) ---
+be-dev:
+	cd backend && uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8080
 
-test:
-	$(MAKE) -C backend test
-	cd frontend && bun test tests/shared
+be-test:
+	cd backend && uv run pytest -v
 
-typecheck:
+be-lint:
+	cd backend && uv run ruff check src tests
+	cd backend && uv run mypy src tests
+
+be-format:
+	cd backend && uv run ruff format src tests
+
+be-audit:
+	cd backend && uv run pip-audit
+
+be-seed-data:
+	cd backend && uv run python -m scripts.seed_test_data $(SEED_ARGS)
+
+be-analyze-orm-queries:
+	cd backend && uv run python -m scripts.analyze_orm_query_plans $(ANALYZE_QUERY_ARGS)
+
+# k6: нужен запущенный API (make be-dev) на мигрированной БД. Отчёты — в backend/reports/k6/,
+# прогон падает при нарушении порога (checks rate==1.00).
+be-k6-workflow:
+	cd backend && mkdir -p reports/k6 && \
+		BASE_URL=$(K6_BASE_URL) k6 run --out json=reports/k6/workflow-results.json tests/k6/scenarios/workflow/index.js && \
+		uv run python -m scripts.k6_report_visual reports/k6/workflow-results.json --title "Biologic — Workflow" --base-url $(K6_BASE_URL)
+
+be-k6-scenarios:
+	cd backend && mkdir -p reports/k6; rc=0; for ctx in $(K6_CONTEXTS); do \
+		echo "── k6 scenarios: $$ctx ──"; \
+		BASE_URL=$(K6_BASE_URL) k6 run --out json=reports/k6/$$ctx-results.json tests/k6/scenarios/$$ctx/index.js || rc=1; \
+	done; \
+	echo "── building combined report ──"; \
+	uv run python -m scripts.k6_report_visual $(K6_ALL_JSON) -o reports/k6/all-results.html --title "Biologic — All Scenarios" --base-url $(K6_BASE_URL); \
+	exit $$rc
+
+# --- frontend (выполняется в frontend/) ---
+fe-dev:
+	cd frontend && bun run dev
+
+fe-lint:
+	cd frontend && bun run lint
+
+fe-typecheck:
 	cd frontend && bun run typecheck
 
-build:
+fe-build:
 	cd frontend && bun run build
 
-e2e:
+fe-test:
+	cd frontend && bun test tests/shared
+
+fe-e2e:
 	cd frontend && bun run test:e2e
 
-sdk-generate:
+fe-format:
+	cd frontend && bun run lint --fix || true
+
+fe-sdk-generate:
 	cd frontend && bun run sdk:generate
