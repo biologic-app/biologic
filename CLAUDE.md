@@ -13,8 +13,9 @@ biologic/            ← единый репозиторий (git)
 └── .github/         ← CI (path-filtered)
 ```
 
-> Перед работой внутри подсистемы **сначала прочитай её правила**: `backend/CLAUDE.md`
-> и `backend/AGENTS.md`, `frontend/AGENTS.md`. Этот файл описывает правила **монорепо**.
+> Это **единственный** файл правил агента в репозитории (отдельных `AGENTS.md` в
+> подсистемах нет). Детали backend — в `backend/CLAUDE.md`; соглашения frontend — в
+> разделе ниже.
 
 ## Контракт: OpenAPI
 
@@ -52,6 +53,26 @@ backend (FastAPI) → /openapi.json → bun run sdk:generate → frontend/src/sh
 - Backend: `make -C backend lint test` (детали — `backend/CLAUDE.md`).
 - Frontend: `cd frontend && bun run lint typecheck build` + `bun test tests/shared`.
 - Контракт: после изменения API сгенерированный SDK компилируется без ошибок.
+
+## Frontend — соглашения
+
+Структура: bootstrap в `src/main.ts` и `src/app/`; страницы в `src/pages/`; фичи в
+`src/modules/` (`auth`, `directions`, `research`, `dictionaries`, `access`, …); общий код в
+`src/shared/` (`ui`, `composables`, `api`, `types`, `utils`, `i18n`, `config`). Держи
+код фичи внутри её модуля; переиспользуемое — в `src/shared/`.
+
+- **Только явные импорты — auto-imports запрещены.** Каждый символ импортируется явно:
+  Vue API (`ref`, `computed`, `watch`), composables (`useToast`, `useRoute`, `useAuth`),
+  компоненты Nuxt UI (`UButton`, `UTable`, …). Плагины авто-импорта и генерируемые
+  `auto-imports.d.ts`/`components.d.ts` подлежат удалению (ROADMAP D6); новый код уже
+  пишется с явными импортами.
+- Импорты из `src` — через алиас `@/` (например `@/shared/utils/format`).
+- Компоненты — PascalCase (`UserMenu.vue`); composables — `useX` (`useAuth.ts`).
+- TypeScript со строгими проверками. ESLint: `typescript-eslint` + `eslint-plugin-vue`
+  (flat recommended); в шаблонах ≤3 атрибутов в строку.
+- Проверка (тест-раннера как такового мало): `bun run lint typecheck build` +
+  `bun test tests/shared` + e2e `bun run test:e2e` (Playwright).
+- `.editorconfig`: 2 пробела, LF, UTF-8, финальный перевод строки.
 
 ## Инструментарий (не смешивать)
 

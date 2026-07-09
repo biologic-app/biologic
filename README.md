@@ -7,7 +7,7 @@
 ```
 biologic/
 ├── backend/    FastAPI · uv · Python 3.11 · PostgreSQL 15 · :8080   (см. backend/CLAUDE.md)
-├── frontend/   Vue 3 · Vite · TypeScript · Nuxt UI · bun · :5177    (см. frontend/AGENTS.md)
+├── frontend/   Vue 3 · Vite · TypeScript · Nuxt UI · bun · :5177    (соглашения — в CLAUDE.md)
 ├── docs/       единая документация (процессы, роли, фичи)
 ├── ROADMAP.md  план развития проекта
 └── .github/    CI (path-filtered: backend / frontend)

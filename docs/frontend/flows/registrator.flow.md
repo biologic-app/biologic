@@ -32,7 +32,7 @@ tags:
 
 | # | Проблема | Исправление |
 |---|----------|-------------|
-| 1 | На бэкенде не было ни одного `/auth/*` эндпоинта — логин со страницы `/login` не работал против реального API (фронт уже дёргал `/auth/login`). | Добавлены `POST /auth/login`, `GET /auth/me`, `POST /auth/logout` + `UserAuthRepository.get_by_username`, JWT-cookie сессия. См. `backend/docs/…` план `frontend/docs/login-backend-integration-plan.md`, реализовано 1:1. |
+| 1 | На бэкенде не было ни одного `/auth/*` эндпоинта — логин со страницы `/login` не работал против реального API (фронт уже дёргал `/auth/login`). | Добавлены `POST /auth/login`, `GET /auth/me`, `POST /auth/logout` + `UserAuthRepository.get_by_username`, JWT-cookie сессия. См. план `docs/product/login-backend-integration-plan.md`, реализовано 1:1. |
 | 2 | `POST /directions` и `POST /samples` никогда не проставляли `status_id` — новые записи оставались с `status_id = NULL` навсегда, что ломает весь lifecycle. | `DirectionCrudRepository.create` / `SampleCrudRepository.create` теперь проставляют дефолтный статус (`draft` / `pending`) через `_default_status_id`, если он не передан явно. |
 | 3 | Импорт направлений существовал только в CSV и создавал **только** направления, без образцов. | Добавлены `POST /directions/import-excel` и `POST /directions/import-json` — оба создают направление **и** вложенные образцы (см. §2). |
 | 4 | `samples.reject` разрешался только из `pending` — нельзя было забраковать образец «в работе». | В `status_policy.py` разрешены переходы `registered → rejected` и `in_progress → rejected`; во фронтовом `workflow-commands.ts` статусы команды `samples.reject` расширены до `["pending", "registered", "in_progress"]`. |

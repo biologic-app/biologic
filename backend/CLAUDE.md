@@ -59,7 +59,7 @@ Base prefix: `/api/v1`. Two endpoint patterns:
 
 1. **CRUD** — `GET/POST/PATCH/DELETE /{resource}` with pagination params (`offset`, `limit`, `sort_by`, `sort_order`, `filters`, `include`). List response: `{items, meta}`. Read response: `{data, meta}`. See `src/core/responses.py`.
 
-2. **Commands** — `POST /{resource}/{id}/{action}`. Returns `{data: CommandResult, meta: {operation}}`. Lifecycle status changes MUST go through commands, never `PATCH status_id`. See spec at `docs/superpowers/specs/2026-05-14-backend-mvp-ddd-api-design.md`.
+2. **Commands** — `POST /{resource}/{id}/{action}`. Returns `{data: CommandResult, meta: {operation}}`. Lifecycle status changes MUST go through commands, never `PATCH status_id`. See spec at `../docs/architecture/2026-05-14-backend-mvp-ddd-api-design.md` (docs consolidated at repo root).
 
 ### Status Codes
 
