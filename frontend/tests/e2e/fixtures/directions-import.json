@@ -1,0 +1,7 @@
+{
+  "rows": [
+    { "year_no": 2026, "base_no": 900201, "sample_name": "JSON Проба A", "is_urgent": true },
+    { "year_no": 2026, "base_no": 900201, "sample_name": "JSON Проба Б" },
+    { "year_no": 2026, "base_no": 900202, "sample_name": "JSON Проба В" }
+  ]
+}

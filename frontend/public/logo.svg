@@ -1,0 +1,114 @@
+<svg width="100%" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <clipPath id="flask-clip">
+      <path d="M82 30 C82 30 82 55 78 72 C72 92 52 112 40 135 C28 158 35 188 100 188 C165 188 172 158 160 135 C148 112 128 92 122 72 C118 55 118 30 118 30 Z"/>
+    </clipPath>
+  </defs>
+  <style>
+    @keyframes sway-fwd {
+      0%   { transform: translateX(0px) scaleX(1); }
+      25%  { transform: translateX(10px) scaleX(1.06); }
+      50%  { transform: translateX(0px) scaleX(1); }
+      75%  { transform: translateX(-10px) scaleX(1.06); }
+      100% { transform: translateX(0px) scaleX(1); }
+    }
+    @keyframes wave-fwd {
+      0%   { d: path("M20 125 Q50 107 100 123 Q150 139 180 121 L180 210 L20 210 Z"); }
+      25%  { d: path("M20 125 Q50 141 100 123 Q150 105 180 127 L180 210 L20 210 Z"); }
+      50%  { d: path("M20 125 Q50 107 100 125 Q150 139 180 121 L180 210 L20 210 Z"); }
+      75%  { d: path("M20 125 Q50 141 100 123 Q150 105 180 129 L180 210 L20 210 Z"); }
+      100% { d: path("M20 125 Q50 107 100 123 Q150 139 180 121 L180 210 L20 210 Z"); }
+    }
+    @keyframes wave-back {
+      0%   { d: path("M20 125 Q50 105 100 125 Q150 145 180 123 L180 210 L20 210 Z"); }
+      25%  { d: path("M20 125 Q50 143 100 121 Q150 101 180 125 L180 210 L20 210 Z"); }
+      50%  { d: path("M20 125 Q50 107 100 127 Q150 143 180 123 L180 210 L20 210 Z"); }
+      75%  { d: path("M20 125 Q50 143 100 123 Q150 103 180 125 L180 210 L20 210 Z"); }
+      100% { d: path("M20 125 Q50 105 100 125 Q150 145 180 123 L180 210 L20 210 Z"); }
+    }
+    .liquid-back {
+      transform-origin: 100px 155px;
+      animation: sway-fwd 3.2s ease-in-out infinite reverse;
+    }
+    .liquid-fwd {
+      transform-origin: 100px 155px;
+      animation: sway-fwd 3.2s ease-in-out infinite;
+    }
+    .wave-back { animation: wave-back 3.2s ease-in-out infinite; }
+    .wave-fwd  { animation: wave-fwd  3.2s ease-in-out infinite; }
+  </style>
+
+  <!-- Cork bottom (inside neck) y+10: 18→28 -->
+  <rect x="82" y="25" width="36" height="14" rx="2"
+        fill="oklch(52% 0.09 55)" stroke="oklch(40% 0.08 53)" stroke-width="1.5"/>
+  <!-- Cork top y+10: 4→14 -->
+  <rect x="78" y="11" width="44" height="16" rx="3"
+        fill="oklch(72% 0.1 62)" stroke="oklch(50% 0.09 55)" stroke-width="1.5"/>
+  <!-- Cork texture: dense dots like cork wood -->
+  <circle cx="83" cy="13" r="1.0" fill="oklch(52% 0.08 55)" opacity="0.4"/>
+  <circle cx="89" cy="13" r="1.1" fill="oklch(52% 0.08 55)" opacity="0.5"/>
+  <circle cx="95" cy="13" r="1.2" fill="oklch(52% 0.08 55)" opacity="0.4"/>
+  <circle cx="101" cy="13" r="1.0" fill="oklch(52% 0.08 55)" opacity="0.5"/>
+  <circle cx="107" cy="13" r="1.1" fill="oklch(52% 0.08 55)" opacity="0.4"/>
+  <circle cx="113" cy="13" r="1.2" fill="oklch(52% 0.08 55)" opacity="0.5"/>
+  <circle cx="117" cy="13" r="1.0" fill="oklch(52% 0.08 55)" opacity="0.4"/>
+  <circle cx="86" cy="17" r="1.0" fill="oklch(52% 0.08 55)" opacity="0.4"/>
+  <circle cx="92" cy="17" r="1.1" fill="oklch(52% 0.08 55)" opacity="0.5"/>
+  <circle cx="98" cy="17" r="1.2" fill="oklch(52% 0.08 55)" opacity="0.4"/>
+  <circle cx="104" cy="17" r="1.0" fill="oklch(52% 0.08 55)" opacity="0.5"/>
+  <circle cx="110" cy="17" r="1.1" fill="oklch(52% 0.08 55)" opacity="0.4"/>
+  <circle cx="116" cy="17" r="1.2" fill="oklch(52% 0.08 55)" opacity="0.5"/>
+  <circle cx="83" cy="21" r="1.0" fill="oklch(52% 0.08 55)" opacity="0.4"/>
+  <circle cx="89" cy="21" r="1.1" fill="oklch(52% 0.08 55)" opacity="0.5"/>
+  <circle cx="95" cy="21" r="1.2" fill="oklch(52% 0.08 55)" opacity="0.4"/>
+  <circle cx="101" cy="21" r="1.0" fill="oklch(52% 0.08 55)" opacity="0.5"/>
+  <circle cx="107" cy="21" r="1.1" fill="oklch(52% 0.08 55)" opacity="0.4"/>
+  <circle cx="113" cy="21" r="1.2" fill="oklch(52% 0.08 55)" opacity="0.5"/>
+  <circle cx="117" cy="21" r="1.0" fill="oklch(52% 0.08 55)" opacity="0.4"/>
+  <circle cx="86" cy="24" r="1.0" fill="oklch(52% 0.08 55)" opacity="0.4"/>
+  <circle cx="92" cy="24" r="1.1" fill="oklch(52% 0.08 55)" opacity="0.5"/>
+  <circle cx="98" cy="24" r="1.2" fill="oklch(52% 0.08 55)" opacity="0.4"/>
+  <circle cx="104" cy="24" r="1.0" fill="oklch(52% 0.08 55)" opacity="0.5"/>
+  <circle cx="110" cy="24" r="1.1" fill="oklch(52% 0.08 55)" opacity="0.4"/>
+  <circle cx="116" cy="24" r="1.2" fill="oklch(52% 0.08 55)" opacity="0.5"/>
+  <circle cx="86" cy="27" r="1.0" fill="oklch(38% 0.07 53)" opacity="0.4"/>
+  <circle cx="92" cy="27" r="1.1" fill="oklch(38% 0.07 53)" opacity="0.5"/>
+  <circle cx="98" cy="27" r="1.2" fill="oklch(38% 0.07 53)" opacity="0.4"/>
+  <circle cx="104" cy="27" r="1.0" fill="oklch(38% 0.07 53)" opacity="0.5"/>
+  <circle cx="110" cy="27" r="1.1" fill="oklch(38% 0.07 53)" opacity="0.4"/>
+  <circle cx="114" cy="27" r="1.2" fill="oklch(38% 0.07 53)" opacity="0.5"/>
+  <circle cx="88" cy="31" r="1.0" fill="oklch(38% 0.07 53)" opacity="0.4"/>
+  <circle cx="94" cy="31" r="1.1" fill="oklch(38% 0.07 53)" opacity="0.5"/>
+  <circle cx="100" cy="31" r="1.2" fill="oklch(38% 0.07 53)" opacity="0.4"/>
+  <circle cx="106" cy="31" r="1.0" fill="oklch(38% 0.07 53)" opacity="0.5"/>
+  <circle cx="112" cy="31" r="1.1" fill="oklch(38% 0.07 53)" opacity="0.4"/>
+  <circle cx="86" cy="35" r="1.0" fill="oklch(38% 0.07 53)" opacity="0.4"/>
+  <circle cx="92" cy="35" r="1.1" fill="oklch(38% 0.07 53)" opacity="0.5"/>
+  <circle cx="98" cy="35" r="1.2" fill="oklch(38% 0.07 53)" opacity="0.4"/>
+  <circle cx="104" cy="35" r="1.0" fill="oklch(38% 0.07 53)" opacity="0.5"/>
+  <circle cx="110" cy="35" r="1.1" fill="oklch(38% 0.07 53)" opacity="0.4"/>
+  <circle cx="114" cy="35" r="1.2" fill="oklch(38% 0.07 53)" opacity="0.5"/>
+
+  <!-- Flask fill -->
+  <path d="M82 30 C82 30 82 55 78 72 C72 92 52 112 40 135 C28 158 35 188 100 188 C165 188 172 158 160 135 C148 112 128 92 122 72 C118 55 118 30 118 30 Z"
+        fill="oklch(93% 0.04 251.813)" fill-opacity="0.72" stroke="oklch(67% 0.19 259.815)" stroke-width="4" stroke-linejoin="round"/>
+
+  <!-- Liquid -->
+  <g clip-path="url(#flask-clip)">
+    <g class="liquid-back">
+      <path class="wave-back"
+            d="M20 125 Q50 105 100 125 Q150 145 180 123 L180 210 L20 210 Z"
+            fill="oklch(48% 0.21 17)"/>
+    </g>
+    <g class="liquid-fwd">
+      <path class="wave-fwd"
+            d="M20 125 Q50 107 100 123 Q150 139 180 121 L180 210 L20 210 Z"
+            fill="oklch(58.6% 0.253 17.585)" opacity="0.82"/>
+    </g>
+  </g>
+
+  <!-- Flask outline on top -->
+  <path d="M82 30 C82 30 82 55 78 72 C72 92 52 112 40 135 C28 158 35 188 100 188 C165 188 172 158 160 135 C148 112 128 92 122 72 C118 55 118 30 118 30 Z"
+        fill="none" stroke="oklch(67% 0.19 259.815)" stroke-width="4" stroke-linejoin="round"/>
+
+</svg>

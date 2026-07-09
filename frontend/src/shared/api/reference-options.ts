@@ -1,0 +1,71 @@
+type PlainObject = Record<string, unknown>;
+
+const compact = (items: Array<string | number | null | undefined | false>) =>
+  items
+    .map((item) => item === null || item === undefined || item === false ? "" : String(item).trim())
+    .filter(Boolean);
+
+const toOptionValue = (value: unknown) =>
+  typeof value === "string"
+  || typeof value === "number"
+  || typeof value === "boolean"
+  || value === null
+    ? value
+    : String(value ?? "");
+
+const formatShortId = (value: unknown) => {
+  if (typeof value !== "string" && typeof value !== "number") {
+    return "запись";
+  }
+
+  const text = String(value);
+  const uuidPrefix = text.match(/^[0-9a-f]{8}/i)?.[0];
+  return (uuidPrefix ?? text.slice(0, 8)).toUpperCase();
+};
+
+const isStatusReferencePath = (path: string) => {
+  const normalizedPath = path.toLowerCase().split("?")[0]?.replace(/\/+$/, "") ?? "";
+  return normalizedPath === "/statuses" || normalizedPath.endsWith("_statuses");
+};
+
+const formatReferenceLabel = (row: PlainObject, path: string) => {
+  if (isStatusReferencePath(path) && row.name) {
+    return String(row.name);
+  }
+
+  if (row.name && row.code) {
+    return `${String(row.name)} (${String(row.code)})`;
+  }
+
+  if (row.name || row.full_name || row.code) {
+    return String(row.name || row.full_name || row.code);
+  }
+
+  const personName = compact([row.last_name as string, row.first_name as string, row.patronymic as string]).join(" ");
+  if (personName) {
+    return personName;
+  }
+
+  const documentNumber = compact([
+    row.year_no ? `${row.year_no}` : null,
+    row.base_no ? `№ ${row.base_no}` : null,
+  ]).join(" ");
+  if (documentNumber) {
+    return documentNumber;
+  }
+
+  const researchParts = compact([
+    row.sample_id ? `образец ${formatShortId(row.sample_id)}` : null,
+    row.research_goal_id ? `цель ${formatShortId(row.research_goal_id)}` : null,
+  ]);
+  if (researchParts.length) {
+    return `Исследование: ${researchParts.join(", ")}`;
+  }
+
+  return `Запись ${formatShortId(row.id)}`;
+};
+
+export const formatReferenceOption = (row: PlainObject, path: string) => ({
+  label: formatReferenceLabel(row, path),
+  value: toOptionValue(row.id),
+});
