@@ -47,3 +47,6 @@ tsconfig.node.tsbuildinfo
 /.playwright/
 /.playwright-cli/
 /recordings/
+
+# scratch dir for demo recordings and throwaway scripts (see playwright-demo skill)
+/tmp/
