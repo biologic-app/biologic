@@ -1,0 +1,47 @@
+# Backend CI — запускается только на изменения в backend/.
+# Образец подхода — staraudio-backend/.github/workflows/ci.yml: отдельный джоб на
+# заботу, чтобы красная галка сразу называла проблему.
+name: Backend CI
+
+on:
+  pull_request:
+    paths: ["backend/**", ".github/workflows/backend.yml"]
+  push:
+    branches: [master]
+    paths: ["backend/**", ".github/workflows/backend.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: backend-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  lint:
+    name: Lint (ruff + mypy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.11"
+      - run: uv sync --all-extras
+      - run: make lint
+
+  tests:
+    name: Unit tests (pytest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.11"
+      - run: uv sync --all-extras
+      # DB-интеграционные тесты помечены skip без реального Postgres; юнит-набор
+      # зелёный без БД. Полный прогон с сервис-контейнером Postgres — этап A1.4/7.
+      - run: uv run pytest -v

@@ -1,0 +1,7 @@
+# Операционные артефакты уровня монорепо.
+# Пер-проектные ignore живут в backend/.gitignore и frontend/.gitignore.
+/.omc/
+/.claude/settings.local.json
+reports/
+*.log
+.DS_Store
