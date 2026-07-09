@@ -1,0 +1,14 @@
+.git
+.gitignore
+.venv
+.mypy_cache
+.ruff_cache
+.cache
+__pycache__
+*.pyc
+
+site
+docs
+
+env
+node_modules
