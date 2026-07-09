@@ -123,8 +123,39 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       { field: 'id', header: 'ID', sortable: true },
       { field: 'year_no', header: 'Год', sortable: true, filter: { type: 'text', placeholder: 'Год' } },
       { field: 'base_no', header: 'Номер', sortable: true, filter: { type: 'text', placeholder: 'Номер' } },
-      { field: 'doctor.name', header: 'Врач', sortable: true, filter: { type: 'text', placeholder: 'Врач' } },
-      { field: 'object.name', header: 'Объект', sortable: true, filter: { type: 'text', placeholder: 'Объект' } },
+      {
+        field: 'doctor.name',
+        header: 'Врач',
+        sortable: true,
+        filter: { type: 'text', placeholder: 'Врач' },
+        body: (row: Record<string, unknown>) => {
+          const doctor = row.doctor as
+            | { first_name?: string | null, last_name?: string | null, patronymic?: string | null }
+            | null
+            | undefined
+          if (!doctor) {
+            return '-'
+          }
+          const initials = [doctor.first_name, doctor.patronymic]
+            .filter((part): part is string => Boolean(part && String(part).trim()))
+            .map((part) => `${String(part).trim().charAt(0).toUpperCase()}.`)
+            .join('')
+          return [doctor.last_name, initials].filter(Boolean).join(' ').trim() || '-'
+        }
+      },
+      {
+        field: 'object.name',
+        header: 'Объект',
+        sortable: true,
+        filter: { type: 'text', placeholder: 'Объект' },
+        body: (row: Record<string, unknown>) => {
+          const object = row.object as { code?: string | null, name?: string | null } | null | undefined
+          if (!object) {
+            return '-'
+          }
+          return [object.code, object.name].filter(Boolean).join(' — ') || '-'
+        }
+      },
       { field: 'status.name', header: 'Статус', sortable: true, filter: { type: 'text', placeholder: 'Статус' } },
       { field: 'sampled_at', header: 'Отбор', sortable: true, filter: { type: 'dateRange' } },
       { field: 'received_at', header: 'Получение', sortable: true, filter: { type: 'dateRange' } },

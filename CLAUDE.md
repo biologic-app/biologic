@@ -154,3 +154,20 @@ UUIDv7 PK (`uuidv7()` server default), поля `created_at/updated_at/deleted_a
 
 Реальные `.env` не коммитятся. Шаблоны: `backend/.env.example` (`APP_`-префикс),
 `frontend/.env.example` (`VITE_`-префикс).
+
+<!-- smithers:prefer-workflows START -->
+## Smithers workflows
+
+Use your best judgment, weighing speed, quality, and token usage, to decide
+whether a request should run as a [smithers.sh](https://smithers.sh) workflow
+or with regular subagents. Prefer a smithers workflow for multi-step plans and
+for work that benefits from retries, approvals, review, or replay; reach for
+plain subagents when a request is a quick one-off.
+
+The `smithers` skill is installed: run `smithers workflow list` to see the
+available workflows and `smithers workflow run <id>` to launch one.
+
+When a session ends successfully and the work could have been a smithers
+workflow, offer to turn the session into a reusable smithers workflow for next
+time.
+<!-- smithers:prefer-workflows END -->

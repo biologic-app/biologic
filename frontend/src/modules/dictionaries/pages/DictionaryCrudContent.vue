@@ -80,6 +80,12 @@ const props = withDefaults(
     refreshToken?: number;
     resetToken?: number;
     selectable?: boolean;
+    // Кастомные (не командные) действия строки, специфичные для ресурса
+    // (например «Открыть мастер» для draft-направлений). Возвращает пункты меню,
+    // которые встраиваются между «Редактировать» и командами воркфлоу.
+    extraRowActions?: (row: CrudRow) => DropdownMenuItem[];
+    // Id недавно затронутой строки — временно подсвечивается в таблице.
+    highlightId?: string | null;
   }>(),
   {
     requestParams: undefined,
@@ -87,6 +93,8 @@ const props = withDefaults(
     refreshToken: undefined,
     resetToken: undefined,
     selectable: true,
+    extraRowActions: undefined,
+    highlightId: null,
   },
 );
 
@@ -1266,6 +1274,7 @@ const getRowWorkflowActionItems = (row: CrudRow): DropdownMenuItem[] =>
 
 const getRowActionItems = (row: CrudRow): DropdownMenuItem[] => {
   const workflowItems = getRowWorkflowActionItems(row);
+  const extraItems = props.extraRowActions?.(row) ?? [];
   return [
     { label: "Просмотр", icon: "i-lucide-eye", onSelect: () => openDetail(row) },
     ...(props.config.presetKey === "protocols"
@@ -1277,6 +1286,7 @@ const getRowActionItems = (row: CrudRow): DropdownMenuItem[] => {
       disabled: !can(props.config.resource, "edit"),
       onSelect: () => openEdit(row),
     },
+    ...extraItems,
     ...workflowItems,
     {
       label: "Удалить",
@@ -1480,6 +1490,7 @@ defineExpose({
     :has-more="table.hasMore.value"
     :selectable="selectable"
     :can-delete="canDeleteSelected"
+    :highlight-id="highlightId"
     @load-more="table.loadMore()"
     @row-select="handleRowSelect"
     @row-contextmenu="handleRowContextmenu"

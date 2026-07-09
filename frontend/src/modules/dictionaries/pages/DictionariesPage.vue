@@ -34,19 +34,21 @@ const selectedItem = computed(
 const selectedConfig = computed(() => getDictionaryConfig(selectedItem.value));
 
 const dictionaryLinks = computed<NavigationMenuItem[][]>(() => [
-  dictionaryItems.map((item) => ({
-    label: item.label,
-    icon: item.icon,
-    to:
-      item.key === "statuses"
-        ? "/dictionaries/statuses"
-        : `/dictionaries/${item.key}`,
-    active:
-      item.key === "statuses"
-        ? selectedItem.value.key === "statuses" || selectedItem.value.key.startsWith("statuses-")
-        : selectedItem.value.key === item.key,
-    exact: true,
-  })),
+  [
+    ...dictionaryItems.map((item) => ({
+      label: item.label,
+      icon: item.icon,
+      to:
+        item.key === "statuses"
+          ? "/dictionaries/statuses"
+          : `/dictionaries/${item.key}`,
+      active:
+        item.key === "statuses"
+          ? selectedItem.value.key === "statuses" || selectedItem.value.key.startsWith("statuses-")
+          : selectedItem.value.key === item.key,
+      exact: true,
+    })),
+  ],
 ]);
 
 const statusLinks = computed<NavigationMenuItem[][]>(() => [
@@ -90,8 +92,12 @@ watch(
         </template>
         <template #right>
           <UTooltip :text="createDisabled ? 'Нет прав на создание' : 'Создать запись'">
-            <UButton label="Создать" :icon="createDisabled ? 'i-lucide-lock' : 'i-lucide-plus'"
-              :disabled="createDisabled" @click="crudContent?.openCreate()" />
+            <UButton
+              label="Создать"
+              :icon="createDisabled ? 'i-lucide-lock' : 'i-lucide-plus'"
+              :disabled="createDisabled"
+              @click="crudContent?.openCreate()"
+            />
           </UTooltip>
         </template>
       </UDashboardNavbar>
@@ -112,15 +118,25 @@ watch(
         </template>
         <template #right>
           <div class="flex flex-wrap items-center gap-2">
-            <UButton v-show="crudContent?.selectedCount" color="error" variant="subtle" icon="i-lucide-trash"
-              label="Удалить" @click="crudContent?.deleteSelected()">
+            <UButton
+              v-show="crudContent?.selectedCount"
+              color="error"
+              variant="subtle"
+              icon="i-lucide-trash"
+              label="Удалить"
+              @click="crudContent?.deleteSelected()"
+            >
               <template #trailing>
                 <UKbd>{{ crudContent?.selectedCount }}</UKbd>
               </template>
             </UButton>
             <UTooltip text="Обновить данные">
-
-              <UButton color="neutral" variant="subtle" icon="i-lucide-refresh-cw" @click="refreshToken++" />
+              <UButton
+                color="neutral"
+                variant="subtle"
+                icon="i-lucide-refresh-cw"
+                @click="refreshToken++"
+              />
             </UTooltip>
 
             <UDropdownMenu :items="crudContent?.columnMenuItems || []" :content="{ align: 'end' }">
@@ -135,8 +151,14 @@ watch(
 
     <template #body>
       <div class="flex min-h-0 w-full flex-1 flex-col gap-4">
-        <DictionaryCrudContent ref="crudContent" :key="moduleKey" :config="selectedConfig"
-          :request-params="selectedItem.requestParams" :search="tableSearch" :refresh-token="refreshToken" />
+        <DictionaryCrudContent
+          ref="crudContent"
+          :key="moduleKey"
+          :config="selectedConfig"
+          :request-params="selectedItem.requestParams"
+          :search="tableSearch"
+          :refresh-token="refreshToken"
+        />
       </div>
     </template>
   </UDashboardPanel>

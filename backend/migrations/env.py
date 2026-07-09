@@ -19,6 +19,19 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
+# Tables managed entirely outside the ORM via raw SQL migrations (e.g. helper
+# counters maintained by triggers). They intentionally have no declarative
+# model — analogous to materialized views, which Alembic never reflects in
+# the first place — so autogenerate/`alembic check` must not flag them for
+# removal just because they are absent from `target_metadata`.
+_UNMANAGED_TABLES = {"entity_active_counts"}
+
+
+def include_object(object_: object, name: str | None, type_: str, *_args: object) -> bool:
+    if type_ == "table" and name in _UNMANAGED_TABLES:
+        return False
+    return True
+
 
 def run_migrations_offline() -> None:
     url = config.get_main_option("sqlalchemy.url")
@@ -29,6 +42,7 @@ def run_migrations_offline() -> None:
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
         compare_server_default=True,
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -41,6 +55,7 @@ def do_run_migrations(connection: Connection) -> None:
         target_metadata=target_metadata,
         compare_type=True,
         compare_server_default=True,
+        include_object=include_object,
     )
 
     with context.begin_transaction():

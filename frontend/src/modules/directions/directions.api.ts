@@ -1,7 +1,9 @@
 import {
   apiCommandRequest,
   apiCreateRequest,
+  apiDeleteRequest,
   apiReadListRequest,
+  apiReadRequest,
   apiUpdateRequest,
   loadReferenceOptions
 } from '@/shared/api/client.api'
@@ -105,6 +107,14 @@ export const fetchRecentDirections = (limit: number) =>
     }
   })
 
+export const fetchDirection = async (id: string): Promise<DirectionRow> => {
+  const response = await apiReadRequest<DirectionRow>(`/directions/${id}`, {
+    method: 'GET',
+    params: { include: 'doctor,object,status' }
+  })
+  return response.data
+}
+
 export const fetchDirectionSamples = (directionId: string) =>
   apiReadListRequest<SampleRow>('/samples', {
     method: 'GET',
@@ -136,3 +146,116 @@ export const createObject = (body: Record<string, unknown>) =>
 export const loadDoctorOptions = () => loadReferenceOptions('/doctors')
 export const loadObjectOptions = () => loadReferenceOptions('/objects')
 export const loadSampleTypeOptions = () => loadReferenceOptions('/sample_types')
+
+// Цель исследования, пригодная для отображения на образце (набор целей).
+export interface ResearchGoalOption {
+  id: string
+  code: string | null
+  name: string
+  lab_id: string | null
+  lab_name: string | null
+}
+
+// Строка существующего Research образца (read-эндпоинт GET /research).
+export interface SampleResearchRow {
+  id: string
+  sample_id: string | null
+  research_goal_id: string | null
+  status_id: string | null
+}
+
+interface RawResearchGoal {
+  id: string
+  code?: string | null
+  name?: string | null
+  lab_id?: string | null
+  lab_name?: string | null
+}
+
+// Лаборатория образца (проставлена импортом из меток легаси). Ключ к деривации целей.
+export interface SampleLab {
+  id: string
+  code: string | null
+  name: string | null
+}
+
+// Лаборатории образца: GET /samples/{id}/labs.
+export const fetchSampleLabs = async (sampleId: string): Promise<SampleLab[]> => {
+  const response = await apiReadListRequest<SampleLab>(`/samples/${sampleId}/labs`, {
+    method: 'GET'
+  })
+  return response.items.map((row) => ({
+    id: row.id,
+    code: row.code ?? null,
+    name: row.name ?? null
+  }))
+}
+
+// Цели, выведенные из лабораторий образца, отфильтрованные по индикаторам выбранного
+// типа: GET /samples/{id}/research-goal-suggestions?sample_type_id={typeId}.
+// sample_type_id обязателен; пустой ответ — норма (нет меток/индикаторов).
+export const fetchSampleResearchGoalSuggestions = async (
+  sampleId: string,
+  sampleTypeId: string
+): Promise<ResearchGoalOption[]> => {
+  const response = await apiReadListRequest<RawResearchGoal>(
+    `/samples/${sampleId}/research-goal-suggestions`,
+    { method: 'GET', params: { sample_type_id: sampleTypeId } }
+  )
+  return response.items.map((row) => ({
+    id: row.id,
+    code: row.code ?? null,
+    name: row.name ?? '',
+    lab_id: row.lab_id ?? null,
+    lab_name: row.lab_name ?? null
+  }))
+}
+
+// Полный справочник целей для ручного добавления. Лабораторию тянем из /labs
+// (у research_goals есть только lab_id), чтобы показать имя лаборатории на цели.
+export const fetchResearchGoalCatalog = async (): Promise<ResearchGoalOption[]> => {
+  const [goals, labs] = await Promise.all([
+    apiReadListRequest<RawResearchGoal>('/research_goals', {
+      method: 'GET',
+      params: { limit: 500, sort_by: 'name', sort_order: 'asc' }
+    }),
+    loadReferenceOptions('/labs')
+  ])
+  const labNameById = new Map(
+    labs.map((option) => [String(option.value ?? ''), option.label] as const)
+  )
+  return goals.items.map((row) => ({
+    id: row.id,
+    code: row.code ?? null,
+    name: row.name ?? '',
+    lab_id: row.lab_id ?? null,
+    lab_name: row.lab_id ? labNameById.get(String(row.lab_id)) ?? null : null
+  }))
+}
+
+// Существующие Research образца — для инициализации набора целей и удаления.
+export const fetchSampleResearch = async (
+  sampleId: string
+): Promise<SampleResearchRow[]> => {
+  const response = await apiReadListRequest<SampleResearchRow>('/research', {
+    method: 'GET',
+    params: {
+      limit: 200,
+      filters: JSON.stringify({ sample_id: sampleId })
+    }
+  })
+  return response.items
+}
+
+export const assignSampleResearch = (
+  sampleId: string,
+  researchGoalId: string,
+  actorId: string | null
+) =>
+  apiCommandRequest<Record<string, unknown>>(`/samples/${sampleId}/assign-research`, {
+    method: 'POST',
+    body: { actor_id: actorId, research_goal_id: researchGoalId, comment: null }
+  })
+
+export const deleteResearch = (researchId: string) =>
+  apiDeleteRequest<Record<string, unknown>>(`/research/${researchId}`, { method: 'DELETE' })

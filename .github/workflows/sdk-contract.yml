@@ -1,0 +1,92 @@
+# SDK-контракт — запускается на изменения в backend/ ИЛИ frontend/ (граница между
+# подсистемами — OpenAPI-схема, см. корневой CLAUDE.md «Контракт: OpenAPI»).
+#
+# Идея: поднять backend локально, сгенерировать SDK из его /openapi.json так же, как это
+# делает разработчик (`bun run sdk:generate`), и убедиться, что результат совпадает с тем,
+# что закоммичено в frontend/src/shared/api/generated. Расхождение = кто-то поменял API
+# в backend и забыл регенерировать SDK — золотое правило репозитория, часть DoD.
+name: SDK Contract CI
+
+on:
+  pull_request:
+    paths: ["backend/**", "frontend/**", ".github/workflows/sdk-contract.yml"]
+  push:
+    branches: [master]
+    paths: ["backend/**", "frontend/**", ".github/workflows/sdk-contract.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: sdk-contract-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sdk-contract:
+    name: SDK-diff (backend → openapi → sdk:generate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: biologic
+          POSTGRES_PASSWORD: biologic
+          POSTGRES_DB: biologic
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U biologic -d biologic"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_DATABASE_URL: postgresql+asyncpg://biologic:biologic@localhost:5433/biologic
+      APP_JWT_SECRET_KEY: ci-sdk-contract-secret
+      APP_AUTH_COOKIE_SECURE: "false"
+      APP_AUTH_COOKIE_DOMAIN: localhost
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.11"
+      - run: cd backend && uv sync --all-extras
+      - run: cd backend && uv run alembic upgrade head
+
+      # Backend поднимается в фоне: SDK генерируется живым запросом к /openapi.json.
+      - name: Запустить backend в фоне
+        run: |
+          cd backend
+          nohup uv run uvicorn src.main:app --host 127.0.0.1 --port 8080 > ../backend.log 2>&1 &
+          echo $! > ../backend.pid
+
+      - name: Дождаться готовности backend
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8080/api/v1/health > /dev/null; then
+              echo "backend готов"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "backend не поднялся за отведённое время"
+          cat backend.log
+          exit 1
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.1"
+      - run: cd frontend && bun install --frozen-lockfile
+
+      - name: Регенерировать SDK
+        run: cd frontend && bun run sdk:generate
+
+      - name: Проверить отсутствие дрейфа сгенерированного SDK
+        run: git diff --exit-code frontend/src/shared/api/generated
+
+      - name: Логи backend (если что-то пошло не так)
+        if: always()
+        run: cat backend.log || true
+
+      - name: Остановить backend
+        if: always()
+        run: kill "$(cat backend.pid)" 2>/dev/null || true

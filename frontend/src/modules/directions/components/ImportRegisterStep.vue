@@ -43,7 +43,7 @@ const rowState = (direction: DirectionRow) => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-5">
+  <div class="flex flex-col gap-5" data-testid="direction-register-all">
     <div class="flex flex-wrap gap-2">
       <UBadge
         color="success"
@@ -111,19 +111,6 @@ const rowState = (direction: DirectionRow) => {
           </tr>
         </tbody>
       </table>
-    </div>
-
-    <div class="flex justify-end">
-      <UButton
-        label="Зарегистрировать все"
-        icon="i-lucide-clipboard-check"
-        color="primary"
-        :loading="ctx.registering"
-        :disabled="ctx.registering || !ctx.directions.length"
-        data-testid="direction-register-all"
-        data-telemetry="direction-register-all"
-        @click="ctx.registerAll()"
-      />
     </div>
   </div>
 </template>

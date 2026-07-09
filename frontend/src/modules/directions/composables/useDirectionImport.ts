@@ -2,10 +2,17 @@ import { reactive } from 'vue'
 import { useAuth } from '@/modules/auth'
 import type { ApiClientError } from '@/shared/api/client.api'
 import {
+  assignSampleResearch,
   createDoctor,
   createObject,
+  deleteResearch,
+  fetchDirection,
   fetchDirectionSamples,
   fetchRecentDirections,
+  fetchResearchGoalCatalog,
+  fetchSampleLabs,
+  fetchSampleResearch,
+  fetchSampleResearchGoalSuggestions,
   importDirections,
   loadDoctorOptions,
   normalizeSampleRow,
@@ -17,6 +24,8 @@ import {
   type DirectionRow,
   type ImportType,
   type ReferenceOption,
+  type ResearchGoalOption,
+  type SampleLab,
   type SampleRow,
   type WorkflowImportSummary
 } from '@/modules/directions/directions.api'
@@ -52,6 +61,9 @@ export function useDirectionImport() {
 
   const state = reactive({
     step: 0 as WizardStep,
+    // Режим «существующий черновик»: мастер открыт из строки таблицы сразу на
+    // шаге дозаполнения; шаги загрузки/предпросмотра и кнопка «Назад» скрыты.
+    existingDraft: false,
     fileType: 'xlsx' as ImportType,
     fileName: '',
     importing: false,
@@ -65,9 +77,25 @@ export function useDirectionImport() {
     doctorOptions: [] as ReferenceOption[],
     objectOptions: [] as ReferenceOption[],
     sampleTypeOptions: [] as ReferenceOption[],
+    // Полный справочник целей исследования (для ручного добавления на образец).
+    researchGoalCatalog: [] as ResearchGoalOption[],
+    // Набор выбранных research_goal_id на образец (per-sample).
+    researchGoalsBySample: {} as Record<string, string[]>,
+    // Карта `${sampleId}:${researchGoalId}` → research_id (существующие Research, для удаления).
+    researchIdByKey: {} as Record<string, string>,
+    // Метаданные цели (имя + лаборатория) для отображения на образце.
+    goalLabById: {} as Record<string, { name: string; lab_name: string | null }>,
+    // Лаборатории образца (проставлены импортом из меток) — источник деривации целей.
+    labsBySample: {} as Record<string, SampleLab[]>,
+    // Направления, для которых уже подгружены существующие Research (ленивая инициализация).
+    researchLoadedDirections: {} as Record<string, boolean>,
     registering: false,
     registerResults: {} as Record<string, RegisterOutcome>
   })
+
+  // Кеш выведенных целей по ключу `${sampleId}:${sampleTypeId}` (деривация зависит
+  // и от типа, и от лабораторий конкретного образца). Не реактивный — вспомогательный.
+  const suggestionsCache = new Map<string, ResearchGoalOption[]>()
 
   let selectedFile: File | null = null
 
@@ -105,14 +133,19 @@ export function useDirectionImport() {
     const created = state.summary?.directions_created ?? 0
     state.loadingResults = true
     try {
-      const [doctors, objects, sampleTypes] = await Promise.all([
+      const [doctors, objects, sampleTypes, goalCatalog] = await Promise.all([
         loadDoctorOptions(),
         loadObjectOptions(),
-        loadSampleTypeOptions()
+        loadSampleTypeOptions(),
+        fetchResearchGoalCatalog().catch(() => [] as ResearchGoalOption[])
       ])
       state.doctorOptions = doctors
       state.objectOptions = objects
       state.sampleTypeOptions = sampleTypes
+      state.researchGoalCatalog = goalCatalog
+      for (const goal of goalCatalog) {
+        state.goalLabById[goal.id] = { name: goal.name, lab_name: goal.lab_name }
+      }
 
       if (created <= 0) {
         state.directions = []
@@ -137,6 +170,44 @@ export function useDirectionImport() {
       state.samplesByDirection = Object.fromEntries(samplesEntries)
       state.currentIndex = 0
       state.registerResults = {}
+      state.researchGoalsBySample = {}
+      state.researchIdByKey = {}
+      state.labsBySample = {}
+      state.researchLoadedDirections = {}
+    } finally {
+      state.loadingResults = false
+    }
+  }
+
+  // Открыть мастер для уже существующего draft-направления сразу на шаге
+  // дозаполнения: тянем справочники, само направление, его образцы и
+  // существующие Research (набор целей на образец).
+  const loadExistingDraft = async (directionId: string) => {
+    reset()
+    state.existingDraft = true
+    state.loadingResults = true
+    state.step = 2
+    try {
+      const [doctors, objects, sampleTypes, goalCatalog] = await Promise.all([
+        loadDoctorOptions(),
+        loadObjectOptions(),
+        loadSampleTypeOptions(),
+        fetchResearchGoalCatalog().catch(() => [] as ResearchGoalOption[])
+      ])
+      state.doctorOptions = doctors
+      state.objectOptions = objects
+      state.sampleTypeOptions = sampleTypes
+      state.researchGoalCatalog = goalCatalog
+      for (const goal of goalCatalog) {
+        state.goalLabById[goal.id] = { name: goal.name, lab_name: goal.lab_name }
+      }
+
+      const direction = await fetchDirection(directionId)
+      state.directions = [direction]
+      const samples = await fetchDirectionSamples(direction.id)
+      state.samplesByDirection = { [direction.id]: samples.items.map(normalizeSampleRow) }
+      state.currentIndex = 0
+      await ensureResearchForDirection(direction.id)
     } finally {
       state.loadingResults = false
     }
@@ -214,6 +285,178 @@ export function useDirectionImport() {
     return response.data.id ?? null
   }
 
+  const researchGoalCatalogById = () =>
+    new Map(state.researchGoalCatalog.map((goal) => [goal.id, goal] as const))
+
+  // Перечитывает существующие Research образца с сервера и синхронизирует карты.
+  const loadSampleResearch = async (sampleId: string) => {
+    const rows = await fetchSampleResearch(sampleId)
+    const prefix = `${sampleId}:`
+    for (const key of Object.keys(state.researchIdByKey)) {
+      if (key.startsWith(prefix)) {
+        delete state.researchIdByKey[key]
+      }
+    }
+    const catalog = researchGoalCatalogById()
+    const goalIds: string[] = []
+    for (const row of rows) {
+      if (!row.research_goal_id) {
+        continue
+      }
+      goalIds.push(row.research_goal_id)
+      state.researchIdByKey[`${prefix}${row.research_goal_id}`] = row.id
+      const meta = catalog.get(row.research_goal_id)
+      if (meta && !state.goalLabById[row.research_goal_id]) {
+        state.goalLabById[row.research_goal_id] = { name: meta.name, lab_name: meta.lab_name }
+      }
+    }
+    state.researchGoalsBySample[sampleId] = goalIds
+  }
+
+  // Подгружает лаборатории образца (проставлены импортом из меток легаси).
+  const loadSampleLabs = async (sampleId: string) => {
+    state.labsBySample[sampleId] = await fetchSampleLabs(sampleId)
+  }
+
+  // Ленивая инициализация по образцам направления: существующие Research (набор целей)
+  // и лаборатории образца (источник деривации целей).
+  const ensureResearchForDirection = async (directionId: string) => {
+    if (state.researchLoadedDirections[directionId]) {
+      return
+    }
+    const samples = state.samplesByDirection[directionId] ?? []
+    try {
+      await Promise.all(
+        samples.flatMap((sample) => [loadSampleResearch(sample.id), loadSampleLabs(sample.id)])
+      )
+      state.researchLoadedDirections[directionId] = true
+    } catch {
+      // Оставляем неотмеченным, чтобы повторить при следующем входе на направление.
+    }
+  }
+
+  // Авто-подстановка целей, выведенных сервером из (тип образца + лаборатории образца).
+  // Union без затирания вручную выбранных/уже назначенных; пустой ответ — норма.
+  const applySampleTypeDefaults = async (sampleId: string, sampleTypeId: string | null) => {
+    if (!sampleTypeId) {
+      return
+    }
+    const cacheKey = `${sampleId}:${sampleTypeId}`
+    let suggestions = suggestionsCache.get(cacheKey)
+    if (!suggestions) {
+      suggestions = await fetchSampleResearchGoalSuggestions(sampleId, sampleTypeId)
+      suggestionsCache.set(cacheKey, suggestions)
+    }
+    const merged = [...(state.researchGoalsBySample[sampleId] ?? [])]
+    for (const goal of suggestions) {
+      state.goalLabById[goal.id] = { name: goal.name, lab_name: goal.lab_name }
+      if (!merged.includes(goal.id)) {
+        merged.push(goal.id)
+      }
+    }
+    state.researchGoalsBySample[sampleId] = merged
+  }
+
+  const addSampleGoal = (sampleId: string, goalId: string) => {
+    const current = state.researchGoalsBySample[sampleId] ?? []
+    if (current.includes(goalId)) {
+      return
+    }
+    state.researchGoalsBySample[sampleId] = [...current, goalId]
+    const meta = researchGoalCatalogById().get(goalId)
+    if (meta) {
+      state.goalLabById[goalId] = { name: meta.name, lab_name: meta.lab_name }
+    }
+  }
+
+  const removeSampleGoal = (sampleId: string, goalId: string) => {
+    const current = state.researchGoalsBySample[sampleId] ?? []
+    state.researchGoalsBySample[sampleId] = current.filter((id) => id !== goalId)
+  }
+
+  // Реконсиль выбранного набора целей с фактическими Research: назначить новые, удалить снятые.
+  const syncSampleResearch = async (sampleId: string): Promise<boolean> => {
+    const actorId = auth.user?.id ?? null
+    const desired = state.researchGoalsBySample[sampleId] ?? []
+    const prefix = `${sampleId}:`
+    const existing = new Map<string, string>()
+    for (const [key, researchId] of Object.entries(state.researchIdByKey)) {
+      if (key.startsWith(prefix)) {
+        existing.set(key.slice(prefix.length), researchId)
+      }
+    }
+    let ok = true
+    let changed = false
+    for (const goalId of desired) {
+      if (existing.has(goalId)) {
+        continue
+      }
+      try {
+        await assignSampleResearch(sampleId, goalId, actorId)
+        changed = true
+      } catch {
+        ok = false
+      }
+    }
+    for (const [goalId, researchId] of existing) {
+      if (desired.includes(goalId)) {
+        continue
+      }
+      try {
+        await deleteResearch(researchId)
+        changed = true
+      } catch {
+        ok = false
+      }
+    }
+    if (changed) {
+      try {
+        await loadSampleResearch(sampleId)
+      } catch {
+        // Карта обновится при следующем входе на направление.
+      }
+    }
+    return ok
+  }
+
+  // Сохранить одно направление: его поля, все образцы и синхронизировать цели (Research).
+  const persistDirection = async (directionId: string): Promise<boolean> => {
+    const direction = state.directions.find((row) => row.id === directionId)
+    if (!direction) {
+      return true
+    }
+    const okDirection = await saveDirection(direction.id, {
+      doctor_id: direction.doctor_id,
+      object_id: direction.object_id,
+      is_urgent: direction.is_urgent
+    })
+    let okSamples = true
+    const samples = state.samplesByDirection[direction.id] ?? []
+    for (const sample of samples) {
+      const saved = await saveSample(direction.id, sample.id, {
+        name: sample.name || null,
+        sample_type_id: sample.sample_type_id,
+        alternate_name: sample.alternate_name || null,
+        mass: sample.mass || null,
+        comment: sample.comment || null,
+        is_urgent: sample.is_urgent
+      })
+      const synced = await syncSampleResearch(sample.id)
+      okSamples = okSamples && saved && synced
+    }
+    return okDirection && okSamples
+  }
+
+  // Пройти по всем направлениям и сохранить каждое (перед массовой регистрацией).
+  const persistAll = async (): Promise<boolean> => {
+    let ok = true
+    for (const direction of state.directions) {
+      const result = await persistDirection(direction.id)
+      ok = ok && result
+    }
+    return ok
+  }
+
   const registerAll = async () => {
     const actorId = auth.user?.id ?? null
     state.registering = true
@@ -238,6 +481,7 @@ export function useDirectionImport() {
   const reset = () => {
     selectedFile = null
     state.step = 0
+    state.existingDraft = false
     state.fileType = 'xlsx'
     state.fileName = ''
     state.importing = false
@@ -250,6 +494,13 @@ export function useDirectionImport() {
     state.savingKey = ''
     state.registering = false
     state.registerResults = {}
+    state.researchGoalCatalog = []
+    state.researchGoalsBySample = {}
+    state.researchIdByKey = {}
+    state.goalLabById = {}
+    state.labsBySample = {}
+    state.researchLoadedDirections = {}
+    suggestionsCache.clear()
   }
 
   return Object.assign(state, {
@@ -257,6 +508,7 @@ export function useDirectionImport() {
     setFileType,
     runImport,
     loadResults,
+    loadExistingDraft,
     currentDirection,
     goToStep,
     goToDirection,
@@ -267,6 +519,13 @@ export function useDirectionImport() {
     saveSample,
     addDoctor,
     addObject,
+    ensureResearchForDirection,
+    applySampleTypeDefaults,
+    addSampleGoal,
+    removeSampleGoal,
+    syncSampleResearch,
+    persistDirection,
+    persistAll,
     registerAll,
     reset
   })

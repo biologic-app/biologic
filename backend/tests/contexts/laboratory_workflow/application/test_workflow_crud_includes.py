@@ -61,6 +61,7 @@ async def test_research_list_serializes_requested_includes() -> None:
         research=FakeResearchRepository(),  # type: ignore[arg-type]
         tests=object(),  # type: ignore[arg-type]
         protocols=object(),  # type: ignore[arg-type]
+        sample_labs=object(),  # type: ignore[arg-type]
     )
 
     response = await use_case.list_research(

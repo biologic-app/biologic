@@ -21,6 +21,7 @@ const props = withDefaults(
     selectable?: boolean;
     canDelete?: boolean;
     tableUi?: Record<string, unknown>;
+    highlightId?: string | null;
   }>(),
   {
     loading: false,
@@ -29,6 +30,7 @@ const props = withDefaults(
     selectable: false,
     canDelete: true,
     tableUi: undefined,
+    highlightId: null,
   },
 );
 
@@ -99,6 +101,18 @@ const tableColumns = computed(() =>
 );
 
 const tableUiConfig = computed(() => props.tableUi ?? borderedCrudTableUi);
+
+// Подсветка недавно затронутой строки (например, только что созданный/дозаполненный
+// черновик). Мягкий фон затухает автоматически, когда родитель сбрасывает highlightId.
+const tableMeta = computed(() => ({
+  class: {
+    tr: (row: TableRow<TRow>) =>
+      props.highlightId
+      && String((row.original as Record<string, unknown>).id) === props.highlightId
+        ? "bg-primary/15"
+        : "",
+  },
+}));
 
 const isInteractiveTarget = (event: Event) => {
   const target = event.target;
@@ -173,6 +187,7 @@ const forwardedSlotNames = computed(() =>
           emit('rowContextmenu', event, row)"
         empty=" "
         sticky
+        :meta="tableMeta"
         :ui="tableUiConfig"
       >
         <template #body-bottom>

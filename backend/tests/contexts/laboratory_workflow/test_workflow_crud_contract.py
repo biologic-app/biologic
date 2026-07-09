@@ -102,7 +102,7 @@ class FakeWorkflowCrudUseCase:
                 "actor_id": str(actor_id) if actor_id else None,
                 "directions_created": 1,
                 "samples_created": 1 if content else 0,
-                "research_created": 0,
+                "lab_assignments_created": 0,
                 "skipped": 0,
                 "errors": [],
                 "warnings": [],

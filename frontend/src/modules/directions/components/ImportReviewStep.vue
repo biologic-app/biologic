@@ -1,9 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { DirectionImportContext } from '@/modules/directions/composables/useDirectionImport'
 import type { ImportIssue } from '@/modules/directions/directions.api'
 
 const props = defineProps<{ ctx: DirectionImportContext }>()
+
+// Предупреждения прячем по умолчанию; ошибки импорта важны — показываем сразу
+// (блок остаётся сворачиваемым, но развёрнут по умолчанию).
+const showWarnings = ref(false)
+const showErrors = ref(true)
 
 const formatIssue = (issue: ImportIssue): string => {
   const parts: string[] = []
@@ -51,54 +56,19 @@ const directionTitle = (directionId: string, index: number) => {
 
 <template>
   <div class="flex flex-col gap-5">
-    <div v-if="summary" class="flex flex-col gap-1">
-      <span class="text-sm font-medium text-highlighted">Файл: {{ summary.filename }}</span>
-      <div class="flex flex-wrap gap-2">
-        <UBadge
-          v-for="counter in counters"
-          :key="counter.label"
-          :color="counter.color"
-          variant="subtle"
-          size="lg"
-          :icon="counter.icon"
-          :label="`${counter.label}: ${counter.value}`"
-        />
-      </div>
+    <div v-if="summary" class="flex flex-wrap gap-2">
+      <UBadge
+        v-for="counter in counters"
+        :key="counter.label"
+        :color="counter.color"
+        variant="subtle"
+        size="md"
+        :icon="counter.icon"
+        class="items-start"
+      >
+        <span class="line-clamp-2 break-words whitespace-normal">{{ counter.label }}: {{ counter.value }}</span>
+      </UBadge>
     </div>
-
-    <UAlert
-      v-if="errors.length"
-      color="error"
-      variant="subtle"
-      icon="i-lucide-circle-alert"
-      :title="`Ошибки импорта (${errors.length})`"
-      data-testid="direction-import-errors"
-    >
-      <template #description>
-        <ul class="list-disc pl-4">
-          <li v-for="(message, index) in errors" :key="index">
-            {{ message }}
-          </li>
-        </ul>
-      </template>
-    </UAlert>
-
-    <UAlert
-      v-if="warnings.length"
-      color="warning"
-      variant="subtle"
-      icon="i-lucide-triangle-alert"
-      :title="`Предупреждения (${warnings.length})`"
-      data-testid="direction-import-warnings"
-    >
-      <template #description>
-        <ul class="list-disc pl-4">
-          <li v-for="(message, index) in warnings" :key="index">
-            {{ message }}
-          </li>
-        </ul>
-      </template>
-    </UAlert>
 
     <section class="flex flex-col gap-3">
       <div class="flex items-center gap-2">
@@ -115,7 +85,7 @@ const directionTitle = (directionId: string, index: number) => {
       </div>
 
       <p v-else-if="!ctx.directions.length" class="text-sm text-muted">
-        Импорт не создал новых направлений. Проверьте ошибки выше.
+        Импорт не создал новых направлений. Проверьте ошибки ниже.
       </p>
 
       <div
@@ -129,33 +99,87 @@ const directionTitle = (directionId: string, index: number) => {
           <UBadge
             color="neutral"
             variant="outline"
-            size="sm"
+            size="lg"
             :label="direction.object?.name || 'Объект не указан'"
           />
           <UBadge
             color="neutral"
             variant="outline"
-            size="sm"
+            size="lg"
             :label="direction.doctor?.name || 'Врач не указан'"
           />
           <UBadge
             color="neutral"
             variant="subtle"
-            size="sm"
+            size="lg"
             :label="`Образцов: ${(ctx.samplesByDirection[direction.id] || []).length}`"
           />
         </div>
-        <div class="flex flex-wrap gap-2">
-          <UBadge
-            v-for="sample in ctx.samplesByDirection[direction.id] || []"
-            :key="sample.id"
-            :color="sample.name && sample.sample_type_id ? 'success' : 'warning'"
-            variant="subtle"
-            size="sm"
-            :label="sample.name || 'Без названия'"
-          />
-        </div>
       </div>
+    </section>
+
+    <section v-if="errors.length" class="flex flex-col gap-2">
+      <button
+        type="button"
+        class="flex w-full items-center gap-2 rounded-lg border border-default px-3 py-2 text-left text-sm font-medium text-toned hover:bg-elevated/50"
+        data-testid="direction-import-errors-toggle"
+        @click="showErrors = !showErrors"
+      >
+        <UIcon
+          :name="showErrors ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'"
+          class="size-4 text-muted"
+        />
+        <UIcon name="i-lucide-circle-alert" class="size-4 text-error" />
+        <span>Ошибки ({{ errors.length }})</span>
+      </button>
+      <UAlert
+        v-if="showErrors"
+        color="error"
+        variant="subtle"
+        icon="i-lucide-circle-alert"
+        title="Ошибки импорта"
+        data-testid="direction-import-errors"
+      >
+        <template #description>
+          <ul class="list-disc pl-4">
+            <li v-for="(message, index) in errors" :key="index">
+              {{ message }}
+            </li>
+          </ul>
+        </template>
+      </UAlert>
+    </section>
+
+    <section v-if="warnings.length" class="flex flex-col gap-2">
+      <button
+        type="button"
+        class="flex w-full items-center gap-2 rounded-lg border border-default px-3 py-2 text-left text-sm font-medium text-toned hover:bg-elevated/50"
+        data-testid="direction-import-warnings-toggle"
+        @click="showWarnings = !showWarnings"
+      >
+        <UIcon
+          :name="showWarnings ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'"
+          class="size-4 text-muted"
+        />
+        <UIcon name="i-lucide-triangle-alert" class="size-4 text-warning" />
+        <span>Предупреждения ({{ warnings.length }})</span>
+      </button>
+      <UAlert
+        v-if="showWarnings"
+        color="warning"
+        variant="subtle"
+        icon="i-lucide-triangle-alert"
+        title="Предупреждения импорта"
+        data-testid="direction-import-warnings"
+      >
+        <template #description>
+          <ul class="list-disc pl-4">
+            <li v-for="(message, index) in warnings" :key="index">
+              {{ message }}
+            </li>
+          </ul>
+        </template>
+      </UAlert>
     </section>
   </div>
 </template>

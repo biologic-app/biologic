@@ -25,6 +25,7 @@ from src.contexts.laboratory_workflow.infrastructure.crud_repositories import (
     ProtocolCrudRepository,
     ResearchCrudRepository,
     SampleCrudRepository,
+    SampleLabCrudRepository,
     TestCrudRepository,
 )
 from src.contexts.laboratory_workflow.presentation.schemas import (
@@ -70,6 +71,7 @@ async def get_workflow_crud_use_case(
         research=ResearchCrudRepository(session=session),
         tests=TestCrudRepository(session=session),
         protocols=ProtocolCrudRepository(session=session),
+        sample_labs=SampleLabCrudRepository(session=session),
         doctors=DoctorRepository(session=session),
         objects=ObjectRepository(session=session),
     )
@@ -158,6 +160,23 @@ async def read_sample(
     use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
 ) -> SingleResponse[dict[str, object]]:
     return await use_case.read_sample(sample_id)
+
+
+@router.get("/samples/{sample_id}/labs")
+async def list_sample_labs(
+    sample_id: UUID,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+) -> ListResponse[dict[str, object]]:
+    return await use_case.list_sample_labs(sample_id)
+
+
+@router.get("/samples/{sample_id}/research-goal-suggestions")
+async def suggest_sample_research_goals(
+    sample_id: UUID,
+    sample_type_id: UUID,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+) -> ListResponse[dict[str, object]]:
+    return await use_case.suggest_research_goals(sample_id, sample_type_id)
 
 
 @router.patch("/samples/{sample_id}")

@@ -22,7 +22,7 @@ class WorkflowImportSummary(BaseModel):
     filename: str
     directions_created: int
     samples_created: int
-    research_created: int = 0
+    lab_assignments_created: int = 0
     skipped: int
     errors: list[dict[str, object]]
     warnings: list[dict[str, object]]
@@ -35,7 +35,7 @@ def from_direction_sample_summary(
         filename=summary.filename,
         directions_created=summary.directions_created,
         samples_created=summary.samples_created,
-        research_created=0,
+        lab_assignments_created=0,
         skipped=summary.skipped_rows,
         errors=summary.errors,
         warnings=summary.warnings,
@@ -47,7 +47,7 @@ def from_legacy_summary(summary: LegacyDirectionImportSummary) -> WorkflowImport
         filename=summary.filename,
         directions_created=1 if summary.direction_id is not None else 0,
         samples_created=summary.samples_imported,
-        research_created=summary.marks_created,
+        lab_assignments_created=summary.lab_assignments_created,
         skipped=summary.skipped_samples,
         errors=summary.errors,
         warnings=summary.warnings,

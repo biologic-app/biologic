@@ -29,6 +29,12 @@ class Sample(Base):
         Index("samples_samples_received_at", "received_at"),
         Index("samples_samples_completed_at", "completed_at"),
         Index("samples_samples_deleted_at", "deleted_at"),
+        Index(
+            "samples_samples_active_created_at",
+            text("created_at DESC"),
+            "id",
+            postgresql_where=text("deleted_at IS NULL"),
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(

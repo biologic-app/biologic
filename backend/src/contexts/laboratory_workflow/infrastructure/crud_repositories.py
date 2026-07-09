@@ -41,6 +41,7 @@ from src.infrastructure.db.models import (
     ResearchGoal,
     ResearchStatus,
     Sample,
+    SampleLab,
     SampleStatus,
     SampleType,
     Test,
@@ -254,6 +255,81 @@ class SampleCrudRepository:
 
     async def delete(self, sample_id: UUID) -> None:
         await _delete_row(self.session, await self.read(sample_id))
+
+
+class SampleLabCrudRepository:
+    """Sample ↔ laboratory assignments and the (type + lab) → goals derivation."""
+
+    def __init__(self, *, session: AsyncSession) -> None:
+        self.session = session
+
+    async def get_lab_id_by_code(self, code: str) -> UUID | None:
+        result = await self.session.execute(
+            select(Lab.id).where(Lab.code == code, Lab.deleted_at.is_(None))
+        )
+        return result.scalars().first()
+
+    async def create(self, values: dict[str, Any]) -> Any:
+        return await _create_row(
+            self.session, SampleLab, _pick(values, ("sample_id", "lab_id"))
+        )
+
+    async def list_labs_for_sample(self, sample_id: UUID) -> list[dict[str, object]]:
+        await _read_row(self.session, Sample, "samples", sample_id)
+        result = await self.session.execute(
+            select(Lab.id, Lab.code, Lab.name)
+            .join(SampleLab, SampleLab.lab_id == Lab.id)
+            .where(
+                SampleLab.sample_id == sample_id,
+                SampleLab.deleted_at.is_(None),
+                Lab.deleted_at.is_(None),
+            )
+            .order_by(asc(Lab.code), asc(Lab.id))
+        )
+        return [
+            {"id": lab_id, "code": code, "name": name}
+            for lab_id, code, name in result.all()
+        ]
+
+    async def suggest_research_goals(
+        self, sample_id: UUID, sample_type_id: UUID
+    ) -> list[dict[str, object]]:
+        await _read_row(self.session, Sample, "samples", sample_id)
+        lab_ids = (
+            select(SampleLab.lab_id)
+            .where(SampleLab.sample_id == sample_id, SampleLab.deleted_at.is_(None))
+            .scalar_subquery()
+        )
+        indicator_exists = (
+            select(Indicator.id)
+            .where(
+                Indicator.research_goal_id == ResearchGoal.id,
+                Indicator.sample_type_id == sample_type_id,
+                Indicator.deleted_at.is_(None),
+            )
+            .exists()
+        )
+        result = await self.session.execute(
+            select(ResearchGoal, Lab.name)
+            .outerjoin(Lab, ResearchGoal.lab_id == Lab.id)
+            .where(
+                ResearchGoal.lab_id.in_(lab_ids),
+                ResearchGoal.deleted_at.is_(None),
+                indicator_exists,
+            )
+            .order_by(asc(Lab.name), asc(ResearchGoal.name), asc(ResearchGoal.id))
+        )
+        return [
+            {
+                "id": goal.id,
+                "code": goal.code,
+                "name": goal.name,
+                "comment": goal.comment,
+                "lab_id": goal.lab_id,
+                "lab_name": lab_name,
+            }
+            for goal, lab_name in result.all()
+        ]
 
 
 class ResearchCrudRepository:
@@ -535,14 +611,27 @@ async def _populate_direction_includes(
     items: list[Any],
     includes_requested: list[str],
 ) -> None:
-    includes = set(includes_requested) & {"status"}
+    includes = set(includes_requested) & {"status", "doctor", "object"}
     if not items or not includes:
         return
 
-    status_ids = {item.status_id for item in items if item.status_id is not None}
-    statuses = await _direction_status_includes(session, status_ids)
-    for item in items:
-        setattr(item, "status", statuses.get(item.status_id))
+    if "status" in includes:
+        status_ids = {item.status_id for item in items if item.status_id is not None}
+        statuses = await _direction_status_includes(session, status_ids)
+        for item in items:
+            setattr(item, "status", statuses.get(item.status_id))
+
+    if "doctor" in includes:
+        doctor_ids = {item.doctor_id for item in items if item.doctor_id is not None}
+        doctors = await _doctor_includes(session, doctor_ids)
+        for item in items:
+            setattr(item, "doctor", doctors.get(item.doctor_id))
+
+    if "object" in includes:
+        object_ids = {item.object_id for item in items if item.object_id is not None}
+        objects = await _object_includes(session, object_ids)
+        for item in items:
+            setattr(item, "object", objects.get(item.object_id))
 
 
 async def _populate_sample_includes(
@@ -674,6 +763,45 @@ async def _direction_status_includes(
         select(DirectionStatus.id, DirectionStatus.code, DirectionStatus.name).where(
             DirectionStatus.id.in_(status_ids),
             *_base_filters(DirectionStatus),
+        ),
+    )
+    return {
+        row_id: {"id": row_id, "code": code, "name": name}
+        for row_id, code, name in result.all()
+    }
+
+
+async def _doctor_includes(
+    session: AsyncSession,
+    doctor_ids: set[UUID],
+) -> dict[UUID, dict[str, object]]:
+    if not doctor_ids:
+        return {}
+    result = await session.execute(
+        select(
+            Doctor.id, Doctor.first_name, Doctor.last_name, Doctor.patronymic
+        ).where(Doctor.id.in_(doctor_ids), *_base_filters(Doctor)),
+    )
+    return {
+        row_id: {
+            "id": row_id,
+            "first_name": first_name,
+            "last_name": last_name,
+            "patronymic": patronymic,
+        }
+        for row_id, first_name, last_name, patronymic in result.all()
+    }
+
+
+async def _object_includes(
+    session: AsyncSession,
+    object_ids: set[UUID],
+) -> dict[UUID, dict[str, object]]:
+    if not object_ids:
+        return {}
+    result = await session.execute(
+        select(Object.id, Object.code, Object.name).where(
+            Object.id.in_(object_ids), *_base_filters(Object)
         ),
     )
     return {

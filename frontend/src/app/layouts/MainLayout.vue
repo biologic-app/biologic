@@ -106,22 +106,24 @@ const links = computed<NavigationMenuItem[][]>(() => [
       disabled: !canViewDictionaries.value,
       type: "trigger",
       defaultOpen: false,
-      children: dictionaryItems.map((item) => {
-        const canView = auth.can(item.key as Resource, "view");
-        return {
-          label: item.label,
-          description: item.key,
-          icon: canView ? item.icon : "i-lucide-lock",
-          disabled: !canView,
-          to:
-            item.key === "statuses"
-              ? "/dictionaries/statuses"
-              : `/dictionaries/${item.key}`,
-          onSelect: () => {
-            open.value = false;
-          },
-        };
-      }),
+      children: [
+        ...dictionaryItems.map((item) => {
+          const canView = auth.can(item.key as Resource, "view");
+          return {
+            label: item.label,
+            description: item.key,
+            icon: canView ? item.icon : "i-lucide-lock",
+            disabled: !canView,
+            to:
+              item.key === "statuses"
+                ? "/dictionaries/statuses"
+                : `/dictionaries/${item.key}`,
+            onSelect: () => {
+              open.value = false;
+            },
+          };
+        }),
+      ],
     },
     {
       label: t("nav.access"),

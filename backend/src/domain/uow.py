@@ -22,7 +22,10 @@ from src.application.access_control.ports import (
     UserAuthRepository,
     UserPermissionOverrideRepositoryPort,
 )
-from src.application.catalogs.ports import CatalogCrudRepository, CatalogStatusRepository
+from src.application.catalogs.ports import (
+    CatalogCrudRepository,
+    CatalogStatusRepository,
+)
 from src.contexts.laboratory_workflow.application.ports import WorkflowRepository
 from src.contexts.notifications.application.service import NotificationRepository
 
