@@ -20,6 +20,7 @@ from src.infrastructure.db.models import (
     Research,
     ResearchGoal,
     Sample,
+    SampleStatus,
     SampleType,
 )
 
@@ -31,6 +32,8 @@ SAMPLE_ID = UUID("00000000-0000-0000-0000-000000000005")
 SAMPLE_TYPE_ID = UUID("00000000-0000-0000-0000-000000000006")
 RESEARCH_ID = UUID("00000000-0000-0000-0000-000000000007")
 RESEARCH_GOAL_ID = UUID("00000000-0000-0000-0000-000000000008")
+SAMPLE_PENDING_STATUS_ID = UUID("00000000-0000-0000-0000-000000000009")
+SAMPLE_REGISTERED_STATUS_ID = UUID("00000000-0000-0000-0000-00000000000a")
 
 
 class RowResult:
@@ -68,6 +71,22 @@ class ListResult:
         return ScalarList([row[0] for row in self.rows])
 
 
+class SampleScalars:
+    def __init__(self, values: list[Sample]) -> None:
+        self.values = values
+
+    def all(self) -> list[Sample]:
+        return self.values
+
+
+class SampleListResult:
+    def __init__(self, values: list[Sample]) -> None:
+        self.values = values
+
+    def scalars(self) -> SampleScalars:
+        return SampleScalars(self.values)
+
+
 class FakeAsyncSession:
     def __init__(
         self,
@@ -76,6 +95,7 @@ class FakeAsyncSession:
         current_status_code: str | None = "draft",
         samples: list[tuple[UUID, str, UUID | None]] | None = None,
         research_sample_ids: list[UUID] | None = None,
+        sample_objects: list[Sample] | None = None,
     ) -> None:
         self.direction = direction
         self.current_status_code = current_status_code
@@ -85,6 +105,9 @@ class FakeAsyncSession:
         self.research_sample_ids = (
             research_sample_ids if research_sample_ids is not None else [SAMPLE_ID]
         )
+        # Каскадная регистрация образцов подгружает Sample-объекты; по умолчанию
+        # оставляем пустым, чтобы позиционные проверки других тестов не менялись.
+        self.sample_objects: list[Sample] = sample_objects if sample_objects is not None else []
         self.statements: list[Select[tuple[Any, ...]]] = []
         self.added: list[object] = []
         self.flushed = False
@@ -92,7 +115,7 @@ class FakeAsyncSession:
     async def execute(
         self,
         statement: Select[tuple[Any, ...]],
-    ) -> RowResult | ScalarResult | ListResult:
+    ) -> RowResult | ScalarResult | ListResult | SampleListResult:
         self.statements.append(statement)
         if len(self.statements) == 1:
             return RowResult(self.direction)
@@ -102,7 +125,17 @@ class FakeAsyncSession:
             return ListResult(self.samples)
         if len(self.statements) == 4:
             return ListResult([(sample_id, "", None) for sample_id in self.research_sample_ids])
-        return ScalarResult(REGISTERED_STATUS_ID)
+        if len(self.statements) == 5:
+            # _direction_status_id(registered)
+            return ScalarResult(REGISTERED_STATUS_ID)
+        if len(self.statements) == 6:
+            # Каскад: подгрузка Sample-объектов направления.
+            return SampleListResult(self.sample_objects)
+        if len(self.statements) == 7:
+            # _sample_status_id(registered)
+            return ScalarResult(SAMPLE_REGISTERED_STATUS_ID)
+        # _sample_status_code для каждого образца.
+        return ScalarResult("pending")
 
     def add(self, instance: object) -> None:
         self.added.append(instance)
@@ -144,6 +177,45 @@ async def test_register_direction_changes_draft_to_registered_and_writes_audit()
     assert repository.events[0].event_type == "DirectionRegistered"
     assert repository.events[0].from_code == "draft"
     assert repository.events[0].to_code == "registered"
+
+
+@pytest.mark.asyncio
+async def test_register_direction_cascades_samples_to_registered() -> None:
+    direction = Direction(
+        id=DIRECTION_ID, year_no=2026, status_id=DRAFT_STATUS_ID
+    )
+    sample = Sample(
+        id=SAMPLE_ID,
+        name="Sample",
+        direction_id=DIRECTION_ID,
+        sample_type_id=SAMPLE_TYPE_ID,
+        status_id=SAMPLE_PENDING_STATUS_ID,
+    )
+    fake_session = FakeAsyncSession(
+        direction=direction,
+        current_status_code="draft",
+        sample_objects=[sample],
+    )
+    repository = SqlAlchemyWorkflowRepository(session=cast(AsyncSession, fake_session))
+
+    await repository.register_direction(
+        direction_id=DIRECTION_ID,
+        actor_id=ACTOR_ID,
+        comment=None,
+    )
+
+    assert sample.status_id == SAMPLE_REGISTERED_STATUS_ID
+    assert sample.updated_by == ACTOR_ID
+    sample_audit = next(
+        item
+        for item in fake_session.added
+        if isinstance(item, ChangeLog) and item.entity_type == "samples"
+    )
+    assert sample_audit.action == "sample_registered"
+    assert sample_audit.diff["status_code"] == {"from": "pending", "to": "registered"}
+    sample_events = [e for e in repository.events if e.entity_type == "samples"]
+    assert len(sample_events) == 1
+    assert sample_events[0].to_code == "registered"
 
 
 @pytest.mark.asyncio
@@ -275,6 +347,10 @@ async def test_register_direction_persists_with_real_postgres_when_configured() 
                 [
                     DirectionStatus(id=DRAFT_STATUS_ID, code="draft", name="Draft"),
                     DirectionStatus(id=REGISTERED_STATUS_ID, code="registered", name="Registered"),
+                    SampleStatus(id=SAMPLE_PENDING_STATUS_ID, code="pending", name="Pending"),
+                    SampleStatus(
+                        id=SAMPLE_REGISTERED_STATUS_ID, code="registered", name="Registered"
+                    ),
                     SampleType(id=SAMPLE_TYPE_ID, code="sample", name="Sample"),
                     ResearchGoal(id=RESEARCH_GOAL_ID, code="goal", name="Goal"),
                     Direction(id=DIRECTION_ID, year_no=2026, status_id=DRAFT_STATUS_ID),
@@ -283,6 +359,7 @@ async def test_register_direction_persists_with_real_postgres_when_configured() 
                         name="Sample",
                         direction_id=DIRECTION_ID,
                         sample_type_id=SAMPLE_TYPE_ID,
+                        status_id=SAMPLE_PENDING_STATUS_ID,
                     ),
                     Research(
                         id=RESEARCH_ID,
@@ -311,11 +388,16 @@ async def test_register_direction_persists_with_real_postgres_when_configured() 
                 )
             ).scalars().all()
 
+            persisted_sample = await session.get(Sample, SAMPLE_ID)
+
             assert result.status_id == REGISTERED_STATUS_ID
             assert persisted_direction is not None
             assert persisted_direction.status_id == REGISTERED_STATUS_ID
             assert persisted_direction.updated_by == ACTOR_ID
             assert len(audit_entries) == 1
+            assert persisted_sample is not None
+            assert persisted_sample.status_id == SAMPLE_REGISTERED_STATUS_ID
+            assert persisted_sample.received_at is not None
     finally:
         async with session_factory() as session:
             await _cleanup_register_direction_rows(session)
@@ -330,6 +412,11 @@ async def _cleanup_register_direction_rows(session: AsyncSession) -> None:
     await session.execute(delete(Direction).where(Direction.id == DIRECTION_ID))
     await session.execute(delete(ResearchGoal).where(ResearchGoal.id == RESEARCH_GOAL_ID))
     await session.execute(delete(SampleType).where(SampleType.id == SAMPLE_TYPE_ID))
+    await session.execute(
+        delete(SampleStatus).where(
+            SampleStatus.id.in_([SAMPLE_PENDING_STATUS_ID, SAMPLE_REGISTERED_STATUS_ID]),
+        ),
+    )
     await session.execute(
         delete(DirectionStatus).where(
             DirectionStatus.id.in_([DRAFT_STATUS_ID, REGISTERED_STATUS_ID]),
