@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import type { TabsItem } from "@nuxt/ui";
 import type { CrudModuleConfig, CrudRow } from '@/shared/types/crud';
 import { apiUpdateRequest, loadReferenceOptions } from "@/shared/api/client.api";
+import { useEntityForm } from "@/shared/composables/useEntityForm";
 import EntityDetailModalShell, { type DetailListItem } from "@/shared/ui/EntityDetailModalShell.vue";
+import EntityFieldGrid, { type FieldOption, type GridField } from "@/shared/ui/EntityFieldGrid.vue";
 import TechnicalAuditTimeline from "@/shared/ui/TechnicalAuditTimeline.vue";
-import { formatDateTime } from "@/shared/utils/format";
+import { buildFallbackAuditEvents } from "@/shared/ui/entity-technical-audit";
+import { pickText } from "@/shared/ui/entity-detail.helpers";
 import { getValueByPath } from "@/shared/utils/object";
-
-type FieldValue = string | number | boolean | null;
 
 const hiddenReadonlyKeys = new Set(["created_at", "updated_at", "deleted_at"]);
 
@@ -19,6 +20,7 @@ const props = defineProps<{
   listItems?: DetailListItem[];
   listHasMore?: boolean;
   listLoadingMore?: boolean;
+  breadcrumbs?: Array<{ label: string }>;
 }>();
 
 const emit = defineEmits<{
@@ -26,13 +28,14 @@ const emit = defineEmits<{
   (event: "saved", item: CrudRow): void;
   (event: "select", id: string | number): void;
   (event: "list-load-more"): void;
+  (event: "go-to-level", index: number): void;
 }>();
 
 const activeTab = ref("fields");
 const editing = ref(false);
 const saving = ref(false);
-const formState = reactive<Record<string, FieldValue>>({});
-const referenceOptions = ref<Record<string, Array<{ label: string; value: FieldValue }>>>({});
+const { formState, sync, setValue, buildPayload } = useEntityForm();
+const referenceOptions = ref<Record<string, FieldOption[]>>({});
 
 const tabs = computed<TabsItem[]>(() => [
   { label: "Поля", icon: "i-lucide-list", value: "fields" },
@@ -48,18 +51,22 @@ const configuredFieldMap = computed(() =>
   new Map(props.config.fields.map((field) => [field.key, field])),
 );
 
-const visibleFields = computed(() => {
+const visibleFields = computed<GridField[]>(() => {
   const item = props.item;
   if (!item) return [];
 
-  const configuredFields = props.config.fields.map((field) => ({
-    ...field,
+  const configuredFields: GridField[] = props.config.fields.map((field) => ({
+    key: field.key,
+    label: field.label,
+    type: field.type === "file" ? "text" : field.type,
+    required: field.required,
+    options: field.options,
     editable: true,
     value: getValueByPath(item, field.key),
   }));
 
   const configuredKeys = new Set(configuredFields.map((field) => field.key));
-  const readonlyFields = Object.entries(item)
+  const readonlyFields: GridField[] = Object.entries(item)
     .filter(([key]) => !configuredKeys.has(key) && !hiddenReadonlyKeys.has(key))
     .map(([key, value]) => ({
       key,
@@ -76,29 +83,10 @@ const technicalEvents = computed(() => {
   const row = props.item;
   if (!row) return [];
 
-  return [
-    {
-      id: "entity",
-      label: "Запись создана",
-      description: `Код записи: ${entityDisplayCode(row.id)}`,
-      actor: "system",
-      date: auditDate(row.created_at ?? row.inserted_at),
-    },
-    {
-      id: "update",
-      label: "Последнее сохранение",
-      description: "Изменения сохранены через API.",
-      actor: "api",
-      date: auditDate(row.updated_at ?? row.modified_at),
-    },
-    {
-      id: "status",
-      label: "Текущее состояние",
-      description: currentStateLabel(row),
-      actor: "process",
-      date: auditDate(row.updated_at ?? row.modified_at ?? row.created_at ?? row.inserted_at),
-    },
-  ];
+  return buildFallbackAuditEvents(row, {
+    stateLabel: currentStateLabel(row),
+    savedDescription: "Изменения сохранены через API.",
+  });
 });
 
 watch(
@@ -110,17 +98,11 @@ watch(
     }
 
     activeTab.value = "fields";
-    syncForm();
+    sync(props.config.fields, props.item);
     await loadSelectOptions();
   },
   { immediate: true },
 );
-
-function syncForm() {
-  props.config.fields.forEach((field) => {
-    formState[field.key] = normalizeFormValue(props.item ? getValueByPath(props.item, field.key) : null);
-  });
-}
 
 async function loadSelectOptions() {
   await Promise.all(
@@ -130,7 +112,7 @@ async function loadSelectOptions() {
         const options = await loadReferenceOptions(field.source as string).catch(() => []);
         referenceOptions.value = {
           ...referenceOptions.value,
-          [field.key]: options as Array<{ label: string; value: FieldValue }>,
+          [field.key]: options as FieldOption[],
         };
       }),
   );
@@ -141,9 +123,7 @@ async function saveInline() {
 
   saving.value = true;
   try {
-    const payload = Object.fromEntries(
-      props.config.fields.map((field) => [field.key, formState[field.key] ?? null]),
-    );
+    const payload = buildPayload(props.config.fields);
     const response = await apiUpdateRequest<CrudRow>(`${props.config.endpoint}/${props.item.id}`, {
       method: "PATCH",
       body: payload,
@@ -160,71 +140,8 @@ function close() {
   emit("update:open", false);
 }
 
-function normalizeFormValue(value: unknown): FieldValue {
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-    return value;
-  }
-
-  if (value === null || value === undefined) {
-    return null;
-  }
-
-  return String(value);
-}
-
-function formString(key: string) {
-  const value = formState[key];
-  return typeof value === "string" || typeof value === "number" ? String(value) : "";
-}
-
-function formBoolean(key: string) {
-  return Boolean(formState[key]);
-}
-
-function setFormValue(key: string, value: unknown) {
-  formState[key] = normalizeFormValue(value);
-}
-
-function isEditableField(field: { key: string; editable?: boolean }) {
+function isEditableField(field: GridField) {
   return Boolean(field.editable && configuredFieldMap.value.has(field.key));
-}
-
-function formatPlain(value: unknown): string {
-  if (value === null || value === undefined || value === "") return "-";
-  if (typeof value === "boolean") return value ? "Да" : "Нет";
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
-}
-
-function formatDisplay(value: unknown): string {
-  if (typeof value === "string" && /(T|\d{4}-\d{2}-\d{2})/.test(value)) {
-    return formatDateTime(value);
-  }
-
-  return formatPlain(value);
-}
-
-function pickText(row: CrudRow, paths: string[]) {
-  for (const path of paths) {
-    const text = formatPlain(getValueByPath(row, path));
-    if (text !== "-") return text;
-  }
-
-  return "";
-}
-
-function entityDisplayCode(value: unknown) {
-  if (typeof value !== "string" && typeof value !== "number") {
-    return "-";
-  }
-
-  const text = String(value);
-  const uuidPrefix = text.match(/^[0-9a-f]{8}/i)?.[0];
-  return `#${(uuidPrefix ?? text).toUpperCase()}`;
-}
-
-function auditDate(value: unknown) {
-  return typeof value === "string" ? value : null;
 }
 
 function currentStateLabel(row: CrudRow) {
@@ -256,7 +173,7 @@ function labelForKey(key: string) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function inferFieldType(value: unknown) {
+function inferFieldType(value: unknown): GridField["type"] {
   if (typeof value === "boolean") return "boolean";
   if (typeof value === "number") return "number";
   if (typeof value === "string" && value.length > 80) return "textarea";
@@ -277,9 +194,11 @@ function inferFieldType(value: unknown) {
     :selected-id="item?.id ?? null"
     :list-has-more="listHasMore"
     :list-loading-more="listLoadingMore"
+    :breadcrumbs="breadcrumbs"
     @update:open="emit('update:open', $event)"
     @select="emit('select', $event)"
     @list-load-more="emit('list-load-more')"
+    @go-to-level="emit('go-to-level', $event)"
   >
     <section v-if="activeTab === 'fields'" class="space-y-3">
       <div class="flex items-center justify-between gap-3">
@@ -303,7 +222,7 @@ function inferFieldType(value: unknown) {
               variant="outline"
               size="sm"
               :disabled="saving"
-              @click="editing = false; syncForm()"
+              @click="editing = false; sync(config.fields, item)"
             />
             <UButton
               label="Сохранить"
@@ -316,52 +235,14 @@ function inferFieldType(value: unknown) {
         </div>
       </div>
 
-      <div class="overflow-hidden rounded-lg border border-default">
-        <dl class="grid text-sm md:grid-cols-2">
-          <div
-            v-for="field in visibleFields"
-            :key="field.key"
-            class="grid grid-cols-[9.5rem_minmax(0,1fr)] border-b border-default last:border-b-0 md:[&:nth-last-child(-n+2)]:border-b-0 md:odd:border-e"
-          >
-            <dt class="bg-elevated/60 px-3 py-2 font-medium text-highlighted">
-              {{ field.label }}
-            </dt>
-            <dd class="min-w-0 px-3 py-2 text-muted">
-              <template v-if="editing && isEditableField(field)">
-                <UTextarea
-                  v-if="field.type === 'textarea'"
-                  :model-value="formString(field.key)"
-                  autoresize
-                  :rows="2"
-                  @update:model-value="setFormValue(field.key, $event)"
-                />
-                <USwitch
-                  v-else-if="field.type === 'boolean'"
-                  :model-value="formBoolean(field.key)"
-                  @update:model-value="setFormValue(field.key, $event)"
-                />
-                <USelectMenu
-                  v-else-if="field.type === 'select'"
-                  v-model="formState[field.key]"
-                  :items="referenceOptions[field.key] || []"
-                  value-key="value"
-                  label-key="label"
-                  class="w-full"
-                />
-                <UInput
-                  v-else
-                  :model-value="formString(field.key)"
-                  :type="field.type === 'number' ? 'number' : 'text'"
-                  @update:model-value="setFormValue(field.key, $event)"
-                />
-              </template>
-              <span v-else class="block truncate">
-                {{ formatDisplay(field.value) }}
-              </span>
-            </dd>
-          </div>
-        </dl>
-      </div>
+      <EntityFieldGrid
+        :fields="visibleFields"
+        :editing="editing"
+        :form-state="formState"
+        :reference-options="referenceOptions"
+        :is-editable="isEditableField"
+        @update="setValue"
+      />
     </section>
 
     <TechnicalAuditTimeline

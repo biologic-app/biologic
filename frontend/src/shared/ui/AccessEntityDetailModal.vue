@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import type { TabsItem } from "@nuxt/ui";
+import { useEntityForm } from "@/shared/composables/useEntityForm";
 import EntityDetailModalShell, { type DetailListItem } from "@/shared/ui/EntityDetailModalShell.vue";
+import EntityFieldGrid, { type FieldOption, type GridField } from "@/shared/ui/EntityFieldGrid.vue";
 import PermissionEditor from "@/shared/ui/PermissionEditor.vue";
 import TechnicalAuditTimeline from "@/shared/ui/TechnicalAuditTimeline.vue";
+import { buildFallbackAuditEvents } from "@/shared/ui/entity-technical-audit";
 import type { Permission, PermissionOverride } from "@/shared/types/permissions";
 
 type AccessKind = "user" | "role";
@@ -14,11 +17,6 @@ type AccessRow = {
 };
 
 type AccessMode = "view" | "edit" | "create";
-
-type FieldOption = {
-  label: string;
-  value: string | number | boolean | null;
-};
 
 type DetailField = {
   key: string;
@@ -45,6 +43,7 @@ const props = defineProps<{
   selectedId?: string | number | null;
   listHasMore?: boolean;
   listLoadingMore?: boolean;
+  breadcrumbs?: Array<{ label: string }>;
 }>();
 
 const emit = defineEmits<{
@@ -55,11 +54,13 @@ const emit = defineEmits<{
   (event: "update:overrides", value: PermissionOverride[]): void;
   (event: "select", id: string | number): void;
   (event: "list-load-more"): void;
+  (event: "go-to-level", index: number): void;
+  (event: "open-related", payload: { id: string | number; label: string }): void;
 }>();
 
 const activeTab = ref("fields");
 const formRef = ref<HTMLFormElement | null>(null);
-const form = reactive<Record<string, unknown>>({});
+const { formState, sync, reset, setValue } = useEntityForm();
 
 const tabs = computed<TabsItem[]>(() => {
   return [
@@ -108,6 +109,18 @@ const detailFields = computed<DetailField[]>(() => {
       ];
 });
 
+const gridFields = computed<GridField[]>(() =>
+  detailFields.value.map((field) => ({
+    key: field.key,
+    label: field.label,
+    type: field.type,
+    required: field.required,
+    // Select-поля в этой модалке всегда допускают сброс значения (как раньше
+    // безусловный атрибут `clear` на USelectMenu).
+    clearable: field.type === "select",
+  })),
+);
+
 const rolePermissionItems = computed<Permission[]>(() =>
   props.kind === "role" ? props.permissions ?? [] : [],
 );
@@ -120,29 +133,10 @@ const auditEvents = computed(() => {
   const row = props.item;
   if (!row) return [];
 
-  return [
-    {
-      id: "entity",
-      label: "Запись создана",
-      description: `Код записи: ${entityDisplayCode(row.id)}`,
-      actor: "system",
-      date: auditDate(row.created_at),
-    },
-    {
-      id: "update",
-      label: "Последнее сохранение",
-      description: "Данные доступа сохранены через API.",
-      actor: "api",
-      date: auditDate(row.updated_at),
-    },
-    {
-      id: "status",
-      label: "Текущее состояние",
-      description: accessStateLabel(row),
-      actor: "process",
-      date: auditDate(row.updated_at ?? row.created_at),
-    },
-  ];
+  return buildFallbackAuditEvents(row, {
+    stateLabel: accessStateLabel(row),
+    savedDescription: "Данные доступа сохранены через API.",
+  });
 });
 
 const eyebrow = computed(() =>
@@ -154,13 +148,20 @@ watch(
   ([open]) => {
     activeTab.value = "fields";
     if (!open) {
-      Object.keys(form).forEach((key) => delete form[key]);
+      reset();
       return;
     }
 
-    detailFields.value.forEach((field) => {
-      form[field.key] = props.item?.[field.key] ?? (field.type === "boolean" ? false : "");
-    });
+    sync(detailFields.value, props.item);
+    // Create-режим: у нетронутых полей сохраняем прежние дефолты payload
+    // (boolean → false, остальные → ""), а не null из normalizeFormValue.
+    if (!props.item) {
+      detailFields.value.forEach((field) => {
+        if (formState[field.key] === null) {
+          setValue(field.key, field.type === "boolean" ? false : "");
+        }
+      });
+    }
   },
   { immediate: true },
 );
@@ -170,7 +171,7 @@ function submit() {
     return;
   }
 
-  emit("save", { ...form });
+  emit("save", { ...formState });
 }
 
 function close() {
@@ -183,8 +184,14 @@ function formatValue(value: unknown) {
   return String(value);
 }
 
-function formatFieldValue(field: DetailField) {
-  const value = form[field.key];
+function fieldOptionsFor(key: string) {
+  return props.fieldOptions?.[key] ?? [];
+}
+
+// Повторяет прежний formatFieldValue: значение select резолвится в подпись
+// опции, остальные поля — через formatValue.
+function resolveFieldDisplay(field: GridField) {
+  const value = formState[field.key];
   if (field.type === "select") {
     return fieldOptionsFor(field.key).find((option) => option.value === value)?.label ?? formatValue(value);
   }
@@ -192,18 +199,11 @@ function formatFieldValue(field: DetailField) {
   return formatValue(value);
 }
 
-function entityDisplayCode(value: unknown) {
-  if (typeof value !== "string" && typeof value !== "number") {
-    return "-";
-  }
-
-  const text = String(value);
-  const uuidPrefix = text.match(/^[0-9a-f]{8}/i)?.[0];
-  return `#${(uuidPrefix ?? text).toUpperCase()}`;
-}
-
-function auditDate(value: unknown) {
-  return typeof value === "string" ? value : null;
+function openRole() {
+  const label =
+    fieldOptionsFor("role_id").find((option) => option.value === formState.role_id)?.label
+    ?? String(formState.role_id);
+  emit("open-related", { id: formState.role_id as string | number, label });
 }
 
 function accessStateLabel(row: AccessRow) {
@@ -216,30 +216,6 @@ function accessStateLabel(row: AccessRow) {
   }
 
   return props.mode === "create" ? "Черновик" : "Актуальная запись";
-}
-
-function formString(key: string) {
-  const value = form[key];
-  return typeof value === "string" || typeof value === "number" ? String(value) : "";
-}
-
-function formBoolean(key: string) {
-  return Boolean(form[key]);
-}
-
-function setFormValue(key: string, value: unknown) {
-  form[key] = value;
-}
-
-function fieldOptionsFor(key: string) {
-  return props.fieldOptions?.[key] ?? [];
-}
-
-function formOptionValue(key: string) {
-  const value = form[key];
-  return typeof value === "string" || typeof value === "number" || typeof value === "boolean" || value === null
-    ? value
-    : undefined;
 }
 </script>
 
@@ -255,10 +231,24 @@ function formOptionValue(key: string) {
     :selected-id="selectedId"
     :list-has-more="listHasMore"
     :list-loading-more="listLoadingMore"
+    :breadcrumbs="breadcrumbs"
     @update:open="emit('update:open', $event)"
     @select="emit('select', $event)"
     @list-load-more="emit('list-load-more')"
+    @go-to-level="emit('go-to-level', $event)"
   >
+    <template #header-actions>
+      <UButton
+        v-if="kind === 'user' && readOnly && formState.role_id"
+        label="Открыть роль"
+        icon="i-lucide-shield"
+        color="neutral"
+        variant="outline"
+        size="sm"
+        @click="openRole"
+      />
+    </template>
+
     <section v-if="activeTab === 'fields'" class="space-y-3">
       <div class="flex items-center justify-between gap-3">
         <h3 class="text-sm font-semibold text-highlighted">
@@ -277,47 +267,16 @@ function formOptionValue(key: string) {
 
       <form
         ref="formRef"
-        class="overflow-hidden rounded-lg border border-default"
         @submit.prevent="submit"
       >
-        <dl class="grid text-sm md:grid-cols-2">
-          <div
-            v-for="field in detailFields"
-            :key="field.key"
-            class="grid grid-cols-[9.5rem_minmax(0,1fr)] border-b border-default last:border-b-0 md:[&:nth-last-child(-n+2)]:border-b-0 md:odd:border-e"
-          >
-            <dt class="bg-elevated/60 px-3 py-2 font-medium text-highlighted">
-              {{ field.label }}
-            </dt>
-            <dd class="min-w-0 px-3 py-2 text-muted">
-              <USwitch
-                v-if="field.type === 'boolean' && !readOnly"
-                :model-value="formBoolean(field.key)"
-                @update:model-value="setFormValue(field.key, $event)"
-              />
-              <USelectMenu
-                v-else-if="field.type === 'select' && !readOnly"
-                :model-value="formOptionValue(field.key)"
-                :items="fieldOptionsFor(field.key)"
-                value-key="value"
-                label-key="label"
-                class="w-full"
-                clear
-                @update:model-value="setFormValue(field.key, $event)"
-              />
-              <UInput
-                v-else-if="!readOnly"
-                :model-value="formString(field.key)"
-                :type="field.type === 'password' ? 'password' : 'text'"
-                :required="field.required"
-                @update:model-value="setFormValue(field.key, $event)"
-              />
-              <span v-else class="block truncate">
-                {{ formatFieldValue(field) }}
-              </span>
-            </dd>
-          </div>
-        </dl>
+        <EntityFieldGrid
+          :fields="gridFields"
+          :editing="!readOnly"
+          :form-state="formState"
+          :reference-options="fieldOptions"
+          :resolve-display="resolveFieldDisplay"
+          @update="setValue"
+        />
       </form>
     </section>
 
