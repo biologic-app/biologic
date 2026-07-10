@@ -455,7 +455,7 @@ class LegacyDirectionXlsImportService:
             if deadline is not None:
                 sample_values["deadline"] = deadline
 
-            sample_row = await self.samples.create(sample_values)
+            sample_row = await self.samples.create(sample_values, created_by=self.created_by)
             samples_imported += 1
 
             for code in record["marks"]:

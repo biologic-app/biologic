@@ -7,16 +7,13 @@ const toast = useToast()
 
 const direction = computed(() => props.ctx.directions[props.ctx.currentIndex] ?? null)
 const samples = computed(() => (direction.value ? props.ctx.samplesByDirection[direction.value.id] ?? [] : []))
-const total = computed(() => props.ctx.directions.length)
-
-// Крупный заголовок «Направление 2025 № 461 — N-е из M».
+// Крупный заголовок «№ 2025-461».
 const directionHeading = computed(() => {
   const current = direction.value
-  const label = current
-    ? [current.year_no, current.base_no ? `№ ${current.base_no}` : null].filter(Boolean).join(' ')
-    : ''
-  const base = label ? `Направление ${label}` : 'Направление'
-  return `${base} — ${props.ctx.currentIndex + 1}-е из ${total.value}`
+  if (current?.year_no && current?.base_no) {
+    return `№ ${current.year_no}-${current.base_no}`
+  }
+  return 'Направление'
 })
 
 // Оригинальные данные из legacy-файла (import_warnings.document) — врач и отдел отбора.
@@ -48,41 +45,18 @@ const importSigner = computed(() => {
 
 const importSamplingDepartment = computed(() => importDocument.value?.sampling_department || '')
 
-// Сворачивание карточек образцов (до 94 на направление). Свёрнуто по умолчанию;
-// при смене направления образцы нового направления сворачиваются заново.
-const collapsedSamples = reactive<Record<string, boolean>>({})
+// Аккордеон образцов: в один момент времени открыт максимум один образец.
+// При смене направления открытый образец сбрасывается.
+const openSampleId = ref<string | null>(null)
 
-// Пагинация образцов: на направлении бывает до ~94 образцов — не рендерим все сразу.
-// Введённые данные живут в реактивном composable, поэтому листание страниц их не теряет.
-const SAMPLES_PER_PAGE = 5
-const samplePage = ref(1)
-const sampleTotalPages = computed(() => Math.max(1, Math.ceil(samples.value.length / SAMPLES_PER_PAGE)))
-const pagedSamples = computed(() => {
-  const start = (samplePage.value - 1) * SAMPLES_PER_PAGE
-  return samples.value
-    .slice(start, start + SAMPLES_PER_PAGE)
-    .map((sample, offset) => ({ sample, index: start + offset }))
-})
-const sampleRangeStart = computed(() => (samples.value.length ? (samplePage.value - 1) * SAMPLES_PER_PAGE + 1 : 0))
-const sampleRangeEnd = computed(() => Math.min(samplePage.value * SAMPLES_PER_PAGE, samples.value.length))
-const prevSamplePage = () => {
-  if (samplePage.value > 1) {
-    samplePage.value -= 1
-  }
-}
-const nextSamplePage = () => {
-  if (samplePage.value < sampleTotalPages.value) {
-    samplePage.value += 1
-  }
-}
+// Все образцы направления рендерятся сразу (без пагинации); аккордеон держит
+// открытым максимум один, поэтому DOM большого направления остаётся лёгким.
+const allSamples = computed(() => samples.value.map((sample, index) => ({ sample, index })))
 
 watch(
   () => direction.value?.id,
   (id) => {
-    samplePage.value = 1
-    for (const sample of samples.value) {
-      collapsedSamples[sample.id] = true
-    }
+    openSampleId.value = null
     // Подгружаем существующие Research образцов направления и инициализируем наборы целей.
     if (id) {
       void props.ctx.ensureResearchForDirection(id)
@@ -102,10 +76,37 @@ const researchGoalItems = computed(() =>
 const sampleGoals = (sampleId: string): string[] => props.ctx.researchGoalsBySample[sampleId] ?? []
 
 // Лаборатории образца (проставлены импортом из меток легаси) — источник деривации целей.
+// Набор редактируемый: снятие лаборатории каскадно убирает её цели с образца.
 const sampleLabs = (sampleId: string) => props.ctx.labsBySample[sampleId] ?? []
+const sampleLabIds = (sampleId: string) => sampleLabs(sampleId).map((lab) => lab.id)
 
-const goalMeta = (goalId: string): { name: string; lab_name: string | null } =>
-  props.ctx.goalLabById[goalId] ?? { name: goalId.slice(0, 8).toUpperCase(), lab_name: null }
+const labItems = computed(() =>
+  props.ctx.labOptions.map((option) => ({
+    label: option.label,
+    value: String(option.value ?? '')
+  }))
+)
+
+const setSampleLabIds = async (sampleId: string, next: unknown) => {
+  const ids = Array.isArray(next) ? (next as string[]) : []
+  const ok = await props.ctx.setSampleLabs(sampleId, ids)
+  if (!ok) {
+    toast.add({
+      title: 'Не удалось обновить лаборатории образца',
+      color: 'error',
+      icon: 'i-lucide-circle-alert'
+    })
+  }
+}
+
+const removeSampleLab = (sampleId: string, labId: string) =>
+  setSampleLabIds(
+    sampleId,
+    sampleLabIds(sampleId).filter((id) => id !== labId)
+  )
+
+const goalMeta = (goalId: string): { name: string; lab_id: string | null; lab_name: string | null } =>
+  props.ctx.goalLabById[goalId] ?? { name: goalId.slice(0, 8).toUpperCase(), lab_id: null, lab_name: null }
 
 // Диффим выбор мультиселекта и проводим его через явные мутаторы набора.
 const setSampleGoals = (sampleId: string, next: unknown) => {
@@ -123,9 +124,29 @@ const setSampleGoals = (sampleId: string, next: unknown) => {
   }
 }
 
-// Авто-подстановка дефолтных целей при выборе/смене типа образца.
+// Автосохранение образца на бэкенд при изменении полей (без ожидания общего
+// сохранения направления перед переходом дальше по мастеру).
+const autoSaveSample = async (sample: (typeof samples.value)[number]) => {
+  if (!direction.value) {
+    return
+  }
+  const ok = await props.ctx.saveSample(direction.value.id, sample.id, {
+    name: sample.name || null,
+    sample_type_id: sample.sample_type_id,
+    alternate_name: sample.alternate_name || null,
+    mass: sample.mass || null,
+    comment: sample.comment || null,
+    is_urgent: sample.is_urgent
+  })
+  if (!ok) {
+    toast.add({ title: 'Не удалось сохранить образец', color: 'error', icon: 'i-lucide-circle-alert' })
+  }
+}
+
+// Авто-подстановка дефолтных целей при выборе/смене типа образца + немедленное сохранение.
 const onSampleTypeChange = (sampleId: string, typeId: unknown) => {
   const value = typeof typeId === 'string' ? typeId : null
+  const sample = samples.value.find((row) => row.id === sampleId)
   void props.ctx.applySampleTypeDefaults(sampleId, value).catch(() => {
     toast.add({
       title: 'Не удалось подтянуть цели по типу образца',
@@ -133,20 +154,14 @@ const onSampleTypeChange = (sampleId: string, typeId: unknown) => {
       icon: 'i-lucide-circle-alert'
     })
   })
+  if (sample) {
+    void autoSaveSample(sample)
+  }
 }
 
-const isSampleCollapsed = (id: string) => Boolean(collapsedSamples[id])
+const isSampleCollapsed = (id: string) => openSampleId.value !== id
 const toggleSample = (id: string) => {
-  collapsedSamples[id] = !collapsedSamples[id]
-}
-const allCollapsed = computed(
-  () => samples.value.length > 0 && samples.value.every((sample) => collapsedSamples[sample.id])
-)
-const toggleAllSamples = () => {
-  const collapse = !allCollapsed.value
-  for (const sample of samples.value) {
-    collapsedSamples[sample.id] = collapse
-  }
+  openSampleId.value = openSampleId.value === id ? null : id
 }
 
 const showNewDoctor = ref(false)
@@ -158,35 +173,6 @@ const newObject = reactive({ code: '', name: '', full_name: '', address: '' })
 
 const missingClass = (value: unknown) =>
   value === null || value === undefined || value === '' ? 'ring-2 ring-warning/60 rounded-md' : ''
-
-const saveCurrent = async (options: { silent?: boolean } = {}): Promise<boolean> => {
-  const current = direction.value
-  if (!current) {
-    return true
-  }
-  // Сохранение направления + образцов + синхронизация целей живёт в composable
-  // (переиспользуется футером мастера для массового сохранения перед регистрацией).
-  const ok = await props.ctx.persistDirection(current.id)
-  if (ok) {
-    if (!options.silent) {
-      toast.add({ title: 'Данные направления сохранены', color: 'success', icon: 'i-lucide-circle-check' })
-    }
-  } else {
-    toast.add({ title: 'Не удалось сохранить часть данных', color: 'error', icon: 'i-lucide-circle-alert' })
-  }
-  return ok
-}
-
-// Навигация не сбрасывает состояние (оно живёт в реактивном composable);
-// перед сменой направления авто-сохраняем текущее, чтобы не потерять правки.
-const goNext = async () => {
-  await saveCurrent({ silent: true })
-  props.ctx.nextDirection()
-}
-const goPrev = async () => {
-  await saveCurrent({ silent: true })
-  props.ctx.prevDirection()
-}
 
 const createDoctor = async () => {
   if (!newDoctor.first_name.trim()) {
@@ -236,37 +222,12 @@ const createObject = async () => {
 
 <template>
   <div v-if="direction" class="flex flex-col gap-5">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <h2
-        class="text-lg font-semibold text-highlighted"
-        data-testid="direction-fill-progress"
-      >
-        {{ directionHeading }}
-      </h2>
-      <div class="flex items-center gap-2">
-        <UButton
-          label="Пред. направление"
-          icon="i-lucide-chevron-left"
-          color="neutral"
-          variant="outline"
-          size="sm"
-          :disabled="ctx.currentIndex === 0"
-          data-telemetry="direction-fill-prev"
-          @click="goPrev"
-        />
-        <UButton
-          label="След. направление"
-          icon="i-lucide-chevron-right"
-          trailing
-          color="neutral"
-          variant="outline"
-          size="sm"
-          :disabled="ctx.currentIndex >= total - 1"
-          data-telemetry="direction-fill-next"
-          @click="goNext"
-        />
-      </div>
-    </div>
+    <h2
+      class="text-lg font-semibold text-highlighted"
+      data-testid="direction-fill-progress"
+    >
+      {{ directionHeading }}
+    </h2>
 
     <section class="rounded-lg border border-default p-4">
       <h3 class="mb-3 text-sm font-semibold text-highlighted">
@@ -368,17 +329,11 @@ const createObject = async () => {
         <h3 class="text-sm font-semibold text-highlighted">
           Образцы направления
         </h3>
-        <UBadge color="neutral" variant="subtle" :label="String(samples.length)" />
-        <UButton
-          v-if="samples.length"
-          :label="allCollapsed ? 'Развернуть все' : 'Свернуть все'"
-          :icon="allCollapsed ? 'i-lucide-chevrons-up-down' : 'i-lucide-chevrons-down-up'"
+        <UBadge
           color="neutral"
-          variant="ghost"
-          size="xs"
-          class="ml-auto"
-          data-telemetry="direction-fill-toggle-all-samples"
-          @click="toggleAllSamples"
+          variant="subtle"
+          size="sm"
+          :label="String(samples.length)"
         />
       </div>
 
@@ -387,7 +342,7 @@ const createObject = async () => {
       </p>
 
       <div
-        v-for="{ sample, index } in pagedSamples"
+        v-for="{ sample, index } in allSamples"
         :key="sample.id"
         class="rounded-lg border border-default p-4"
       >
@@ -402,37 +357,21 @@ const createObject = async () => {
             :name="isSampleCollapsed(sample.id) ? 'i-lucide-chevron-right' : 'i-lucide-chevron-down'"
             class="size-4 text-muted"
           />
-          <UBadge
-            color="neutral"
-            variant="outline"
-            size="sm"
-            :label="`Образец ${index + 1} из ${samples.length}`"
-          />
           <span class="truncate text-sm text-toned">{{ sample.name || 'Без названия' }}</span>
           <UIcon
             v-if="!sample.name || !sample.sample_type_id"
             name="i-lucide-triangle-alert"
-            class="ml-auto size-4 shrink-0 text-warning"
+            class="size-4 shrink-0 text-warning"
+          />
+          <UBadge
+            color="neutral"
+            variant="outline"
+            size="md"
+            class="ml-auto"
+            :label="`${index + 1} из ${samples.length}`"
           />
         </button>
         <div v-show="!isSampleCollapsed(sample.id)" class="grid gap-4 md:grid-cols-2">
-          <div class="flex flex-col gap-2 md:col-span-2">
-            <label class="text-sm font-medium text-toned">Лаборатории образца</label>
-            <div v-if="sampleLabs(sample.id).length" class="flex flex-wrap gap-1.5">
-              <UBadge
-                v-for="lab in sampleLabs(sample.id)"
-                :key="lab.id"
-                color="primary"
-                variant="subtle"
-                size="sm"
-                :label="lab.code || lab.name || ''"
-                :title="lab.name || ''"
-              />
-            </div>
-            <p v-else class="text-xs text-muted">
-              Лаборатории не проставлены (нет меток легаси) — цели по типу подобрать нельзя.
-            </p>
-          </div>
           <div class="flex flex-col gap-2">
             <label class="text-sm font-medium text-toned">Название</label>
             <UInput
@@ -440,6 +379,7 @@ const createObject = async () => {
               placeholder="Название образца"
               :class="missingClass(sample.name)"
               data-testid="direction-fill-sample-name"
+              @blur="autoSaveSample(sample)"
             />
           </div>
           <div class="flex flex-col gap-2">
@@ -459,11 +399,19 @@ const createObject = async () => {
           </div>
           <div class="flex flex-col gap-2">
             <label class="text-sm font-medium text-toned">Альтернативное имя</label>
-            <UInput v-model="sample.alternate_name" placeholder="Альтернативное имя" />
+            <UInput
+              v-model="sample.alternate_name"
+              placeholder="Альтернативное имя"
+              @blur="autoSaveSample(sample)"
+            />
           </div>
           <div class="flex flex-col gap-2">
             <label class="text-sm font-medium text-toned">Масса</label>
-            <UInput v-model="sample.mass" placeholder="Масса" />
+            <UInput
+              v-model="sample.mass"
+              placeholder="Масса"
+              @blur="autoSaveSample(sample)"
+            />
           </div>
           <div class="flex flex-col gap-2 md:col-span-2">
             <label class="text-sm font-medium text-toned">Комментарий</label>
@@ -472,7 +420,47 @@ const createObject = async () => {
               autoresize
               :rows="2"
               placeholder="Комментарий"
+              @blur="autoSaveSample(sample)"
             />
+          </div>
+          <div class="flex flex-col gap-2 md:col-span-2">
+            <label class="text-sm font-medium text-toned">Лаборатории образца</label>
+            <USelectMenu
+              :model-value="sampleLabIds(sample.id)"
+              :items="labItems"
+              value-key="value"
+              label-key="label"
+              multiple
+              :search-input="{ placeholder: 'Поиск лаборатории' }"
+              data-testid="direction-fill-lab-select"
+              data-telemetry="direction-fill-lab-select"
+              @update:model-value="(value) => setSampleLabIds(sample.id, value)"
+            >
+              <div v-if="sampleLabs(sample.id).length" class="flex flex-wrap gap-1">
+                <UBadge
+                  v-for="lab in sampleLabs(sample.id)"
+                  :key="lab.id"
+                  color="primary"
+                  variant="subtle"
+                  size="sm"
+                  :title="lab.name || ''"
+                  data-testid="direction-fill-lab-chip"
+                >
+                  <span>{{ lab.code || lab.name || '' }}</span>
+                  <UIcon
+                    name="i-lucide-x"
+                    class="size-3 cursor-pointer"
+                    data-testid="direction-fill-lab-remove"
+                    data-telemetry="direction-fill-lab-remove"
+                    @click.stop="removeSampleLab(sample.id, lab.id)"
+                  />
+                </UBadge>
+              </div>
+              <span v-else class="text-dimmed">Выберите лаборатории</span>
+            </USelectMenu>
+            <p v-if="!sampleLabs(sample.id).length" class="text-xs text-muted">
+              Лаборатории не проставлены — добавьте вручную, иначе цели по типу подобрать нельзя.
+            </p>
           </div>
           <div
             class="flex flex-col gap-2 md:col-span-2"
@@ -485,70 +473,37 @@ const createObject = async () => {
               value-key="value"
               label-key="label"
               multiple
+              :disabled="!sample.sample_type_id"
               :search-input="{ placeholder: 'Поиск цели' }"
-              placeholder="Добавить цель из справочника"
               data-testid="direction-fill-goal-add"
               data-telemetry="direction-fill-goal-add"
               @update:model-value="(value) => setSampleGoals(sample.id, value)"
-            />
-            <ul v-if="sampleGoals(sample.id).length" class="flex flex-col gap-1">
-              <li
-                v-for="goalId in sampleGoals(sample.id)"
-                :key="goalId"
-                class="flex items-center gap-2 rounded-md border border-default px-2 py-1"
-              >
-                <span class="text-sm text-toned">{{ goalMeta(goalId).name }}</span>
+            >
+              <div v-if="sampleGoals(sample.id).length" class="flex flex-wrap gap-1">
                 <UBadge
-                  v-if="goalMeta(goalId).lab_name"
+                  v-for="goalId in sampleGoals(sample.id)"
+                  :key="goalId"
                   color="neutral"
                   variant="subtle"
                   size="sm"
-                  :label="goalMeta(goalId).lab_name || ''"
-                />
-                <UButton
-                  icon="i-lucide-x"
-                  color="neutral"
-                  variant="ghost"
-                  size="xs"
-                  class="ml-auto"
-                  data-testid="direction-fill-goal-remove"
-                  data-telemetry="direction-fill-goal-remove"
-                  @click="ctx.removeSampleGoal(sample.id, goalId)"
-                />
-              </li>
-            </ul>
-            <p v-else class="text-xs text-muted">
-              Цели не выбраны. Выберите тип образца для авто-подстановки или добавьте вручную.
-            </p>
+                  :title="goalMeta(goalId).lab_name || ''"
+                >
+                  <span>{{ goalMeta(goalId).name }}</span>
+                  <UIcon
+                    name="i-lucide-x"
+                    class="size-3 cursor-pointer"
+                    data-testid="direction-fill-goal-remove"
+                    data-telemetry="direction-fill-goal-remove"
+                    @click.stop="ctx.removeSampleGoal(sample.id, goalId)"
+                  />
+                </UBadge>
+              </div>
+              <span v-else class="text-dimmed">
+                {{ sample.sample_type_id ? 'Добавьте цель вручную' : 'Сначала выберите тип образца' }}
+              </span>
+            </USelectMenu>
           </div>
         </div>
-      </div>
-
-      <div
-        v-if="sampleTotalPages > 1"
-        class="flex items-center justify-center gap-3"
-      >
-        <UButton
-          icon="i-lucide-chevron-left"
-          color="neutral"
-          variant="ghost"
-          size="sm"
-          :disabled="samplePage === 1"
-          data-telemetry="direction-fill-samples-prev-page"
-          @click="prevSamplePage"
-        />
-        <span class="text-sm text-muted">
-          {{ sampleRangeStart }}–{{ sampleRangeEnd }} из {{ samples.length }}
-        </span>
-        <UButton
-          icon="i-lucide-chevron-right"
-          color="neutral"
-          variant="ghost"
-          size="sm"
-          :disabled="samplePage >= sampleTotalPages"
-          data-telemetry="direction-fill-samples-next-page"
-          @click="nextSamplePage"
-        />
       </div>
     </section>
   </div>

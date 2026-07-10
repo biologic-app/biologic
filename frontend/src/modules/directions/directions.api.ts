@@ -21,6 +21,7 @@ export interface ImportIssue {
 export interface WorkflowImportSummary {
   filename: string
   directions_created: number
+  direction_ids: string[]
   samples_created: number
   research_created: number
   skipped: number
@@ -95,17 +96,6 @@ export const importDirections = (file: File, type: ImportType) => {
     body: formData
   })
 }
-
-export const fetchRecentDirections = (limit: number) =>
-  apiReadListRequest<DirectionRow>('/directions', {
-    method: 'GET',
-    params: {
-      limit,
-      sort_by: 'created_at',
-      sort_order: 'desc',
-      include: 'doctor,object,status'
-    }
-  })
 
 export const fetchDirection = async (id: string): Promise<DirectionRow> => {
   const response = await apiReadRequest<DirectionRow>(`/directions/${id}`, {
@@ -190,6 +180,24 @@ export const fetchSampleLabs = async (sampleId: string): Promise<SampleLab[]> =>
     name: row.name ?? null
   }))
 }
+
+// Полная замена набора лабораторий образца: PUT /samples/{id}/labs.
+export const updateSampleLabs = async (
+  sampleId: string,
+  labIds: string[]
+): Promise<SampleLab[]> => {
+  const response = await apiReadListRequest<SampleLab>(`/samples/${sampleId}/labs`, {
+    method: 'PUT',
+    body: { lab_ids: labIds }
+  })
+  return response.items.map((row) => ({
+    id: row.id,
+    code: row.code ?? null,
+    name: row.name ?? null
+  }))
+}
+
+export const loadLabOptions = () => loadReferenceOptions('/labs')
 
 // Цели, выведенные из лабораторий образца, отфильтрованные по индикаторам выбранного
 // типа: GET /samples/{id}/research-goal-suggestions?sample_type_id={typeId}.

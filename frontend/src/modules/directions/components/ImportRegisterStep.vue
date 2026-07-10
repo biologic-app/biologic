@@ -1,13 +1,22 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, reactive } from 'vue'
 import type { DirectionImportContext } from '@/modules/directions/composables/useDirectionImport'
 import type { DirectionRow } from '@/modules/directions/directions.api'
 
 const props = defineProps<{ ctx: DirectionImportContext }>()
 
 const directionLabel = (direction: DirectionRow) =>
-  [direction.year_no, direction.base_no ? `№ ${direction.base_no}` : null].filter(Boolean).join(' ') ||
-  direction.id.slice(0, 8).toUpperCase()
+  direction.year_no && direction.base_no
+    ? `№ ${direction.year_no}-${direction.base_no}`
+    : direction.id.slice(0, 8).toUpperCase()
+
+// Образцы направления, которым не хватает данных для регистрации (нужны название и тип).
+const incompleteSamples = (direction: DirectionRow) => {
+  const samples = props.ctx.samplesByDirection[direction.id] ?? []
+  return samples
+    .map((sample, index) => ({ sample, index }))
+    .filter(({ sample }) => !sample.name || !sample.sample_type_id)
+}
 
 // Клиентская эвристика готовности (research-assignments проверяет только backend).
 const isLikelyReady = (direction: DirectionRow): boolean => {
@@ -15,19 +24,21 @@ const isLikelyReady = (direction: DirectionRow): boolean => {
   if (!samples.length) {
     return false
   }
-  return samples.every((sample) => Boolean(sample.name) && Boolean(sample.sample_type_id))
+  return incompleteSamples(direction).length === 0
 }
 
-const readyCount = computed(() => props.ctx.directions.filter(isLikelyReady).length)
-const attentionCount = computed(() => props.ctx.directions.length - readyCount.value)
+// Направления, которые нельзя зарегистрировать сейчас — с перечнем проблемных образцов.
+const blockedDirections = computed(() =>
+  props.ctx.directions
+    .filter((direction) => !props.ctx.registerResults[direction.id]?.ok && !isLikelyReady(direction))
+    .map((direction) => ({ direction, samples: incompleteSamples(direction) }))
+)
 
-const registeredCount = computed(
-  () => Object.values(props.ctx.registerResults).filter((result) => result.ok).length
-)
-const failedCount = computed(
-  () => Object.values(props.ctx.registerResults).filter((result) => !result.ok).length
-)
-const hasResults = computed(() => Object.keys(props.ctx.registerResults).length > 0)
+// Список проблемных образцов свёрнут по умолчанию (тот же паттерн, что и в предупреждениях импорта).
+const expandedWarnings = reactive<Record<string, boolean>>({})
+const toggleWarning = (directionId: string) => {
+  expandedWarnings[directionId] = !expandedWarnings[directionId]
+}
 
 const rowState = (direction: DirectionRow) => {
   const result = props.ctx.registerResults[direction.id]
@@ -36,35 +47,15 @@ const rowState = (direction: DirectionRow) => {
       ? { color: 'success' as const, label: 'Зарегистрировано', detail: '' }
       : { color: 'error' as const, label: 'Ошибка', detail: result.message }
   }
+  // До нажатия «Зарегистрировать» направление остаётся черновиком.
   return isLikelyReady(direction)
-    ? { color: 'primary' as const, label: 'Готово к регистрации', detail: '' }
-    : { color: 'warning' as const, label: 'Требует внимания', detail: 'Заполните название и тип образцов.' }
+    ? { color: 'neutral' as const, label: 'Черновик — готово к регистрации', detail: '' }
+    : { color: 'warning' as const, label: 'Черновик — требует внимания', detail: 'Заполните название и тип образцов.' }
 }
 </script>
 
 <template>
   <div class="flex flex-col gap-5" data-testid="direction-register-all">
-    <div class="flex flex-wrap gap-2">
-      <UBadge
-        color="success"
-        variant="subtle"
-        size="lg"
-        :label="`Готово: ${hasResults ? registeredCount : readyCount}`"
-      />
-      <UBadge
-        color="warning"
-        variant="subtle"
-        size="lg"
-        :label="`С ошибками: ${hasResults ? failedCount : attentionCount}`"
-      />
-      <UBadge
-        color="neutral"
-        variant="subtle"
-        size="lg"
-        :label="`Всего: ${ctx.directions.length}`"
-      />
-    </div>
-
     <div class="overflow-x-auto rounded-lg border border-default">
       <table class="w-full border-collapse text-sm">
         <thead class="bg-elevated text-left text-xs font-medium uppercase text-muted">
@@ -112,5 +103,47 @@ const rowState = (direction: DirectionRow) => {
         </tbody>
       </table>
     </div>
+
+    <section
+      v-for="{ direction, samples } in blockedDirections"
+      :key="direction.id"
+      class="flex flex-col gap-2"
+    >
+      <button
+        type="button"
+        class="flex w-full items-center gap-2 rounded-lg border border-default px-3 py-2 text-left text-sm font-medium text-toned hover:bg-elevated/50"
+        data-testid="direction-register-warning-toggle"
+        @click="toggleWarning(direction.id)"
+      >
+        <UIcon
+          :name="expandedWarnings[direction.id] ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'"
+          class="size-4 text-muted"
+        />
+        <UIcon name="i-lucide-triangle-alert" class="size-4 text-warning" />
+        <span>{{ directionLabel(direction) }} не может быть зарегистрировано ({{ samples.length }})</span>
+      </button>
+      <UAlert
+        v-if="expandedWarnings[direction.id]"
+        color="warning"
+        variant="subtle"
+        icon="i-lucide-triangle-alert"
+        :title="`${directionLabel(direction)} не может быть зарегистрировано`"
+        data-testid="direction-register-warning"
+      >
+        <template #description>
+          <p class="mb-1">
+            Заполните название и тип у образцов:
+          </p>
+          <ul class="list-inside list-disc">
+            <li v-for="{ sample, index } in samples" :key="sample.id">
+              Образец {{ index + 1 }}: {{ sample.name || 'без названия' }}
+              <template v-if="!sample.sample_type_id">
+                — не указан тип
+              </template>
+            </li>
+          </ul>
+        </template>
+      </UAlert>
+    </section>
   </div>
 </template>

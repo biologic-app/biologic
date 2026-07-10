@@ -34,49 +34,67 @@ const summary = computed(() => props.ctx.summary)
 const warnings = computed(() => (summary.value?.warnings ?? []).map(formatIssue).filter(Boolean))
 const errors = computed(() => flattenErrors(summary.value?.errors ?? []).filter(Boolean))
 
-const counters = computed(() => {
-  const data = summary.value
-  if (!data) {
-    return []
-  }
-  return [
-    { label: 'Направлений создано', value: data.directions_created, color: 'primary' as const, icon: 'i-lucide-clipboard-list' },
-    { label: 'Образцов создано', value: data.samples_created, color: 'info' as const, icon: 'i-lucide-test-tube-2' },
-    { label: 'Исследований создано', value: data.research_created, color: 'success' as const, icon: 'i-lucide-flask-conical' },
-    { label: 'Пропущено', value: data.skipped, color: 'neutral' as const, icon: 'i-lucide-skip-forward' }
-  ]
-})
-
 const directionTitle = (directionId: string, index: number) => {
   const direction = props.ctx.directions[index]
-  const label = [direction?.year_no, direction?.base_no ? `№ ${direction.base_no}` : null].filter(Boolean).join(' ')
-  return label || `Направление ${directionId.slice(0, 8).toUpperCase()}`
+  if (direction?.year_no && direction?.base_no) {
+    return `№ ${direction.year_no}-${direction.base_no}`
+  }
+  return `Направление ${directionId.slice(0, 8).toUpperCase()}`
+}
+
+// У врача из include нет поля `name` — ФИО собирается из отдельных полей.
+// Имя и отчество сокращаем до инициалов: «Иванов И.И.».
+const initial = (part: unknown): string => {
+  const value = typeof part === 'string' ? part.trim() : ''
+  return value ? `${value[0].toUpperCase()}.` : ''
+}
+
+const personName = (row: Record<string, unknown> | null | undefined): string => {
+  if (!row) {
+    return ''
+  }
+  const lastName = typeof row.last_name === 'string' ? row.last_name.trim() : ''
+  const initials = [initial(row.first_name), initial(row.patronymic)].filter(Boolean).join('')
+  const shortName = [lastName, initials].filter(Boolean).join(' ')
+  return shortName || (typeof row.name === 'string' ? row.name : '')
+}
+
+const formatDate = (value: string | null | undefined): string => {
+  if (!value) {
+    return ''
+  }
+  const date = new Date(value)
+  return Number.isNaN(date.getTime())
+    ? ''
+    : date.toLocaleString('ru-RU', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+}
+
+// Показываем первые имена образцов; остальное сворачиваем в «+N ещё».
+const SAMPLE_PREVIEW_LIMIT = 4
+const samplePreview = (directionId: string) => {
+  const samples = props.ctx.samplesByDirection[directionId] ?? []
+  return {
+    total: samples.length,
+    names: samples.slice(0, SAMPLE_PREVIEW_LIMIT).map((sample) => sample.name || 'Без названия'),
+    rest: Math.max(0, samples.length - SAMPLE_PREVIEW_LIMIT)
+  }
 }
 </script>
 
 <template>
   <div class="flex flex-col gap-5">
-    <div v-if="summary" class="flex flex-wrap gap-2">
-      <UBadge
-        v-for="counter in counters"
-        :key="counter.label"
-        :color="counter.color"
-        variant="subtle"
-        size="md"
-        :icon="counter.icon"
-        class="items-start"
-      >
-        <span class="line-clamp-2 break-words whitespace-normal">{{ counter.label }}: {{ counter.value }}</span>
-      </UBadge>
-    </div>
-
     <section class="flex flex-col gap-3">
       <div class="flex items-center gap-2">
         <UIcon name="i-lucide-clipboard-list" class="size-4 text-muted" />
         <h3 class="text-sm font-semibold text-highlighted">
-          Созданные направления
+          Созданное направление
         </h3>
-        <UBadge color="neutral" variant="subtle" :label="String(ctx.directions.length)" />
       </div>
 
       <div v-if="ctx.loadingResults" class="flex items-center gap-2 text-sm text-muted">
@@ -92,28 +110,83 @@ const directionTitle = (directionId: string, index: number) => {
         v-for="(direction, index) in ctx.directions"
         v-else
         :key="direction.id"
-        class="rounded-lg border border-default p-3"
+        class="rounded-lg border border-default"
+        data-testid="direction-review-card"
       >
-        <div class="mb-2 flex flex-wrap items-center gap-2">
-          <span class="font-medium text-highlighted">{{ directionTitle(direction.id, index) }}</span>
+        <div class="flex flex-wrap items-center gap-2 border-b border-default bg-elevated/50 px-4 py-2.5">
+          <span class="font-semibold text-highlighted">{{ directionTitle(direction.id, index) }}</span>
           <UBadge
-            color="neutral"
-            variant="outline"
-            size="lg"
-            :label="direction.object?.name || 'Объект не указан'"
-          />
-          <UBadge
-            color="neutral"
-            variant="outline"
-            size="lg"
-            :label="direction.doctor?.name || 'Врач не указан'"
+            v-if="direction.is_urgent"
+            color="error"
+            variant="subtle"
+            size="md"
+            label="Срочное"
           />
           <UBadge
             color="neutral"
             variant="subtle"
-            size="lg"
-            :label="`Образцов: ${(ctx.samplesByDirection[direction.id] || []).length}`"
+            size="md"
+            class="ml-auto"
+            :label="`Образцов: ${samplePreview(direction.id).total}`"
           />
+        </div>
+
+        <dl class="grid gap-x-6 gap-y-3 px-4 py-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <dt class="text-xs text-muted">
+              Объект
+            </dt>
+            <dd v-if="direction.object?.name" class="text-sm text-toned">
+              {{ direction.object.name }}
+            </dd>
+            <dd v-else class="text-sm text-warning">
+              Не указан
+            </dd>
+          </div>
+          <div>
+            <dt class="text-xs text-muted">
+              Санитарный врач
+            </dt>
+            <dd v-if="personName(direction.doctor)" class="text-sm text-toned">
+              {{ personName(direction.doctor) }}
+            </dd>
+            <dd v-else class="text-sm text-warning">
+              Не указан
+            </dd>
+          </div>
+          <div>
+            <dt class="text-xs text-muted">
+              Дата отбора
+            </dt>
+            <dd class="text-sm" :class="formatDate(direction.sampled_at) ? 'text-toned' : 'text-muted'">
+              {{ formatDate(direction.sampled_at) || '—' }}
+            </dd>
+          </div>
+          <div>
+            <dt class="text-xs text-muted">
+              Дата поступления
+            </dt>
+            <dd class="text-sm" :class="formatDate(direction.received_at) ? 'text-toned' : 'text-muted'">
+              {{ formatDate(direction.received_at) || '—' }}
+            </dd>
+          </div>
+        </dl>
+
+        <div
+          v-if="samplePreview(direction.id).total"
+          class="flex flex-wrap items-center gap-1.5 border-t border-default px-4 py-2.5"
+        >
+          <UBadge
+            v-for="(name, sampleIndex) in samplePreview(direction.id).names"
+            :key="sampleIndex"
+            color="neutral"
+            variant="outline"
+            size="md"
+            :label="name"
+          />
+          <span v-if="samplePreview(direction.id).rest" class="text-xs text-muted">
+            +{{ samplePreview(direction.id).rest }} ещё
+          </span>
         </div>
       </div>
     </section>

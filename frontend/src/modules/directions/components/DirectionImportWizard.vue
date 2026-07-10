@@ -54,15 +54,35 @@ const submitUpload = () => {
   void ctx.runImport()
 }
 
-// «Далее: регистрация» — единая точка: сохранить всё, затем зарегистрировать,
-// затем показать результаты на шаге 3 (регистрация вызывается ровно один раз).
+// «Далее: регистрация» только сохраняет данные и показывает сводку: направления
+// остаются в статусе «Черновик» до явного нажатия «Зарегистрировать» на шаге 4.
+const toast = useToast()
+
 const proceedToRegister = async () => {
   if (ctx.savingKey || ctx.registering) {
     return
   }
-  await ctx.persistAll()
-  await ctx.registerAll()
+  const ok = await ctx.persistAll()
+  if (!ok) {
+    toast.add({
+      title: 'Не удалось сохранить часть данных',
+      description: 'Проверьте направление и образцы, затем попробуйте снова.',
+      color: 'error',
+      icon: 'i-lucide-circle-alert'
+    })
+    return
+  }
   ctx.goToStep(3)
+}
+
+// Регистрация выполнена — на шаге 4 уже есть результаты; кнопка меняется на «Готово».
+const hasRegisterResults = computed(() => Object.keys(ctx.registerResults).length > 0)
+
+const submitRegister = async () => {
+  if (ctx.registering) {
+    return
+  }
+  await ctx.registerAll()
 }
 </script>
 
@@ -135,6 +155,17 @@ const proceedToRegister = async () => {
             :disabled="Boolean(ctx.savingKey) || ctx.registering || !ctx.directions.length"
             data-telemetry="direction-import-to-register"
             @click="proceedToRegister"
+          />
+          <UButton
+            v-else-if="ctx.step === 3 && !hasRegisterResults"
+            label="Зарегистрировать"
+            icon="i-lucide-clipboard-check"
+            color="primary"
+            :loading="ctx.registering"
+            :disabled="ctx.registering || !ctx.directions.length"
+            data-testid="direction-import-register"
+            data-telemetry="direction-import-register"
+            @click="submitRegister"
           />
           <UButton
             v-else-if="ctx.step === 3"

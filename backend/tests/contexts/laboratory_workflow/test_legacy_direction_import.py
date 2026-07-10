@@ -49,7 +49,9 @@ class RecordingSampleRepository:
         self.created: list[dict[str, Any]] = []
         self._next_id = 1
 
-    async def create(self, values: dict[str, Any]) -> RecordingSample:
+    async def create(
+        self, values: dict[str, Any], *, created_by: Any | None = None
+    ) -> RecordingSample:
         self.created.append(values)
         sample_id = f"00000000-0000-0000-0000-{self._next_id:012d}"
         self._next_id += 1
