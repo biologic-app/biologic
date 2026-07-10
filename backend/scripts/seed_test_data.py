@@ -13,12 +13,22 @@ from src.core.config import get_settings
 # ---------------------------------------------------------------------------
 # Realistic dev reference dataset.
 #
-# This script is the authoritative source of local/dev data. It wipes the
-# synthetic reference rows seeded by migrations 0002 (~100 of everything) and
-# 0022 (placeholder lab goals) plus all operational data, then inserts a small
-# realistic set (5 labs, 9 sample types, 5 doctors, 6 objects, 18 research
-# goals, ~90 indicators). Auth (users/roles/permissions), user_scopes, status
-# tables, branches and protocol_types are preserved.
+# This script is the sole seed source for local/dev/test databases — including
+# a brand-new one. All data-seeding migrations were reduced to pure schema
+# (0002, 0009, 0016, 0022, 0024): a fresh ``alembic upgrade head`` produces
+# empty tables only, and this script is what makes the app usable (roles,
+# permissions, status tables, named accounts, branches, protocol types,
+# conclusions, mandatory subscription rules, then the realistic reference/
+# workflow rows below). Run it once after every ``alembic upgrade head``.
+#
+# It wipes all operational data plus the previously-synthetic reference rows
+# (what used to be ~100-of-everything placeholders from migration 0002, and
+# the placeholder lab goals from 0022) and inserts a small realistic set
+# instead (5 labs, 9 sample types, 5 doctors, 6 objects, 18 research goals,
+# ~90 indicators). Auth (users/roles/permissions), user_scopes, status
+# tables, branches and protocol_types are bootstrapped once by
+# ``_seed_bootstrap_data`` and otherwise preserved/upserted by code, not reset
+# per run.
 #
 # The 5 real laboratories are kept by ``code`` (BAK/TH/TB/RV/PCR). Users that
 # pointed at a synthetic lab have ``users.lab_id`` reset to NULL before the
@@ -26,6 +36,388 @@ from src.core.config import get_settings
 # ever cascade-deleted and no FK is violated. ``labs.branch_id`` is left as-is
 # for the real labs; branches are never deleted.
 # ---------------------------------------------------------------------------
+
+# --- RBAC / cross-environment bootstrap data (moved from migrations 0002, ---
+# --- 0009, 0016, 0022, 0024 — see _seed_bootstrap_data). ---------------------
+
+ROLE_DEFINITIONS: dict[str, dict[str, str]] = {
+    "admin": {"name": "Administrator", "scope_type": "global"},
+    "registrar": {"name": "Registrar", "scope_type": "own_branch"},
+    "sanitary_inspector": {"name": "Sanitary Inspector", "scope_type": "own_objects"},
+    "lab_doctor": {"name": "Lab Doctor", "scope_type": "own_lab"},
+    "lab_assistant": {"name": "Lab Assistant", "scope_type": "own_lab"},
+    "lab_chief": {"name": "Lab Chief", "scope_type": "own_lab"},
+    "branch_chief": {"name": "Branch Chief", "scope_type": "own_branch"},
+    "developer": {"name": "Developer", "scope_type": "global"},
+}
+
+PERMISSION_CATALOG: tuple[tuple[str, str], ...] = (
+    ("branches", "read"),
+    ("change_log", "read"),
+    ("conclusion_statuses", "read"),
+    ("conclusions", "create"),
+    ("conclusions", "read"),
+    ("conclusions", "update"),
+    ("directions", "create"),
+    ("directions", "import"),
+    ("directions", "read"),
+    ("directions", "register"),
+    ("directions", "update"),
+    ("doctors", "create"),
+    ("doctors", "delete"),
+    ("doctors", "read"),
+    ("doctors", "update"),
+    ("indicators", "create"),
+    ("indicators", "delete"),
+    ("indicators", "read"),
+    ("indicators", "update"),
+    ("labs", "read"),
+    ("objects", "read"),
+    ("protocol_types", "read"),
+    ("protocols", "create"),
+    ("protocols", "read"),
+    ("protocols", "update"),
+    ("research_goals", "read"),
+    ("results", "confirm"),
+    ("results", "read"),
+    ("results", "reject"),
+    ("results", "start"),
+    ("role_permissions", "create"),
+    ("role_permissions", "delete"),
+    ("role_permissions", "read"),
+    ("role_permissions", "update"),
+    ("roles", "create"),
+    ("roles", "delete"),
+    ("roles", "read"),
+    ("roles", "update"),
+    ("sample_targets", "read"),
+    ("sample_types", "read"),
+    ("samples", "close"),
+    ("samples", "create"),
+    ("samples", "read"),
+    ("samples", "register"),
+    ("samples", "reject"),
+    ("samples", "update"),
+    ("statuses", "read"),
+    ("tests", "read"),
+    ("tests", "reject"),
+    ("tests", "requeue"),
+    ("tests", "result"),
+    ("tests", "start"),
+    ("user_roles", "create"),
+    ("user_roles", "delete"),
+    ("user_roles", "read"),
+    ("user_roles", "update"),
+    ("users", "create"),
+    ("users", "delete"),
+    ("users", "read"),
+    ("users", "update"),
+)
+
+ROLE_PERMISSION_MATRIX: dict[str, tuple[tuple[str, str], ...]] = {
+    "admin": (
+        ("roles", "create"),
+        ("roles", "read"),
+        ("roles", "update"),
+        ("roles", "delete"),
+        ("role_permissions", "create"),
+        ("role_permissions", "read"),
+        ("role_permissions", "update"),
+        ("role_permissions", "delete"),
+        ("users", "create"),
+        ("users", "read"),
+        ("users", "update"),
+        ("users", "delete"),
+        ("user_roles", "create"),
+        ("user_roles", "read"),
+        ("user_roles", "update"),
+        ("user_roles", "delete"),
+        ("directions", "read"),
+        ("samples", "read"),
+        ("results", "read"),
+        ("tests", "read"),
+        ("protocols", "read"),
+        ("conclusions", "read"),
+        ("change_log", "read"),
+    ),
+    "registrar": (
+        ("branches", "read"),
+        ("labs", "read"),
+        ("objects", "read"),
+        ("sample_types", "read"),
+        ("sample_targets", "read"),
+        ("research_goals", "read"),
+        ("indicators", "read"),
+        ("protocol_types", "read"),
+        ("statuses", "read"),
+        ("directions", "create"),
+        ("directions", "read"),
+        ("directions", "update"),
+        ("directions", "import"),
+        ("directions", "register"),
+        ("samples", "create"),
+        ("samples", "read"),
+        ("samples", "update"),
+        ("samples", "register"),
+        ("samples", "reject"),
+        ("results", "read"),
+        ("results", "reject"),
+        ("tests", "read"),
+        ("protocols", "create"),
+        ("protocols", "read"),
+        ("protocols", "update"),
+        ("conclusions", "create"),
+        ("conclusions", "read"),
+        ("conclusions", "update"),
+    ),
+    "sanitary_inspector": (
+        ("directions", "read"),
+        ("samples", "read"),
+        ("protocols", "read"),
+        ("conclusions", "read"),
+        ("change_log", "read"),
+    ),
+    "lab_doctor": (
+        ("sample_types", "read"),
+        ("sample_targets", "read"),
+        ("research_goals", "read"),
+        ("indicators", "create"),
+        ("indicators", "read"),
+        ("indicators", "update"),
+        ("indicators", "delete"),
+        ("statuses", "read"),
+        ("directions", "read"),
+        ("samples", "read"),
+        ("samples", "reject"),
+        ("results", "read"),
+        ("results", "confirm"),
+        ("results", "start"),
+        ("results", "reject"),
+        ("tests", "read"),
+        ("tests", "start"),
+        ("tests", "result"),
+        ("tests", "requeue"),
+        ("tests", "reject"),
+        ("protocols", "read"),
+        ("conclusions", "read"),
+        ("change_log", "read"),
+    ),
+    "lab_assistant": (
+        ("labs", "read"),
+        ("sample_types", "read"),
+        ("sample_targets", "read"),
+        ("research_goals", "read"),
+        ("indicators", "read"),
+        ("statuses", "read"),
+        ("directions", "read"),
+        ("samples", "read"),
+        ("results", "read"),
+        ("tests", "read"),
+        ("protocols", "read"),
+        ("conclusions", "read"),
+        ("change_log", "read"),
+    ),
+    "lab_chief": (
+        ("branches", "read"),
+        ("labs", "read"),
+        ("sample_types", "read"),
+        ("sample_targets", "read"),
+        ("research_goals", "read"),
+        ("indicators", "read"),
+        ("indicators", "update"),
+        ("protocol_types", "read"),
+        ("statuses", "read"),
+        ("conclusion_statuses", "read"),
+        ("directions", "read"),
+        ("samples", "read"),
+        ("samples", "close"),
+        ("results", "read"),
+        ("results", "confirm"),
+        ("results", "start"),
+        ("results", "reject"),
+        ("tests", "read"),
+        ("tests", "start"),
+        ("tests", "result"),
+        ("tests", "requeue"),
+        ("tests", "reject"),
+        ("protocols", "read"),
+        ("conclusions", "read"),
+        ("change_log", "read"),
+    ),
+    "branch_chief": (
+        ("branches", "read"),
+        ("labs", "read"),
+        ("objects", "read"),
+        ("statuses", "read"),
+        ("directions", "read"),
+        ("samples", "read"),
+        ("results", "read"),
+        ("tests", "read"),
+        ("protocols", "read"),
+        ("conclusions", "read"),
+        ("change_log", "read"),
+    ),
+}
+
+# 8 named accounts used for local dev / manual QA / e2e login flows.
+# Password hashes are bcrypt of "<username>123" (e.g. "admin123").
+SEED_USERS: tuple[dict[str, object], ...] = (
+    {
+        "username": "admin",
+        "password_hash": "$2b$12$31.eOAY8FTBiLBeFDln1aukR6ulC9N3QPHpSaHb4K03w8oSirMMXO",
+        "role_key": "admin",
+        "code": "ADM-001",
+        "first_name": "Даниил",
+        "last_name": "Третьяков",
+    },
+    {
+        "username": "registrator",
+        "password_hash": "$2b$12$2P2Th3MrtGkwfPY8RlpASeU4BrFDKLuTuaTYL1iJJ5k.UgceEmoDG",
+        "role_key": "registrar",
+        "code": "REG-001",
+        "first_name": "Владимир",
+        "last_name": "Алексиков",
+    },
+    {
+        "username": "sandoctor",
+        "password_hash": "$2b$12$hnKaA3krUf/OcLNbT2h0cODuytiz5ZBoFO59KPGoNwUxQaYBH5sgq",
+        "role_key": "sanitary_inspector",
+        "code": "SAN-001",
+        "first_name": "Владислав",
+        "last_name": "Морозов",
+    },
+    {
+        "username": "doctor",
+        "password_hash": "$2b$12$HEI0Om0Yj3dN23iuNOQv5.o7LxfO3lvH/8UZDYY1QMq13w6XlAYKS",
+        "role_key": "lab_doctor",
+        "code": "DOC-001",
+        "first_name": "Алексей",
+        "last_name": "Афанасьев",
+    },
+    {
+        "username": "laborant",
+        "password_hash": "$2b$12$8KWv04UbCAHys4zsydg7o.P4PovTzkemvne.9FOPzilpzR8k20Drq",
+        "role_key": "lab_assistant",
+        "code": "LAB-001",
+        "first_name": "Тыла",
+        "last_name": "Труженник",
+    },
+    {
+        "username": "nachlab",
+        "password_hash": "$2b$12$xSeCXbFqxLyz5Bz8oDmBEud3N9zVxV5u470fjvMS2sjlTnSxR1Dg2",
+        "role_key": "lab_chief",
+        "code": "LCH-001",
+        "first_name": "Станислав",
+        "last_name": "Прокофьев",
+    },
+    {
+        "username": "nachfil",
+        "password_hash": "$2b$12$Z/cYiesQmpPPbH6Sfov0Xe.Rd0167R.p2B.lz757Sq6hmi1hnlKfO",
+        "role_key": "branch_chief",
+        "code": "BCH-001",
+        "first_name": "Олег",
+        "last_name": "Иванов",
+    },
+    {
+        "username": "tminww",
+        "password_hash": "$2b$12$YCNo9bFWrwCFeHXVf69nsOEQVB5yxtP2LMT6Rbenuw0kFOsI4GgaW",
+        "role_key": "developer",
+        "code": "DEV-001",
+        "first_name": "Серафим",
+        "last_name": "Олейник",
+    },
+)
+
+DIRECTION_STATUSES: tuple[tuple[str, str], ...] = (
+    ("draft", "Черновик"),
+    ("registered", "Зарегистрировано"),
+    ("in_progress", "В работе"),
+    ("partially_completed", "Частично выполнено"),
+    ("completed", "Выполнено"),
+)
+
+SAMPLE_STATUSES: tuple[tuple[str, str], ...] = (
+    ("pending", "На регистрации"),
+    ("registered", "Зарегистрирован"),
+    ("rejected", "Брак"),
+    ("in_progress", "На исследовании"),
+    ("analyzed", "Обработан"),
+    ("completed", "Закрыт"),
+)
+
+RESEARCH_STATUSES: tuple[tuple[str, str], ...] = (
+    ("draft", "Черновик"),
+    ("ordered", "Запланировано"),
+    ("in_progress", "В работе"),
+    ("completed", "Завершено"),
+    ("rejected", "Отклонено"),
+)
+
+TEST_STATUSES: tuple[tuple[str, str], ...] = (
+    ("queued", "Запланировано"),
+    ("in_progress", "Выполняется"),
+    ("completed", "Выполнено"),
+    ("rejected", "Отклонено"),
+)
+
+# Realistic branches/protocol types. Previously ~100 synthetic placeholder
+# rows each (migration 0002); a small realistic set is enough for dev.
+BRANCHES: tuple[tuple[str, str], ...] = (
+    ("BR-CENTRAL", "Центральный филиал"),
+    ("BR-NORTH", "Северный филиал"),
+)
+
+PROTOCOL_TYPES: tuple[tuple[str, str], ...] = (
+    ("PROTO-LAB", "Протокол лабораторных испытаний"),
+    ("PROTO-SANITARY", "Протокол санитарно-эпидемиологической экспертизы"),
+    ("PROTO-RADIATION", "Протокол радиационного контроля"),
+)
+
+# 5 typical conclusions: (code, name, text_singular, text_plural, comment).
+CONCLUSIONS: tuple[tuple[str, str, str, str, str], ...] = (
+    (
+        "CONFORMS",
+        "Соответствует требованиям",
+        "Проба соответствует требованиям нормативной документации.",
+        "Пробы соответствуют требованиям нормативной документации.",
+        "Типовое заключение: показатели в пределах нормы.",
+    ),
+    (
+        "NOT_CONFORMS",
+        "Не соответствует требованиям",
+        "Проба не соответствует требованиям нормативной документации.",
+        "Пробы не соответствуют требованиям нормативной документации.",
+        "Типовое заключение: обнаружено несоответствие нормативным требованиям.",
+    ),
+    (
+        "CONFORMS_WITH_REMARKS",
+        "Соответствует с замечаниями",
+        "Проба соответствует требованиям нормативной документации с замечаниями.",
+        "Пробы соответствуют требованиям нормативной документации с замечаниями.",
+        "Типовое заключение: соответствие подтверждено, есть замечания по "
+        "оформлению или маркировке.",
+    ),
+    (
+        "RETEST_REQUIRED",
+        "Требуется повторное исследование",
+        "По пробе требуется повторное лабораторное исследование.",
+        "По пробам требуется повторное лабораторное исследование.",
+        "Типовое заключение: результат неоднозначен, назначается повтор.",
+    ),
+    (
+        "EXCEEDS_LIMITS",
+        "Превышение допустимых норм",
+        "В пробе обнаружено превышение допустимых норм по одному или нескольким показателям.",
+        "В пробах обнаружено превышение допустимых норм по одному или нескольким показателям.",
+        "Типовое заключение: зафиксировано превышение ПДК/норматива.",
+    ),
+)
+
+# Mandatory role-based subscription rules: (role_key, entity_type), global/unscoped.
+ROLE_SUBSCRIPTION_RULES: tuple[tuple[str, str], ...] = (
+    ("registrar", "directions"),
+    ("registrar", "samples"),
+)
 
 # The 5 real laboratories, kept by code. names/full_name upserted for idempotency.
 REAL_LABS: tuple[tuple[str, str, str], ...] = (
@@ -165,6 +557,7 @@ async def seed_test_data(
 ) -> None:
     engine = create_async_engine(database_url or get_settings().database_url)
     async with engine.begin() as connection:
+        await _seed_bootstrap_data(connection)
         await _reset_operational_data(connection)
         await _seed_reference_rows(connection)
         if truncate_generated:
@@ -181,13 +574,197 @@ async def seed_test_data(
         print(f"  {line}")
 
 
+async def _seed_bootstrap_data(connection: AsyncConnection) -> None:
+    """RBAC + cross-environment reference data, idempotent (safe to re-run).
+
+    Roles, status tables, branches and protocol types must exist before
+    anything below reads them (users need role_id, directions need
+    status_id, objects need a branch to fall back to, ...), so this runs
+    first, before the operational-data reset.
+    """
+    for role_key, payload in ROLE_DEFINITIONS.items():
+        await connection.execute(
+            text(
+                """
+                INSERT INTO roles (key, name, scope_type)
+                VALUES (:key, :name, CAST(:scope_type AS role_scope_type))
+                ON CONFLICT (key) DO UPDATE
+                SET name = EXCLUDED.name,
+                    scope_type = EXCLUDED.scope_type,
+                    updated_at = CURRENT_TIMESTAMP
+                """
+            ),
+            {"key": role_key, "name": payload["name"], "scope_type": payload["scope_type"]},
+        )
+
+    for table, rows in (
+        ("direction_statuses", DIRECTION_STATUSES),
+        ("sample_statuses", SAMPLE_STATUSES),
+        ("research_statuses", RESEARCH_STATUSES),
+        ("test_statuses", TEST_STATUSES),
+        ("protocol_types", PROTOCOL_TYPES),
+    ):
+        await connection.execute(
+            text(
+                f"""
+                INSERT INTO {table} (code, name)
+                SELECT * FROM unnest(CAST(:code AS text[]), CAST(:name AS text[]))
+                ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+                """  # noqa: S608 (table is one of 5 fixed literals above, not user input)
+            ),
+            {"code": [code for code, _ in rows], "name": [name for _, name in rows]},
+        )
+
+    # branches.code has no unique/exclusion constraint (unlike the tables
+    # above), so ON CONFLICT cannot target it — guard with NOT EXISTS instead.
+    await connection.execute(
+        text(
+            """
+            INSERT INTO branches (code, name)
+            SELECT src.code, src.name
+            FROM unnest(CAST(:code AS text[]), CAST(:name AS text[])) AS src(code, name)
+            WHERE NOT EXISTS (SELECT 1 FROM branches b WHERE b.code = src.code)
+            """
+        ),
+        {"code": [code for code, _ in BRANCHES], "name": [name for _, name in BRANCHES]},
+    )
+
+    await connection.execute(
+        text(
+            """
+            INSERT INTO permissions (resource, action)
+            SELECT * FROM unnest(CAST(:resource AS text[]), CAST(:action AS text[]))
+            ON CONFLICT (resource, action) DO NOTHING
+            """
+        ),
+        {
+            "resource": [resource for resource, _ in PERMISSION_CATALOG],
+            "action": [action for _, action in PERMISSION_CATALOG],
+        },
+    )
+
+    # Full replace per role: delete then reinsert, so a matrix edit here is
+    # reflected exactly (not just additively merged) on the next run.
+    await connection.execute(
+        text(
+            """
+            DELETE FROM role_permissions
+            WHERE role_id IN (
+                SELECT id FROM roles WHERE key = ANY(CAST(:role_keys AS text[]))
+            )
+            """
+        ),
+        {"role_keys": list(ROLE_DEFINITIONS.keys())},
+    )
+    for role_key, pairs in ROLE_PERMISSION_MATRIX.items():
+        await connection.execute(
+            text(
+                """
+                INSERT INTO role_permissions (role_id, permission_id)
+                SELECT r.id, p.id
+                FROM unnest(
+                    CAST(:resource AS text[]), CAST(:action AS text[])
+                ) AS m(resource, action)
+                JOIN permissions p ON p.resource = m.resource AND p.action = m.action
+                CROSS JOIN (SELECT id FROM roles WHERE key = :role_key) r
+                ON CONFLICT (role_id, permission_id) DO NOTHING
+                """
+            ),
+            {
+                "role_key": role_key,
+                "resource": [resource for resource, _ in pairs],
+                "action": [action for _, action in pairs],
+            },
+        )
+    # developer gets every permission, not just the matrix above.
+    await connection.execute(
+        text(
+            """
+            INSERT INTO role_permissions (role_id, permission_id)
+            SELECT r.id, p.id
+            FROM roles r
+            CROSS JOIN permissions p
+            WHERE r.key = 'developer'
+            ON CONFLICT (role_id, permission_id) DO NOTHING
+            """
+        )
+    )
+
+    await connection.execute(
+        text(
+            """
+            INSERT INTO conclusions (code, name, text_singular, text_plural, comment)
+            SELECT * FROM unnest(
+                CAST(:code AS text[]),
+                CAST(:name AS text[]),
+                CAST(:text_singular AS text[]),
+                CAST(:text_plural AS text[]),
+                CAST(:comment AS text[])
+            )
+            ON CONFLICT (code) DO NOTHING
+            """
+        ),
+        {
+            "code": [row[0] for row in CONCLUSIONS],
+            "name": [row[1] for row in CONCLUSIONS],
+            "text_singular": [row[2] for row in CONCLUSIONS],
+            "text_plural": [row[3] for row in CONCLUSIONS],
+            "comment": [row[4] for row in CONCLUSIONS],
+        },
+    )
+
+    # 8 named accounts (0 rows of synthetic bulk "user_NNN" filler — dropped,
+    # nobody logs in as those; the realistic named set is what dev/QA uses).
+    for user in SEED_USERS:
+        await connection.execute(
+            text(
+                """
+                INSERT INTO users (
+                    username, password_hash, refresh_token_version, code,
+                    first_name, last_name, patronymic, role_id, lab_id
+                )
+                SELECT
+                    :username, :password_hash, 0, :code,
+                    :first_name, :last_name, NULL, r.id, NULL
+                FROM roles r
+                WHERE r.key = :role_key
+                ON CONFLICT (username) DO UPDATE
+                SET password_hash = EXCLUDED.password_hash,
+                    refresh_token_version = 0,
+                    code = EXCLUDED.code,
+                    first_name = EXCLUDED.first_name,
+                    last_name = EXCLUDED.last_name,
+                    patronymic = EXCLUDED.patronymic,
+                    role_id = EXCLUDED.role_id,
+                    lab_id = EXCLUDED.lab_id,
+                    deleted_at = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                """
+            ),
+            user,
+        )
+
+    for role_key, entity_type in ROLE_SUBSCRIPTION_RULES:
+        await connection.execute(
+            text(
+                """
+                INSERT INTO role_subscription_rules (role_id, entity_type)
+                SELECT id, :entity_type FROM roles WHERE key = :role_key
+                ON CONFLICT DO NOTHING
+                """
+            ),
+            {"role_key": role_key, "entity_type": entity_type},
+        )
+
+
 async def _reset_operational_data(connection: AsyncConnection) -> None:
     """Delete all operational + synthetic reference rows, FK-children first.
 
     Auth (users/roles/permissions), user_scopes, user_permission_overrides,
-    status tables, branches and protocol_types are preserved. ``users.lab_id``
-    is reset to NULL for any user pointing at a lab that is about to be deleted
-    so no user is cascade-deleted and the (NO ACTION) FK is not violated.
+    status tables, branches, protocol_types and conclusions (all bootstrapped
+    once by ``_seed_bootstrap_data``) are preserved. ``users.lab_id`` is reset
+    to NULL for any user pointing at a lab that is about to be deleted so no
+    user is cascade-deleted and the (NO ACTION) FK is not violated.
     """
     # 1. Operational workflow data, children before parents.
     for table in (
@@ -196,7 +773,6 @@ async def _reset_operational_data(connection: AsyncConnection) -> None:
         "sample_labs",
         "samples",
         "protocols",
-        "conclusions",
         "directions",
         "notifications",
         "change_log",

@@ -1,11 +1,15 @@
-"""seed typical conclusions
+"""seed typical conclusions (moved to scripts/seed_test_data.py)
+
+This migration used to insert 5 typical conclusion rows. That is now owned by
+``backend/scripts/seed_test_data.py`` (see ``_seed_bootstrap_data``), which is
+the sole seed source for local/dev/test databases — run it once after
+``alembic upgrade head``. This migration is kept as a no-op purely to
+preserve the revision chain.
 
 Revision ID: 20260702_0016
 Revises: 20260701_0015
 Create Date: 2026-07-02 00:00:00.000000
 """
-
-from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "20260702_0016"
@@ -13,61 +17,10 @@ down_revision = "20260701_0015"
 branch_labels = None
 depends_on = None
 
-_CODES = (
-    "CONFORMS",
-    "NOT_CONFORMS",
-    "CONFORMS_WITH_REMARKS",
-    "RETEST_REQUIRED",
-    "EXCEEDS_LIMITS",
-)
-
 
 def upgrade() -> None:
-    op.execute("""
-        INSERT INTO conclusions (code, name, text_singular, text_plural, comment)
-        VALUES
-            (
-                'CONFORMS',
-                'Соответствует требованиям',
-                'Проба соответствует требованиям нормативной документации.',
-                'Пробы соответствуют требованиям нормативной документации.',
-                'Типовое заключение: показатели в пределах нормы.'
-            ),
-            (
-                'NOT_CONFORMS',
-                'Не соответствует требованиям',
-                'Проба не соответствует требованиям нормативной документации.',
-                'Пробы не соответствуют требованиям нормативной документации.',
-                'Типовое заключение: обнаружено несоответствие нормативным требованиям.'
-            ),
-            (
-                'CONFORMS_WITH_REMARKS',
-                'Соответствует с замечаниями',
-                'Проба соответствует требованиям нормативной документации с замечаниями.',
-                'Пробы соответствуют требованиям нормативной документации с замечаниями.',
-                'Типовое заключение: соответствие подтверждено, есть замечания по '
-                'оформлению или маркировке.'
-            ),
-            (
-                'RETEST_REQUIRED',
-                'Требуется повторное исследование',
-                'По пробе требуется повторное лабораторное исследование.',
-                'По пробам требуется повторное лабораторное исследование.',
-                'Типовое заключение: результат неоднозначен, назначается повтор.'
-            ),
-            (
-                'EXCEEDS_LIMITS',
-                'Превышение допустимых норм',
-                'В пробе обнаружено превышение допустимых норм по одному или '
-                'нескольким показателям.',
-                'В пробах обнаружено превышение допустимых норм по одному или '
-                'нескольким показателям.',
-                'Типовое заключение: зафиксировано превышение ПДК/норматива.'
-            )
-        ON CONFLICT (code) DO NOTHING;
-        """)
+    pass
 
 
 def downgrade() -> None:
-    codes = ", ".join(f"'{code}'" for code in _CODES)
-    op.execute(f"DELETE FROM conclusions WHERE code IN ({codes});")
+    pass
