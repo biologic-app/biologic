@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { useStorage } from "@vueuse/core";
 import type {
   CommandPaletteGroup,
   CommandPaletteItem,
@@ -181,29 +180,6 @@ const groups = computed<CommandPaletteGroup<CommandPaletteItem>[]>(() => [
   },
 ]);
 
-const cookie = useStorage("cookie-consent", "pending");
-if (cookie.value !== "accepted") {
-  toast.add({
-    title: t("layout.cookieTitle"),
-    duration: 0,
-    close: false,
-    actions: [
-      {
-        label: t("layout.accept"),
-        color: "neutral",
-        variant: "outline",
-        onClick: () => {
-          cookie.value = "accepted";
-        },
-      },
-      {
-        label: t("layout.decline"),
-        color: "neutral",
-        variant: "ghost",
-      },
-    ],
-  });
-}
 </script>
 
 <template>
@@ -223,10 +199,7 @@ if (cookie.value !== "accepted") {
       </template>
 
       <template #default="{ collapsed }">
-        <UDashboardSearchButton
-          :collapsed="collapsed"
-          class="bg-transparent ring-default"
-        />
+        <UDashboardSearchButton :collapsed="collapsed" class="bg-transparent ring-default" />
 
         <UNavigationMenu
           :collapsed="collapsed"
@@ -238,10 +211,7 @@ if (cookie.value !== "accepted") {
           <template #item-label="{ item }">
             <span class="flex min-w-0 flex-col items-start">
               <span class="truncate">{{ item.label }}</span>
-              <span
-                v-if="item.resource"
-                class="truncate text-xs text-muted"
-              >{{ item.resource }}</span>
+
             </span>
           </template>
         </UNavigationMenu>

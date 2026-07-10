@@ -10,3 +10,5 @@ reports/
 smithers.db
 smithers.db-shm
 smithers.db-wal
+
+.playwright-cli/
