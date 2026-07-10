@@ -10,6 +10,7 @@ from src.api.v1.router import router as api_v1_router
 from src.core.config import Settings, get_settings
 from src.core.errors import AppError
 from src.core.handlers import app_error_handler, http_error_handler, validation_error_handler
+from src.core.lifecycle import lifespan, new_shutdown_event
 from src.plugins.scalar import register as register_scalar
 
 
@@ -21,7 +22,12 @@ def create_app() -> FastAPI:
         docs_url=None,
         redoc_url=None,
         openapi_url=settings.openapi_url,
+        lifespan=lifespan,
     )
+    # Published up-front so SSE handlers can read it even when the lifespan is
+    # not run (e.g. httpx.ASGITransport in tests); the signal bridge/lifespan
+    # only trigger it.
+    app.state.shutdown_event = new_shutdown_event()
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[

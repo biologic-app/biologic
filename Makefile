@@ -42,7 +42,7 @@ sdk-generate: fe-sdk-generate
 
 # --- backend (бывший backend/Makefile; выполняется в backend/) ---
 be-dev:
-	cd backend && uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8080
+	cd backend && uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8080 --timeout-graceful-shutdown 10
 
 be-test:
 	cd backend && uv run pytest -v
