@@ -47,6 +47,7 @@ from src.contexts.laboratory_workflow.presentation.schemas import (
     TestUpdateRequest,
     UpdateProtocolRequest,
 )
+from src.contexts.notifications.infrastructure.push import get_push_dispatcher
 from src.core.database import get_db_session
 from src.core.pagination import PaginationDependency
 from src.core.responses import ListResponse, ResponseMeta, SingleResponse
@@ -58,7 +59,10 @@ router = APIRouter(tags=["workflow"])
 
 
 async def get_workflow_command_service() -> WorkflowCommandService:
-    return WorkflowCommandService(uow_factory=build_uow_factory())
+    return WorkflowCommandService(
+        uow_factory=build_uow_factory(),
+        push_dispatcher=get_push_dispatcher(),
+    )
 
 
 async def get_workflow_crud_use_case(
