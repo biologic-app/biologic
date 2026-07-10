@@ -28,8 +28,17 @@ const isStatusReferencePath = (path: string) => {
   return normalizedPath === "/statuses" || normalizedPath.endsWith("_statuses");
 };
 
+const isObjectReferencePath = (path: string) => {
+  const normalizedPath = path.toLowerCase().split("?")[0]?.replace(/\/+$/, "") ?? "";
+  return normalizedPath === "/objects";
+};
+
 const formatReferenceLabel = (row: PlainObject, path: string) => {
   if (isStatusReferencePath(path) && row.name) {
+    return String(row.name);
+  }
+
+  if (isObjectReferencePath(path) && row.name) {
     return String(row.name);
   }
 

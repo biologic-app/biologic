@@ -1,5 +1,10 @@
 import type { CrudModuleConfig } from '@/shared/types/crud'
 import type { TableFilterField } from '@/shared/types/table'
+import {
+  DIRECTION_STATUS_FLOW,
+  SAMPLE_STATUS_FLOW,
+  SAMPLE_STATUS_REJECTED
+} from '@/shared/domain/status-timeline'
 
 const textFilter = () => ({ value: '', matchMode: 'contains' })
 const dateFilter = () => ({ value: [null, null], matchMode: 'between' })
@@ -12,9 +17,28 @@ const directionYearOptions = Array.from(
     return { label: String(year), value: year }
   }
 ).reverse()
+// Год направления при редактировании — только текущий год и 5 лет назад.
+const directionEditYearOptions = Array.from(
+  { length: 6 },
+  (_, index) => {
+    const year = currentYear - index
+    return { label: String(year), value: year }
+  }
+)
 const yesNoOptions = [
   { label: 'Да', value: true },
   { label: 'Нет', value: false }
+]
+const subscriptionEntityTypeOptions = [
+  { label: 'Направления', value: 'directions' },
+  { label: 'Образцы', value: 'samples' }
+]
+// Статус для правила подписки — код должен соответствовать выбранному типу
+// сущности (проверяется на бэкенде); подписи с префиксом помогают не перепутать.
+const subscriptionStatusCodeOptions = [
+  ...DIRECTION_STATUS_FLOW.map((step) => ({ label: `Направления: ${step.name}`, value: step.code })),
+  ...SAMPLE_STATUS_FLOW.map((step) => ({ label: `Образцы: ${step.name}`, value: step.code })),
+  { label: `Образцы: ${SAMPLE_STATUS_REJECTED.name}`, value: SAMPLE_STATUS_REJECTED.code }
 ]
 
 const textFilterField = (field: string, header: string, placeholder = header): TableFilterField => ({
@@ -184,9 +208,8 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       }
     ],
     fields: [
-      { key: 'year_no', label: 'Год', type: 'number', required: true, layout: { span: 4 } },
+      { key: 'year_no', label: 'Год', type: 'select', required: true, options: directionEditYearOptions, layout: { span: 4 } },
       { key: 'base_no', label: 'Номер', type: 'number', layout: { span: 4 } },
-      { key: 'is_done', label: 'Завершено', type: 'boolean', layout: { span: 6 } },
       { key: 'is_urgent', label: 'Срочно', type: 'boolean', layout: { span: 6 } },
       { key: 'doctor_id', label: 'Врач', type: 'select', source: '/doctors', layout: { span: 4 } },
       { key: 'object_id', label: 'Объект', type: 'select', source: '/objects', layout: { span: 4 } },
@@ -470,7 +493,10 @@ export const crudModules: Record<string, CrudModuleConfig> = {
     fields: [
       { key: 'first_name', label: 'Имя', required: true },
       { key: 'last_name', label: 'Фамилия' },
-      { key: 'patronymic', label: 'Отчество' }
+      { key: 'patronymic', label: 'Отчество' },
+      // Привязка к учётной записи — на её основании врач автоматически
+      // подписывается на направления/образцы, где он указан как санитарный врач.
+      { key: 'user_id', label: 'Учётная запись', type: 'select', source: '/users', layout: { span: 6 } }
     ]
   },
   labs: {
@@ -500,6 +526,66 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       { key: 'name', label: 'Название' },
       { key: 'full_name', label: 'Полное название' },
       { key: 'branch_id', label: 'Филиал', type: 'select', source: '/branches' }
+    ]
+  },
+  'role-subscription-rules': {
+    // Права на управление правилами подписки проверяются в связке с
+    // ролями/правами доступа — тот же ресурс, что у /role_permissions.
+    resource: 'user-types',
+    title: 'Правила подписки по ролям',
+    description: 'Мандатные подписки: все пользователи роли отслеживают направления/образцы (опционально в разрезе филиала/лаборатории/статуса).',
+    endpoint: '/role_subscription_rules',
+    presetKey: 'role-subscription-rules',
+    pageId: 'role-subscription-rules',
+    initialFilters: {
+      global: textFilter(),
+      role_id: textFilter(),
+      entity_type: textFilter()
+    },
+    columns: [
+      { field: 'id', header: 'ID', sortable: true },
+      { field: 'role_name', header: 'Роль', sortable: true, filter: { type: 'text', placeholder: 'Роль' } },
+      {
+        field: 'entity_type',
+        header: 'Тип сущности',
+        sortable: true,
+        filter: { type: 'select', options: subscriptionEntityTypeOptions }
+      },
+      { field: 'branch_name', header: 'Филиал', filter: { type: 'text', placeholder: 'Филиал (пусто — все)' } },
+      { field: 'lab_name', header: 'Лаборатория', filter: { type: 'text', placeholder: 'Лаборатория (пусто — все)' } },
+      { field: 'status_code', header: 'Статус', filter: { type: 'select', options: subscriptionStatusCodeOptions } }
+    ],
+    fields: [
+      { key: 'role_id', label: 'Роль', type: 'select', source: '/roles', required: true, layout: { span: 6 } },
+      {
+        key: 'entity_type',
+        label: 'Тип сущности',
+        type: 'select',
+        required: true,
+        options: subscriptionEntityTypeOptions,
+        layout: { span: 6 }
+      },
+      {
+        key: 'branch_id',
+        label: 'Филиал (пусто — все)',
+        type: 'select',
+        source: '/branches',
+        layout: { span: 6 }
+      },
+      {
+        key: 'lab_id',
+        label: 'Лаборатория (пусто — все, только для образцов)',
+        type: 'select',
+        source: '/labs',
+        layout: { span: 6 }
+      },
+      {
+        key: 'status_code',
+        label: 'Статус (пусто — любой; должен соответствовать типу сущности)',
+        type: 'select',
+        options: subscriptionStatusCodeOptions,
+        layout: { span: 12 }
+      }
     ]
   },
   'research-goals': {

@@ -83,6 +83,12 @@ export const dictionaryItems: DictionaryItem[] = [
     },
   },
   { key: "protocol-types", configKey: "protocol-types", label: "Типы протоколов", icon: "i-lucide-file-badge" },
+  {
+    key: "role-subscription-rules",
+    configKey: "role-subscription-rules",
+    label: "Подписки по ролям",
+    icon: "i-lucide-bell-plus",
+  },
 ];
 
 export const statusDictionaryItems = statusContexts;
