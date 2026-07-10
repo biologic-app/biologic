@@ -105,6 +105,15 @@ class TestUpdateRequest(StrictRequest):
     status_id: UUID | None = None
 
 
+class SampleLabsUpdateRequest(StrictRequest):
+    lab_ids: list[UUID]
+
+
+class SubscriptionRequest(StrictRequest):
+    # Явный пользователь; если не задан — берётся текущий из сессии.
+    user_id: UUID | None = None
+
+
 class RegisterDirectionRequest(BaseModel):
     actor_id: UUID
     comment: str | None = None

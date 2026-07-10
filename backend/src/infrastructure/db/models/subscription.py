@@ -16,11 +16,25 @@ from sqlalchemy.orm import Mapped, mapped_column
 from src.infrastructure.db.models.base import Base
 
 
-class Doctor(Base):
-    __tablename__ = "doctors"
+class Subscription(Base):
+    """Explicit user subscription to a direction or a sample.
+
+    Implicit followers (registrars, direction owner) are derived at read
+    time and never stored — see SubscriptionCrudRepository.
+    """
+
+    __tablename__ = "subscriptions"
     __table_args__ = (
-        Index("doctors_doctors_user_id", "user_id"),
-        Index("doctors_doctors_deleted_at", "deleted_at"),
+        Index(
+            "subscriptions_unique_triple",
+            "user_id",
+            "entity_type",
+            "entity_id",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
+        ),
+        Index("subscriptions_entity", "entity_type", "entity_id"),
+        Index("subscriptions_subscriptions_deleted_at", "deleted_at"),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -28,21 +42,13 @@ class Doctor(Base):
         primary_key=True,
         server_default=text("uuidv7()"),
     )
-    first_name: Mapped[str] = mapped_column(Text, nullable=False)
-    last_name: Mapped[str | None] = mapped_column(Text)
-    patronymic: Mapped[str | None] = mapped_column(Text)
-    user_id: Mapped[UUID | None] = mapped_column(
+    user_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("users.id", name="fk_doctors_user_id_users_id"),
+        ForeignKey("users.id", name="fk_subscriptions_user_id_users_id"),
+        nullable=False,
     )
-    created_by: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("users.id", name="fk_doctors_created_by_users_id"),
-    )
-    updated_by: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("users.id", name="fk_doctors_updated_by_users_id"),
-    )
+    entity_type: Mapped[str] = mapped_column(Text, nullable=False)
+    entity_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

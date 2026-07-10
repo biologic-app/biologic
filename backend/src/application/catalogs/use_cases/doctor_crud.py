@@ -13,7 +13,15 @@ from src.core.pagination import PaginationParams
 from src.core.responses import ListResponse, SingleResponse
 from src.domain.uow import UnitOfWorkFactory
 
-_FIELDS = ("id", "first_name", "last_name", "patronymic", "created_at", "updated_at")
+_FIELDS = (
+    "id",
+    "first_name",
+    "last_name",
+    "patronymic",
+    "user_id",
+    "created_at",
+    "updated_at",
+)
 _INCLUDES: tuple[str, ...] = ()
 
 

@@ -9,6 +9,7 @@ from src.core.events import EventPublisher
 
 OWNER_ID = UUID("00000000-0000-0000-0000-000000000e01")
 SAMPLE_ID = UUID("00000000-0000-0000-0000-000000000e02")
+REGISTRAR_ID = UUID("00000000-0000-0000-0000-000000000e03")
 
 
 class RecordingNotificationRepository:
@@ -24,18 +25,20 @@ class RecordingNotificationRepository:
 
 
 class StaticResolver:
-    def __init__(self, target: UUID | None) -> None:
-        self.target = target
+    def __init__(self, targets: set[UUID]) -> None:
+        self.targets = targets
         self.calls: list[tuple[str, UUID]] = []
 
-    async def resolve_notification_target(self, entity_type: str, entity_id: UUID) -> UUID | None:
+    async def resolve_notification_targets(
+        self, entity_type: str, entity_id: UUID
+    ) -> set[UUID]:
         self.calls.append((entity_type, entity_id))
-        return self.target
+        return self.targets
 
 
-async def test_subscriber_targets_the_resolved_owner_not_everyone() -> None:
+async def test_subscriber_targets_the_resolved_followers_not_everyone() -> None:
     repository = RecordingNotificationRepository()
-    resolver = StaticResolver(OWNER_ID)
+    resolver = StaticResolver({OWNER_ID, REGISTRAR_ID})
     subscriber = WorkflowNotificationSubscriber(repository=repository, resolver=resolver)
 
     await subscriber(
@@ -50,15 +53,14 @@ async def test_subscriber_targets_the_resolved_owner_not_everyone() -> None:
     )
 
     assert resolver.calls == [("samples", SAMPLE_ID)]
-    assert len(repository.created) == 1
-    draft = repository.created[0]
-    assert draft.target_user_id == OWNER_ID
-    assert draft.kind == "workflow.sample_rejected"
+    assert len(repository.created) == 2
+    assert {draft.target_user_id for draft in repository.created} == {OWNER_ID, REGISTRAR_ID}
+    assert {draft.kind for draft in repository.created} == {"workflow.sample_rejected"}
 
 
-async def test_subscriber_skips_notification_when_owner_cannot_be_resolved() -> None:
+async def test_subscriber_skips_notification_when_no_followers_resolve() -> None:
     repository = RecordingNotificationRepository()
-    resolver = StaticResolver(None)
+    resolver = StaticResolver(set())
     subscriber = WorkflowNotificationSubscriber(repository=repository, resolver=resolver)
 
     await subscriber(
@@ -77,7 +79,7 @@ async def test_subscriber_skips_notification_when_owner_cannot_be_resolved() -> 
 
 async def test_subscriber_ignores_events_with_no_notification_mapping() -> None:
     repository = RecordingNotificationRepository()
-    resolver = StaticResolver(OWNER_ID)
+    resolver = StaticResolver({OWNER_ID})
     subscriber = WorkflowNotificationSubscriber(repository=repository, resolver=resolver)
 
     await subscriber(

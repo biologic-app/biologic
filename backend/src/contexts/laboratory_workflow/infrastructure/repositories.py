@@ -11,6 +11,9 @@ from src.contexts.laboratory_workflow.domain.status_policy import (
     SampleDeadlinePolicy,
     ensure_allowed_transition,
 )
+from src.contexts.laboratory_workflow.infrastructure.crud_repositories import (
+    SubscriptionCrudRepository,
+)
 from src.core.errors import DomainConflictError, NotFoundError
 from src.core.status_codes import (
     DIRECTION_COMPLETED,
@@ -54,27 +57,20 @@ class SqlAlchemyWorkflowRepository:
         self.session = session
         self.events: list[StatusChanged] = []
 
-    async def resolve_notification_target(
+    async def resolve_notification_targets(
         self, entity_type: str, entity_id: UUID
-    ) -> UUID | None:
-        """Looks up which user should be notified about an event on this
-        entity: whoever created the direction it belongs to (see
-        Direction.created_by). Used by the notifications context's
-        subscriber to target a specific user instead of broadcasting.
+    ) -> set[UUID]:
+        """Every user that should be notified about an event on this entity.
+
+        Delegates to SubscriptionCrudRepository, which merges the mandatory
+        role-based rules, the direction owner, the linked sanitary doctor and
+        manual subscriptions. Used by the notifications context's subscriber to
+        fan a notification out to a specific set of users instead of
+        broadcasting to everyone.
         """
-        if entity_type == "directions":
-            result = await self.session.execute(
-                select(Direction.created_by).where(Direction.id == entity_id),
-            )
-        elif entity_type == "samples":
-            result = await self.session.execute(
-                select(Direction.created_by)
-                .join(Sample, Sample.direction_id == Direction.id)
-                .where(Sample.id == entity_id),
-            )
-        else:
-            return None
-        return result.scalar_one_or_none()
+        return await SubscriptionCrudRepository(
+            session=self.session
+        ).resolve_notification_targets(entity_type, entity_id)
 
     # NOTE: this repository only flushes. The transaction boundary is owned by
     # the single Unit of Work (src.infrastructure.uow.SqlAlchemyUnitOfWork), so a
@@ -113,6 +109,15 @@ class SqlAlchemyWorkflowRepository:
         direction.status_id = target_status_id
         direction.updated_by = actor_id
         direction.updated_at = now
+
+        # Регистрация направления каскадно регистрирует его образцы: они
+        # переходят pending → registered вместе с направлением.
+        await self._register_direction_samples(
+            direction_id=direction_id,
+            actor_id=actor_id,
+            received_at=direction.received_at or now,
+            now=now,
+        )
         self.events.append(
             StatusChanged(
                 entity_type="directions",
@@ -141,6 +146,81 @@ class SqlAlchemyWorkflowRepository:
         )
         await self.session.flush()
         return CommandResult(id=direction_id, status_id=target_status_id, updated_at=now)
+
+    async def _register_direction_samples(
+        self,
+        *,
+        direction_id: UUID,
+        actor_id: UUID,
+        received_at: datetime,
+        now: datetime,
+    ) -> None:
+        result = await self.session.execute(
+            select(Sample)
+            .where(Sample.direction_id == direction_id, Sample.deleted_at.is_(None))
+            .with_for_update(),
+        )
+        samples = result.scalars().all()
+        if not samples:
+            return
+
+        target_status_id = await self._sample_status_id(SAMPLE_REGISTERED)
+        deadline = SampleDeadlinePolicy().calculate(received_at)
+        for sample in samples:
+            current_status_code = await self._sample_status_code(sample.status_id)
+            # Регистрируем только образцы в статусе pending; уже
+            # зарегистрированные/отклонённые пропускаем без ошибки.
+            try:
+                ensure_allowed_transition(
+                    "samples", current_status_code, SAMPLE_REGISTERED
+                )
+            except InvalidStatusTransition:
+                continue
+
+            previous_received_at = sample.received_at
+            previous_deadline = sample.deadline
+            sample.status_id = target_status_id
+            sample.received_at = received_at
+            sample.deadline = deadline
+            sample.updated_by = actor_id
+            sample.updated_at = now
+            self.events.append(
+                StatusChanged(
+                    entity_type="samples",
+                    entity_id=sample.id,
+                    event_type="SampleRegistered",
+                    from_code=current_status_code,
+                    to_code=SAMPLE_REGISTERED,
+                    reason="",
+                ),
+            )
+            self.session.add(
+                ChangeLog(
+                    entity_type="samples",
+                    entity_id=sample.id,
+                    action="sample_registered",
+                    actor_id=actor_id,
+                    snapshot={
+                        "status_code": SAMPLE_REGISTERED,
+                        "received_at": self._json_timestamp(received_at),
+                        "deadline": self._json_timestamp(deadline),
+                    },
+                    diff={
+                        "status_code": {
+                            "from": current_status_code,
+                            "to": SAMPLE_REGISTERED,
+                        },
+                        "received_at": {
+                            "from": self._json_timestamp(previous_received_at),
+                            "to": self._json_timestamp(received_at),
+                        },
+                        "deadline": {
+                            "from": self._json_timestamp(previous_deadline),
+                            "to": self._json_timestamp(deadline),
+                        },
+                    },
+                ),
+            )
 
     async def _direction_status_code(self, status_id: UUID | None) -> str:
         if status_id is None:

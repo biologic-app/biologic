@@ -11,6 +11,9 @@ from src.application.access_control.use_cases.role_permission_crud import (
 from src.application.access_control.use_cases.role_permission_set import (
     RolePermissionSetUseCase,
 )
+from src.application.access_control.use_cases.role_subscription_rule_crud import (
+    RoleSubscriptionRuleCrudUseCase,
+)
 from src.application.access_control.use_cases.user_crud import UserCrudUseCase
 from src.application.access_control.use_cases.user_permission_set import (
     UserPermissionSetUseCase,
@@ -23,6 +26,7 @@ from src.presentation.http.access_control.dependencies import (
     get_permission_use_case,
     get_role_permission_set_use_case,
     get_role_permission_use_case,
+    get_role_subscription_rule_use_case,
     get_role_use_case,
     get_user_permission_set_use_case,
     get_user_scope_use_case,
@@ -35,6 +39,8 @@ from src.presentation.http.access_control.schemas import (
     RolePermissionCreateRequest,
     RolePermissionsReplaceRequest,
     RolePermissionUpdateRequest,
+    RoleSubscriptionRuleCreateRequest,
+    RoleSubscriptionRuleUpdateRequest,
     RoleUpdateRequest,
     UserCreateRequest,
     UserPermissionOverridesReplaceRequest,
@@ -50,6 +56,9 @@ RoleUseCase = Annotated[RoleCrudUseCase, Depends(get_role_use_case)]
 PermissionUseCase = Annotated[PermissionCrudUseCase, Depends(get_permission_use_case)]
 RolePermissionUseCase = Annotated[RolePermissionCrudUseCase, Depends(get_role_permission_use_case)]
 UserScopeUseCase = Annotated[UserScopeCrudUseCase, Depends(get_user_scope_use_case)]
+RoleSubscriptionRuleUseCase = Annotated[
+    RoleSubscriptionRuleCrudUseCase, Depends(get_role_subscription_rule_use_case)
+]
 RolePermissionSet = Annotated[RolePermissionSetUseCase, Depends(get_role_permission_set_use_case)]
 UserPermissionSet = Annotated[UserPermissionSetUseCase, Depends(get_user_permission_set_use_case)]
 
@@ -273,6 +282,51 @@ async def delete_role_permission(
     use_case: RolePermissionUseCase,
 ) -> Response:
     await use_case.delete(role_permission_id)
+    return _deleted_response()
+
+
+@router.get("/role_subscription_rules")
+async def list_role_subscription_rules(
+    params: PaginationDependency,
+    use_case: RoleSubscriptionRuleUseCase,
+) -> ListResponse[dict[str, object]]:
+    return await use_case.list(params)
+
+
+@router.get("/role_subscription_rules/{role_subscription_rule_id}")
+async def read_role_subscription_rule(
+    role_subscription_rule_id: UUID,
+    use_case: RoleSubscriptionRuleUseCase,
+) -> SingleResponse[dict[str, object]]:
+    return await use_case.read(role_subscription_rule_id)
+
+
+@router.post("/role_subscription_rules", status_code=status.HTTP_201_CREATED)
+async def create_role_subscription_rule(
+    payload: RoleSubscriptionRuleCreateRequest,
+    use_case: RoleSubscriptionRuleUseCase,
+) -> SingleResponse[dict[str, object]]:
+    return await use_case.create(payload)
+
+
+@router.patch("/role_subscription_rules/{role_subscription_rule_id}")
+async def update_role_subscription_rule(
+    role_subscription_rule_id: UUID,
+    payload: RoleSubscriptionRuleUpdateRequest,
+    use_case: RoleSubscriptionRuleUseCase,
+) -> SingleResponse[dict[str, object]]:
+    return await use_case.update(role_subscription_rule_id, payload)
+
+
+@router.delete(
+    "/role_subscription_rules/{role_subscription_rule_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_role_subscription_rule(
+    role_subscription_rule_id: UUID,
+    use_case: RoleSubscriptionRuleUseCase,
+) -> Response:
+    await use_case.delete(role_subscription_rule_id)
     return _deleted_response()
 
 

@@ -18,10 +18,12 @@ from src.infrastructure.db.models.research_goal import ResearchGoal
 from src.infrastructure.db.models.research_status import ResearchStatus
 from src.infrastructure.db.models.role import Role
 from src.infrastructure.db.models.role_permission import RolePermission
+from src.infrastructure.db.models.role_subscription_rule import RoleSubscriptionRule
 from src.infrastructure.db.models.sample import Sample
 from src.infrastructure.db.models.sample_lab import SampleLab
 from src.infrastructure.db.models.sample_status import SampleStatus
 from src.infrastructure.db.models.sample_type import SampleType
+from src.infrastructure.db.models.subscription import Subscription
 from src.infrastructure.db.models.test import Test
 from src.infrastructure.db.models.test_status import TestStatus
 from src.infrastructure.db.models.ui_event import UiEvent
@@ -51,10 +53,12 @@ __all__ = [
     "ResearchStatus",
     "Role",
     "RolePermission",
+    "RoleSubscriptionRule",
     "Sample",
     "SampleLab",
     "SampleStatus",
     "SampleType",
+    "Subscription",
     "Test",
     "TestStatus",
     "UiEvent",

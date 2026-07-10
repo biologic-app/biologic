@@ -26,6 +26,7 @@ from src.contexts.laboratory_workflow.infrastructure.crud_repositories import (
     ResearchCrudRepository,
     SampleCrudRepository,
     SampleLabCrudRepository,
+    SubscriptionCrudRepository,
     TestCrudRepository,
 )
 from src.contexts.laboratory_workflow.presentation.schemas import (
@@ -44,11 +45,14 @@ from src.contexts.laboratory_workflow.presentation.schemas import (
     RejectTestRequest,
     ResearchUpdateRequest,
     SampleCreateRequest,
+    SampleLabsUpdateRequest,
     SampleUpdateRequest,
+    SubscriptionRequest,
     TestUpdateRequest,
     UpdateProtocolRequest,
 )
 from src.core.database import get_db_session
+from src.core.errors import BadRequestError
 from src.core.pagination import PaginationDependency
 from src.core.responses import ListResponse, ResponseMeta, SingleResponse
 from src.infrastructure.repositories.catalogs import DoctorRepository, ObjectRepository
@@ -72,6 +76,7 @@ async def get_workflow_crud_use_case(
         tests=TestCrudRepository(session=session),
         protocols=ProtocolCrudRepository(session=session),
         sample_labs=SampleLabCrudRepository(session=session),
+        subscriptions=SubscriptionCrudRepository(session=session),
         doctors=DoctorRepository(session=session),
         objects=ObjectRepository(session=session),
     )
@@ -168,6 +173,88 @@ async def list_sample_labs(
     use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
 ) -> ListResponse[dict[str, object]]:
     return await use_case.list_sample_labs(sample_id)
+
+
+def _resolve_subscriber(
+    payload: SubscriptionRequest, actor_id: UUID | None
+) -> UUID:
+    user_id = payload.user_id or actor_id
+    if user_id is None:
+        raise BadRequestError("user_id is required when there is no authenticated user.")
+    return user_id
+
+
+@router.get("/directions/{direction_id}/subscriptions")
+async def list_direction_subscriptions(
+    direction_id: UUID,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+) -> ListResponse[dict[str, object]]:
+    return await use_case.list_subscriptions("directions", direction_id)
+
+
+@router.post("/directions/{direction_id}/subscribe")
+async def subscribe_direction(
+    direction_id: UUID,
+    payload: SubscriptionRequest,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+    actor_id: Annotated[UUID | None, Depends(get_current_user_id_optional)],
+) -> ListResponse[dict[str, object]]:
+    return await use_case.subscribe(
+        "directions", direction_id, _resolve_subscriber(payload, actor_id)
+    )
+
+
+@router.post("/directions/{direction_id}/unsubscribe")
+async def unsubscribe_direction(
+    direction_id: UUID,
+    payload: SubscriptionRequest,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+    actor_id: Annotated[UUID | None, Depends(get_current_user_id_optional)],
+) -> ListResponse[dict[str, object]]:
+    return await use_case.unsubscribe(
+        "directions", direction_id, _resolve_subscriber(payload, actor_id)
+    )
+
+
+@router.get("/samples/{sample_id}/subscriptions")
+async def list_sample_subscriptions(
+    sample_id: UUID,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+) -> ListResponse[dict[str, object]]:
+    return await use_case.list_subscriptions("samples", sample_id)
+
+
+@router.post("/samples/{sample_id}/subscribe")
+async def subscribe_sample(
+    sample_id: UUID,
+    payload: SubscriptionRequest,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+    actor_id: Annotated[UUID | None, Depends(get_current_user_id_optional)],
+) -> ListResponse[dict[str, object]]:
+    return await use_case.subscribe(
+        "samples", sample_id, _resolve_subscriber(payload, actor_id)
+    )
+
+
+@router.post("/samples/{sample_id}/unsubscribe")
+async def unsubscribe_sample(
+    sample_id: UUID,
+    payload: SubscriptionRequest,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+    actor_id: Annotated[UUID | None, Depends(get_current_user_id_optional)],
+) -> ListResponse[dict[str, object]]:
+    return await use_case.unsubscribe(
+        "samples", sample_id, _resolve_subscriber(payload, actor_id)
+    )
+
+
+@router.put("/samples/{sample_id}/labs")
+async def set_sample_labs(
+    sample_id: UUID,
+    payload: SampleLabsUpdateRequest,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+) -> ListResponse[dict[str, object]]:
+    return await use_case.set_sample_labs(sample_id, payload.lab_ids)
 
 
 @router.get("/samples/{sample_id}/research-goal-suggestions")

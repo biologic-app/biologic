@@ -139,9 +139,6 @@ user="$(
     code="$RUN_ID-user-code" \
     first_name=HTTPie \
     last_name=User \
-    is_registrar:=false \
-    is_lab_head:=false \
-    is_branch_head:=false \
     role_id="$ADMIN_ROLE_ID"
 )"
 USER_ID="$(jq -r ".data.id" <<<"$user")"

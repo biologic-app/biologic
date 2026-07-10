@@ -11,6 +11,9 @@ from src.application.access_control.use_cases.role_permission_crud import (
 from src.application.access_control.use_cases.role_permission_set import (
     RolePermissionSetUseCase,
 )
+from src.application.access_control.use_cases.role_subscription_rule_crud import (
+    RoleSubscriptionRuleCrudUseCase,
+)
 from src.application.access_control.use_cases.user_crud import UserCrudUseCase
 from src.application.access_control.use_cases.user_permission_set import (
     UserPermissionSetUseCase,
@@ -40,6 +43,10 @@ async def get_permission_use_case() -> PermissionCrudUseCase:
 
 async def get_role_permission_use_case() -> RolePermissionCrudUseCase:
     return RolePermissionCrudUseCase(uow_factory=build_uow_factory())
+
+
+async def get_role_subscription_rule_use_case() -> RoleSubscriptionRuleCrudUseCase:
+    return RoleSubscriptionRuleCrudUseCase(uow_factory=build_uow_factory())
 
 
 async def get_user_scope_use_case() -> UserScopeCrudUseCase:

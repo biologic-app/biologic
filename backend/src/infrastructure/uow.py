@@ -37,6 +37,7 @@ from src.infrastructure.repositories.access_control import (
     PermissionRepository,
     RolePermissionRepository,
     RoleRepository,
+    RoleSubscriptionRuleRepository,
     UserPermissionOverrideRepository,
     UserRepository,
     UserScopeRepository,
@@ -80,6 +81,7 @@ class SqlAlchemyUnitOfWork:
     roles: AccessControlCrudRepository
     permissions: AccessControlCrudRepository
     role_permissions: RolePermissionRepositoryPort
+    role_subscription_rules: AccessControlCrudRepository
     user_permission_overrides: UserPermissionOverrideRepositoryPort
     user_scopes: AccessControlCrudRepository
 
@@ -109,6 +111,7 @@ class SqlAlchemyUnitOfWork:
         self.roles = RoleRepository(session=self.session)
         self.permissions = PermissionRepository(session=self.session)
         self.role_permissions = RolePermissionRepository(session=self.session)
+        self.role_subscription_rules = RoleSubscriptionRuleRepository(session=self.session)
         self.user_permission_overrides = UserPermissionOverrideRepository(session=self.session)
         self.user_scopes = UserScopeRepository(session=self.session)
         return self

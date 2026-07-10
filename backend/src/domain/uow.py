@@ -60,6 +60,7 @@ class UnitOfWork(Protocol):
     roles: AccessControlCrudRepository
     permissions: AccessControlCrudRepository
     role_permissions: RolePermissionRepositoryPort
+    role_subscription_rules: AccessControlCrudRepository
     user_permission_overrides: UserPermissionOverrideRepositoryPort
     user_scopes: AccessControlCrudRepository
 

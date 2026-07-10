@@ -158,14 +158,13 @@ def test_user_create_uses_access_control_contract(monkeypatch: MonkeyPatch) -> N
                 "password_hash": "hash",
                 "role_id": "00000000-0000-0000-0000-000000000001",
                 "lab_id": "00000000-0000-0000-0000-000000000002",
-                "is_registrar": True,
             },
         )
 
         assert response.status_code == 201
         payload = response.json()
         assert payload["data"]["username"] == "admin"
-        assert payload["data"]["is_registrar"] is True
+        assert payload["data"]["role_id"] == "00000000-0000-0000-0000-000000000001"
         assert payload["meta"]["operation"] == "users.create"
     finally:
         get_settings.cache_clear()

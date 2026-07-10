@@ -1,3 +1,4 @@
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, model_validator
@@ -17,9 +18,6 @@ class UserCreateRequest(StrictRequest):
     first_name: str | None = None
     last_name: str | None = None
     patronymic: str | None = None
-    is_registrar: bool | None = None
-    is_lab_head: bool | None = None
-    is_branch_head: bool | None = None
     role_id: UUID
     lab_id: UUID | None = None
 
@@ -32,9 +30,6 @@ class UserUpdateRequest(StrictRequest):
     first_name: str | None = None
     last_name: str | None = None
     patronymic: str | None = None
-    is_registrar: bool | None = None
-    is_lab_head: bool | None = None
-    is_branch_head: bool | None = None
     role_id: UUID | None = None
     lab_id: UUID | None = None
 
@@ -71,6 +66,51 @@ class RolePermissionUpdateRequest(StrictRequest):
     role_id: UUID | None = None
     permission_id: UUID | None = None
     scope: AccessScopeType | None = None
+
+
+# Совпадает со status_codes.py (DIRECTION_*/SAMPLE_*) и с CHECK-констрейнтом
+# role_subscription_rules_status_code_check в базе — держать в синхроне.
+_DIRECTION_STATUS_CODES = {"draft", "registered", "in_progress", "partially_completed", "completed"}
+_SAMPLE_STATUS_CODES = {"pending", "registered", "in_progress", "analyzed", "completed", "rejected"}
+
+
+def _validate_status_code(entity_type: str | None, status_code: str | None) -> None:
+    if status_code is None or entity_type is None:
+        return
+    allowed = _DIRECTION_STATUS_CODES if entity_type == "directions" else _SAMPLE_STATUS_CODES
+    if status_code not in allowed:
+        raise ValueError(
+            f"status_code {status_code!r} is not valid for entity_type {entity_type!r}."
+        )
+
+
+class RoleSubscriptionRuleCreateRequest(StrictRequest):
+    role_id: UUID
+    entity_type: Literal["directions", "samples"]
+    branch_id: UUID | None = None
+    lab_id: UUID | None = None
+    status_code: str | None = None
+
+    @model_validator(mode="after")
+    def check_status_code(self) -> "RoleSubscriptionRuleCreateRequest":
+        _validate_status_code(self.entity_type, self.status_code)
+        return self
+
+
+class RoleSubscriptionRuleUpdateRequest(StrictRequest):
+    role_id: UUID | None = None
+    entity_type: Literal["directions", "samples"] | None = None
+    branch_id: UUID | None = None
+    lab_id: UUID | None = None
+    status_code: str | None = None
+
+    @model_validator(mode="after")
+    def check_status_code(self) -> "RoleSubscriptionRuleUpdateRequest":
+        # entity_type может отсутствовать в PATCH (не меняется) — тогда
+        # комбинацию с текущим entity_type из БД проверит CHECK-констрейнт.
+        if "entity_type" in self.model_fields_set:
+            _validate_status_code(self.entity_type, self.status_code)
+        return self
 
 
 class UserScopeCreateRequest(StrictRequest):
