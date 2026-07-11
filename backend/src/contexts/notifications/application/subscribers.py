@@ -52,9 +52,15 @@ class WorkflowNotificationSubscriber:
         *,
         repository: NotificationSink,
         resolver: NotificationTargetResolver,
+        outbox: list[NotificationRecord] | None = None,
     ) -> None:
         self._repository = repository
         self._resolver = resolver
+        # Optional push-notification outbox: the caller reads this after its
+        # transaction commits and dispatches web push for whatever landed
+        # here (see WorkflowCommandService._publish_events). None when the
+        # caller only cares about the persisted notification, not push.
+        self._outbox = outbox
 
     async def __call__(self, event: DomainEvent) -> None:
         draft = notification_from_event(event)
@@ -67,4 +73,8 @@ class WorkflowNotificationSubscriber:
         if target_user_id is None:
             return
 
-        await self._repository.create_many([replace(draft, target_user_id=target_user_id)])
+        records = await self._repository.create_many(
+            [replace(draft, target_user_id=target_user_id)]
+        )
+        if self._outbox is not None:
+            self._outbox.extend(records)

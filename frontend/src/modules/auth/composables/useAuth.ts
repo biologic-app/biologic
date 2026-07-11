@@ -14,6 +14,7 @@ import {
   type UserModeId,
 } from "@/shared/config/user-modes";
 import { roleCredentials } from "@/shared/config/role-credentials";
+import { usePushNotifications } from "@/shared/composables/usePushNotifications";
 import { router } from "@/app/router";
 
 export const useAuth = defineStore("auth", () => {
@@ -82,6 +83,9 @@ export const useAuth = defineStore("auth", () => {
   const logout = async () => {
     loading.value = true;
     try {
+      // Best-effort: an unreachable backend must not block logging the user
+      // out locally, so a failed unsubscribe is swallowed here.
+      await usePushNotifications().disable().catch(() => undefined);
       await authApi.logout();
     } finally {
       clearSession();

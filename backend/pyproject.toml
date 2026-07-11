@@ -20,6 +20,7 @@ dependencies = [
     # Runtime dependency: imported unconditionally by src/plugins/scalar and
     # mounted in create_app() to serve /docs. Must ship in production installs.
     "scalar-fastapi>=1.6.2",
+    "pywebpush>=2.0.0",
 ]
 
 [dependency-groups]

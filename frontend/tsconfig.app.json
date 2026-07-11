@@ -31,5 +31,6 @@
     "types": []
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue", "auto-imports.d.ts", "components.d.ts"],
+  "exclude": ["src/sw.ts"],
   "vueCompilerOptions": {}
 }

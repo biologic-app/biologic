@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { formatDistanceToNow } from 'date-fns'
 import type { TabsItem } from '@nuxt/ui'
 import { useI18n } from 'vue-i18n'
 import { useDashboardShell } from '@/shared/composables/useDashboardShell'
 import { useLocale } from '@/shared/composables/useLocale'
+import { usePushNotifications } from '@/shared/composables/usePushNotifications'
 import { useSystemNotifications } from '@/shared/composables/useSystemNotifications'
 import type { Notification } from '@/shared/types'
 
@@ -16,6 +17,23 @@ const {
   readNotifications,
   markNotificationRead
 } = useSystemNotifications()
+const {
+  isSupported: isPushSupported,
+  isSubscribed: isPushSubscribed,
+  isDenied: isPushDenied,
+  isBusy: isPushBusy,
+  enable: enablePush,
+  disable: disablePush,
+  refreshSubscriptionState
+} = usePushNotifications()
+
+onMounted(() => {
+  void refreshSubscriptionState()
+})
+
+const onTogglePush = (value: boolean) => {
+  void (value ? enablePush() : disablePush())
+}
 
 const activeTab = ref<'unread' | 'read'>('unread')
 
@@ -55,6 +73,26 @@ function formatNotificationTime(date: string) {
   >
     <template #body>
       <div class="space-y-4">
+        <div
+          v-if="isPushSupported"
+          class="flex items-center justify-between gap-3 rounded-md px-3 py-2.5 -mx-3"
+        >
+          <div class="text-sm min-w-0">
+            <p class="text-highlighted font-medium">
+              {{ t('notifications.push.label') }}
+            </p>
+            <p v-if="isPushDenied" class="text-dimmed text-xs mt-0.5">
+              {{ t('notifications.push.denied') }}
+            </p>
+          </div>
+          <USwitch
+            :model-value="isPushSubscribed"
+            :disabled="isPushDenied || isPushBusy"
+            data-testid="push-notifications-toggle"
+            @update:model-value="onTogglePush"
+          />
+        </div>
+
         <UTabs
           v-model="activeTab"
           :items="tabItems"
