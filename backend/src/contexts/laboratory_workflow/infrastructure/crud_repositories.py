@@ -40,11 +40,16 @@ from src.infrastructure.db.models import (
     Research,
     ResearchGoal,
     ResearchStatus,
+    Role,
+    RoleSubscriptionRule,
     Sample,
+    SampleLab,
     SampleStatus,
     SampleType,
+    Subscription,
     Test,
     TestStatus,
+    User,
 )
 
 
@@ -79,9 +84,14 @@ class DirectionCrudRepository:
         *,
         exclude_id: UUID | None = None,
     ) -> Any | None:
+        # Отсутствующий base_no — не надёжный бизнес-ключ (например, номер
+        # документа не распознан при импорте скан-формы), поэтому направления
+        # без base_no между собой дубликатами не считаются.
+        if base_no is None:
+            return None
         filters = [
             Direction.year_no == year_no,
-            Direction.base_no.is_(None) if base_no is None else Direction.base_no == base_no,
+            Direction.base_no == base_no,
             Direction.deleted_at.is_(None),
         ]
         if exclude_id is not None:
@@ -100,10 +110,24 @@ class DirectionCrudRepository:
         if "year_no" in payload:
             await self._ensure_year_base_no_available(payload["year_no"], payload.get("base_no"))
         try:
-            return await _create_row(self.session, Direction, payload)
+            row = await _create_row(self.session, Direction, payload)
         except IntegrityError as exc:
             await self.session.rollback()
             raise _direction_duplicate_conflict() from exc
+        # Фиксируем «переход» в начальный статус: таймлайн статусов в UI
+        # показывает дату и автора для каждой точки, включая «Черновик».
+        self.session.add(
+            ChangeLog(
+                entity_type="directions",
+                entity_id=row.id,
+                action="direction_created",
+                actor_id=created_by,
+                snapshot={"status_code": DIRECTION_DRAFT},
+                diff={"status_code": {"from": None, "to": DIRECTION_DRAFT}},
+            ),
+        )
+        await self.session.commit()
+        return row
 
     async def update(self, direction_id: UUID, values: dict[str, Any]) -> Any:
         _reject_status_update("directions", values)
@@ -235,13 +259,29 @@ class SampleCrudRepository:
     async def read(self, sample_id: UUID) -> Any:
         return await _read_row(self.session, Sample, "samples", sample_id)
 
-    async def create(self, values: dict[str, Any]) -> Any:
+    async def create(self, values: dict[str, Any], *, created_by: UUID | None = None) -> Any:
         payload = _pick(values, _sample_write_fields())
         payload.setdefault(
             "status_id",
             await _default_status_id(self.session, SampleStatus, SAMPLE_PENDING),
         )
-        return await _create_row(self.session, Sample, payload)
+        if created_by is not None:
+            payload["created_by"] = created_by
+        row = await _create_row(self.session, Sample, payload)
+        # Аналогично направлениям: точка «На регистрации» в таймлайне должна
+        # иметь дату и автора.
+        self.session.add(
+            ChangeLog(
+                entity_type="samples",
+                entity_id=row.id,
+                action="sample_created",
+                actor_id=created_by,
+                snapshot={"status_code": SAMPLE_PENDING},
+                diff={"status_code": {"from": None, "to": SAMPLE_PENDING}},
+            ),
+        )
+        await self.session.commit()
+        return row
 
     async def update(self, sample_id: UUID, values: dict[str, Any]) -> Any:
         _reject_status_update("samples", values)
@@ -254,6 +294,400 @@ class SampleCrudRepository:
 
     async def delete(self, sample_id: UUID) -> None:
         await _delete_row(self.session, await self.read(sample_id))
+
+
+class SubscriptionCrudRepository:
+    """Followers of a direction or a sample.
+
+    The returned list merges four sources, deduplicated by user in priority
+    order (role → owner → doctor → manual):
+    - role — users whose role has a matching RoleSubscriptionRule (mandatory,
+      admin-configured, optionally scoped to the entity's branch, lab and/or
+      current lifecycle status, e.g. "lab chiefs follow only rejected samples");
+    - owner — the user who created the parent direction (their own entities);
+    - doctor — the user linked to the direction's sanitary doctor
+      (Doctor.user_id), following the direction and all its samples;
+    - manual — explicit rows in the subscriptions table (the follow button).
+    Everything but ``manual`` is derived at read time and cannot unsubscribe.
+    """
+
+    def __init__(self, *, session: AsyncSession) -> None:
+        self.session = session
+
+    async def _owner_id(self, entity_type: str, entity_id: UUID) -> UUID | None:
+        if entity_type == "directions":
+            row = await _read_row(self.session, Direction, "directions", entity_id)
+            return cast(UUID | None, row.created_by)
+        row = await _read_row(self.session, Sample, "samples", entity_id)
+        if row.direction_id is None:
+            return None
+        result = await self.session.execute(
+            select(Direction.created_by).where(Direction.id == row.direction_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def _doctor_user_id(self, entity_type: str, entity_id: UUID) -> UUID | None:
+        """The user behind the direction's sanitary doctor, if any
+        (Direction.doctor_id → Doctor.user_id)."""
+        if entity_type == "directions":
+            doctor_id_query = select(Direction.doctor_id).where(Direction.id == entity_id)
+        else:
+            doctor_id_query = (
+                select(Direction.doctor_id)
+                .join(Sample, Sample.direction_id == Direction.id)
+                .where(Sample.id == entity_id)
+            )
+        doctor_id = (await self.session.execute(doctor_id_query)).scalar_one_or_none()
+        if doctor_id is None:
+            return None
+        result = await self.session.execute(
+            select(Doctor.user_id).where(Doctor.id == doctor_id, Doctor.deleted_at.is_(None))
+        )
+        return result.scalar_one_or_none()
+
+    async def _scope_for_entity(
+        self, entity_type: str, entity_id: UUID
+    ) -> tuple[UUID | None, set[UUID], str | None]:
+        """Branch, labs and current status code of the entity, used to match
+        scoped rules.
+
+        A direction's branch comes from its object; it has no direct lab, so its
+        lab set is always empty. A sample inherits both from its parent direction
+        (branch) and its own lab assignments. The status code is the entity's own
+        current lifecycle status (direction_statuses/sample_statuses.code).
+        """
+        if entity_type == "directions":
+            branch_query = (
+                select(Object.branch_id, DirectionStatus.code)
+                .join(Direction, Direction.object_id == Object.id)
+                .outerjoin(DirectionStatus, DirectionStatus.id == Direction.status_id)
+                .where(Direction.id == entity_id)
+            )
+            row = (await self.session.execute(branch_query)).first()
+            if row is None:
+                return None, set(), None
+            return row[0], set(), row[1]
+
+        branch_query = (
+            select(Object.branch_id, SampleStatus.code)
+            .join(Direction, Direction.object_id == Object.id)
+            .join(Sample, Sample.direction_id == Direction.id)
+            .outerjoin(SampleStatus, SampleStatus.id == Sample.status_id)
+            .where(Sample.id == entity_id)
+        )
+        row = (await self.session.execute(branch_query)).first()
+        branch_id = row[0] if row is not None else None
+        status_code = row[1] if row is not None else None
+        lab_rows = await self.session.execute(
+            select(SampleLab.lab_id).where(
+                SampleLab.sample_id == entity_id,
+                SampleLab.deleted_at.is_(None),
+            )
+        )
+        return branch_id, set(lab_rows.scalars().all()), status_code
+
+    def _role_rule_conditions(
+        self,
+        entity_type: str,
+        branch_id: UUID | None,
+        lab_ids: set[UUID],
+        status_code: str | None,
+    ) -> list[Any]:
+        # branch_id being None must NOT be spelled as ``branch_id == None`` —
+        # SQLAlchemy would translate that to ``IS NULL`` and silently make a
+        # branch-specific rule match a branch-less entity. Only unscoped rules
+        # may match an entity with no branch. Same reasoning applies to
+        # status_code below.
+        branch_condition = (
+            RoleSubscriptionRule.branch_id.is_(None)
+            if branch_id is None
+            else or_(
+                RoleSubscriptionRule.branch_id.is_(None),
+                RoleSubscriptionRule.branch_id == branch_id,
+            )
+        )
+        # ``lab_id.in_(())`` yields a valid false clause, so an empty lab set
+        # (always the case for directions) simply matches only unscoped rules.
+        lab_condition = or_(
+            RoleSubscriptionRule.lab_id.is_(None),
+            RoleSubscriptionRule.lab_id.in_(lab_ids),
+        )
+        status_condition = (
+            RoleSubscriptionRule.status_code.is_(None)
+            if status_code is None
+            else or_(
+                RoleSubscriptionRule.status_code.is_(None),
+                RoleSubscriptionRule.status_code == status_code,
+            )
+        )
+        return [
+            RoleSubscriptionRule.entity_type == entity_type,
+            RoleSubscriptionRule.deleted_at.is_(None),
+            branch_condition,
+            lab_condition,
+            status_condition,
+            User.deleted_at.is_(None),
+        ]
+
+    async def list_for_entity(
+        self, entity_type: str, entity_id: UUID
+    ) -> list[dict[str, object]]:
+        owner_id = await self._owner_id(entity_type, entity_id)
+        doctor_user_id = await self._doctor_user_id(entity_type, entity_id)
+        branch_id, lab_ids, status_code = await self._scope_for_entity(entity_type, entity_id)
+
+        subscribers: dict[UUID, dict[str, object]] = {}
+
+        def _add(user_row: Any, source: str) -> None:
+            if user_row.id in subscribers:
+                return
+            subscribers[user_row.id] = {
+                "user_id": user_row.id,
+                "username": user_row.username,
+                "first_name": user_row.first_name,
+                "last_name": user_row.last_name,
+                "patronymic": user_row.patronymic,
+                "source": source,
+            }
+
+        user_fields = (
+            User.id,
+            User.username,
+            User.first_name,
+            User.last_name,
+            User.patronymic,
+        )
+
+        role_matches = await self.session.execute(
+            select(*user_fields)
+            .join(Role, Role.id == User.role_id)
+            .join(RoleSubscriptionRule, RoleSubscriptionRule.role_id == Role.id)
+            .where(*self._role_rule_conditions(entity_type, branch_id, lab_ids, status_code))
+            .order_by(asc(User.username))
+        )
+        for row in role_matches.all():
+            _add(row, "role")
+
+        if owner_id is not None:
+            owner = await self.session.execute(
+                select(*user_fields).where(User.id == owner_id, User.deleted_at.is_(None))
+            )
+            owner_row = owner.first()
+            if owner_row is not None:
+                _add(owner_row, "owner")
+
+        if doctor_user_id is not None:
+            doctor = await self.session.execute(
+                select(*user_fields).where(
+                    User.id == doctor_user_id, User.deleted_at.is_(None)
+                )
+            )
+            doctor_row = doctor.first()
+            if doctor_row is not None:
+                _add(doctor_row, "doctor")
+
+        manual = await self.session.execute(
+            select(*user_fields)
+            .join(Subscription, Subscription.user_id == User.id)
+            .where(
+                Subscription.entity_type == entity_type,
+                Subscription.entity_id == entity_id,
+                Subscription.deleted_at.is_(None),
+                User.deleted_at.is_(None),
+            )
+            .order_by(asc(User.username))
+        )
+        for row in manual.all():
+            _add(row, "manual")
+
+        return list(subscribers.values())
+
+    async def resolve_notification_targets(
+        self, entity_type: str, entity_id: UUID
+    ) -> set[UUID]:
+        """User ids that should be notified about an event on this entity.
+
+        The lean sibling of ``list_for_entity`` for the per-event notification
+        fan-out: same four-source derivation, but selects only user ids and
+        returns a set. An empty set means nobody follows the entity — the
+        notification is dropped rather than broadcast to everyone.
+        """
+        if entity_type not in ("directions", "samples"):
+            return set()
+
+        owner_id = await self._owner_id(entity_type, entity_id)
+        doctor_user_id = await self._doctor_user_id(entity_type, entity_id)
+        branch_id, lab_ids, status_code = await self._scope_for_entity(entity_type, entity_id)
+
+        targets: set[UUID] = set()
+
+        role_matches = await self.session.execute(
+            select(User.id)
+            .join(Role, Role.id == User.role_id)
+            .join(RoleSubscriptionRule, RoleSubscriptionRule.role_id == Role.id)
+            .where(*self._role_rule_conditions(entity_type, branch_id, lab_ids, status_code))
+        )
+        targets.update(role_matches.scalars().all())
+
+        for candidate in (owner_id, doctor_user_id):
+            if candidate is not None:
+                targets.add(candidate)
+
+        manual = await self.session.execute(
+            select(Subscription.user_id).where(
+                Subscription.entity_type == entity_type,
+                Subscription.entity_id == entity_id,
+                Subscription.deleted_at.is_(None),
+            )
+        )
+        targets.update(manual.scalars().all())
+
+        return targets
+
+    async def subscribe(
+        self, entity_type: str, entity_id: UUID, user_id: UUID
+    ) -> list[dict[str, object]]:
+        await self._owner_id(entity_type, entity_id)
+        await _read_row(self.session, User, "users", user_id)
+        existing = await self.session.execute(
+            select(Subscription).where(
+                Subscription.user_id == user_id,
+                Subscription.entity_type == entity_type,
+                Subscription.entity_id == entity_id,
+                Subscription.deleted_at.is_(None),
+            )
+        )
+        if existing.scalars().first() is None:
+            self.session.add(
+                Subscription(user_id=user_id, entity_type=entity_type, entity_id=entity_id)
+            )
+            await self.session.commit()
+        return await self.list_for_entity(entity_type, entity_id)
+
+    async def unsubscribe(
+        self, entity_type: str, entity_id: UUID, user_id: UUID
+    ) -> list[dict[str, object]]:
+        result = await self.session.execute(
+            select(Subscription).where(
+                Subscription.user_id == user_id,
+                Subscription.entity_type == entity_type,
+                Subscription.entity_id == entity_id,
+                Subscription.deleted_at.is_(None),
+            )
+        )
+        row = result.scalars().first()
+        if row is not None:
+            await _delete_row(self.session, row)
+        return await self.list_for_entity(entity_type, entity_id)
+
+
+class SampleLabCrudRepository:
+    """Sample ↔ laboratory assignments and the (type + lab) → goals derivation."""
+
+    def __init__(self, *, session: AsyncSession) -> None:
+        self.session = session
+
+    async def get_lab_id_by_code(self, code: str) -> UUID | None:
+        result = await self.session.execute(
+            select(Lab.id).where(Lab.code == code, Lab.deleted_at.is_(None))
+        )
+        return result.scalars().first()
+
+    async def create(self, values: dict[str, Any]) -> Any:
+        return await _create_row(
+            self.session, SampleLab, _pick(values, ("sample_id", "lab_id"))
+        )
+
+    async def list_labs_for_sample(self, sample_id: UUID) -> list[dict[str, object]]:
+        await _read_row(self.session, Sample, "samples", sample_id)
+        result = await self.session.execute(
+            select(Lab.id, Lab.code, Lab.name)
+            .join(SampleLab, SampleLab.lab_id == Lab.id)
+            .where(
+                SampleLab.sample_id == sample_id,
+                SampleLab.deleted_at.is_(None),
+                Lab.deleted_at.is_(None),
+            )
+            .order_by(asc(Lab.code), asc(Lab.id))
+        )
+        return [
+            {"id": lab_id, "code": code, "name": name}
+            for lab_id, code, name in result.all()
+        ]
+
+    async def set_labs_for_sample(
+        self, sample_id: UUID, lab_ids: list[UUID]
+    ) -> list[dict[str, object]]:
+        await _read_row(self.session, Sample, "samples", sample_id)
+        desired = set(lab_ids)
+        if desired:
+            result = await self.session.execute(
+                select(Lab.id).where(Lab.id.in_(desired), Lab.deleted_at.is_(None))
+            )
+            missing = desired - set(result.scalars().all())
+            if missing:
+                raise NotFoundError(
+                    f"labs items {sorted(str(lab_id) for lab_id in missing)} were not found."
+                )
+        links_result = await self.session.execute(
+            select(SampleLab).where(
+                SampleLab.sample_id == sample_id,
+                SampleLab.deleted_at.is_(None),
+            )
+        )
+        existing = list(links_result.scalars().all())
+        now = datetime.now(UTC)
+        for link in existing:
+            if link.lab_id not in desired:
+                link.deleted_at = now
+                if hasattr(link, "updated_at"):
+                    link.updated_at = now
+                self.session.add(link)
+        existing_lab_ids = {link.lab_id for link in existing}
+        for lab_id in desired - existing_lab_ids:
+            self.session.add(SampleLab(sample_id=sample_id, lab_id=lab_id))
+        await self.session.commit()
+        return await self.list_labs_for_sample(sample_id)
+
+    async def suggest_research_goals(
+        self, sample_id: UUID, sample_type_id: UUID
+    ) -> list[dict[str, object]]:
+        await _read_row(self.session, Sample, "samples", sample_id)
+        lab_ids = (
+            select(SampleLab.lab_id)
+            .where(SampleLab.sample_id == sample_id, SampleLab.deleted_at.is_(None))
+            .scalar_subquery()
+        )
+        indicator_exists = (
+            select(Indicator.id)
+            .where(
+                Indicator.research_goal_id == ResearchGoal.id,
+                Indicator.sample_type_id == sample_type_id,
+                Indicator.deleted_at.is_(None),
+            )
+            .exists()
+        )
+        result = await self.session.execute(
+            select(ResearchGoal, Lab.name)
+            .outerjoin(Lab, ResearchGoal.lab_id == Lab.id)
+            .where(
+                ResearchGoal.lab_id.in_(lab_ids),
+                ResearchGoal.deleted_at.is_(None),
+                indicator_exists,
+            )
+            .order_by(asc(Lab.name), asc(ResearchGoal.name), asc(ResearchGoal.id))
+        )
+        return [
+            {
+                "id": goal.id,
+                "code": goal.code,
+                "name": goal.name,
+                "comment": goal.comment,
+                "lab_id": goal.lab_id,
+                "lab_name": lab_name,
+            }
+            for goal, lab_name in result.all()
+        ]
 
 
 class ResearchCrudRepository:
@@ -535,14 +969,27 @@ async def _populate_direction_includes(
     items: list[Any],
     includes_requested: list[str],
 ) -> None:
-    includes = set(includes_requested) & {"status"}
+    includes = set(includes_requested) & {"status", "doctor", "object"}
     if not items or not includes:
         return
 
-    status_ids = {item.status_id for item in items if item.status_id is not None}
-    statuses = await _direction_status_includes(session, status_ids)
-    for item in items:
-        setattr(item, "status", statuses.get(item.status_id))
+    if "status" in includes:
+        status_ids = {item.status_id for item in items if item.status_id is not None}
+        statuses = await _direction_status_includes(session, status_ids)
+        for item in items:
+            setattr(item, "status", statuses.get(item.status_id))
+
+    if "doctor" in includes:
+        doctor_ids = {item.doctor_id for item in items if item.doctor_id is not None}
+        doctors = await _doctor_includes(session, doctor_ids)
+        for item in items:
+            setattr(item, "doctor", doctors.get(item.doctor_id))
+
+    if "object" in includes:
+        object_ids = {item.object_id for item in items if item.object_id is not None}
+        objects = await _object_includes(session, object_ids)
+        for item in items:
+            setattr(item, "object", objects.get(item.object_id))
 
 
 async def _populate_sample_includes(
@@ -674,6 +1121,45 @@ async def _direction_status_includes(
         select(DirectionStatus.id, DirectionStatus.code, DirectionStatus.name).where(
             DirectionStatus.id.in_(status_ids),
             *_base_filters(DirectionStatus),
+        ),
+    )
+    return {
+        row_id: {"id": row_id, "code": code, "name": name}
+        for row_id, code, name in result.all()
+    }
+
+
+async def _doctor_includes(
+    session: AsyncSession,
+    doctor_ids: set[UUID],
+) -> dict[UUID, dict[str, object]]:
+    if not doctor_ids:
+        return {}
+    result = await session.execute(
+        select(
+            Doctor.id, Doctor.first_name, Doctor.last_name, Doctor.patronymic
+        ).where(Doctor.id.in_(doctor_ids), *_base_filters(Doctor)),
+    )
+    return {
+        row_id: {
+            "id": row_id,
+            "first_name": first_name,
+            "last_name": last_name,
+            "patronymic": patronymic,
+        }
+        for row_id, first_name, last_name, patronymic in result.all()
+    }
+
+
+async def _object_includes(
+    session: AsyncSession,
+    object_ids: set[UUID],
+) -> dict[UUID, dict[str, object]]:
+    if not object_ids:
+        return {}
+    result = await session.execute(
+        select(Object.id, Object.code, Object.name).where(
+            Object.id.in_(object_ids), *_base_filters(Object)
         ),
     )
     return {

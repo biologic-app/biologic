@@ -18,9 +18,12 @@ exact (case-insensitive, trimmed) name match — the signer name ("Фамили�
 ``objects.name``/``objects.full_name``. When no match or more than one
 match is found, the field is left ``None`` and a warning is recorded so
 the registrar still reconciles it by hand, as before.
-The Бак/Т-Х/Т-Б/РВ/ПЦР mark columns are resolved against the
-``research_goals`` catalog by code (``BAK``/``TH``/``TB``/``RV``/``PCR``);
-a lab must seed those codes for marks to turn into ``Research`` rows.
+The Бак/Т-Х/Т-Б/РВ/ПЦР mark columns identify the *laboratories* a sample is
+routed to. Each mark is resolved against the ``labs`` catalog by code
+(``BAK``/``TH``/``TB``/``RV``/``PCR``) and turned into a ``sample_labs`` row;
+a lab must seed those codes for marks to become sample↔lab assignments.
+Research goals are not derived here — they are suggested later from the
+sample's laboratories and type (see ``research-goal-suggestions``).
 """
 
 from __future__ import annotations
@@ -71,7 +74,7 @@ class LegacyDirectionImportSummary(BaseModel):
     samples_processed: int
     samples_imported: int
     skipped_samples: int
-    marks_created: int
+    lab_assignments_created: int
     errors: list[dict[str, object]]
     warnings: list[dict[str, object]]
 
@@ -276,14 +279,14 @@ class LegacyDirectionXlsImportService:
         *,
         directions: Any,
         samples: Any,
-        research: Any,
+        sample_labs: Any,
         doctors: Any | None = None,
         objects: Any | None = None,
         created_by: UUID | None = None,
     ) -> None:
         self.directions = directions
         self.samples = samples
-        self.research = research
+        self.sample_labs = sample_labs
         self.doctors = doctors
         self.objects = objects
         self.created_by = created_by
@@ -404,7 +407,7 @@ class LegacyDirectionXlsImportService:
                 samples_processed=0,
                 samples_imported=0,
                 skipped_samples=0,
-                marks_created=0,
+                lab_assignments_created=0,
                 errors=errors,
                 warnings=warnings,
             )
@@ -414,7 +417,7 @@ class LegacyDirectionXlsImportService:
         samples_processed = 0
         samples_imported = 0
         skipped_samples = 0
-        marks_created = 0
+        lab_assignments_created = 0
 
         for row_number, record in _iter_table_rows(rows, header_row, footer_start):
             samples_processed += 1
@@ -452,24 +455,24 @@ class LegacyDirectionXlsImportService:
             if deadline is not None:
                 sample_values["deadline"] = deadline
 
-            sample_row = await self.samples.create(sample_values)
+            sample_row = await self.samples.create(sample_values, created_by=self.created_by)
             samples_imported += 1
 
             for code in record["marks"]:
-                goal_id = await self.research.get_goal_id_by_code(code)
-                if goal_id is None:
+                lab_id = await self.sample_labs.get_lab_id_by_code(code)
+                if lab_id is None:
                     warnings.append(
                         _issue(
                             row_number,
                             code,
-                            f"research_goals catalog has no code '{code}'; mark skipped.",
+                            f"labs catalog has no code '{code}'; lab mark skipped.",
                         )
                     )
                     continue
-                await self.research.create(
-                    {"sample_id": sample_row.id, "research_goal_id": goal_id}
+                await self.sample_labs.create(
+                    {"sample_id": sample_row.id, "lab_id": lab_id}
                 )
-                marks_created += 1
+                lab_assignments_created += 1
 
         return LegacyDirectionImportSummary(
             filename=filename,
@@ -477,7 +480,7 @@ class LegacyDirectionXlsImportService:
             samples_processed=samples_processed,
             samples_imported=samples_imported,
             skipped_samples=skipped_samples,
-            marks_created=marks_created,
+            lab_assignments_created=lab_assignments_created,
             errors=errors,
             warnings=warnings,
         )

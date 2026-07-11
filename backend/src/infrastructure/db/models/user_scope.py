@@ -18,6 +18,12 @@ class UserScope(Base):
     __table_args__ = (
         Index("user_scopes_user_scopes_user_id_scope_id", "user_id", "scope_id", unique=True),
         Index("user_scopes_user_scopes_scope_id", "scope_id"),
+        Index(
+            "user_scopes_user_scopes_user_id_null_scope_id",
+            "user_id",
+            unique=True,
+            postgresql_where=text("scope_id IS NULL"),
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(

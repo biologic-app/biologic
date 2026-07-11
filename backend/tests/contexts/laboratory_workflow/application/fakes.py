@@ -128,10 +128,10 @@ class WorkflowRepositoryFake(WorkflowRepository):
     ) -> CommandResult:
         raise AssertionError("issue_protocol should not be called")
 
-    async def resolve_notification_target(
+    async def resolve_notification_targets(
         self, entity_type: str, entity_id: UUID
-    ) -> UUID | None:
-        raise AssertionError("resolve_notification_target should not be called")
+    ) -> set[UUID]:
+        raise AssertionError("resolve_notification_targets should not be called")
 
 
 class FakeUnitOfWork:
@@ -163,6 +163,7 @@ class FakeUnitOfWork:
         self.roles = cast(AccessControlCrudRepository, None)
         self.permissions = cast(AccessControlCrudRepository, None)
         self.role_permissions = cast(RolePermissionRepositoryPort, None)
+        self.role_subscription_rules = cast(AccessControlCrudRepository, None)
         self.user_permission_overrides = cast(UserPermissionOverrideRepositoryPort, None)
         self.user_scopes = cast(AccessControlCrudRepository, None)
         self.committed = False

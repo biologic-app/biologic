@@ -43,9 +43,23 @@ export function compactEvents(items: Array<DetailTimelineEvent | null>): DetailT
   return items.filter(Boolean) as DetailTimelineEvent[];
 }
 
+// «Фамилия И.О.» из полей персоны (врачи/пользователи не имеют поля name).
+export function shortPersonName(value: Record<string, unknown>): string {
+  const lastName = typeof value.last_name === "string" ? value.last_name.trim() : "";
+  const initials = [value.first_name, value.patronymic]
+    .map((part) => (typeof part === "string" && part.trim() ? `${part.trim()[0].toUpperCase()}.` : ""))
+    .join("");
+  return [lastName, initials].filter(Boolean).join(" ");
+}
+
 export function namedValue(value: unknown): string {
   if (isRecord(value)) {
-    return formatPlain(value.name ?? value.full_name ?? value.code ?? value.id);
+    const named = value.name ?? value.full_name ?? value.code;
+    if (named !== null && named !== undefined && named !== "") {
+      return formatPlain(named);
+    }
+    // ID в интерфейсе не показываем — лучше ФИО или пусто.
+    return shortPersonName(value);
   }
 
   return "";
@@ -119,6 +133,18 @@ export function entityDisplayCode(value: unknown): string {
   const text = String(value);
   const uuidPrefix = text.match(/^[0-9a-f]{8}/i)?.[0];
   return `#${(uuidPrefix ?? text.slice(0, 8)).toUpperCase()}`;
+}
+
+// Код записи: номер вместе с годом — «№ 2025-461»; для сущностей без номера —
+// короткий код по UUID.
+export function recordCode(row: Record<string, unknown> & { id: string | number }): string {
+  const baseNo = row.base_no;
+  if (typeof baseNo === "number" || (typeof baseNo === "string" && baseNo.trim())) {
+    const yearNo = row.year_no;
+    const hasYear = typeof yearNo === "number" || (typeof yearNo === "string" && yearNo.trim());
+    return hasYear ? `№ ${yearNo}-${baseNo}` : `№ ${baseNo}`;
+  }
+  return entityDisplayCode(row.id);
 }
 
 export function normalizeFormValue(value: unknown): DetailFieldValue {

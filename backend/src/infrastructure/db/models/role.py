@@ -40,6 +40,7 @@ class Role(Base):
             values_callable=lambda enum: [item.value for item in enum],
         ),
         nullable=False,
+        server_default=text("'global'::role_scope_type"),
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

@@ -49,20 +49,22 @@ class RecordingSampleRepository:
         self.created: list[dict[str, Any]] = []
         self._next_id = 1
 
-    async def create(self, values: dict[str, Any]) -> RecordingSample:
+    async def create(
+        self, values: dict[str, Any], *, created_by: Any | None = None
+    ) -> RecordingSample:
         self.created.append(values)
         sample_id = f"00000000-0000-0000-0000-{self._next_id:012d}"
         self._next_id += 1
         return RecordingSample(sample_id)
 
 
-class RecordingResearchRepository:
-    def __init__(self, goal_codes: dict[str, UUID] | None = None) -> None:
+class RecordingSampleLabRepository:
+    def __init__(self, lab_codes: dict[str, UUID] | None = None) -> None:
         self.created: list[dict[str, Any]] = []
-        self._goal_codes = goal_codes or {}
+        self._lab_codes = lab_codes or {}
 
-    async def get_goal_id_by_code(self, code: str) -> UUID | None:
-        return self._goal_codes.get(code)
+    async def get_lab_id_by_code(self, code: str) -> UUID | None:
+        return self._lab_codes.get(code)
 
     async def create(self, values: dict[str, Any]) -> object:
         self.created.append(values)
@@ -156,8 +158,8 @@ def _minimal_xls_bytes(
 async def test_parses_real_document_end_to_end() -> None:
     directions = RecordingDirectionRepository()
     samples = RecordingSampleRepository()
-    research = RecordingResearchRepository(
-        goal_codes={
+    sample_labs = RecordingSampleLabRepository(
+        lab_codes={
             "BAK": UUID("00000000-0000-0000-0000-0000000000b1"),
             "TH": UUID("00000000-0000-0000-0000-0000000000b2"),
             "TB": UUID("00000000-0000-0000-0000-0000000000b3"),
@@ -165,7 +167,7 @@ async def test_parses_real_document_end_to_end() -> None:
         }
     )
     service = LegacyDirectionXlsImportService(
-        directions=directions, samples=samples, research=research
+        directions=directions, samples=samples, sample_labs=sample_labs
     )
 
     summary = await service.import_file("direction.xls", FIXTURE_PATH.read_bytes())
@@ -190,24 +192,25 @@ async def test_parses_real_document_end_to_end() -> None:
     assert first_sample["nomenclature_code"] == "00013560"
     assert first_sample["supplier"] == 'ООО "Компания "ГУД-ФУД"'
 
-    assert summary.marks_created == len(research.created)
-    assert summary.marks_created > 0
+    assert summary.lab_assignments_created == len(sample_labs.created)
+    assert summary.lab_assignments_created > 0
 
-    # First sample has bak/th/tb/rv marked, pcr not marked -> 4 resolvable Research rows.
-    first_sample_research = [
+    # First sample has bak/th/tb/rv marked, pcr not marked -> 4 sample_labs rows.
+    first_sample_labs = [
         r
-        for r in research.created
+        for r in sample_labs.created
         if r["sample_id"] == UUID("00000000-0000-0000-0000-000000000001")
     ]
-    assert len(first_sample_research) == 4
+    assert len(first_sample_labs) == 4
+    assert all("lab_id" in r for r in first_sample_labs)
 
 
 async def test_skips_direction_duplicating_existing_db_row() -> None:
     directions = RecordingDirectionRepository(existing={(2025, 460)})
     samples = RecordingSampleRepository()
-    research = RecordingResearchRepository()
+    sample_labs = RecordingSampleLabRepository()
     service = LegacyDirectionXlsImportService(
-        directions=directions, samples=samples, research=research
+        directions=directions, samples=samples, sample_labs=sample_labs
     )
 
     summary = await service.import_file("direction.xls", FIXTURE_PATH.read_bytes())
@@ -215,18 +218,18 @@ async def test_skips_direction_duplicating_existing_db_row() -> None:
     assert summary.direction_id is None
     assert summary.samples_processed == 0
     assert summary.samples_imported == 0
-    assert summary.marks_created == 0
+    assert summary.lab_assignments_created == 0
     assert len(summary.errors) == 1
     assert directions.created == []
     assert samples.created == []
-    assert research.created == []
+    assert sample_labs.created == []
 
 
 async def test_rejects_non_xls_filename() -> None:
     service = LegacyDirectionXlsImportService(
         directions=RecordingDirectionRepository(),
         samples=RecordingSampleRepository(),
-        research=RecordingResearchRepository(),
+        sample_labs=RecordingSampleLabRepository(),
     )
 
     with pytest.raises(ValidationError):
@@ -237,7 +240,7 @@ async def test_rejects_oversized_file() -> None:
     service = LegacyDirectionXlsImportService(
         directions=RecordingDirectionRepository(),
         samples=RecordingSampleRepository(),
-        research=RecordingResearchRepository(),
+        sample_labs=RecordingSampleLabRepository(),
     )
 
     with pytest.raises(ValidationError):
@@ -248,7 +251,7 @@ async def test_rejects_invalid_workbook_bytes() -> None:
     service = LegacyDirectionXlsImportService(
         directions=RecordingDirectionRepository(),
         samples=RecordingSampleRepository(),
-        research=RecordingResearchRepository(),
+        sample_labs=RecordingSampleLabRepository(),
     )
 
     with pytest.raises(ValidationError):
@@ -259,7 +262,7 @@ async def test_requires_sampling_date() -> None:
     service = LegacyDirectionXlsImportService(
         directions=RecordingDirectionRepository(),
         samples=RecordingSampleRepository(),
-        research=RecordingResearchRepository(),
+        sample_labs=RecordingSampleLabRepository(),
     )
     content = _minimal_xls_bytes(sample_rows=[], sampling_date="", sampling_time="")
 
@@ -271,7 +274,7 @@ async def test_skips_rows_missing_product_name() -> None:
     directions = RecordingDirectionRepository()
     samples = RecordingSampleRepository()
     service = LegacyDirectionXlsImportService(
-        directions=directions, samples=samples, research=RecordingResearchRepository()
+        directions=directions, samples=samples, sample_labs=RecordingSampleLabRepository()
     )
     content = _minimal_xls_bytes(
         sample_rows=[
@@ -289,22 +292,46 @@ async def test_skips_rows_missing_product_name() -> None:
     assert len(samples.created) == 1
 
 
-async def test_warns_when_research_goal_code_is_unseeded() -> None:
+async def test_warns_when_lab_code_is_unseeded() -> None:
     directions = RecordingDirectionRepository()
     samples = RecordingSampleRepository()
-    research = RecordingResearchRepository(goal_codes={})
+    sample_labs = RecordingSampleLabRepository(lab_codes={})
     service = LegacyDirectionXlsImportService(
-        directions=directions, samples=samples, research=research
+        directions=directions, samples=samples, sample_labs=sample_labs
     )
     content = _minimal_xls_bytes(sample_rows=[{2: 1, 3: "Образец", 8: "х", 9: "х"}])
 
     summary = await service.import_file("direction.xls", content)
 
     assert summary.samples_imported == 1
-    assert summary.marks_created == 0
-    assert research.created == []
+    assert summary.lab_assignments_created == 0
+    assert sample_labs.created == []
     mark_warnings = [w for w in summary.warnings if w["field"] in ("BAK", "TH")]
     assert len(mark_warnings) == 2
+
+
+async def test_marks_resolve_to_sample_labs_by_code() -> None:
+    directions = RecordingDirectionRepository()
+    samples = RecordingSampleRepository()
+    bak_id = UUID("00000000-0000-0000-0000-0000000000a1")
+    pcr_id = UUID("00000000-0000-0000-0000-0000000000a5")
+    sample_labs = RecordingSampleLabRepository(lab_codes={"BAK": bak_id, "PCR": pcr_id})
+    service = LegacyDirectionXlsImportService(
+        directions=directions, samples=samples, sample_labs=sample_labs
+    )
+    # BAK (col 8) and PCR (col 12) marked; TH/TB/RV columns left blank.
+    content = _minimal_xls_bytes(sample_rows=[{2: 1, 3: "Образец", 8: "х", 12: "х"}])
+
+    summary = await service.import_file("direction.xls", content)
+
+    assert summary.samples_imported == 1
+    assert summary.lab_assignments_created == 2
+    assert {row["lab_id"] for row in sample_labs.created} == {bak_id, pcr_id}
+    assert all("sample_id" in row for row in sample_labs.created)
+    lab_warnings = [
+        w for w in summary.warnings if w["field"] in ("BAK", "TH", "TB", "RV", "PCR")
+    ]
+    assert lab_warnings == []
 
 
 async def test_auto_matches_doctor_and_object_on_exact_match() -> None:
@@ -316,7 +343,7 @@ async def test_auto_matches_doctor_and_object_on_exact_match() -> None:
     service = LegacyDirectionXlsImportService(
         directions=directions,
         samples=RecordingSampleRepository(),
-        research=RecordingResearchRepository(),
+        sample_labs=RecordingSampleLabRepository(),
         doctors=doctors,
         objects=objects,
     )
@@ -340,7 +367,7 @@ async def test_no_match_leaves_ids_none_and_adds_warnings() -> None:
     service = LegacyDirectionXlsImportService(
         directions=directions,
         samples=RecordingSampleRepository(),
-        research=RecordingResearchRepository(),
+        sample_labs=RecordingSampleLabRepository(),
         doctors=doctors,
         objects=objects,
     )
@@ -368,7 +395,7 @@ async def test_ambiguous_doctor_match_leaves_id_none() -> None:
     service = LegacyDirectionXlsImportService(
         directions=directions,
         samples=RecordingSampleRepository(),
-        research=RecordingResearchRepository(),
+        sample_labs=RecordingSampleLabRepository(),
         doctors=doctors,
         objects=None,
     )
@@ -389,7 +416,7 @@ async def test_without_catalog_repositories_behaves_as_before() -> None:
     service = LegacyDirectionXlsImportService(
         directions=directions,
         samples=RecordingSampleRepository(),
-        research=RecordingResearchRepository(),
+        sample_labs=RecordingSampleLabRepository(),
     )
     content = _minimal_xls_bytes(sample_rows=[{2: 1, 3: "Образец"}])
 

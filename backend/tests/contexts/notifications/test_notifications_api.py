@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
@@ -73,6 +74,7 @@ class FakeNotificationService:
         last_seen: datetime,
         viewer_id: UUID,
         poll_interval_seconds: float,
+        shutdown: asyncio.Event | None = None,
     ) -> AsyncIterator[NotificationRecord]:
         self.list_calls.append(viewer_id)
         yield NotificationRecord(

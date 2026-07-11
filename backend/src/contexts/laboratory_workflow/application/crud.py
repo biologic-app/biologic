@@ -22,6 +22,7 @@ from src.contexts.laboratory_workflow.infrastructure.crud_repositories import (
     RepositoryPage,
     ResearchCrudRepository,
     SampleCrudRepository,
+    SampleLabCrudRepository,
     TestCrudRepository,
 )
 from src.core.cursor_pagination import json_value
@@ -39,6 +40,8 @@ class WorkflowCrudUseCase:
         research: ResearchCrudRepository,
         tests: TestCrudRepository,
         protocols: ProtocolCrudRepository,
+        sample_labs: SampleLabCrudRepository,
+        subscriptions: Any = None,
         doctors: Any | None = None,
         objects: Any | None = None,
     ) -> None:
@@ -47,6 +50,8 @@ class WorkflowCrudUseCase:
         self.research = research
         self.tests = tests
         self.protocols = protocols
+        self.sample_labs = sample_labs
+        self.subscriptions = subscriptions
         self.doctors = doctors
         self.objects = objects
 
@@ -105,7 +110,7 @@ class WorkflowCrudUseCase:
                     await LegacyDirectionXlsImportService(
                         directions=self.directions,
                         samples=self.samples,
-                        research=self.research,
+                        sample_labs=self.sample_labs,
                         doctors=self.doctors,
                         objects=self.objects,
                         created_by=actor_id,
@@ -133,12 +138,10 @@ class WorkflowCrudUseCase:
         *,
         actor_id: UUID | None = None,
     ) -> SingleResponse[dict[str, object]]:
-        # samples have no created_by write field yet, so actor_id is unused for now;
-        # kept for signature symmetry with create_direction/import_directions.
         await self.directions.assert_draft(direction_id)
         values = _payload(payload)
         values["direction_id"] = direction_id
-        row = await self.samples.create(values)
+        row = await self.samples.create(values, created_by=actor_id)
         return _single_response(row, _sample_fields(), operation="samples.create")
 
     async def list_samples(
@@ -164,6 +167,42 @@ class WorkflowCrudUseCase:
 
     async def delete_sample(self, sample_id: UUID) -> None:
         await self.samples.delete(sample_id)
+
+    async def list_sample_labs(
+        self, sample_id: UUID
+    ) -> ListResponse[dict[str, object]]:
+        items = await self.sample_labs.list_labs_for_sample(sample_id)
+        return _derived_list_response(items)
+
+    async def list_subscriptions(
+        self, entity_type: str, entity_id: UUID
+    ) -> ListResponse[dict[str, object]]:
+        items = await self.subscriptions.list_for_entity(entity_type, entity_id)
+        return _derived_list_response(items)
+
+    async def subscribe(
+        self, entity_type: str, entity_id: UUID, user_id: UUID
+    ) -> ListResponse[dict[str, object]]:
+        items = await self.subscriptions.subscribe(entity_type, entity_id, user_id)
+        return _derived_list_response(items)
+
+    async def unsubscribe(
+        self, entity_type: str, entity_id: UUID, user_id: UUID
+    ) -> ListResponse[dict[str, object]]:
+        items = await self.subscriptions.unsubscribe(entity_type, entity_id, user_id)
+        return _derived_list_response(items)
+
+    async def set_sample_labs(
+        self, sample_id: UUID, lab_ids: list[UUID]
+    ) -> ListResponse[dict[str, object]]:
+        items = await self.sample_labs.set_labs_for_sample(sample_id, lab_ids)
+        return _derived_list_response(items)
+
+    async def suggest_research_goals(
+        self, sample_id: UUID, sample_type_id: UUID
+    ) -> ListResponse[dict[str, object]]:
+        items = await self.sample_labs.suggest_research_goals(sample_id, sample_type_id)
+        return _derived_list_response(items)
 
     async def list_research(
         self, params: PaginationParams
@@ -240,6 +279,17 @@ class WorkflowCrudUseCase:
 
 def _payload(payload: BaseModel) -> dict[str, Any]:
     return payload.model_dump(mode="python", exclude_unset=True)
+
+
+def _derived_list_response(
+    items: list[dict[str, object]],
+) -> ListResponse[dict[str, object]]:
+    """Wrap a fully-materialized (non-paginated) derived list as ``{items, meta}``."""
+    serialized = [_json_value(item) for item in items]
+    return ListResponse(
+        items=serialized,
+        meta=PageMeta(total=len(serialized), limit=len(serialized), has_more=False),
+    )
 
 
 def _list_response(

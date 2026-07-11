@@ -37,6 +37,12 @@ class Direction(Base):
         Index("directions_directions_received_at", "received_at"),
         Index("directions_directions_completed_at", "completed_at"),
         Index("directions_directions_deleted_at", "deleted_at"),
+        Index(
+            "directions_directions_active_created_at",
+            text("created_at DESC"),
+            "id",
+            postgresql_where=text("deleted_at IS NULL"),
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(

@@ -166,7 +166,7 @@ class DoctorRepository:
         return await _create_row(
             self.session,
             Doctor,
-            _pick(values, ("first_name", "last_name", "patronymic")),
+            _pick(values, ("first_name", "last_name", "patronymic", "user_id")),
         )
 
     async def update(self, item_id: UUID, values: dict[str, Any]) -> Any:
@@ -174,7 +174,7 @@ class DoctorRepository:
         return await _update_row(
             self.session,
             row,
-            _pick(values, ("first_name", "last_name", "patronymic")),
+            _pick(values, ("first_name", "last_name", "patronymic", "user_id")),
         )
 
     async def delete(self, item_id: UUID) -> None:

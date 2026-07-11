@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, field_serializer
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -101,11 +102,13 @@ async def mark_alert_read(
 
 @router.get("/alerts/stream")
 async def stream_alerts(
+    request: Request,
     service: Annotated[NotificationService, Depends(get_notification_service)],
     viewer_id: Annotated[UUID, Depends(get_current_user_id)],
 ) -> StreamingResponse:
+    shutdown = getattr(request.app.state, "shutdown_event", None)
     return StreamingResponse(
-        _notification_stream(service, viewer_id),
+        _notification_stream(service, viewer_id, shutdown),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
@@ -129,12 +132,15 @@ def _item(record: NotificationRecord) -> AlertItem:
 
 
 async def _notification_stream(
-    service: NotificationService, viewer_id: UUID
+    service: NotificationService,
+    viewer_id: UUID,
+    shutdown: asyncio.Event | None = None,
 ) -> AsyncIterator[str]:
     async for record in service.stream_after(
         last_seen=datetime.now(UTC),
         viewer_id=viewer_id,
         poll_interval_seconds=1.0,
+        shutdown=shutdown,
     ):
         yield _sse_event("notification.created", _item(record))
 

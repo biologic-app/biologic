@@ -221,6 +221,19 @@ export const userModeList: UserMode[] = Object.values(userModes);
 /** Режим по умолчанию: разработчик (полный доступ). */
 export const defaultUserModeId: UserModeId = "developer";
 
+/**
+ * Роли-суперадмины: полный доступ ко всему UI в обход проверки прав.
+ *
+ * Единая точка решения «кому всё можно». `can()` в useAuth коротко замыкается
+ * на true для этих ролей, поэтому доступ не зависит от словаря прав с бэкенда
+ * и автоматически покрывает любые новые ресурсы/действия. Сверяем с `role_key`
+ * пользователя (см. AuthUser.role), а не с фронтовым режимом.
+ */
+export const superAdminRoles: ReadonlySet<string> = new Set<string>(["developer"]);
+
+export const isSuperAdminRole = (role: string | null | undefined): boolean =>
+  role != null && superAdminRoles.has(role);
+
 export const isUserModeId = (value: unknown): value is UserModeId =>
   typeof value === "string" && value in userModes;
 

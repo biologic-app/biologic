@@ -397,6 +397,10 @@ export type DoctorCreateRequest = {
      * Patronymic
      */
     patronymic?: string | null;
+    /**
+     * User Id
+     */
+    user_id?: string | null;
 };
 
 /**
@@ -415,6 +419,10 @@ export type DoctorUpdateRequest = {
      * Patronymic
      */
     patronymic?: string | null;
+    /**
+     * User Id
+     */
+    user_id?: string | null;
 };
 
 /**
@@ -1068,6 +1076,58 @@ export type RolePermissionsReplaceRequest = {
 export type RoleScopeType = 'global' | 'own_branch' | 'own_lab' | 'own_objects';
 
 /**
+ * RoleSubscriptionRuleCreateRequest
+ */
+export type RoleSubscriptionRuleCreateRequest = {
+    /**
+     * Role Id
+     */
+    role_id: string;
+    /**
+     * Entity Type
+     */
+    entity_type: 'directions' | 'samples';
+    /**
+     * Branch Id
+     */
+    branch_id?: string | null;
+    /**
+     * Lab Id
+     */
+    lab_id?: string | null;
+    /**
+     * Status Code
+     */
+    status_code?: string | null;
+};
+
+/**
+ * RoleSubscriptionRuleUpdateRequest
+ */
+export type RoleSubscriptionRuleUpdateRequest = {
+    /**
+     * Role Id
+     */
+    role_id?: string | null;
+    /**
+     * Entity Type
+     */
+    entity_type?: 'directions' | 'samples' | null;
+    /**
+     * Branch Id
+     */
+    branch_id?: string | null;
+    /**
+     * Lab Id
+     */
+    lab_id?: string | null;
+    /**
+     * Status Code
+     */
+    status_code?: string | null;
+};
+
+/**
  * RoleUpdateRequest
  */
 export type RoleUpdateRequest = {
@@ -1170,6 +1230,16 @@ export type SampleCreateRequest = {
      * Verdict
      */
     verdict?: string | null;
+};
+
+/**
+ * SampleLabsUpdateRequest
+ */
+export type SampleLabsUpdateRequest = {
+    /**
+     * Lab Ids
+     */
+    lab_ids: Array<string>;
 };
 
 /**
@@ -1311,10 +1381,15 @@ export type SingleResponseCommandResult = {
 };
 
 /**
- * SingleResponse[PushSubscriptionItem]
+ * SingleResponse[dict[str, int]]
  */
-export type SingleResponsePushSubscriptionItem = {
-    data: PushSubscriptionItem;
+export type SingleResponseDictStrInt = {
+    /**
+     * Data
+     */
+    data: {
+        [key: string]: number;
+    };
     meta: ResponseMeta;
 };
 
@@ -1339,6 +1414,59 @@ export type StatusUpdateRequest = {
      * Name
      */
     name: string;
+};
+
+/**
+ * SubscriptionRequest
+ */
+export type SubscriptionRequest = {
+    /**
+     * User Id
+     */
+    user_id?: string | null;
+};
+
+/**
+ * TelemetryBatchIn
+ */
+export type TelemetryBatchIn = {
+    /**
+     * Events
+     */
+    events: Array<TelemetryEventIn>;
+};
+
+/**
+ * TelemetryEventIn
+ *
+ * A single anonymous UI event. Only element/session identifiers are
+ * accepted — no form values or other user-entered content (ROADMAP A2.3).
+ */
+export type TelemetryEventIn = {
+    /**
+     * Event
+     */
+    event: string;
+    /**
+     * Route
+     */
+    route: string;
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Ts
+     */
+    ts: string;
+    /**
+     * Element Id
+     */
+    element_id?: string | null;
+    /**
+     * Role
+     */
+    role?: string | null;
 };
 
 /**
@@ -1429,18 +1557,6 @@ export type UserCreateRequest = {
      * Patronymic
      */
     patronymic?: string | null;
-    /**
-     * Is Registrar
-     */
-    is_registrar?: boolean | null;
-    /**
-     * Is Lab Head
-     */
-    is_lab_head?: boolean | null;
-    /**
-     * Is Branch Head
-     */
-    is_branch_head?: boolean | null;
     /**
      * Role Id
      */
@@ -1536,18 +1652,6 @@ export type UserUpdateRequest = {
      * Patronymic
      */
     patronymic?: string | null;
-    /**
-     * Is Registrar
-     */
-    is_registrar?: boolean | null;
-    /**
-     * Is Lab Head
-     */
-    is_lab_head?: boolean | null;
-    /**
-     * Is Branch Head
-     */
-    is_branch_head?: boolean | null;
     /**
      * Role Id
      */
@@ -1983,6 +2087,281 @@ export type UpdateSampleApiV1SamplesSampleIdPatchResponses = {
 };
 
 export type UpdateSampleApiV1SamplesSampleIdPatchResponse = UpdateSampleApiV1SamplesSampleIdPatchResponses[keyof UpdateSampleApiV1SamplesSampleIdPatchResponses];
+
+export type ListSampleLabsApiV1SamplesSampleIdLabsGetData = {
+    body?: never;
+    path: {
+        /**
+         * Sample Id
+         */
+        sample_id: string;
+    };
+    query?: never;
+    url: '/api/v1/samples/{sample_id}/labs';
+};
+
+export type ListSampleLabsApiV1SamplesSampleIdLabsGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListSampleLabsApiV1SamplesSampleIdLabsGetError = ListSampleLabsApiV1SamplesSampleIdLabsGetErrors[keyof ListSampleLabsApiV1SamplesSampleIdLabsGetErrors];
+
+export type ListSampleLabsApiV1SamplesSampleIdLabsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ListResponseDictStrObject;
+};
+
+export type ListSampleLabsApiV1SamplesSampleIdLabsGetResponse = ListSampleLabsApiV1SamplesSampleIdLabsGetResponses[keyof ListSampleLabsApiV1SamplesSampleIdLabsGetResponses];
+
+export type SetSampleLabsApiV1SamplesSampleIdLabsPutData = {
+    body: SampleLabsUpdateRequest;
+    path: {
+        /**
+         * Sample Id
+         */
+        sample_id: string;
+    };
+    query?: never;
+    url: '/api/v1/samples/{sample_id}/labs';
+};
+
+export type SetSampleLabsApiV1SamplesSampleIdLabsPutErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetSampleLabsApiV1SamplesSampleIdLabsPutError = SetSampleLabsApiV1SamplesSampleIdLabsPutErrors[keyof SetSampleLabsApiV1SamplesSampleIdLabsPutErrors];
+
+export type SetSampleLabsApiV1SamplesSampleIdLabsPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: ListResponseDictStrObject;
+};
+
+export type SetSampleLabsApiV1SamplesSampleIdLabsPutResponse = SetSampleLabsApiV1SamplesSampleIdLabsPutResponses[keyof SetSampleLabsApiV1SamplesSampleIdLabsPutResponses];
+
+export type ListDirectionSubscriptionsApiV1DirectionsDirectionIdSubscriptionsGetData = {
+    body?: never;
+    path: {
+        /**
+         * Direction Id
+         */
+        direction_id: string;
+    };
+    query?: never;
+    url: '/api/v1/directions/{direction_id}/subscriptions';
+};
+
+export type ListDirectionSubscriptionsApiV1DirectionsDirectionIdSubscriptionsGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListDirectionSubscriptionsApiV1DirectionsDirectionIdSubscriptionsGetError = ListDirectionSubscriptionsApiV1DirectionsDirectionIdSubscriptionsGetErrors[keyof ListDirectionSubscriptionsApiV1DirectionsDirectionIdSubscriptionsGetErrors];
+
+export type ListDirectionSubscriptionsApiV1DirectionsDirectionIdSubscriptionsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ListResponseDictStrObject;
+};
+
+export type ListDirectionSubscriptionsApiV1DirectionsDirectionIdSubscriptionsGetResponse = ListDirectionSubscriptionsApiV1DirectionsDirectionIdSubscriptionsGetResponses[keyof ListDirectionSubscriptionsApiV1DirectionsDirectionIdSubscriptionsGetResponses];
+
+export type SubscribeDirectionApiV1DirectionsDirectionIdSubscribePostData = {
+    body: SubscriptionRequest;
+    path: {
+        /**
+         * Direction Id
+         */
+        direction_id: string;
+    };
+    query?: never;
+    url: '/api/v1/directions/{direction_id}/subscribe';
+};
+
+export type SubscribeDirectionApiV1DirectionsDirectionIdSubscribePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SubscribeDirectionApiV1DirectionsDirectionIdSubscribePostError = SubscribeDirectionApiV1DirectionsDirectionIdSubscribePostErrors[keyof SubscribeDirectionApiV1DirectionsDirectionIdSubscribePostErrors];
+
+export type SubscribeDirectionApiV1DirectionsDirectionIdSubscribePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ListResponseDictStrObject;
+};
+
+export type SubscribeDirectionApiV1DirectionsDirectionIdSubscribePostResponse = SubscribeDirectionApiV1DirectionsDirectionIdSubscribePostResponses[keyof SubscribeDirectionApiV1DirectionsDirectionIdSubscribePostResponses];
+
+export type UnsubscribeDirectionApiV1DirectionsDirectionIdUnsubscribePostData = {
+    body: SubscriptionRequest;
+    path: {
+        /**
+         * Direction Id
+         */
+        direction_id: string;
+    };
+    query?: never;
+    url: '/api/v1/directions/{direction_id}/unsubscribe';
+};
+
+export type UnsubscribeDirectionApiV1DirectionsDirectionIdUnsubscribePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UnsubscribeDirectionApiV1DirectionsDirectionIdUnsubscribePostError = UnsubscribeDirectionApiV1DirectionsDirectionIdUnsubscribePostErrors[keyof UnsubscribeDirectionApiV1DirectionsDirectionIdUnsubscribePostErrors];
+
+export type UnsubscribeDirectionApiV1DirectionsDirectionIdUnsubscribePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ListResponseDictStrObject;
+};
+
+export type UnsubscribeDirectionApiV1DirectionsDirectionIdUnsubscribePostResponse = UnsubscribeDirectionApiV1DirectionsDirectionIdUnsubscribePostResponses[keyof UnsubscribeDirectionApiV1DirectionsDirectionIdUnsubscribePostResponses];
+
+export type ListSampleSubscriptionsApiV1SamplesSampleIdSubscriptionsGetData = {
+    body?: never;
+    path: {
+        /**
+         * Sample Id
+         */
+        sample_id: string;
+    };
+    query?: never;
+    url: '/api/v1/samples/{sample_id}/subscriptions';
+};
+
+export type ListSampleSubscriptionsApiV1SamplesSampleIdSubscriptionsGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListSampleSubscriptionsApiV1SamplesSampleIdSubscriptionsGetError = ListSampleSubscriptionsApiV1SamplesSampleIdSubscriptionsGetErrors[keyof ListSampleSubscriptionsApiV1SamplesSampleIdSubscriptionsGetErrors];
+
+export type ListSampleSubscriptionsApiV1SamplesSampleIdSubscriptionsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ListResponseDictStrObject;
+};
+
+export type ListSampleSubscriptionsApiV1SamplesSampleIdSubscriptionsGetResponse = ListSampleSubscriptionsApiV1SamplesSampleIdSubscriptionsGetResponses[keyof ListSampleSubscriptionsApiV1SamplesSampleIdSubscriptionsGetResponses];
+
+export type SubscribeSampleApiV1SamplesSampleIdSubscribePostData = {
+    body: SubscriptionRequest;
+    path: {
+        /**
+         * Sample Id
+         */
+        sample_id: string;
+    };
+    query?: never;
+    url: '/api/v1/samples/{sample_id}/subscribe';
+};
+
+export type SubscribeSampleApiV1SamplesSampleIdSubscribePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SubscribeSampleApiV1SamplesSampleIdSubscribePostError = SubscribeSampleApiV1SamplesSampleIdSubscribePostErrors[keyof SubscribeSampleApiV1SamplesSampleIdSubscribePostErrors];
+
+export type SubscribeSampleApiV1SamplesSampleIdSubscribePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ListResponseDictStrObject;
+};
+
+export type SubscribeSampleApiV1SamplesSampleIdSubscribePostResponse = SubscribeSampleApiV1SamplesSampleIdSubscribePostResponses[keyof SubscribeSampleApiV1SamplesSampleIdSubscribePostResponses];
+
+export type UnsubscribeSampleApiV1SamplesSampleIdUnsubscribePostData = {
+    body: SubscriptionRequest;
+    path: {
+        /**
+         * Sample Id
+         */
+        sample_id: string;
+    };
+    query?: never;
+    url: '/api/v1/samples/{sample_id}/unsubscribe';
+};
+
+export type UnsubscribeSampleApiV1SamplesSampleIdUnsubscribePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UnsubscribeSampleApiV1SamplesSampleIdUnsubscribePostError = UnsubscribeSampleApiV1SamplesSampleIdUnsubscribePostErrors[keyof UnsubscribeSampleApiV1SamplesSampleIdUnsubscribePostErrors];
+
+export type UnsubscribeSampleApiV1SamplesSampleIdUnsubscribePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ListResponseDictStrObject;
+};
+
+export type UnsubscribeSampleApiV1SamplesSampleIdUnsubscribePostResponse = UnsubscribeSampleApiV1SamplesSampleIdUnsubscribePostResponses[keyof UnsubscribeSampleApiV1SamplesSampleIdUnsubscribePostResponses];
+
+export type SuggestSampleResearchGoalsApiV1SamplesSampleIdResearchGoalSuggestionsGetData = {
+    body?: never;
+    path: {
+        /**
+         * Sample Id
+         */
+        sample_id: string;
+    };
+    query: {
+        /**
+         * Sample Type Id
+         */
+        sample_type_id: string;
+    };
+    url: '/api/v1/samples/{sample_id}/research-goal-suggestions';
+};
+
+export type SuggestSampleResearchGoalsApiV1SamplesSampleIdResearchGoalSuggestionsGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SuggestSampleResearchGoalsApiV1SamplesSampleIdResearchGoalSuggestionsGetError = SuggestSampleResearchGoalsApiV1SamplesSampleIdResearchGoalSuggestionsGetErrors[keyof SuggestSampleResearchGoalsApiV1SamplesSampleIdResearchGoalSuggestionsGetErrors];
+
+export type SuggestSampleResearchGoalsApiV1SamplesSampleIdResearchGoalSuggestionsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ListResponseDictStrObject;
+};
+
+export type SuggestSampleResearchGoalsApiV1SamplesSampleIdResearchGoalSuggestionsGetResponse = SuggestSampleResearchGoalsApiV1SamplesSampleIdResearchGoalSuggestionsGetResponses[keyof SuggestSampleResearchGoalsApiV1SamplesSampleIdResearchGoalSuggestionsGetResponses];
 
 export type ListResearchApiV1ResearchGetData = {
     body?: never;
@@ -3956,6 +4335,175 @@ export type UpdateRolePermissionApiV1RolePermissionsRolePermissionIdPatchRespons
 };
 
 export type UpdateRolePermissionApiV1RolePermissionsRolePermissionIdPatchResponse = UpdateRolePermissionApiV1RolePermissionsRolePermissionIdPatchResponses[keyof UpdateRolePermissionApiV1RolePermissionsRolePermissionIdPatchResponses];
+
+export type ListRoleSubscriptionRulesApiV1RoleSubscriptionRulesGetData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Cursor
+         */
+        cursor?: string | null;
+        /**
+         * Sort By
+         */
+        sort_by?: string | null;
+        /**
+         * Sort Order
+         */
+        sort_order?: 'asc' | 'desc';
+        /**
+         * Filters
+         */
+        filters?: string | null;
+        /**
+         * Search
+         */
+        search?: string | null;
+        /**
+         * Include
+         */
+        include?: string | null;
+    };
+    url: '/api/v1/role_subscription_rules';
+};
+
+export type ListRoleSubscriptionRulesApiV1RoleSubscriptionRulesGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListRoleSubscriptionRulesApiV1RoleSubscriptionRulesGetError = ListRoleSubscriptionRulesApiV1RoleSubscriptionRulesGetErrors[keyof ListRoleSubscriptionRulesApiV1RoleSubscriptionRulesGetErrors];
+
+export type ListRoleSubscriptionRulesApiV1RoleSubscriptionRulesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ListResponseDictStrObject;
+};
+
+export type ListRoleSubscriptionRulesApiV1RoleSubscriptionRulesGetResponse = ListRoleSubscriptionRulesApiV1RoleSubscriptionRulesGetResponses[keyof ListRoleSubscriptionRulesApiV1RoleSubscriptionRulesGetResponses];
+
+export type CreateRoleSubscriptionRuleApiV1RoleSubscriptionRulesPostData = {
+    body: RoleSubscriptionRuleCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/role_subscription_rules';
+};
+
+export type CreateRoleSubscriptionRuleApiV1RoleSubscriptionRulesPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateRoleSubscriptionRuleApiV1RoleSubscriptionRulesPostError = CreateRoleSubscriptionRuleApiV1RoleSubscriptionRulesPostErrors[keyof CreateRoleSubscriptionRuleApiV1RoleSubscriptionRulesPostErrors];
+
+export type CreateRoleSubscriptionRuleApiV1RoleSubscriptionRulesPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: SingleResponseDictStrObject;
+};
+
+export type CreateRoleSubscriptionRuleApiV1RoleSubscriptionRulesPostResponse = CreateRoleSubscriptionRuleApiV1RoleSubscriptionRulesPostResponses[keyof CreateRoleSubscriptionRuleApiV1RoleSubscriptionRulesPostResponses];
+
+export type DeleteRoleSubscriptionRuleApiV1RoleSubscriptionRulesRoleSubscriptionRuleIdDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Role Subscription Rule Id
+         */
+        role_subscription_rule_id: string;
+    };
+    query?: never;
+    url: '/api/v1/role_subscription_rules/{role_subscription_rule_id}';
+};
+
+export type DeleteRoleSubscriptionRuleApiV1RoleSubscriptionRulesRoleSubscriptionRuleIdDeleteErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteRoleSubscriptionRuleApiV1RoleSubscriptionRulesRoleSubscriptionRuleIdDeleteError = DeleteRoleSubscriptionRuleApiV1RoleSubscriptionRulesRoleSubscriptionRuleIdDeleteErrors[keyof DeleteRoleSubscriptionRuleApiV1RoleSubscriptionRulesRoleSubscriptionRuleIdDeleteErrors];
+
+export type DeleteRoleSubscriptionRuleApiV1RoleSubscriptionRulesRoleSubscriptionRuleIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteRoleSubscriptionRuleApiV1RoleSubscriptionRulesRoleSubscriptionRuleIdDeleteResponse = DeleteRoleSubscriptionRuleApiV1RoleSubscriptionRulesRoleSubscriptionRuleIdDeleteResponses[keyof DeleteRoleSubscriptionRuleApiV1RoleSubscriptionRulesRoleSubscriptionRuleIdDeleteResponses];
+
+export type ReadRoleSubscriptionRuleApiV1RoleSubscriptionRulesRoleSubscriptionRuleIdGetData = {
+    body?: never;
+    path: {
+        /**
+         * Role Subscription Rule Id
+         */
+        role_subscription_rule_id: string;
+    };
+    query?: never;
+    url: '/api/v1/role_subscription_rules/{role_subscription_rule_id}';
+};
+
+export type ReadRoleSubscriptionRuleApiV1RoleSubscriptionRulesRoleSubscriptionRuleIdGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadRoleSubscriptionRuleApiV1RoleSubscriptionRulesRoleSubscriptionRuleIdGetError = ReadRoleSubscriptionRuleApiV1RoleSubscriptionRulesRoleSubscriptionRuleIdGetErrors[keyof ReadRoleSubscriptionRuleApiV1RoleSubscriptionRulesRoleSubscriptionRuleIdGetErrors];
+
+export type ReadRoleSubscriptionRuleApiV1RoleSubscriptionRulesRoleSubscriptionRuleIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: SingleResponseDictStrObject;
+};
+
+export type ReadRoleSubscriptionRuleApiV1RoleSubscriptionRulesRoleSubscriptionRuleIdGetResponse = ReadRoleSubscriptionRuleApiV1RoleSubscriptionRulesRoleSubscriptionRuleIdGetResponses[keyof ReadRoleSubscriptionRuleApiV1RoleSubscriptionRulesRoleSubscriptionRuleIdGetResponses];
+
+export type UpdateRoleSubscriptionRuleApiV1RoleSubscriptionRulesRoleSubscriptionRuleIdPatchData = {
+    body: RoleSubscriptionRuleUpdateRequest;
+    path: {
+        /**
+         * Role Subscription Rule Id
+         */
+        role_subscription_rule_id: string;
+    };
+    query?: never;
+    url: '/api/v1/role_subscription_rules/{role_subscription_rule_id}';
+};
+
+export type UpdateRoleSubscriptionRuleApiV1RoleSubscriptionRulesRoleSubscriptionRuleIdPatchErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateRoleSubscriptionRuleApiV1RoleSubscriptionRulesRoleSubscriptionRuleIdPatchError = UpdateRoleSubscriptionRuleApiV1RoleSubscriptionRulesRoleSubscriptionRuleIdPatchErrors[keyof UpdateRoleSubscriptionRuleApiV1RoleSubscriptionRulesRoleSubscriptionRuleIdPatchErrors];
+
+export type UpdateRoleSubscriptionRuleApiV1RoleSubscriptionRulesRoleSubscriptionRuleIdPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: SingleResponseDictStrObject;
+};
+
+export type UpdateRoleSubscriptionRuleApiV1RoleSubscriptionRulesRoleSubscriptionRuleIdPatchResponse = UpdateRoleSubscriptionRuleApiV1RoleSubscriptionRulesRoleSubscriptionRuleIdPatchResponses[keyof UpdateRoleSubscriptionRuleApiV1RoleSubscriptionRulesRoleSubscriptionRuleIdPatchResponses];
 
 export type ListUserScopesApiV1UserScopesGetData = {
     body?: never;
@@ -6342,3 +6890,28 @@ export type UpdateTestStatusApiV1TestStatusesItemIdPatchResponses = {
 };
 
 export type UpdateTestStatusApiV1TestStatusesItemIdPatchResponse = UpdateTestStatusApiV1TestStatusesItemIdPatchResponses[keyof UpdateTestStatusApiV1TestStatusesItemIdPatchResponses];
+
+export type RecordTelemetryEventsApiV1TelemetryEventsPostData = {
+    body: TelemetryBatchIn;
+    path?: never;
+    query?: never;
+    url: '/api/v1/telemetry/events';
+};
+
+export type RecordTelemetryEventsApiV1TelemetryEventsPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RecordTelemetryEventsApiV1TelemetryEventsPostError = RecordTelemetryEventsApiV1TelemetryEventsPostErrors[keyof RecordTelemetryEventsApiV1TelemetryEventsPostErrors];
+
+export type RecordTelemetryEventsApiV1TelemetryEventsPostResponses = {
+    /**
+     * Successful Response
+     */
+    202: SingleResponseDictStrInt;
+};
+
+export type RecordTelemetryEventsApiV1TelemetryEventsPostResponse = RecordTelemetryEventsApiV1TelemetryEventsPostResponses[keyof RecordTelemetryEventsApiV1TelemetryEventsPostResponses];

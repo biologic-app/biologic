@@ -27,6 +27,7 @@ import BusinessEntityDetailModal from "@/shared/ui/BusinessEntityDetailModal.vue
 import DictionaryCrudDetailModal from "@/shared/ui/DictionaryCrudDetailModal.vue";
 import ProtocolPreviewModal from "@/shared/ui/ProtocolPreviewModal.vue";
 import type { DetailListItem } from "@/shared/ui/EntityDetailModalShell.vue";
+import { recordCode, shortPersonName } from "@/shared/ui/entity-detail.helpers";
 import {
   filterSelectOverlayUi,
   getFilterSelectModelValue,
@@ -80,6 +81,12 @@ const props = withDefaults(
     refreshToken?: number;
     resetToken?: number;
     selectable?: boolean;
+    // Кастомные (не командные) действия строки, специфичные для ресурса
+    // (например «Открыть мастер» для draft-направлений). Возвращает пункты меню,
+    // которые встраиваются между «Редактировать» и командами воркфлоу.
+    extraRowActions?: (row: CrudRow) => DropdownMenuItem[];
+    // Id недавно затронутой строки — временно подсвечивается в таблице.
+    highlightId?: string | null;
   }>(),
   {
     requestParams: undefined,
@@ -87,6 +94,8 @@ const props = withDefaults(
     refreshToken: undefined,
     resetToken: undefined,
     selectable: true,
+    extraRowActions: undefined,
+    highlightId: null,
   },
 );
 
@@ -450,17 +459,65 @@ const getStatusBadgeColor = (row: CrudRow): BadgeColor =>
 
 // Нормализация строки в элемент левого master-списка (общий маппер для
 // корневой таблицы и контекстного списка соседей вложенного уровня).
+// Заголовок: номер записи вместе с годом — «№ 2025-461»; текстовые
+// справочники остаются с name/code.
+const paddedRecordNo = (row: CrudRow): string => {
+  const baseNo = getValueByPath(row, "base_no");
+  if (typeof baseNo === "number" || (typeof baseNo === "string" && baseNo.trim())) {
+    const yearNo = getValueByPath(row, "year_no");
+    const hasYear = typeof yearNo === "number" || (typeof yearNo === "string" && yearNo.trim());
+    return hasYear ? `№ ${yearNo}-${baseNo}` : `№ ${baseNo}`;
+  }
+  return "";
+};
+
+// Дата и время строки списка: выносится из подзаголовка в заголовок (справа от номера).
+const listItemDate = (row: CrudRow): string => {
+  const sampledAt = getValueByPath(row, "sampled_at") ?? getValueByPath(row, "received_at");
+  if (typeof sampledAt !== "string" || !sampledAt) {
+    return "";
+  }
+  const date = new Date(sampledAt);
+  const dateLabel = date.toLocaleDateString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+  const timeLabel = date.toLocaleTimeString("ru-RU", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  return `${dateLabel} ${timeLabel}`;
+};
+
+// Подзаголовок строки списка: объект · врач (дата — отдельно, в заголовке).
+const listItemSubtitle = (row: CrudRow): string => {
+  const doctor = getValueByPath(row, "doctor");
+  const doctorName = doctor && typeof doctor === "object"
+    ? shortPersonName(doctor as Record<string, unknown>)
+    : "";
+  return [
+    getStringValue(getValueByPath(row, "object.name")),
+    doctorName,
+    getStringValue(getValueByPath(row, "code")),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+};
+
 const toDetailListItem = (row: CrudRow): DetailListItem => ({
   id: row.id,
   title:
-    getStringValue(getValueByPath(row, "name"))
+    paddedRecordNo(row)
+    || getStringValue(getValueByPath(row, "name"))
     || getStringValue(getValueByPath(row, "full_name"))
     || getStringValue(getValueByPath(row, "code"))
     || `Запись ${formatShortEntityCode(row.id)}`,
-  subtitle:
-    getStringValue(getValueByPath(row, "code"))
-    || getStatusLabel(row),
+  date: listItemDate(row),
+  subtitle: listItemSubtitle(row),
+  badge: getStatusLabel(row) === "-" ? undefined : getStatusLabel(row),
   color: getStatusBadgeColor(row),
+  urgent: Boolean(getValueByPath(row, "is_urgent")),
 });
 
 // Левый master-список детальной модалки: текущие строки таблицы (тот же
@@ -1195,16 +1252,28 @@ const getEntityDisplayName = (row: CrudRow | null): string => {
   );
 };
 
-const stackEntryLabel = (entry: DetailStackEntry): string => {
+// Для направления в хлебных крошках: пока карточка активна (последний элемент
+// стека) — номер не дублируем, показываем только «Направления»; как только
+// внутри открывается вложенная запись (например образец), направление
+// становится неактивным и показывает свой номер «№ 2025-461».
+const stackEntryLabel = (entry: DetailStackEntry, isActive: boolean): string => {
   if (entry.mode === "create") {
     return `${entry.config.title}: новая запись`;
+  }
+  if (entry.config.presetKey === "directions" && entry.item) {
+    if (isActive) {
+      return entry.config.title;
+    }
+    return `${entry.config.title} · ${recordCode(entry.item as Record<string, unknown> & { id: string | number })}`;
   }
   const name = getEntityDisplayName(entry.item);
   return name ? `${entry.config.title} · ${name}` : entry.config.title;
 };
 
 const detailBreadcrumbs = computed(() =>
-  detailStack.value.map((entry) => ({ label: stackEntryLabel(entry) })),
+  detailStack.value.map((entry, index) => ({
+    label: stackEntryLabel(entry, index === detailStack.value.length - 1),
+  })),
 );
 
 const onDetailSaved = (row: CrudRow) => {
@@ -1266,6 +1335,7 @@ const getRowWorkflowActionItems = (row: CrudRow): DropdownMenuItem[] =>
 
 const getRowActionItems = (row: CrudRow): DropdownMenuItem[] => {
   const workflowItems = getRowWorkflowActionItems(row);
+  const extraItems = props.extraRowActions?.(row) ?? [];
   return [
     { label: "Просмотр", icon: "i-lucide-eye", onSelect: () => openDetail(row) },
     ...(props.config.presetKey === "protocols"
@@ -1277,6 +1347,7 @@ const getRowActionItems = (row: CrudRow): DropdownMenuItem[] => {
       disabled: !can(props.config.resource, "edit"),
       onSelect: () => openEdit(row),
     },
+    ...extraItems,
     ...workflowItems,
     {
       label: "Удалить",
@@ -1480,6 +1551,7 @@ defineExpose({
     :has-more="table.hasMore.value"
     :selectable="selectable"
     :can-delete="canDeleteSelected"
+    :highlight-id="highlightId"
     @load-more="table.loadMore()"
     @row-select="handleRowSelect"
     @row-contextmenu="handleRowContextmenu"
@@ -1623,12 +1695,14 @@ defineExpose({
     :open="detailOpen"
     :config="detailConfig"
     :item="detailItem"
+    :breadcrumbs="detailBreadcrumbs"
     :list-items="detailListItems"
     :list-has-more="table.hasMore.value"
     :list-loading-more="table.loadingMore.value"
     @update:open="onDetailOpenChange"
     @saved="onDetailSaved"
     @select="selectDetailRow"
+    @go-to-level="goToDetailLevel"
     @list-load-more="table.loadMore()"
   />
 

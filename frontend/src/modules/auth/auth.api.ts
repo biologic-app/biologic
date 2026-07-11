@@ -54,7 +54,9 @@ const knownActions: Action[] = [...crudActions, ...commandActions];
 const mapResource = (resource: string): Resource | null => {
   const normalized = resource.trim().toLowerCase().replace(/_/g, "-");
   const mapped =
-    normalized === "roles" || normalized === "role-permissions"
+    normalized === "roles" ||
+      normalized === "role-permissions" ||
+      normalized === "role-subscription-rules"
       ? "user-types"
       : normalized === "results"
         ? "research"
@@ -104,7 +106,7 @@ const mapPermissions = (
 };
 
 const mapUser = (payload: BackendAuthEnvelope["data"]["user"]): AuthUser => {
-  const fullName = [payload.first_name, payload.last_name, payload.patronymic]
+  const fullName = [payload.last_name,payload.first_name, payload.patronymic]
     .filter(Boolean)
     .join(" ")
     .trim();

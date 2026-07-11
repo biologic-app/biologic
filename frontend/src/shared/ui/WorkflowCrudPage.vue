@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import type { DropdownMenuItem } from "@nuxt/ui";
 import DictionaryCrudContent from "@/modules/dictionaries/pages/DictionaryCrudContent.vue";
 import CrudFilterControls from "@/shared/ui/CrudFilterControls.vue";
 import CrudSearchControl from "@/shared/ui/CrudSearchControl.vue";
-import type { CrudModuleConfig } from "@/shared/types/crud";
+import type { CrudModuleConfig, CrudRow } from "@/shared/types/crud";
 
 // Декларативный хост страницы рабочих процессов: панель + тулбар (поиск,
 // фильтры, обновление, столбцы) + DictionaryCrudContent. Конкретные страницы
@@ -15,10 +16,14 @@ withDefaults(
     title: string;
     searchPlaceholder?: string;
     showSidebarCollapse?: boolean;
+    extraRowActions?: (row: CrudRow) => DropdownMenuItem[];
+    highlightId?: string | null;
   }>(),
   {
     searchPlaceholder: undefined,
     showSidebarCollapse: true,
+    extraRowActions: undefined,
+    highlightId: null,
   },
 );
 
@@ -97,6 +102,8 @@ const refresh = () => {
           :search="tableSearch"
           :refresh-token="refreshToken"
           :reset-token="resetToken"
+          :extra-row-actions="extraRowActions"
+          :highlight-id="highlightId"
         />
       </div>
     </template>

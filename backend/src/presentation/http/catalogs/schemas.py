@@ -50,12 +50,14 @@ class DoctorCreateRequest(StrictRequest):
     first_name: str
     last_name: str | None = None
     patronymic: str | None = None
+    user_id: UUID | None = None
 
 
 class DoctorUpdateRequest(StrictRequest):
     first_name: str | None = None
     last_name: str | None = None
     patronymic: str | None = None
+    user_id: UUID | None = None
 
 
 class SampleTypeCreateRequest(StrictRequest):

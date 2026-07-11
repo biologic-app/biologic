@@ -106,6 +106,7 @@ class WorkflowImportSummary(BaseModel):
     filename: str
     rows_processed: int
     directions_created: int
+    direction_ids: list[UUID]
     samples_created: int
     skipped_rows: int
     errors: list[dict[str, object]]
@@ -209,6 +210,7 @@ class DirectionSampleImporter:
             pending.samples.append(sample_values)
 
         directions_created = 0
+        direction_ids: list[UUID] = []
         samples_created = 0
         for key in order:
             pending = directions_by_key[key]
@@ -229,14 +231,19 @@ class DirectionSampleImporter:
                 pending.fields, created_by=self.created_by
             )
             directions_created += 1
+            direction_ids.append(direction_row.id)
             for sample_values in pending.samples:
-                await self.samples.create({**sample_values, "direction_id": direction_row.id})
+                await self.samples.create(
+                    {**sample_values, "direction_id": direction_row.id},
+                    created_by=self.created_by,
+                )
                 samples_created += 1
 
         return WorkflowImportSummary(
             filename=filename,
             rows_processed=len(rows),
             directions_created=directions_created,
+            direction_ids=direction_ids,
             samples_created=samples_created,
             skipped_rows=skipped_rows,
             errors=errors,

@@ -1,98 +1,92 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
+import type { DropdownMenuItem } from '@nuxt/ui'
 import WorkflowCrudPage from '@/shared/ui/WorkflowCrudPage.vue'
+import DirectionImportWizard from '@/modules/directions/components/DirectionImportWizard.vue'
 import { usePermission } from '@/shared/composables/usePermission'
-import { apiCommandRequest } from '@/shared/api/client.api'
 import { crudModules } from '@/shared/config/crud-modules'
+import type { CrudRow } from '@/shared/types/crud'
 
 const { can } = usePermission()
-const toast = useToast()
-const importExcelInput = ref<HTMLInputElement | null>(null)
-const importJsonInput = ref<HTMLInputElement | null>(null)
-const importing = ref(false)
 
 const selectedConfig = crudModules.directions
 const createDisabled = computed(() => !can(selectedConfig.resource, 'create'))
 const importDisabled = computed(() => !can(selectedConfig.resource, 'import'))
 const createMenuDisabled = computed(() => createDisabled.value && importDisabled.value)
 
-// Единый DTO ответа POST /directions/import (см. backend WorkflowImportSummary) —
-// один и тот же для xlsx/.xls и json.
-interface WorkflowImportSummary {
-  filename: string
-  directions_created: number
-  samples_created: number
-  research_created: number
-  skipped: number
-  errors: Array<Record<string, unknown>>
-  warnings: Array<Record<string, unknown>>
-}
+const importWizardOpen = ref(false)
+// Направление, для которого мастер открыт в режиме «существующий черновик»
+// (пусто — свежий импорт из файла).
+const wizardDirectionId = ref<string | null>(null)
+// Id, вернувшийся из мастера по завершении (для свежего импорта — первый черновик).
+const finishedDirectionId = ref<string | null>(null)
 
-type ImportType = 'xlsx' | 'json'
+// Кратковременная подсветка затронутой строки в таблице после закрытия мастера.
+const highlightId = ref<string | null>(null)
+let highlightTimer: ReturnType<typeof setTimeout> | null = null
 
-const buildCreateMenu = () => [
-  {
-    label: 'Импортировать Excel',
-    icon: importDisabled.value ? 'i-lucide-lock' : 'i-lucide-file-spreadsheet',
-    disabled: importDisabled.value || importing.value,
-    onSelect() {
-      importExcelInput.value?.click()
-    }
-  },
-  {
-    label: 'Импортировать JSON',
-    icon: importDisabled.value ? 'i-lucide-lock' : 'i-lucide-file-json',
-    disabled: importDisabled.value || importing.value,
-    onSelect() {
-      importJsonInput.value?.click()
-    }
+const highlightDirection = (id: string | null) => {
+  if (highlightTimer) {
+    clearTimeout(highlightTimer)
+    highlightTimer = null
   }
-]
-
-const runImport = async (file: File, type: ImportType, refresh: () => void) => {
-  importing.value = true
-  try {
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('type', type)
-    const response = await apiCommandRequest<WorkflowImportSummary>('/directions/import', {
-      method: 'POST',
-      body: formData
-    })
-    toast.add({
-      title: 'Импорт направлений завершён',
-      description: `Направлений: ${response.data.directions_created}, образцов: ${response.data.samples_created}, исследований: ${response.data.research_created}, пропущено: ${response.data.skipped}`,
-      color: response.data.errors.length ? 'warning' : 'success',
-      icon: response.data.errors.length ? 'i-lucide-triangle-alert' : 'i-lucide-circle-check'
-    })
-    refresh()
-  } catch (error) {
-    const message = typeof error === 'object' && error !== null && 'message' in error
-      ? String(error.message)
-      : 'Проверьте файл и повторите импорт.'
-    toast.add({
-      title: 'Не удалось импортировать направления',
-      description: message,
-      color: 'error',
-      icon: 'i-lucide-circle-alert'
-    })
-  } finally {
-    importing.value = false
-  }
-}
-
-const handleImportFile = (type: ImportType) => async (event: Event, refresh: () => void) => {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = ''
-  if (!file || importDisabled.value || importing.value) {
+  highlightId.value = id
+  if (!id) {
     return
   }
-  await runImport(file, type, refresh)
+  highlightTimer = setTimeout(() => {
+    highlightId.value = null
+    highlightTimer = null
+  }, 3500)
 }
 
-const handleImportExcelFile = handleImportFile('xlsx')
-const handleImportJsonFile = handleImportFile('json')
+onBeforeUnmount(() => {
+  if (highlightTimer) {
+    clearTimeout(highlightTimer)
+  }
+})
+
+const openImportWizard = () => {
+  wizardDirectionId.value = null
+  importWizardOpen.value = true
+}
+
+const openDraftWizard = (row: CrudRow) => {
+  wizardDirectionId.value = String(row.id)
+  importWizardOpen.value = true
+}
+
+// Кастомное действие строки: только для draft-направлений и при праве на правку.
+const rowActions = (row: CrudRow): DropdownMenuItem[] => {
+  const code = (row.status as { code?: string } | null | undefined)?.code
+  if (code !== 'draft' || !can(selectedConfig.resource, 'edit')) {
+    return []
+  }
+  return [
+    {
+      label: 'Дозаполнить / Открыть мастер',
+      icon: 'i-lucide-pencil-ruler',
+      onSelect: () => openDraftWizard(row),
+    },
+  ]
+}
+
+const onWizardFinished = (id: string | null) => {
+  finishedDirectionId.value = id
+}
+
+// Любое закрытие мастера обновляет таблицу; при известном id — подсвечиваем строку.
+const onWizardOpenChange = (value: boolean, refresh: () => void) => {
+  importWizardOpen.value = value
+  if (value) {
+    return
+  }
+  const affectedId = wizardDirectionId.value ?? finishedDirectionId.value
+  refresh()
+  highlightDirection(affectedId)
+  wizardDirectionId.value = null
+  finishedDirectionId.value = null
+}
 </script>
 
 <template>
@@ -101,43 +95,39 @@ const handleImportJsonFile = handleImportFile('json')
     panel-id="directions"
     title="Направления"
     search-placeholder="Поиск по направлениям"
+    :extra-row-actions="rowActions"
+    :highlight-id="highlightId"
   >
     <template #navbar-right="{ openCreate, refresh }">
-      <input
-        ref="importExcelInput"
-        type="file"
-        accept=".xls,.xlsx"
-        class="hidden"
-        data-testid="import-excel-input"
-        @change="handleImportExcelFile($event, refresh)"
-      >
-      <input
-        ref="importJsonInput"
-        type="file"
-        accept=".json"
-        class="hidden"
-        data-testid="import-json-input"
-        @change="handleImportJsonFile($event, refresh)"
-      >
-      <UFieldGroup>
-        <UTooltip :text="createMenuDisabled ? 'Нет прав на создание или импорт' : 'Создать или импортировать'">
+      <div class="flex items-center gap-2">
+        <UTooltip :text="importDisabled ? 'Нет прав на импорт' : 'Пошаговый импорт направлений'">
           <UButton
-            label="Создать"
-            @click="openCreate()"
-            :icon="createMenuDisabled ? 'i-lucide-lock' : 'i-lucide-plus'"
-            :disabled="createMenuDisabled"
-            :loading="importing"
+            label="Импорт направлений"
+            :icon="importDisabled ? 'i-lucide-lock' : 'i-lucide-file-up'"
+            color="neutral"
+            variant="outline"
+            :disabled="importDisabled"
+            data-testid="direction-import-open"
+            data-telemetry="direction-import-open"
+            @click="openImportWizard()"
           />
         </UTooltip>
-        <UDropdownMenu
-          :items="buildCreateMenu()"
-          :content="{ align: 'end' }"
-        >
+        <UTooltip :text="createMenuDisabled ? 'Нет прав на создание' : 'Создать направление'">
+          <UButton
+            label="Создать"
+            :icon="createDisabled ? 'i-lucide-lock' : 'i-lucide-plus'"
+            :disabled="createDisabled"
+            @click="openCreate()"
+          />
+        </UTooltip>
+      </div>
 
-          <UButton variant="outline" icon="i-lucide-chevron-down" data-testid="direction-import-menu-trigger" />
-        </UDropdownMenu>
-      </UFieldGroup>
-
+      <DirectionImportWizard
+        :open="importWizardOpen"
+        :direction-id="wizardDirectionId"
+        @update:open="(value: boolean) => onWizardOpenChange(value, refresh)"
+        @finished="onWizardFinished"
+      />
     </template>
   </WorkflowCrudPage>
 </template>

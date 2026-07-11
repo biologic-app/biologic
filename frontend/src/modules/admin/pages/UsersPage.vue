@@ -90,11 +90,16 @@ type UserRow = {
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "Попробуйте ещё раз";
 
+type AccessRow = { id: string | number; [key: string]: unknown };
+type DrillEntry = { item: AccessRow };
+
 const dialog = useCrudDialog<UserRow>("users");
 const optimistic = useOptimistic<UserRow>();
 const saving = ref(false);
 const rolePermissions = ref<Permission[]>([]);
 const overrides = ref<PermissionOverride[]>([]);
+const roleDrillStack = ref<DrillEntry[]>([]);
+const drilledRolePermissions = ref<Permission[]>([]);
 const permissionCatalog = ref<Permission[]>([]);
 const permissionsLoading = ref(false);
 const roleOptions = ref<
@@ -178,6 +183,8 @@ watch(
     if (!isVisible) {
       rolePermissions.value = [];
       overrides.value = [];
+      roleDrillStack.value = [];
+      drilledRolePermissions.value = [];
       form.username = "";
       form.code = "";
       form.first_name = "";
@@ -374,6 +381,31 @@ const accessFieldOptions = computed(() => ({
   lab_id: labOptions.value,
 }));
 
+const isDrilled = computed(() => roleDrillStack.value.length > 0);
+const modalKind = computed<"user" | "role">(() => (isDrilled.value ? "role" : "user"));
+const topDrillItem = computed(() =>
+  roleDrillStack.value.length ? roleDrillStack.value[roleDrillStack.value.length - 1].item : null,
+);
+const modalItem = computed(() => topDrillItem.value ?? dialog.selected.value);
+const modalMode = computed(() => (isDrilled.value ? "view" : dialog.mode.value));
+const modalReadOnly = computed(() => (isDrilled.value ? true : dialog.readOnly.value));
+const modalTitle = computed(() =>
+  isDrilled.value
+    ? String(topDrillItem.value?.name ?? topDrillItem.value?.key ?? "Роль")
+    : accessDialogTitle.value,
+);
+const accessBreadcrumbs = computed(() => {
+  if (!isDrilled.value) return [];
+  const user = dialog.selected.value;
+  const userLabel = `Пользователь · ${String(user?.username ?? user?.code ?? "")}`.trim();
+  return [
+    { label: userLabel },
+    ...roleDrillStack.value.map((entry) => ({
+      label: `Роль · ${String(entry.item.name ?? entry.item.key ?? "")}`,
+    })),
+  ];
+});
+
 const applyFilters = (debounceGlobal = false) => {
   table.updateFilters(clone(filters), debounceGlobal);
 };
@@ -464,6 +496,37 @@ const selectListUser = (id: string | number) => {
   if (row) {
     dialog.openView(row);
   }
+};
+
+const openRelatedRole = async (payload: { id: string | number; label: string }) => {
+  permissionsLoading.value = true;
+  try {
+    const [roleResponse, permsResponse] = await Promise.all([
+      apiReadRequest<AccessRow>(`/roles/${payload.id}`, { method: "GET" }),
+      apiReadRequest<{ permissions: Permission[] }>(`/roles/${payload.id}/permissions`, { method: "GET" }),
+    ]);
+    roleDrillStack.value = [...roleDrillStack.value, { item: roleResponse.data }];
+    drilledRolePermissions.value = permsResponse.data.permissions;
+  } catch (error: unknown) {
+    toast.add({ title: "Не удалось открыть роль", description: errorMessage(error), color: "error" });
+  } finally {
+    permissionsLoading.value = false;
+  }
+};
+
+const goToAccessLevel = (index: number) => {
+  // index 0 = пользователь (корень) → очистить стек ролей; глубже → усечь.
+  roleDrillStack.value = index <= 0 ? [] : roleDrillStack.value.slice(0, index);
+};
+
+const onAccessOpenChange = (value: boolean) => {
+  if (value) return;
+  if (isDrilled.value) {
+    // Крестик/Esc сначала возвращают на уровень пользователя, потом закрывают.
+    roleDrillStack.value = roleDrillStack.value.slice(0, -1);
+    return;
+  }
+  dialog.close();
 };
 
 const selectedRows = computed(() => {
@@ -804,27 +867,32 @@ onMounted(async () => {
   </UDashboardPanel>
 
   <AccessEntityDetailModal
-    v-model:open="dialog.visible.value"
-    :title="accessDialogTitle"
-    kind="user"
-    :mode="dialog.mode.value"
-    :item="dialog.selected.value"
+    :open="dialog.visible.value"
+    :title="modalTitle"
+    :kind="modalKind"
+    :mode="modalMode"
+    :item="modalItem"
     :loading="permissionsLoading"
     :saving="saving"
-    :read-only="dialog.readOnly.value"
-    :editable="can('users', 'edit')"
+    :read-only="modalReadOnly"
+    :editable="modalKind === 'user' && can('users', 'edit')"
     :role-permissions="rolePermissions"
     :overrides="overrides"
+    :permissions="drilledRolePermissions"
     :field-options="accessFieldOptions"
-    :list-items="detailListItems"
-    :selected-id="dialog.selected.value?.id ?? null"
+    :list-items="isDrilled ? undefined : detailListItems"
+    :selected-id="modalItem?.id ?? null"
     :list-has-more="table.hasMore.value"
     :list-loading-more="table.loadingMore.value"
+    :breadcrumbs="accessBreadcrumbs"
+    @update:open="onAccessOpenChange"
     @update:overrides="updateOverrides"
     @edit="dialog.startEdit()"
     @save="onSave"
     @select="selectListUser"
     @list-load-more="table.loadMore()"
+    @go-to-level="goToAccessLevel"
+    @open-related="openRelatedRole"
   />
 
   <ConfirmDialog

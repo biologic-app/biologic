@@ -44,7 +44,9 @@ class RecordingSampleRepository:
     def __init__(self) -> None:
         self.created: list[dict[str, object]] = []
 
-    async def create(self, values: dict[str, object]) -> object:
+    async def create(
+        self, values: dict[str, object], *, created_by: object | None = None
+    ) -> object:
         self.created.append(values)
         return object()
 

@@ -22,7 +22,10 @@ from src.application.access_control.ports import (
     UserAuthRepository,
     UserPermissionOverrideRepositoryPort,
 )
-from src.application.catalogs.ports import CatalogCrudRepository, CatalogStatusRepository
+from src.application.catalogs.ports import (
+    CatalogCrudRepository,
+    CatalogStatusRepository,
+)
 from src.contexts.laboratory_workflow.application.ports import WorkflowRepository
 from src.contexts.notifications.application.service import NotificationRepository
 
@@ -57,6 +60,7 @@ class UnitOfWork(Protocol):
     roles: AccessControlCrudRepository
     permissions: AccessControlCrudRepository
     role_permissions: RolePermissionRepositoryPort
+    role_subscription_rules: AccessControlCrudRepository
     user_permission_overrides: UserPermissionOverrideRepositoryPort
     user_scopes: AccessControlCrudRepository
 

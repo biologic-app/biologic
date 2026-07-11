@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, reactive, ref, resolveComponent, watch } from "vue";
-import type { TabsItem } from "@nuxt/ui";
+import { computed, ref, resolveComponent, watch } from "vue";
+import type { TabsItem, TimelineItem } from "@nuxt/ui";
 import type { CrudModuleConfig } from '@/shared/types/crud';
 import {
   apiCreateRequest,
@@ -11,10 +11,14 @@ import {
 } from "@/shared/api/client.api";
 import { usePermission } from "@/shared/composables/usePermission";
 import { useAuth } from "@/modules/auth";
+import { useEntityForm } from "@/shared/composables/useEntityForm";
 import ProtocolPreviewModal from "@/shared/ui/ProtocolPreviewModal.vue";
 import TechnicalAuditTimeline from "@/shared/ui/TechnicalAuditTimeline.vue";
 import EntityRelatedTab from "@/shared/ui/EntityRelatedTab.vue";
-import EntityDetailMasterList, { type DetailListItem } from "@/shared/ui/EntityDetailMasterList.vue";
+import EntityDetailModalShell from "@/shared/ui/EntityDetailModalShell.vue";
+import type { DetailListItem } from "@/shared/ui/EntityDetailMasterList.vue";
+import EntityFieldGrid, { type GridField } from "@/shared/ui/EntityFieldGrid.vue";
+import { buildFallbackAuditEvents } from "@/shared/ui/entity-technical-audit";
 import {
   historyEntryToTechnicalAuditEvent,
   type TechnicalAuditHistoryEntry,
@@ -35,12 +39,18 @@ import {
   formatPlain,
   makeEvent,
   namedValue,
-  normalizeFormValue,
   pickText,
+  recordCode,
   type DetailTimelineEvent,
   type EntityKind,
 } from "@/shared/ui/entity-detail.helpers";
 import { useRelatedEntities } from "@/shared/composables/useRelatedEntities";
+import SubscribeButton from "@/shared/ui/SubscribeButton.vue";
+import {
+  DIRECTION_STATUS_FLOW,
+  SAMPLE_STATUS_FLOW,
+  statusTimelineItems,
+} from "@/shared/domain/status-timeline";
 
 type CrudRow = {
   id: string | number;
@@ -99,22 +109,21 @@ const emit = defineEmits<{
 }>();
 
 const UBadge = resolveComponent("UBadge");
-const activeTab = ref<"card" | "technical" | "related">("card");
+const activeTab = ref<string>("card");
 const detail = ref<CrudRow | null>(null);
 const auditHistory = ref<TechnicalAuditHistoryEntry[]>([]);
 const loading = ref(false);
 const saving = ref(false);
 const testsSaving = ref(false);
 const editing = ref(false);
-const fullscreen = ref(true);
 const loadError = ref<string | null>(null);
-const formState = reactive<Record<string, FieldValue>>({});
 const referenceOptions = ref<Record<string, Array<{ label: string; value: FieldValue }>>>({});
 const previewOpen = ref(false);
 
 const { can } = usePermission();
 const auth = useAuth();
 const toast = useToast();
+const { formState, sync, setValue, buildPayload, missingRequired } = useEntityForm();
 
 // Режим определяется внутренне: после успешного создания карточка сама
 // переключается в "view" на только что созданную запись (prop mode неизменен).
@@ -125,7 +134,6 @@ const currentItem = computed<CrudRow | null>(() => {
   if (isCreate.value) return detail.value ?? ({ id: "" } as CrudRow);
   return detail.value ?? props.item;
 });
-const isStatusTracked = computed(() => Boolean(props.businessKind) && !isCreate.value);
 
 // Read-only roles (e.g. sanitary_inspector) must not see an edit affordance
 // here even though the row context menu already disables its own
@@ -170,23 +178,22 @@ const {
   businessKind: () => props.businessKind,
 });
 
-const modalUi = computed(() => ({
-  content: fullscreen.value
-    ? "h-[calc(100vh-1rem)] max-w-[calc(100vw-1rem)] overflow-hidden p-0"
-    : "h-[82vh] max-h-[860px] min-h-[42rem] max-w-[calc(100vw-2rem)] overflow-hidden p-0 sm:max-w-7xl",
-  header: "p-0",
-  body: "p-0",
-  footer: "p-0",
-}));
-
 const tabs = computed<TabsItem[]>(() => {
   const cardTab = { label: "Карточка", icon: "i-lucide-panel-top", value: "card" as const };
   // У новой записи ещё нет истории/аудита/связанных — оставляем только карточку.
   if (isCreate.value) return [cardTab];
+  // «Технический аудит» — не в списке: он рендерится отдельной иконкой,
+  // прижатой к правому краю строки вкладок.
+  const relatedLabels: Partial<Record<string, { label: string; icon: string }>> = {
+    directions: { label: "Образцы", icon: "i-lucide-test-tube-2" },
+    samples: { label: "Исследования", icon: "i-lucide-flask-conical" },
+    research: { label: "Тесты", icon: "i-lucide-list-checks" },
+  };
+  const related = (props.businessKind && relatedLabels[props.businessKind])
+    || { label: "Связанные", icon: "i-lucide-link" };
   return [
     cardTab,
-    { label: "Технический аудит", icon: "i-lucide-list", value: "technical" },
-    { label: "Связанные", icon: "i-lucide-link", value: "related" },
+    { label: related.label, icon: related.icon, value: "related" },
   ];
 });
 
@@ -213,16 +220,38 @@ const title = computed(() => {
   ]) || `${props.config.title} ${entityDisplayCode(row.id)}`;
 });
 
+// Заголовок карточки: для направления — код записи (номер, 9 цифр с
+// незначащими нулями); для остальных — обычный title.
+const headerTitle = computed(() => {
+  const row = currentItem.value;
+  if (!isCreate.value && row && props.businessKind === "directions") {
+    return recordCode(row);
+  }
+  return title.value;
+});
+
+const eyebrowText = computed(
+  () => `${isCreate.value ? "Создание" : "Карточка"} · ${props.config.title}`,
+);
+
 const subtitle = computed(() => {
   const row = currentItem.value;
   if (!row) return "";
 
   if (props.businessKind === "directions") {
+    // Год и номер уже в заголовке («№ 2025-461»); показываем дату, объект и врача.
+    const sampledAt = row.sampled_at ?? row.received_at;
     return compact([
-      row.year_no ? `Год ${row.year_no}` : null,
-      row.base_no ? `№ ${row.base_no}` : null,
+      sampledAt
+        ? new Date(String(sampledAt)).toLocaleDateString("ru-RU", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+        })
+        : null,
       namedValue(row.object),
-    ]).join(" · ");
+      namedValue(row.doctor),
+    ]).join(" · ") || props.config.description;
   }
 
   if (props.businessKind === "samples") {
@@ -277,6 +306,17 @@ const visibleFields = computed(() => {
   }));
 });
 
+const gridFields = computed<GridField[]>(() =>
+  visibleFields.value.map((field) => ({
+    key: field.key,
+    label: field.label,
+    type: field.type === "file" ? "text" : field.type,
+    required: field.required,
+    options: field.options,
+    value: field.value,
+  })),
+);
+
 const statusHistory = computed<TimelineEvent[]>(() => {
   const row = currentItem.value;
   if (!row) return [];
@@ -320,6 +360,157 @@ const statusHistory = computed<TimelineEvent[]>(() => {
 const statusStepperItems = computed(() => timelineEventsToStepperItems(statusHistory.value, "i-lucide-circle-dot"));
 const activeStatusStepIndex = computed(() => getLastStepperIndex(statusStepperItems.value));
 
+// Код статуса из связанного справочника (status.code) — авторитет для таймлайна.
+const statusCode = computed(() => {
+  const status = currentItem.value?.status;
+  return status && typeof status === "object"
+    ? ((status as { code?: string | null }).code ?? null)
+    : null;
+});
+
+// Цепочка статусов из таблиц direction_statuses / sample_statuses — только они.
+const statusFlow = computed(() => {
+  if (props.businessKind === "directions") return DIRECTION_STATUS_FLOW;
+  if (props.businessKind === "samples") return SAMPLE_STATUS_FLOW;
+  return null;
+});
+
+// Даты и авторы переходов из change_log: записи с diff.status_code.to —
+// это фактические переводы статуса (actor_name резолвится бэкендом в /history).
+const statusTransitions = computed(() => {
+  const datesByCode: Record<string, string> = {};
+  const actorsByCode: Record<string, string> = {};
+  // /history отсортирован от новых к старым; идём с конца, чтобы при повторных
+  // переходах (reopen/requeue) остался самый свежий.
+  for (const entry of [...auditHistory.value].reverse()) {
+    const diff = entry.diff as { status_code?: { to?: unknown } } | null | undefined;
+    const to = diff?.status_code?.to;
+    if (typeof to !== "string") continue;
+    if (entry.created_at) datesByCode[to] = formatDateTime(entry.created_at);
+    if (entry.actor_name) actorsByCode[to] = entry.actor_name;
+  }
+  return { datesByCode, actorsByCode };
+});
+
+// Таймлайн статусов: для образца — от отбора до дедлайна выпуска; на каждой
+// достигнутой точке — дата перехода и «Фамилия И.О.» того, кто его выполнил.
+const statusTimeline = computed<TimelineItem[]>(() => {
+  const row = currentItem.value;
+  if (!row || !statusFlow.value || !statusCode.value) return [];
+  const start = row.sampled_at ?? row.received_at ?? row.created_at;
+  const end = row.deadline ?? row.completed_at;
+  return statusTimelineItems(statusFlow.value, statusCode.value, {
+    startDate: start ? `Отбор: ${formatDateTime(String(start))}` : null,
+    endDate: end
+      ? `${row.deadline ? "Дедлайн" : "Завершено"}: ${formatDateTime(String(end))}`
+      : null,
+    datesByCode: statusTransitions.value.datesByCode,
+    actorsByCode: statusTransitions.value.actorsByCode,
+  });
+});
+
+// Дата «DD.MM.YYYY» и время «HH:mm» отдельными строками (дата сверху,
+// время под ней) — для точек дедлайн-таймлайна.
+const dateTimeParts = (time: number) => {
+  const value = new Date(time);
+  return {
+    date: value.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" }),
+    time: value.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
+  };
+};
+// Дедлайн: для направления — крайний (максимальный) дедлайн его образцов,
+// для образца — его собственный дедлайн.
+// Шкала прогресса: от получения/отбора до дедлайна, в часах; чем
+// ближе к дедлайну (меньше времени в запасе) — тем краснее.
+const deadlineInfo = computed(() => {
+  if (isCreate.value) return null
+  if (props.businessKind !== 'directions' && props.businessKind !== 'samples') return null
+
+  const row = currentItem.value
+  if (!row) return null
+
+  let end: number
+
+  if (props.businessKind === 'directions') {
+    const deadlines = relatedRows.value
+      .map((sample) => sample.deadline)
+      .filter((value): value is string => Boolean(value))
+      .map((value) => new Date(value).getTime())
+      .filter((time) => Number.isFinite(time))
+    if (!deadlines.length) return null
+    end = Math.max(...deadlines)
+  } else {
+    const deadlineRaw = row.deadline
+    if (!deadlineRaw) return null
+    end = new Date(String(deadlineRaw)).getTime()
+    if (!Number.isFinite(end)) return null
+  }
+
+  const startRaw = row.received_at ?? row.sampled_at ?? row.created_at
+  const start = startRaw ? new Date(String(startRaw)).getTime() : Number.NaN
+  if (!Number.isFinite(start) || end <= start) return null
+
+  const now = Date.now()
+  const percent = Math.round(Math.min(100, Math.max(0, ((now - start) / (end - start)) * 100)))
+  const totalHours = (end - start) / 3_600_000
+  const elapsedHours = Math.min(totalHours, Math.max(0, (now - start) / 3_600_000))
+
+  return {
+    start: dateTimeParts(start),
+    now: dateTimeParts(now),
+    end: dateTimeParts(end),
+    percent,
+    totalHours,
+    elapsedHours,
+    // Остаток времени до дедлайна: ≤20% — красный, 20–50% — жёлтый, иначе зелёный.
+    color: (percent >= 80 ? 'error' : percent >= 50 ? 'warning' : 'success') as
+      | 'success'
+      | 'warning'
+      | 'error',
+  }
+})
+
+// Цвет кружков-узлов дедлайн-шкалы — тот же, что у прогресса.
+const deadlineNodeClass = computed(() => {
+  const color = deadlineInfo.value?.color;
+  return color === "error"
+    ? "bg-error text-inverted"
+    : color === "warning"
+      ? "bg-warning text-inverted"
+      : "bg-success text-inverted";
+});
+
+// Единый порог переключения в режим "прижать к краю"
+const EDGE_THRESHOLD_LOW = 10
+const EDGE_THRESHOLD_HIGH = 85
+
+function edgeAwareLabelStyle(percent: number) {
+  if (percent <= EDGE_THRESHOLD_LOW) {
+    return { left: '0%', transform: 'translateX(0)' }
+  }
+  if (percent >= EDGE_THRESHOLD_HIGH) {
+    return { left: '100%', transform: 'translateX(-100%)' }
+  }
+  return { left: `${percent}%`, transform: 'translateX(-50%)' }
+}
+
+// Дата/время сверху и подпись "Сейчас" внизу используют одну и ту же логику выравнивания
+const deadlineDateTimeLabelStyle = computed(() =>
+  edgeAwareLabelStyle(deadlineInfo.value?.percent ?? 0)
+)
+const deadlineNowLabelStyle = computed(() =>
+  edgeAwareLabelStyle(deadlineInfo.value?.percent ?? 0)
+)
+
+// Кружок всегда строго на реальном проценте — без клампинга, центрируется через translate в шаблоне
+const deadlineNowCirclePosition = computed(() => deadlineInfo.value?.percent ?? 0)
+// Подписки есть только у направлений и образцов.
+const subscriptionEntity = computed(() =>
+  props.businessKind === "directions" || props.businessKind === "samples"
+    ? props.businessKind
+    : null,
+);
+
 const technicalAudit = computed<TimelineEvent[]>(() => {
   const row = currentItem.value;
   if (!row) return [];
@@ -328,19 +519,13 @@ const technicalAudit = computed<TimelineEvent[]>(() => {
     return auditHistory.value.map(historyEntryToTechnicalAuditEvent);
   }
 
-  return compactEvents([
-    makeEvent("entity", "Запись создана", `Код записи: ${entityDisplayCode(row.id)}`, "system", row.created_at ?? row.inserted_at ?? null),
-    props.businessKind === "research"
-      ? makeEvent(
-          "recommendation",
-          "Текущая рекомендация",
-          formatPlain(row.recommendation),
-          "api",
-          row.updated_at ?? row.modified_at ?? null,
-        )
-      : null,
-    makeEvent("status", "Текущее состояние", statusLabel.value || "Статус не указан", "process", row.completed_at ?? row.updated_at ?? null),
-  ]);
+  return buildFallbackAuditEvents(row, {
+    stateLabel: statusLabel.value,
+    savedDescription: "Изменения сохранены через API.",
+    extra: props.businessKind === "research"
+      ? [makeEvent("recommendation", "Текущая рекомендация", formatPlain(row.recommendation), "api", row.updated_at ?? row.modified_at ?? null)]
+      : [],
+  });
 });
 
 watch(
@@ -406,32 +591,10 @@ function resetState() {
 }
 
 function syncForm() {
-  const row = currentItem.value;
-  props.config.fields.forEach((field) => {
-    let value = row ? getValueByPath(row, field.key) : null;
-    // В create-режиме предзаполняем поля переданными значениями (например
-    // direction_id при создании образца из карточки направления).
-    if (isCreate.value && props.initialValues && field.key in props.initialValues) {
-      value = props.initialValues[field.key] as FieldValue;
-    }
-    formState[field.key] = normalizeFormValue(value);
-  });
+  sync(props.config.fields, currentItem.value, isCreate.value ? props.initialValues : null);
 }
 
-function formString(key: string) {
-  const value = formState[key];
-  return typeof value === "string" || typeof value === "number" ? String(value) : "";
-}
-
-function formBoolean(key: string) {
-  return Boolean(formState[key]);
-}
-
-function setFormValue(key: string, value: unknown) {
-  formState[key] = normalizeFormValue(value);
-}
-
-function displayFieldValue(field: { key: string; value: unknown }) {
+function displayFieldValue(field: { key: string; value?: unknown }) {
   const row = currentItem.value;
   if (row && field.key.endsWith("_id")) {
     const relationKey = field.key.replace(/_id$/, "");
@@ -441,8 +604,8 @@ function displayFieldValue(field: { key: string; value: unknown }) {
     const referenceValue = referenceLabel(field.key, field.value);
     if (referenceValue) return referenceValue;
 
-    const fallbackCode = entityDisplayCode(field.value);
-    if (fallbackCode) return fallbackCode;
+    // Сырые ID в интерфейсе не показываем: если название не нашлось — прочерк.
+    return field.value ? "—" : formatDisplay(field.value);
   }
 
   return formatDisplay(field.value);
@@ -497,18 +660,16 @@ async function loadAuditHistory(row: CrudRow | null) {
   }
 }
 
-function isEmptyFieldValue(value: FieldValue) {
-  return value === null || value === undefined || value === "";
-}
-
 function validateRequiredFields(): boolean {
-  const missing = props.config.fields.filter(
-    (field) => field.required && isEmptyFieldValue(formState[field.key] ?? null),
-  );
+  const missing = missingRequired(props.config.fields);
   if (missing.length) {
+    const missingKeys = new Set(missing.map((field) => field.key));
     toast.add({
       title: "Заполните обязательные поля",
-      description: missing.map((field) => field.label).join(", "),
+      description: props.config.fields
+        .filter((field) => missingKeys.has(field.key))
+        .map((field) => field.label)
+        .join(", "),
       color: "error",
       icon: "i-lucide-circle-alert",
     });
@@ -533,9 +694,7 @@ async function saveCreate() {
 
   saving.value = true;
   try {
-    const payload: Record<string, unknown> = Object.fromEntries(
-      props.config.fields.map((field) => [field.key, formState[field.key] ?? null]),
-    );
+    const payload = buildPayload(props.config.fields);
     // Образцы больше не создаются напрямую (POST /samples удалён) — только
     // вложенно в направление: POST /directions/{direction_id}/samples,
     // direction_id берётся из пути, поэтому убираем его из тела.
@@ -572,9 +731,7 @@ async function saveInline() {
 
   saving.value = true;
   try {
-    const payload: Record<string, unknown> = Object.fromEntries(
-      props.config.fields.map((field) => [field.key, formState[field.key] ?? null]),
-    );
+    const payload = buildPayload(props.config.fields);
     // Протокол — командная сущность: PATCH /protocols/{id} требует actor_id
     // в теле (см. UpdateProtocolRequest), в отличие от плоского CRUD
     // направлений/образцов.
@@ -624,340 +781,263 @@ function close() {
 </script>
 
 <template>
-  <UModal
+  <EntityDetailModalShell
+    v-model:active-tab="activeTab"
     :open="open"
-    :ui="modalUi"
-    :dismissible="false"
+    :eyebrow="eyebrowText"
+    :title="headerTitle"
+    :tabs="tabs"
+    size="xl"
+    :default-fullscreen="true"
+    :ready="Boolean(currentItem)"
+    :breadcrumbs="breadcrumbs"
+    :list-items="listItems"
+    :list-label="listLabel"
+    :selected-id="selectedId"
+    :list-has-more="listHasMore"
+    :list-loading-more="listLoadingMore"
+    :body-class="activeTab === 'related' ? 'overflow-hidden' : 'overflow-auto'"
     @update:open="emit('update:open', $event)"
+    @select="emit('select', $event)"
+    @list-load-more="emit('list-load-more')"
+    @go-to-level="emit('go-to-level', $event)"
   >
-    <template #content>
-      <div v-if="currentItem" class="flex h-full overflow-hidden bg-default">
-        <EntityDetailMasterList
-          v-if="listItems"
-          :items="listItems ?? []"
-          :label="listLabel"
-          :selected-id="selectedId"
-          :has-more="listHasMore"
-          :loading-more="listLoadingMore"
-          @select="emit('select', $event)"
-          @load-more="emit('list-load-more')"
-        />
-        <div class="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
-          <header class="border-b border-default px-5 py-4">
-            <UBreadcrumb
-              v-if="breadcrumbs.length"
-              :items="breadcrumbs"
-              class="mb-3"
-            >
-              <template #item-label="{ item: crumb, index }">
-                <button
-                  type="button"
-                  class="truncate"
-                  :class="index === breadcrumbs.length - 1
-                    ? 'cursor-default text-highlighted'
-                    : 'cursor-pointer text-muted hover:text-primary'"
-                  :disabled="index === breadcrumbs.length - 1"
-                  @click="emit('go-to-level', index)"
-                >
-                  {{ crumb.label }}
-                </button>
-              </template>
-            </UBreadcrumb>
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div class="flex min-w-0 gap-3">
-                <div class="flex size-11 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
-                  <UIcon
-                    :name="businessKind === 'directions' ? 'i-lucide-clipboard-list' : businessKind === 'samples' ? 'i-lucide-test-tube-2' : businessKind === 'research' ? 'i-lucide-flask-conical' : 'i-lucide-database'"
-                    class="size-5"
-                  />
-                </div>
-                <div class="min-w-0">
-                  <p class="truncate text-xs font-semibold uppercase tracking-wide text-muted">
-                    {{ isCreate ? 'Создание' : 'Карточка' }} · {{ config.title }}
-                  </p>
-                  <h2 class="mt-1 truncate text-2xl font-semibold text-highlighted">
-                    {{ title }}
-                  </h2>
-                  <p class="mt-1 truncate text-sm text-muted">
-                    {{ subtitle }}
-                  </p>
-                  <div v-if="!isCreate" class="mt-3 flex flex-wrap items-center gap-2">
-                    <UBadge
-                      v-if="statusLabel"
-                      :color="statusColor"
-                      variant="subtle"
-                      :label="statusLabel"
-                    />
-                    <UBadge
-                      :color="currentItem.is_urgent ? 'warning' : 'neutral'"
-                      variant="outline"
-                      :label="currentItem.is_urgent ? 'Срочно' : 'Normal'"
-                    />
-                    <UBadge color="neutral" variant="outline" :label="`Код записи ${entityDisplayCode(currentItem.id)}`" />
-                    <UBadge
-                      v-if="loadError"
-                      color="warning"
-                      variant="subtle"
-                      label="Данные из таблицы"
-                    />
-                  </div>
-                </div>
-              </div>
+    <template #header-actions>
+      <SubscribeButton
+        v-if="subscriptionEntity && !isCreate && currentItem?.id"
+        :entity="subscriptionEntity"
+        :entity-id="String(currentItem?.id)"
+      />
+      <UButton
+        v-if="!editing && businessKind === 'protocols'"
+        label="Предпросмотр"
+        icon="i-lucide-file-search"
+        color="neutral"
+        variant="outline"
+        size="sm"
+        @click="openPreview"
+      />
+    </template>
 
-              <div class="flex shrink-0 items-center gap-2">
-                <UButton
-                  v-if="!editing && businessKind === 'protocols'"
-                  label="Предпросмотр"
-                  icon="i-lucide-file-search"
-                  color="neutral"
-                  variant="outline"
-                  size="sm"
-                  @click="openPreview"
-                />
-                <UTooltip :text="fullscreen ? 'Обычный размер' : 'На весь экран'">
-                  <UButton
-                    :icon="fullscreen ? 'i-lucide-minimize-2' : 'i-lucide-maximize-2'"
-                    color="neutral"
-                    variant="ghost"
-                    square
-                    @click="fullscreen = !fullscreen"
-                  />
-                </UTooltip>
-                <UButton
-                  icon="i-lucide-x"
-                  color="neutral"
-                  variant="ghost"
-                  square
-                  @click="close"
-                />
-              </div>
-            </div>
-          </header>
-
-          <UTabs
-            v-model="activeTab"
-            :items="tabs"
-            variant="link"
-            :content="false"
-            class="border-b border-default px-5"
+    <template #header>
+      <div class="mt-3 flex min-w-0 items-center gap-3">
+        <div
+          class="flex size-11 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary"
+        >
+          <UIcon
+            :name="businessKind === 'directions' ? 'i-lucide-clipboard-list' : businessKind === 'samples' ? 'i-lucide-test-tube-2' : businessKind === 'research' ? 'i-lucide-flask-conical' : 'i-lucide-database'"
+            class="size-5"
           />
-
-          <main
-            class="min-h-0 flex-1 px-5 py-5"
-            :class="activeTab === 'related' ? 'overflow-hidden' : 'overflow-auto'"
-          >
-            <div v-if="loading" class="space-y-3">
-              <USkeleton class="h-24 w-full" />
-              <USkeleton class="h-64 w-full" />
-            </div>
-
-            <div v-else-if="activeTab === 'card'" class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(19rem,25rem)]">
-              <section class="min-w-0 space-y-5">
-                <div>
-                  <div class="mb-3 flex items-center justify-between gap-3">
-                    <h3 class="text-sm font-semibold text-highlighted">
-                      Данные
-                    </h3>
-                    <div class="flex gap-2">
-                      <UButton
-                        v-if="!editing && canEditEntity"
-                        label="Редактировать"
-                        icon="i-lucide-pencil"
-                        color="neutral"
-                        variant="outline"
-                        size="sm"
-                        @click="editing = true"
-                      />
-                      <template v-else-if="editing">
-                        <UButton
-                          :label="isCreate ? 'Отмена' : 'Отменить'"
-                          color="neutral"
-                          variant="outline"
-                          size="sm"
-                          :disabled="saving"
-                          @click="cancelEdit"
-                        />
-                        <UButton
-                          label="Сохранить"
-                          icon="i-lucide-save"
-                          color="primary"
-                          size="sm"
-                          :loading="saving"
-                          @click="saveInline"
-                        />
-                      </template>
-                    </div>
-                  </div>
-
-                  <div class="overflow-hidden rounded-lg border border-default">
-                    <dl class="grid text-sm md:grid-cols-2">
-                      <div
-                        v-for="field in visibleFields"
-                        :key="field.key"
-                        class="grid grid-cols-[9.5rem_minmax(0,1fr)] border-b border-default last:border-b-0 md:[&:nth-last-child(-n+2)]:border-b-0 md:odd:border-e"
-                      >
-                        <dt class="bg-elevated/60 px-3 py-2 font-medium text-highlighted">
-                          {{ field.label }}<span v-if="editing && field.required" class="text-error"> *</span>
-                        </dt>
-                        <dd class="min-w-0 px-3 py-2 text-muted">
-                          <template v-if="editing">
-                            <UTextarea
-                              v-if="field.type === 'textarea'"
-                              :model-value="formString(field.key)"
-                              autoresize
-                              :rows="2"
-                              @update:model-value="setFormValue(field.key, $event)"
-                            />
-                            <USwitch
-                              v-else-if="field.type === 'boolean'"
-                              :model-value="formBoolean(field.key)"
-                              @update:model-value="setFormValue(field.key, $event)"
-                            />
-                            <USelectMenu
-                              v-else-if="field.type === 'select'"
-                              v-model="formState[field.key]"
-                              :items="referenceOptions[field.key] || []"
-                              value-key="value"
-                              label-key="label"
-                              class="w-full"
-                            />
-                            <UInput
-                              v-else
-                              :model-value="formString(field.key)"
-                              :type="field.type === 'number' ? 'number' : 'text'"
-                              @update:model-value="setFormValue(field.key, $event)"
-                            />
-                          </template>
-                          <span v-else class="block truncate">
-                            {{ displayFieldValue(field) }}
-                          </span>
-                        </dd>
-                      </div>
-                    </dl>
-                  </div>
-                </div>
-
-                <div v-if="isStatusTracked" class="grid gap-3 sm:grid-cols-3">
-                  <div class="rounded-lg border border-default bg-elevated/40 p-3">
-                    <p class="text-xs text-muted">
-                      Поля
-                    </p>
-                    <p class="mt-1 text-2xl font-semibold text-highlighted">
-                      {{ visibleFields.length }}
-                    </p>
-                  </div>
-                  <div class="rounded-lg border border-default bg-elevated/40 p-3">
-                    <p class="text-xs text-muted">
-                      Связанные
-                    </p>
-                    <p class="mt-1 text-2xl font-semibold text-highlighted">
-                      {{ relatedRows.length }}
-                    </p>
-                  </div>
-                  <div class="rounded-lg border border-default bg-elevated/40 p-3">
-                    <p class="text-xs text-muted">
-                      Переходы
-                    </p>
-                    <p class="mt-1 text-2xl font-semibold text-highlighted">
-                      {{ statusHistory.length }}
-                    </p>
-                  </div>
-                </div>
-
-                <UAlert
-                  v-if="loadError"
-                  color="warning"
-                  variant="subtle"
-                  icon="i-lucide-triangle-alert"
-                  title="Backend вернул ошибку при чтении карточки"
-                  description="Карточка построена по данным строки таблицы."
-                />
-              </section>
-
-              <aside v-if="!isCreate" class="min-w-0">
-                <div class="mb-3 flex items-center justify-between gap-3">
-                  <h3 class="text-sm font-semibold text-highlighted">
-                    История переходов статуса
-                  </h3>
-                  <UBadge color="neutral" variant="outline" :label="`${statusHistory.length} события`" />
-                </div>
-
-                <UStepper
-                  v-if="statusStepperItems.length"
-                  orientation="vertical"
-                  :items="statusStepperItems"
-                  :model-value="activeStatusStepIndex"
-                  disabled
-                  class="w-full"
-                  :ui="timelineStepperUi"
-                >
-                  <template #description="{ item: stepperItem }">
-                    <div class="space-y-1">
-                      <p class="whitespace-pre-line break-words text-xs leading-5 text-muted">
-                        {{ stepperItem.description }}
-                      </p>
-                      <div class="flex flex-wrap items-center gap-2">
-                        <UBadge
-                          v-if="stepperItem.actor"
-                          color="neutral"
-                          variant="outline"
-                          size="sm"
-                          :label="stepperItem.actor"
-                        />
-                        <p class="font-mono text-xs text-muted">
-                          {{ stepperItem.date ? formatDateTime(stepperItem.date) : 'Дата не указана' }}
-                        </p>
-                      </div>
-                    </div>
-                  </template>
-                </UStepper>
-              </aside>
-            </div>
-
-            <TechnicalAuditTimeline
-              v-else-if="activeTab === 'technical'"
-              :events="technicalAudit"
+        </div>
+        <div class="min-w-0">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="truncate text-2xl font-semibold text-highlighted">
+              {{ headerTitle }}
+            </h2>
+            <UBadge
+              v-if="!isCreate && statusLabel"
+              :color="statusColor"
+              variant="subtle"
+              :label="statusLabel"
             />
-
-            <EntityRelatedTab
-              v-else-if="activeTab === 'related'"
-              :business-kind="businessKind"
-              :rows="relatedRows"
-              :loading="relatedLoading"
-              :loading-more="relatedLoadingMore"
-              :has-more="relatedHasMore"
-              :tests-saving="testsSaving"
-              :can-add-sample="canAddSampleToDirection"
-              @load-more="loadRelatedRows(false)"
-              @save-tests="saveRelatedTests"
-              @open-related="emit('open-related', $event)"
-              @add-sample="emit('create-related', { kind: 'samples' })"
+            <UBadge
+              v-if="!isCreate && currentItem?.is_urgent"
+              color="error"
+              variant="subtle"
+              label="Срочно"
             />
-          </main>
-
-          <footer class="flex flex-col gap-3 border-t border-default bg-elevated/40 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <div class="flex items-center gap-2 text-xs text-muted">
-              <UIcon name="i-lucide-lock" class="size-4" />
-              <span>Статус меняется только через процесс</span>
-            </div>
-            <div class="flex justify-end gap-2">
-              <UButton
-                label="Закрыть"
-                color="neutral"
-                variant="outline"
-                @click="close"
-              />
-            </div>
-          </footer>
+            <UBadge
+              v-if="loadError"
+              color="warning"
+              variant="subtle"
+              label="Данные из таблицы"
+            />
+          </div>
+          <p class="mt-1 truncate text-sm text-muted">
+            {{ subtitle }}
+          </p>
         </div>
       </div>
     </template>
-  </UModal>
 
-  <ProtocolPreviewModal
-    v-if="businessKind === 'protocols'"
-    v-model:open="previewOpen"
-    :protocol="currentItem"
-    :samples="relatedRows"
-  />
+    <template #tabs-trailing>
+      <UTooltip v-if="!isCreate" text="Технический аудит">
+        <UButton
+          icon="i-lucide-list"
+          :color="activeTab === 'technical' ? 'primary' : 'neutral'"
+          :variant="activeTab === 'technical' ? 'subtle' : 'ghost'"
+          square
+          size="sm"
+          class="ml-auto"
+          data-testid="entity-detail-technical-tab"
+          @click="activeTab = 'technical'"
+        />
+      </UTooltip>
+    </template>
+
+    <div v-if="loading" class="space-y-3">
+      <USkeleton class="h-24 w-full" />
+      <USkeleton class="h-64 w-full" />
+    </div>
+
+    <div v-else-if="activeTab === 'card'" class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(19rem,25rem)]">
+      <section class="min-w-0 space-y-5">
+        <!-- Дедлайн: Получение — прогресс до дедлайна — Выпуск.
+             Линия прогресса проходит через центры кружков узлов. -->
+        <div v-if="deadlineInfo" class="rounded-lg border border-default bg-elevated/50 p-4"
+          data-testid="direction-deadline-timeline">
+          <div class="grid grid-cols-[auto_1fr_auto] items-center gap-x-2 gap-y-1">
+            <!-- узел слева -->
+            <div class="z-10 flex size-8 items-center justify-center justify-self-center rounded-full"
+              :class="deadlineNodeClass">
+              <UIcon name="i-lucide-inbox" class="size-4" />
+            </div>
+
+            <div class="flex flex-col">
+              <!-- дата/время текущей отметки -->
+              <div class="relative h-6">
+                <p class="absolute bottom-2 whitespace-nowrap text-xs font-medium text-highlighted"
+                  :style="deadlineDateTimeLabelStyle">
+                  {{ deadlineInfo.now.date }} {{ deadlineInfo.now.time }}
+                </p>
+              </div>
+
+              <UProgress :model-value="deadlineInfo.elapsedHours" :max="deadlineInfo.totalHours"
+                :color="deadlineInfo.color" size="sm" />
+
+              <!-- кружок -->
+              <div class="relative h-0">
+                <div class="absolute top-1/2 z-10 size-4 -translate-x-1/2 rounded-full" :style="{
+                  left: `${deadlineNowCirclePosition}%`,
+                  backgroundColor: `var(--ui-${deadlineInfo.color})`,
+                  transform: 'translateY(calc(-10px))'
+                }" />
+              </div>
+
+              <!-- подпись "Сейчас" -->
+              <div class="relative h-4 pt-2">
+                <p class="absolute top-5 whitespace-nowrap text-xs font-bold text-highlighted"
+                  :style="deadlineNowLabelStyle">
+                  Сейчас
+                </p>
+              </div>
+            </div>
+
+            <!-- узел справа -->
+            <div class="z-10 flex size-8 items-center justify-center justify-self-center rounded-full"
+              :class="deadlineNodeClass">
+              <UIcon name="i-lucide-flag" class="size-4" />
+            </div>
+
+            <p class="justify-self-center whitespace-nowrap text-xs font-bold text-highlighted">Получение</p>
+            <div />
+            <p class="justify-self-center whitespace-nowrap text-xs font-bold text-highlighted">Выпуск</p>
+
+            <p class="justify-self-center whitespace-nowrap text-xs text-muted">
+              {{ deadlineInfo.start.date }} {{ deadlineInfo.start.time }}
+            </p>
+            <div />
+            <p class="justify-self-center whitespace-nowrap text-xs text-muted">
+              {{ deadlineInfo.end.date }} {{ deadlineInfo.end.time }}
+            </p>
+          </div>
+        </div>
+        <!-- Таймлайн образца: от отбора до дедлайна выпуска
+        <div v-if="businessKind === 'samples' && statusTimeline.length"
+          class="rounded-lg border border-default p-4">
+          <p class="mb-4 text-sm font-semibold text-highlighted">
+            Таймлайн образца — от отбора до выпуска
+          </p>
+          <div class="overflow-x-auto pb-1">
+            <UTimeline :items="statusTimeline" :model-value="statusCode ?? undefined"
+              :color="statusCode === 'rejected' ? 'error' : 'primary'" orientation="horizontal" size="md"
+              class="min-w-2xl" :ui="{
+                date: 'text-xs font-medium',
+                title: 'text-xs font-semibold',
+                indicator: 'group-data-[state=active]:ring-2 group-data-[state=active]:ring-primary/30',
+              }" />
+          </div>
+        </div> -->
+
+        <div>
+          <div class="mb-3 flex items-center justify-between gap-3">
+            <h3 class="text-sm font-semibold text-highlighted">
+              Данные
+            </h3>
+            <div class="flex gap-2">
+              <UButton v-if="!editing && canEditEntity" label="Редактировать" icon="i-lucide-pencil"
+                color="neutral" variant="outline" size="sm" @click="editing = true" />
+              <template v-else-if="editing">
+                <UButton :label="isCreate ? 'Отмена' : 'Отменить'" color="neutral" variant="outline" size="sm"
+                  :disabled="saving" @click="cancelEdit" />
+                <UButton label="Сохранить" icon="i-lucide-save" color="primary" size="sm" :loading="saving"
+                  @click="saveInline" />
+              </template>
+            </div>
+          </div>
+
+          <EntityFieldGrid
+            :fields="gridFields"
+            :editing="editing"
+            :form-state="formState"
+            :reference-options="referenceOptions"
+            :resolve-display="displayFieldValue"
+            @update="setValue"
+          />
+        </div>
+
+        <UAlert v-if="loadError" color="warning" variant="subtle" icon="i-lucide-triangle-alert"
+          title="Backend вернул ошибку при чтении карточки"
+          description="Карточка построена по данным строки таблицы." />
+      </section>
+
+      <aside v-if="!isCreate" class="h-full min-w-0">
+        <div class="h-full rounded-lg border border-default p-4">
+          <div class="mb-3 flex items-center justify-between gap-3">
+            <h3 class="text-sm font-semibold text-highlighted">Жизненный цикл</h3>
+
+            <UBadge v-if="!statusTimeline.length" color="neutral" variant="outline"
+              :label="`${statusHistory.length} события`" />
+          </div>
+
+          <!-- Направления/образцы: строго статусы из таблиц statuses -->
+          <UTimeline v-if="statusTimeline.length" :items="statusTimeline" :model-value="statusCode ?? undefined"
+            :color="statusCode === 'rejected' ? 'error' : 'primary'" orientation="vertical" size="lg"
+            class="w-full" :ui="{
+              date: 'text-xs',
+              title: 'text-sm font-semibold',
+              indicator: 'group-data-[state=active]:ring-2 group-data-[state=active]:ring-primary/30 [&_span]:size-5',
+            }" />
+          <UStepper v-else-if="statusStepperItems.length" orientation="vertical" :items="statusStepperItems"
+            :model-value="activeStatusStepIndex" disabled class="w-full" :ui="timelineStepperUi">
+            <template #description="{ item: stepperItem }">
+              <div class="space-y-1">
+                <p class="whitespace-pre-line break-words text-xs leading-5 text-muted">
+                  {{ stepperItem.description }}
+                </p>
+                <div class="flex flex-wrap items-center gap-2">
+                  <UBadge v-if="stepperItem.actor" color="neutral" variant="outline" size="sm"
+                    :label="stepperItem.actor" />
+                  <p class="font-mono text-xs text-muted">
+                    {{ stepperItem.date ? formatDateTime(stepperItem.date) : 'Дата не указана' }}
+                  </p>
+                </div>
+              </div>
+            </template>
+          </UStepper>
+        </div>
+      </aside>
+    </div>
+
+    <TechnicalAuditTimeline v-else-if="activeTab === 'technical'" :events="technicalAudit" />
+
+    <EntityRelatedTab v-else-if="activeTab === 'related'" :business-kind="businessKind" :rows="relatedRows"
+      :loading="relatedLoading" :loading-more="relatedLoadingMore" :has-more="relatedHasMore"
+      :tests-saving="testsSaving" :can-add-sample="canAddSampleToDirection" @load-more="loadRelatedRows(false)"
+      @save-tests="saveRelatedTests" @open-related="emit('open-related', $event)"
+      @add-sample="emit('create-related', { kind: 'samples' })" />
+  </EntityDetailModalShell>
+
+  <ProtocolPreviewModal v-if="businessKind === 'protocols'" v-model:open="previewOpen" :protocol="currentItem"
+    :samples="relatedRows" />
 </template>

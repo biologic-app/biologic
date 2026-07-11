@@ -4,7 +4,6 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import (
-    Boolean,
     DateTime,
     ForeignKey,
     Index,
@@ -43,9 +42,6 @@ class User(Base):
     first_name: Mapped[str | None] = mapped_column(Text)
     last_name: Mapped[str | None] = mapped_column(Text)
     patronymic: Mapped[str | None] = mapped_column(Text)
-    is_registrar: Mapped[bool | None] = mapped_column(Boolean)
-    is_lab_head: Mapped[bool | None] = mapped_column(Boolean)
-    is_branch_head: Mapped[bool | None] = mapped_column(Boolean)
     role_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("roles.id", name="fk_users_role_id_roles_id"),

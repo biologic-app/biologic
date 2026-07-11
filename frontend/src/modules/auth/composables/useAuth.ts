@@ -6,6 +6,7 @@ import type { Action, Permission, Resource } from "@/shared/types/permissions";
 import type { AuthUser } from "@/shared/types/auth";
 import {
   defaultUserModeId,
+  isSuperAdminRole,
   isUserModeId,
   modeAllows,
   resolveModePermissions,
@@ -28,6 +29,8 @@ export const useAuth = defineStore("auth", () => {
   const initialized = ref(false);
 
   const isAuthenticated = computed(() => !!user.value);
+  // Суперадмин (роль developer) обходит проверку прав — см. superAdminRoles.
+  const isSuperAdmin = computed(() => isSuperAdminRole(user.value?.role));
 
   const activeMode = computed(() => resolveUserMode(activeModeId.value));
   // Источник истины — права с бэкенда. Пустой массив ⇒ default-deny.
@@ -109,7 +112,9 @@ export const useAuth = defineStore("auth", () => {
   const can: (resource: Resource, action: Action) => boolean = (
     resource,
     action,
-  ) => modeAllows(effectivePermissions.value, resource, action);
+  ) =>
+    isSuperAdmin.value ||
+    modeAllows(effectivePermissions.value, resource, action);
 
   return {
     user,
@@ -117,6 +122,7 @@ export const useAuth = defineStore("auth", () => {
     loading,
     initialized,
     isAuthenticated,
+    isSuperAdmin,
     activeModeId,
     activeMode,
     effectivePermissions,

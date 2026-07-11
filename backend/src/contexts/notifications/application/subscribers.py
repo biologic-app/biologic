@@ -17,16 +17,16 @@ from src.contexts.notifications.domain.contracts import NotificationDraft, notif
 
 
 class NotificationTargetResolver(Protocol):
-    """Resolves which user a notification about an entity should reach.
+    """Resolves which users a notification about an entity should reach.
 
-    Implemented by SqlAlchemyWorkflowRepository.resolve_notification_target —
+    Implemented by SqlAlchemyWorkflowRepository.resolve_notification_targets —
     kept as a narrow Protocol here so this context doesn't depend on the
     workflow context's infrastructure, only on this one capability.
     """
 
-    async def resolve_notification_target(
+    async def resolve_notification_targets(
         self, entity_type: str, entity_id: UUID
-    ) -> UUID | None: ...
+    ) -> set[UUID]: ...
 
 
 class NotificationSink(Protocol):
@@ -40,10 +40,10 @@ class NotificationSink(Protocol):
 
 
 class WorkflowNotificationSubscriber:
-    """Subscribes to workflow domain events and persists a targeted
-    notification for the resolved owner. Skips events with no configured
-    notification (see notification_from_event) or no resolvable owner —
-    an event for an entity nobody owns yet creates no notification, rather
+    """Subscribes to workflow domain events and persists one targeted
+    notification per resolved follower. Skips events with no configured
+    notification (see notification_from_event) or no resolvable followers —
+    an event for an entity nobody follows yet creates no notification, rather
     than falling back to broadcasting it to every user.
     """
 
@@ -67,14 +67,12 @@ class WorkflowNotificationSubscriber:
         if draft is None:
             return
 
-        target_user_id = await self._resolver.resolve_notification_target(
+        target_user_ids = await self._resolver.resolve_notification_targets(
             event.entity_type, event.entity_id
         )
-        if target_user_id is None:
+        if not target_user_ids:
             return
 
-        records = await self._repository.create_many(
-            [replace(draft, target_user_id=target_user_id)]
+        await self._repository.create_many(
+            [replace(draft, target_user_id=uid) for uid in target_user_ids]
         )
-        if self._outbox is not None:
-            self._outbox.extend(records)

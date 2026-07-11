@@ -18,7 +18,10 @@ from src.infrastructure.db.models.base import Base
 
 class Doctor(Base):
     __tablename__ = "doctors"
-    __table_args__ = (Index("doctors_doctors_deleted_at", "deleted_at"),)
+    __table_args__ = (
+        Index("doctors_doctors_user_id", "user_id"),
+        Index("doctors_doctors_deleted_at", "deleted_at"),
+    )
 
     id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
@@ -28,6 +31,10 @@ class Doctor(Base):
     first_name: Mapped[str] = mapped_column(Text, nullable=False)
     last_name: Mapped[str | None] = mapped_column(Text)
     patronymic: Mapped[str | None] = mapped_column(Text)
+    user_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.id", name="fk_doctors_user_id_users_id"),
+    )
     created_by: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("users.id", name="fk_doctors_created_by_users_id"),

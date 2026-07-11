@@ -40,3 +40,37 @@ jobs:
       # DB-интеграционные тесты помечены skip без реального Postgres; юнит-набор
       # зелёный без БД. Полный прогон с сервис-контейнером Postgres — этап A1.4/7.
       - run: make be-test
+
+  migrations:
+    name: Миграции (alembic upgrade + check)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: biologic
+          POSTGRES_PASSWORD: biologic
+          POSTGRES_DB: biologic
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U biologic -d biologic"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_DATABASE_URL: postgresql+asyncpg://biologic:biologic@localhost:5433/biologic
+      APP_JWT_SECRET_KEY: ci-migrations-secret
+      APP_AUTH_COOKIE_SECURE: "false"
+      APP_AUTH_COOKIE_DOMAIN: localhost
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.11"
+      - run: cd backend && uv sync --all-extras
+      - run: cd backend && uv run alembic upgrade head
+      # alembic check падает при дрейфе между ORM-моделями и последней миграцией
+      # (несинхронизированная схема) — страхует от забытого autogenerate.
+      - run: cd backend && uv run alembic check

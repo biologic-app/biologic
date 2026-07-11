@@ -67,10 +67,11 @@ class NotificationService:
         last_seen: datetime,
         viewer_id: UUID,
         poll_interval_seconds: float = 1.0,
+        shutdown: asyncio.Event | None = None,
     ) -> AsyncIterator[NotificationRecord]:
         cursor = last_seen
         params = PaginationParams(limit=100, sort_order="asc")
-        while True:
+        while shutdown is None or not shutdown.is_set():
             records, _total = await self.repository.list(
                 params=params,
                 status="all",
@@ -80,4 +81,21 @@ class NotificationService:
             for record in records:
                 cursor = max(cursor, record.created_at)
                 yield record
-            await asyncio.sleep(poll_interval_seconds)
+            if await _sleep_or_shutdown(poll_interval_seconds, shutdown):
+                break
+
+
+async def _sleep_or_shutdown(seconds: float, shutdown: asyncio.Event | None) -> bool:
+    """Sleep up to ``seconds``; return True if shutdown was requested meanwhile.
+
+    Racing the poll interval against the shutdown flag lets an open stream close
+    the moment a termination signal arrives instead of after a full poll tick.
+    """
+    if shutdown is None:
+        await asyncio.sleep(seconds)
+        return False
+    try:
+        await asyncio.wait_for(shutdown.wait(), timeout=seconds)
+    except TimeoutError:
+        return False
+    return True

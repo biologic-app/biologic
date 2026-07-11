@@ -8,6 +8,8 @@ response contract so API consumers only ever handle a single shape.
 
 from __future__ import annotations
 
+from uuid import UUID
+
 from pydantic import BaseModel
 
 from src.contexts.laboratory_workflow.application.direction_sample_import import (
@@ -21,8 +23,9 @@ from src.contexts.laboratory_workflow.application.legacy_direction_import import
 class WorkflowImportSummary(BaseModel):
     filename: str
     directions_created: int
+    direction_ids: list[UUID]
     samples_created: int
-    research_created: int = 0
+    lab_assignments_created: int = 0
     skipped: int
     errors: list[dict[str, object]]
     warnings: list[dict[str, object]]
@@ -34,8 +37,9 @@ def from_direction_sample_summary(
     return WorkflowImportSummary(
         filename=summary.filename,
         directions_created=summary.directions_created,
+        direction_ids=summary.direction_ids,
         samples_created=summary.samples_created,
-        research_created=0,
+        lab_assignments_created=0,
         skipped=summary.skipped_rows,
         errors=summary.errors,
         warnings=summary.warnings,
@@ -46,8 +50,9 @@ def from_legacy_summary(summary: LegacyDirectionImportSummary) -> WorkflowImport
     return WorkflowImportSummary(
         filename=summary.filename,
         directions_created=1 if summary.direction_id is not None else 0,
+        direction_ids=[summary.direction_id] if summary.direction_id is not None else [],
         samples_created=summary.samples_imported,
-        research_created=summary.marks_created,
+        lab_assignments_created=summary.lab_assignments_created,
         skipped=summary.skipped_samples,
         errors=summary.errors,
         warnings=summary.warnings,

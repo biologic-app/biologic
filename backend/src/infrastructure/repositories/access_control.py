@@ -21,10 +21,12 @@ from src.core.cursor_pagination import CursorState, decode_cursor, encode_cursor
 from src.core.errors import BadRequestError, NotFoundError
 from src.core.pagination import PaginationParams
 from src.infrastructure.db.models import (
+    Branch,
     Lab,
     Permission,
     Role,
     RolePermission,
+    RoleSubscriptionRule,
     User,
     UserPermissionOverride,
     UserScope,
@@ -182,6 +184,44 @@ class RolePermissionRepository:
             )
         await self.session.commit()
         return await self.list_for_role(role_id)
+
+
+class RoleSubscriptionRuleRepository:
+    def __init__(self, *, session: AsyncSession) -> None:
+        self.session = session
+
+    async def list(self, params: PaginationParams) -> RepositoryPage:
+        return await _list_rows(
+            self.session,
+            RoleSubscriptionRule,
+            params,
+            _role_subscription_rule_sortable_fields(),
+        )
+
+    async def read(self, item_id: UUID) -> Any:
+        return await _read_row(
+            self.session,
+            RoleSubscriptionRule,
+            "role_subscription_rules",
+            item_id,
+        )
+
+    async def create(self, values: dict[str, Any]) -> Any:
+        return await _create_row(
+            self.session,
+            RoleSubscriptionRule,
+            _pick(values, ("role_id", "entity_type", "branch_id", "lab_id", "status_code")),
+        )
+
+    async def update(self, item_id: UUID, values: dict[str, Any]) -> Any:
+        return await _update_row(
+            self.session,
+            await self.read(item_id),
+            _pick(values, ("role_id", "entity_type", "branch_id", "lab_id", "status_code")),
+        )
+
+    async def delete(self, item_id: UUID) -> None:
+        await _delete_row(self.session, await self.read(item_id))
 
 
 class UserPermissionOverrideRepository:
@@ -363,6 +403,28 @@ def _related_fields(model: type[Any]) -> dict[str, RelatedField]:
             "permission.action": RelatedField(Permission.action, (permission,)),
         }
 
+    if model is RoleSubscriptionRule:
+        role = JoinSpec(
+            "role_subscription_rule.role",
+            Role,
+            RoleSubscriptionRule.role_id == Role.id,
+        )
+        branch = JoinSpec(
+            "role_subscription_rule.branch",
+            Branch,
+            RoleSubscriptionRule.branch_id == Branch.id,
+        )
+        lab = JoinSpec(
+            "role_subscription_rule.lab",
+            Lab,
+            RoleSubscriptionRule.lab_id == Lab.id,
+        )
+        return {
+            "role.name": RelatedField(Role.name, (role,)),
+            "branch.name": RelatedField(Branch.name, (branch,)),
+            "lab.name": RelatedField(Lab.name, (lab,)),
+        }
+
     return {}
 
 
@@ -426,9 +488,6 @@ def _user_write_fields() -> tuple[str, ...]:
         "first_name",
         "last_name",
         "patronymic",
-        "is_registrar",
-        "is_lab_head",
-        "is_branch_head",
         "role_id",
         "lab_id",
     )
@@ -448,3 +507,7 @@ def _role_permission_sortable_fields() -> tuple[str, ...]:
 
 def _user_scope_sortable_fields() -> tuple[str, ...]:
     return ("id", "user_id", "scope_id")
+
+
+def _role_subscription_rule_sortable_fields() -> tuple[str, ...]:
+    return ("id", "entity_type", "created_at", "updated_at")

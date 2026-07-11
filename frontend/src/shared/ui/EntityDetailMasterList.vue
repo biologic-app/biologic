@@ -13,8 +13,14 @@ export type DetailListColor =
 export type DetailListItem = {
   id: string | number;
   title: string;
+  // Дата, отображаемая в заголовке справа от номера, прижатая к правому краю.
+  date?: string;
   subtitle?: string;
+  // Статус записи — рендерится цветным бейджем под заголовком.
+  badge?: string;
   color?: DetailListColor;
+  // Срочная запись — помечается огоньком рядом с заголовком.
+  urgent?: boolean;
 };
 
 // Левый master-список детальной модалки с бесконечным скроллом.
@@ -74,14 +80,35 @@ useInfiniteScroll(
           : 'border-l-transparent hover:bg-elevated'"
         @click="emit('select', entry.id)"
       >
-        <span class="block truncate text-sm font-semibold text-highlighted">
-          {{ entry.title }}
+        <span class="flex items-center gap-1 text-sm font-semibold text-highlighted">
+          <span class="truncate">{{ entry.title }}</span>
+          <span
+            v-if="entry.date"
+            class="ml-auto shrink-0 text-xs font-normal text-muted"
+          >
+            {{ entry.date }}
+          </span>
         </span>
         <span
           v-if="entry.subtitle"
           class="block truncate text-xs text-muted"
         >
           {{ entry.subtitle }}
+        </span>
+        <span class="mt-1 flex items-center justify-between gap-2">
+          <UBadge
+            v-if="entry.badge"
+            :color="entry.color ?? 'neutral'"
+            variant="subtle"
+            size="md"
+            :label="entry.badge"
+          />
+          <UIcon
+            v-if="entry.urgent"
+            name="i-lucide-flame"
+            class="ml-auto size-5 shrink-0 text-red-500"
+            title="Срочное"
+          />
         </span>
       </button>
 

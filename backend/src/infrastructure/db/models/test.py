@@ -25,6 +25,17 @@ class Test(Base):
         Index("tests_tests_status_id", "status_id"),
         Index("tests_tests_is_active", "is_active"),
         Index("tests_tests_deleted_at", "deleted_at"),
+        Index(
+            "tests_tests_active_created_at",
+            text("created_at DESC"),
+            "id",
+            postgresql_where=text("deleted_at IS NULL"),
+        ),
+        Index(
+            "tests_tests_active_id",
+            "id",
+            postgresql_where=text("deleted_at IS NULL"),
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(

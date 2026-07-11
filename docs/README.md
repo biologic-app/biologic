@@ -27,7 +27,8 @@ docs/
 - [login-backend-integration-plan.md](product/login-backend-integration-plan.md) — пошаговый план реальной авторизации.
 
 ## Роли — `roles/`
-- [roles/README.md](roles/README.md) — индекс и шаблон ролевых документов (этап A2.2 роадмапа).
+- [roles/README.md](roles/README.md) — индекс и процессные документы по каждой роли (этап A2.2 роадмапа).
+- [glossary.md](glossary.md) — словарь терминов проекта (рабочие объекты, статусы, роли/RBAC, аудит, справочники).
 
 ## Процессы — `processes/`
 - [user-actions.md](processes/user-actions.md) — сквозная диаграмма действий всех ролей + карта автоматизации (A2.1).

@@ -35,7 +35,13 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
     "lab_assistant": {"research.read", "tests.read"},
     "branch_chief": {"directions.read", "samples.read", "alerts.read"},
     "sanitary_inspector": {"directions.read", "samples.read", "protocols.read"},
-    "user_admin": {"users.*", "roles.*", "permissions.*", "user_scopes.*"},
+    "user_admin": {
+        "users.*",
+        "roles.*",
+        "permissions.*",
+        "user_scopes.*",
+        "role_subscription_rules.*",
+    },
 }
 
 
