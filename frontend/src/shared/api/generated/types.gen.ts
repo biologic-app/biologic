@@ -762,6 +762,55 @@ export type ProtocolTypeUpdateRequest = {
 };
 
 /**
+ * PushSubscriptionItem
+ */
+export type PushSubscriptionItem = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Endpoint
+     */
+    endpoint: string;
+};
+
+/**
+ * PushSubscriptionKeys
+ */
+export type PushSubscriptionKeys = {
+    /**
+     * P256Dh
+     */
+    p256dh: string;
+    /**
+     * Auth
+     */
+    auth: string;
+};
+
+/**
+ * PushSubscriptionRequest
+ */
+export type PushSubscriptionRequest = {
+    /**
+     * Endpoint
+     */
+    endpoint: string;
+    keys: PushSubscriptionKeys;
+};
+
+/**
+ * PushUnsubscribeRequest
+ */
+export type PushUnsubscribeRequest = {
+    /**
+     * Endpoint
+     */
+    endpoint: string;
+};
+
+/**
  * RegisterDirectionRequest
  */
 export type RegisterDirectionRequest = {
@@ -1639,6 +1688,16 @@ export type ValidationError = {
     ctx?: {
         [key: string]: unknown;
     };
+};
+
+/**
+ * VapidPublicKeyResponse
+ */
+export type VapidPublicKeyResponse = {
+    /**
+     * Public Key
+     */
+    public_key: string;
 };
 
 export type HealthApiV1HealthGetData = {
@@ -3290,6 +3349,78 @@ export type StreamAlertsApiV1AlertsStreamGetResponses = {
      */
     200: unknown;
 };
+
+export type GetVapidPublicKeyApiV1PushVapidPublicKeyGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/push/vapid-public-key';
+};
+
+export type GetVapidPublicKeyApiV1PushVapidPublicKeyGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: VapidPublicKeyResponse;
+};
+
+export type GetVapidPublicKeyApiV1PushVapidPublicKeyGetResponse = GetVapidPublicKeyApiV1PushVapidPublicKeyGetResponses[keyof GetVapidPublicKeyApiV1PushVapidPublicKeyGetResponses];
+
+export type DeletePushSubscriptionApiV1PushSubscriptionsDeleteData = {
+    body: PushUnsubscribeRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/push/subscriptions';
+};
+
+export type DeletePushSubscriptionApiV1PushSubscriptionsDeleteErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeletePushSubscriptionApiV1PushSubscriptionsDeleteError = DeletePushSubscriptionApiV1PushSubscriptionsDeleteErrors[keyof DeletePushSubscriptionApiV1PushSubscriptionsDeleteErrors];
+
+export type DeletePushSubscriptionApiV1PushSubscriptionsDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeletePushSubscriptionApiV1PushSubscriptionsDeleteResponse = DeletePushSubscriptionApiV1PushSubscriptionsDeleteResponses[keyof DeletePushSubscriptionApiV1PushSubscriptionsDeleteResponses];
+
+export type CreatePushSubscriptionApiV1PushSubscriptionsPostData = {
+    body: PushSubscriptionRequest;
+    headers?: {
+        /**
+         * User-Agent
+         */
+        'user-agent'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/push/subscriptions';
+};
+
+export type CreatePushSubscriptionApiV1PushSubscriptionsPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreatePushSubscriptionApiV1PushSubscriptionsPostError = CreatePushSubscriptionApiV1PushSubscriptionsPostErrors[keyof CreatePushSubscriptionApiV1PushSubscriptionsPostErrors];
+
+export type CreatePushSubscriptionApiV1PushSubscriptionsPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: SingleResponsePushSubscriptionItem;
+};
+
+export type CreatePushSubscriptionApiV1PushSubscriptionsPostResponse = CreatePushSubscriptionApiV1PushSubscriptionsPostResponses[keyof CreatePushSubscriptionApiV1PushSubscriptionsPostResponses];
 
 export type LoginApiV1AuthLoginPostData = {
     body: LoginRequest;

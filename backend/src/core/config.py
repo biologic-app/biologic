@@ -32,6 +32,12 @@ class Settings(BaseSettings):
     # deploy). Left unset in development, where Vite serves the frontend.
     static_dir: str | None = None
 
+    # Web Push (VAPID). Empty by default so the app still boots without them
+    # configured; push subscribe/send simply fail until a real key pair is set.
+    vapid_public_key: str = ""
+    vapid_private_key: str = ""
+    vapid_subject: str = "mailto:admin@example.com"
+
     @property
     def plugins_dir(self) -> Path:
         return APP_DIR / "plugins"

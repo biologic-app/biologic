@@ -1,3 +1,5 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -7,11 +9,20 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import FileResponse
 
 from src.api.v1.router import router as api_v1_router
+from src.contexts.notifications.infrastructure.push import get_push_dispatcher
 from src.core.config import Settings, get_settings
 from src.core.errors import AppError
 from src.core.handlers import app_error_handler, http_error_handler, validation_error_handler
 from src.core.lifecycle import lifespan, new_shutdown_event
 from src.plugins.scalar import register as register_scalar
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    yield
+    # Let in-flight push sends finish instead of the event loop killing them
+    # mid-request when uvicorn shuts down.
+    await get_push_dispatcher().drain()
 
 
 def create_app() -> FastAPI:

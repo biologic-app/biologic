@@ -331,6 +331,11 @@ export const messages = {
         unread: "Новые",
         read: "Прочитанные",
       },
+      push: {
+        label: "Уведомления на этом устройстве",
+        unsupported: "Браузер не поддерживает push-уведомления",
+        denied: "Уведомления заблокированы в настройках браузера",
+      },
     },
     errors: {
       actions: {
@@ -743,6 +748,11 @@ export const messages = {
       tabs: {
         unread: "New",
         read: "Read",
+      },
+      push: {
+        label: "Notifications on this device",
+        unsupported: "This browser doesn't support push notifications",
+        denied: "Notifications are blocked in browser settings",
       },
     },
     errors: {

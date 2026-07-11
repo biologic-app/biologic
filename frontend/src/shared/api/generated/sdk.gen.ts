@@ -612,6 +612,41 @@ export class Sdk extends HeyApiClient {
     }
     
     /**
+     * Get Vapid Public Key
+     */
+    public getVapidPublicKeyApiV1PushVapidPublicKeyGet<ThrowOnError extends boolean = false>(options?: Options<GetVapidPublicKeyApiV1PushVapidPublicKeyGetData, ThrowOnError>) {
+        return (options?.client ?? this.client).get<GetVapidPublicKeyApiV1PushVapidPublicKeyGetResponses, unknown, ThrowOnError>({ url: '/api/v1/push/vapid-public-key', ...options });
+    }
+    
+    /**
+     * Delete Push Subscription
+     */
+    public deletePushSubscriptionApiV1PushSubscriptionsDelete<ThrowOnError extends boolean = false>(options: Options<DeletePushSubscriptionApiV1PushSubscriptionsDeleteData, ThrowOnError>) {
+        return (options.client ?? this.client).delete<DeletePushSubscriptionApiV1PushSubscriptionsDeleteResponses, DeletePushSubscriptionApiV1PushSubscriptionsDeleteErrors, ThrowOnError>({
+            url: '/api/v1/push/subscriptions',
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
+            }
+        });
+    }
+    
+    /**
+     * Create Push Subscription
+     */
+    public createPushSubscriptionApiV1PushSubscriptionsPost<ThrowOnError extends boolean = false>(options: Options<CreatePushSubscriptionApiV1PushSubscriptionsPostData, ThrowOnError>) {
+        return (options.client ?? this.client).post<CreatePushSubscriptionApiV1PushSubscriptionsPostResponses, CreatePushSubscriptionApiV1PushSubscriptionsPostErrors, ThrowOnError>({
+            url: '/api/v1/push/subscriptions',
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
+            }
+        });
+    }
+    
+    /**
      * Login
      */
     public loginApiV1AuthLoginPost<ThrowOnError extends boolean = false>(options: Options<LoginApiV1AuthLoginPostData, ThrowOnError>) {

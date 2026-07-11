@@ -13,6 +13,7 @@ from src.infrastructure.db.models.object import Object
 from src.infrastructure.db.models.permission import Permission
 from src.infrastructure.db.models.protocol import Protocol
 from src.infrastructure.db.models.protocol_type import ProtocolType
+from src.infrastructure.db.models.push_subscription import PushSubscription
 from src.infrastructure.db.models.research import Research
 from src.infrastructure.db.models.research_goal import ResearchGoal
 from src.infrastructure.db.models.research_status import ResearchStatus
@@ -48,6 +49,7 @@ __all__ = [
     "Permission",
     "Protocol",
     "ProtocolType",
+    "PushSubscription",
     "Research",
     "ResearchGoal",
     "ResearchStatus",
