@@ -60,6 +60,7 @@ class WorkflowRepositoryFake(WorkflowRepository):
         value: str,
         norm: str | None,
         comment: str | None,
+        verdict: bool | None,
     ) -> CommandResult:
         raise AssertionError("complete_test should not be called")
 

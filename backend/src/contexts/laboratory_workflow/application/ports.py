@@ -43,6 +43,7 @@ class WorkflowRepository(Protocol):
         value: str,
         norm: str | None,
         comment: str | None,
+        verdict: bool | None,
     ) -> CommandResult: ...
 
     async def confirm_research(

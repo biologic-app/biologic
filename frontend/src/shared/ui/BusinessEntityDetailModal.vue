@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { DropdownMenuItem } from "@nuxt/ui";
 import type { CrudModuleConfig, CrudRow } from '@/shared/types/crud';
 import EntityDetailDialogBase from "@/shared/ui/EntityDetailDialogBase.vue";
 import type { DetailListItem } from "@/shared/ui/EntityDetailMasterList.vue";
@@ -17,6 +18,8 @@ defineProps<{
   startInEdit?: boolean;
   initialValues?: Record<string, unknown> | null;
   breadcrumbs?: Array<{ label: string }>;
+  headerActions?: DropdownMenuItem[];
+  reloadToken?: number;
 }>();
 
 const emit = defineEmits<{
@@ -40,6 +43,8 @@ const emit = defineEmits<{
     :start-in-edit="startInEdit"
     :initial-values="initialValues"
     :breadcrumbs="breadcrumbs"
+    :header-actions="headerActions"
+    :reload-token="reloadToken"
     :list-items="listItems"
     :list-label="listLabel"
     :selected-id="item?.id ?? null"

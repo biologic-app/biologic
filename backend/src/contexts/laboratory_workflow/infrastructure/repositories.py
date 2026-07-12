@@ -548,11 +548,13 @@ class SqlAlchemyWorkflowRepository:
         value: str,
         norm: str | None,
         comment: str | None,
+        verdict: bool | None,
     ) -> CommandResult:
         test = await self._get_test_for_update(test_id)
         test.value = value
         test.norm = norm
         test.comment = comment
+        test.verdict = verdict
         result = await self._transition_test(
             test=test,
             actor_id=actor_id,
@@ -1196,10 +1198,7 @@ class SqlAlchemyWorkflowRepository:
             action=action,
             actor_id=actor_id,
             diff={
-                "field": "status_id",
-                "from_code": from_code,
-                "to_code": to_code,
-                "entity_type": entity_type.rstrip("s"),
+                "status_code": {"from": from_code, "to": to_code},
                 "reason": reason or action,
             },
             snapshot={"status_code": to_code},

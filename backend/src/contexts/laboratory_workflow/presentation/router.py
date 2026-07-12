@@ -51,7 +51,6 @@ from src.contexts.laboratory_workflow.presentation.schemas import (
     TestUpdateRequest,
     UpdateProtocolRequest,
 )
-from src.contexts.notifications.infrastructure.push import get_push_dispatcher
 from src.core.database import get_db_session
 from src.core.errors import BadRequestError
 from src.core.pagination import PaginationDependency
@@ -66,7 +65,6 @@ router = APIRouter(tags=["workflow"])
 async def get_workflow_command_service() -> WorkflowCommandService:
     return WorkflowCommandService(
         uow_factory=build_uow_factory(),
-        push_dispatcher=get_push_dispatcher(),
     )
 
 
@@ -250,6 +248,25 @@ async def unsubscribe_sample(
     return await use_case.unsubscribe(
         "samples", sample_id, _resolve_subscriber(payload, actor_id)
     )
+
+
+# «Мои подписки» для колонки-пина: id направлений/образцов, на которые текущий
+# пользователь подписан вручную. Литеральный сегмент "subscriptions/mine" не
+# конфликтует с "/{id}/subscriptions" (третий сегмент — "mine", не "subscriptions").
+@router.get("/directions/subscriptions/mine")
+async def list_my_direction_subscriptions(
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+    actor_id: Annotated[UUID | None, Depends(get_current_user_id_optional)],
+) -> ListResponse[dict[str, object]]:
+    return await use_case.list_user_subscriptions("directions", actor_id)
+
+
+@router.get("/samples/subscriptions/mine")
+async def list_my_sample_subscriptions(
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+    actor_id: Annotated[UUID | None, Depends(get_current_user_id_optional)],
+) -> ListResponse[dict[str, object]]:
+    return await use_case.list_user_subscriptions("samples", actor_id)
 
 
 @router.put("/samples/{sample_id}/labs")
@@ -527,6 +544,7 @@ async def complete_test(
             value=request.value,
             norm=request.norm,
             comment=request.comment,
+            verdict=request.verdict,
         ),
     )
     return SingleResponse(data=result, meta=ResponseMeta(operation="tests.complete"))

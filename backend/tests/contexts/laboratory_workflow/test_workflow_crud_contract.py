@@ -269,6 +269,30 @@ def test_test_patch_rejects_status_id(monkeypatch: MonkeyPatch) -> None:
         get_settings.cache_clear()
 
 
+def test_test_patch_accepts_verdict_round_trip(monkeypatch: MonkeyPatch) -> None:
+    try:
+        client = _client(monkeypatch)
+
+        response = client.patch(
+            "/api/v1/tests/00000000-0000-0000-0000-000000000001",
+            json={"verdict": True},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["data"]["verdict"] is True
+
+        # Регрессия: verdict в PATCH не должен ослаблять защиту status_id.
+        status_response = client.patch(
+            "/api/v1/tests/00000000-0000-0000-0000-000000000001",
+            json={"status_id": "00000000-0000-0000-0000-000000000002"},
+        )
+        assert status_response.status_code == 409
+        assert status_response.json()["code"] == "invalid_status_transition"
+    finally:
+        get_settings.cache_clear()
+
+
 def test_tests_direct_creation_route_is_removed(monkeypatch: MonkeyPatch) -> None:
     try:
         client = _client(monkeypatch)

@@ -20,7 +20,18 @@ export interface RelatedRow extends DetailRow {
   type: string;
   title: string;
   statusText: string;
+  // Нормализованный код статуса (resolveStatusCode) — для группировки строк и
+  // цвета статус-бейджа, консистентно со списками в DictionaryCrudContent.
+  statusCode: string;
   updatedAtText: string;
+  // Лаборатория исследования (research_goal/lab приходят в include). Пусто для
+  // образцов.
+  labName?: string;
+  // Тип образца — резолвится на фронте из справочника /sample_types, т.к. бэкенд
+  // не отдаёт sample_type вложенным объектом (populate только status/creator).
+  sampleTypeName?: string;
+  // Дочерние строки дерева «образец → исследования» (вкладка образцов).
+  children?: RelatedRow[];
 }
 
 export interface DetailTimelineEvent {
@@ -145,6 +156,20 @@ export function recordCode(row: Record<string, unknown> & { id: string | number 
     return hasYear ? `№ ${yearNo}-${baseNo}` : `№ ${baseNo}`;
   }
   return entityDisplayCode(row.id);
+}
+
+// Провал дедлайна выпуска образца: если deadline не задан — false; иначе
+// сравниваем дедлайн с фактическим выпуском (completed_at) или «сейчас», если
+// образец ещё не выпущен. Совпадает с формулой deadlineStatus в
+// EntityDetailDialogBase — вынесено для переиспользования в таблице и списке.
+export function isSampleDeadlineOverdue(row: Record<string, unknown>): boolean {
+  const deadlineRaw = row.deadline;
+  if (deadlineRaw === null || deadlineRaw === undefined || deadlineRaw === "") return false;
+  const deadline = new Date(String(deadlineRaw)).getTime();
+  if (!Number.isFinite(deadline)) return false;
+  const completedRaw = row.completed_at;
+  const release = completedRaw ? new Date(String(completedRaw)).getTime() : Date.now();
+  return release > deadline;
 }
 
 export function normalizeFormValue(value: unknown): DetailFieldValue {

@@ -46,6 +46,7 @@ class Test(Base):
     value: Mapped[str | None] = mapped_column(Text)
     comment: Mapped[str | None] = mapped_column(Text)
     norm: Mapped[str | None] = mapped_column(Text)
+    verdict: Mapped[bool | None] = mapped_column(Boolean)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
     research_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),

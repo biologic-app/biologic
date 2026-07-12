@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { computed, h, resolveComponent } from "vue";
+import { computed, ref } from "vue";
 import type { TableColumn } from "@nuxt/ui";
 import {
-  formatPlain,
+  isSampleDeadlineOverdue,
   normalizeFormValue,
   type EntityKind,
   type RelatedRow,
-  type RelationKind,
 } from "@/shared/ui/entity-detail.helpers";
+import { relationRequest } from "@/shared/composables/useRelatedEntities";
+import { getStatusBadgeColor } from "@/shared/domain/status";
 
 const props = defineProps<{
   businessKind?: EntityKind | null;
@@ -26,73 +27,42 @@ const emit = defineEmits<{
   (event: "add-sample"): void;
 }>();
 
-const UBadge = resolveComponent("UBadge");
+// Вид дочерней коллекции карточки: tests — редактируемая таблица показателей,
+// samples — дерево «образец → исследования», research — плоский список.
+const relationKind = computed(() => relationRequest(props.businessKind)?.kind ?? null);
 
-const relatedTitle = computed(() => {
-  if (props.businessKind === "directions") return "Образцы направления";
-  if (props.businessKind === "samples") return "Исследования образца";
-  if (props.businessKind === "research") return "Тесты исследования";
-  return "Связанные элементы";
-});
+// Состояние раскрытия дерева образцов. Пустой объект (не undefined) нужен, чтобы
+// UTable подключил onExpandedChange и row.toggleExpanded() работал.
+const expanded = ref<Record<string, boolean>>({});
 
-const relatedColumns = computed<TableColumn<RelatedRow>[]>(() => {
-  const base: TableColumn<RelatedRow>[] = [
-    { accessorKey: "type", header: "Тип" },
-    { accessorKey: "title", header: "Название" },
-    {
-      accessorKey: "statusText",
-      header: "Статус",
-      cell: ({ row }) => h(UBadge, {
-        color: row.original.statusText === "-" ? "neutral" : "primary",
-        variant: "subtle",
-        label: row.original.statusText,
-      }),
-    },
-    { accessorKey: "updatedAtText", header: "Обновлено" },
-  ];
+function getSubRows(row: RelatedRow): RelatedRow[] | undefined {
+  return row.children;
+}
 
-  if (props.businessKind === "research") {
-    return [
-      ...base,
-      {
-        accessorKey: "value",
-        header: "Значение",
-        cell: ({ row }) => formatPlain(row.original.value),
-      },
-      {
-        accessorKey: "norm",
-        header: "Норма",
-        cell: ({ row }) => formatPlain(row.original.norm),
-      },
-    ];
-  }
+// Дерево образцов: колонка «Тип / Лаборатория» показывает тип образца у
+// родителя и лабораторию у дочернего исследования.
+const sampleTreeColumns: TableColumn<RelatedRow>[] = [
+  { id: "name", header: "Название" },
+  { id: "secondary", header: "Тип / Лаборатория" },
+  { id: "status", header: "Статус" },
+  { accessorKey: "updatedAtText", header: "Обновлено" },
+  { id: "actions", header: "" },
+];
 
-  return [
-    ...base,
-    {
-      id: "actions",
-      header: "",
-      cell: ({ row }) => h("div", { class: "flex justify-end gap-1" }, [
-        h(resolveComponent("UButton"), {
-          icon: "i-lucide-panel-top-open",
-          color: "neutral",
-          variant: "ghost",
-          size: "sm",
-          "aria-label": "Открыть карточку",
-          onClick: () => openRelated(row.original),
-        }),
-        h(resolveComponent("UButton"), {
-          icon: "i-lucide-arrow-up-right",
-          color: "neutral",
-          variant: "ghost",
-          size: "sm",
-          to: routeForRelated(row.original.relationKind),
-          "aria-label": "Перейти на страницу",
-        }),
-      ]),
-    },
-  ];
-});
+// Плоский список исследований образца.
+const researchColumns: TableColumn<RelatedRow>[] = [
+  { accessorKey: "title", header: "Цель исследования" },
+  { id: "lab", header: "Лаборатория" },
+  { id: "status", header: "Статус" },
+  { accessorKey: "updatedAtText", header: "Обновлено" },
+  { id: "actions", header: "" },
+];
+
+// Вердикт врача по тесту: соответствует / не соответствует / не указано (null).
+const verdictOptions = [
+  { label: "Соответствует", value: true },
+  { label: "Не соответствует", value: false },
+];
 
 function relatedString(row: RelatedRow, key: string) {
   const value = row[key];
@@ -108,49 +78,44 @@ function openRelated(row: RelatedRow) {
   emit("open-related", { kind: row.relationKind, item: row });
 }
 
-function routeForRelated(kind: RelationKind) {
-  if (kind === "samples") return "/samples";
-  if (kind === "research") return "/research";
-  if (kind === "directions") return "/directions";
-  return "/dictionaries/tests";
+// Модель вердикта для USelect: null (не указано) сводим к undefined, чтобы
+// показать плейсхолдер; union-каст держим вне шаблона (иначе `|` ловится
+// правилом vue/no-deprecated-filter).
+function verdictModel(row: RelatedRow): boolean | undefined {
+  return (row.verdict ?? undefined) as boolean | undefined;
 }
 </script>
 
 <template>
   <section class="flex h-full min-h-0 flex-col gap-3">
-    <div class="flex shrink-0 items-center justify-between gap-3">
-      <h3 class="text-sm font-semibold text-highlighted">
-        {{ relatedTitle }}
-      </h3>
-      <div class="flex items-center gap-2">
-        <UBadge color="neutral" variant="outline" :label="`${rows.length} записей`" />
-        <UButton
-          v-if="canAddSample"
-          label="Добавить образец"
-          icon="i-lucide-plus"
-          size="sm"
-          color="primary"
-          data-testid="add-sample-to-direction"
-          @click="emit('add-sample')"
-        />
-        <UButton
-          v-if="businessKind === 'research' && rows.length"
-          label="Сохранить тесты"
-          icon="i-lucide-save"
-          size="sm"
-          color="primary"
-          :loading="testsSaving"
-          @click="emit('save-tests')"
-        />
-      </div>
+    <div class="flex shrink-0 items-center justify-end gap-3">
+      <UBadge color="neutral" variant="outline" :label="`${rows.length} записей`" />
+      <UButton
+        v-if="canAddSample"
+        label="Добавить образец"
+        icon="i-lucide-plus"
+        size="sm"
+        color="primary"
+        data-testid="add-sample-to-direction"
+        @click="emit('add-sample')"
+      />
+      <UButton
+        v-if="businessKind === 'research' && rows.length"
+        label="Сохранить тесты"
+        icon="i-lucide-save"
+        size="sm"
+        color="primary"
+        :loading="testsSaving"
+        @click="emit('save-tests')"
+      />
     </div>
 
     <div
-      v-if="businessKind === 'research'"
+      v-if="relationKind === 'tests'"
       class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-default"
     >
       <div class="min-h-0 flex-1 overflow-auto">
-        <table class="w-full min-w-[900px] border-collapse text-sm">
+        <table class="w-full min-w-[1040px] border-collapse text-sm">
           <thead class="sticky top-0 z-10 bg-elevated text-left text-xs font-medium uppercase text-muted">
             <tr>
               <th class="border-b border-default px-3 py-2">
@@ -164,6 +129,9 @@ function routeForRelated(kind: RelationKind) {
               </th>
               <th class="border-b border-default px-3 py-2">
                 Норма
+              </th>
+              <th class="border-b border-default px-3 py-2">
+                Вердикт врача
               </th>
               <th class="border-b border-default px-3 py-2">
                 Комментарий
@@ -182,7 +150,7 @@ function routeForRelated(kind: RelationKind) {
                 </p>
               </td>
               <td class="px-3 py-2 align-top">
-                <UBadge color="primary" variant="subtle" :label="row.statusText" />
+                <UBadge :color="getStatusBadgeColor(row.statusCode)" variant="subtle" :label="row.statusText" />
               </td>
               <td class="px-3 py-2 align-top">
                 <UInput
@@ -194,6 +162,15 @@ function routeForRelated(kind: RelationKind) {
                 <UInput
                   :model-value="relatedString(row, 'norm')"
                   @update:model-value="setRelatedValue(row, 'norm', $event)"
+                />
+              </td>
+              <td class="px-3 py-2 align-top">
+                <USelect
+                  :model-value="verdictModel(row)"
+                  :items="verdictOptions"
+                  placeholder="Не указано"
+                  class="w-full min-w-44"
+                  @update:model-value="setRelatedValue(row, 'verdict', $event)"
                 />
               </td>
               <td class="px-3 py-2 align-top">
@@ -223,14 +200,117 @@ function routeForRelated(kind: RelationKind) {
       </div>
     </div>
 
+    <div
+      v-else-if="relationKind === 'samples'"
+      class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-default"
+    >
+      <div class="min-h-0 flex-1 overflow-auto">
+        <UTable
+          v-model:expanded="expanded"
+          :data="rows"
+          :columns="sampleTreeColumns"
+          :loading="loading"
+          :get-sub-rows="getSubRows"
+          :ui="{ thead: 'sticky top-0 z-10 bg-elevated', th: 'px-4 py-2 text-left text-sm font-semibold text-highlighted', td: 'px-4 py-2 align-middle text-sm text-muted whitespace-nowrap' }"
+        >
+          <template #name-cell="{ row }">
+            <div class="flex items-center gap-2" :style="{ paddingLeft: `${row.depth * 1.25}rem` }">
+              <UButton
+                v-if="row.getCanExpand()"
+                variant="ghost"
+                color="neutral"
+                size="xs"
+                :icon="row.getIsExpanded() ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'"
+                :aria-label="row.getIsExpanded() ? 'Свернуть исследования' : 'Развернуть исследования'"
+                @click="row.toggleExpanded()"
+              />
+              <span v-else class="inline-block w-7 shrink-0" />
+              <span :class="row.depth === 0 ? 'font-medium text-highlighted' : 'text-muted'">
+                {{ row.original.title }}
+              </span>
+            </div>
+          </template>
+          <template #secondary-cell="{ row }">
+            <span>{{ (row.depth === 0 ? row.original.sampleTypeName : row.original.labName) || '—' }}</span>
+          </template>
+          <template #status-cell="{ row }">
+            <div class="flex items-center gap-2">
+              <UBadge
+                :color="getStatusBadgeColor(row.original.statusCode)"
+                variant="subtle"
+                :label="row.original.statusText"
+              />
+              <UIcon
+                v-if="row.depth === 0 && isSampleDeadlineOverdue(row.original)"
+                name="i-lucide-alarm-clock-off"
+                class="size-4 shrink-0 text-error"
+                title="Выпуск задержан"
+              />
+            </div>
+          </template>
+          <template #actions-cell="{ row }">
+            <div class="flex justify-end">
+              <UButton
+                icon="i-lucide-panel-top-open"
+                color="neutral"
+                variant="ghost"
+                size="sm"
+                aria-label="Открыть карточку"
+                @click="openRelated(row.original)"
+              />
+            </div>
+          </template>
+        </UTable>
+        <div v-if="!loading && !rows.length" class="px-4 py-8 text-center text-sm text-muted">
+          Связанные элементы не найдены.
+        </div>
+      </div>
+      <div v-if="hasMore" class="shrink-0 border-t border-default px-3 py-2 text-center">
+        <UButton
+          label="Загрузить ещё"
+          color="neutral"
+          variant="outline"
+          size="sm"
+          :loading="loadingMore"
+          @click="emit('load-more')"
+        />
+      </div>
+    </div>
+
     <div v-else class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-default">
       <div class="min-h-0 flex-1 overflow-auto">
         <UTable
           :data="rows"
-          :columns="relatedColumns"
+          :columns="researchColumns"
           :loading="loading"
           :ui="{ thead: 'sticky top-0 z-10 bg-elevated', th: 'px-4 py-2 text-left text-sm font-semibold text-highlighted', td: 'px-4 py-2 align-middle text-sm text-muted whitespace-nowrap' }"
-        />
+        >
+          <template #title-cell="{ row }">
+            <span class="font-medium text-highlighted">{{ row.original.title }}</span>
+          </template>
+          <template #lab-cell="{ row }">
+            <span>{{ row.original.labName || '—' }}</span>
+          </template>
+          <template #status-cell="{ row }">
+            <UBadge
+              :color="getStatusBadgeColor(row.original.statusCode)"
+              variant="subtle"
+              :label="row.original.statusText"
+            />
+          </template>
+          <template #actions-cell="{ row }">
+            <div class="flex justify-end">
+              <UButton
+                icon="i-lucide-panel-top-open"
+                color="neutral"
+                variant="ghost"
+                size="sm"
+                aria-label="Открыть карточку"
+                @click="openRelated(row.original)"
+              />
+            </div>
+          </template>
+        </UTable>
         <div v-if="!loading && !rows.length" class="px-4 py-8 text-center text-sm text-muted">
           Связанные элементы не найдены.
         </div>

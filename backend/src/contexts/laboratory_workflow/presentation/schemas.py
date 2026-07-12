@@ -99,6 +99,7 @@ class TestUpdateRequest(StrictRequest):
     value: str | None = None
     comment: str | None = None
     norm: str | None = None
+    verdict: bool | None = None
     is_active: bool | None = None
     research_id: UUID | None = None
     indicator_id: UUID | None = None
@@ -160,6 +161,7 @@ class CompleteTestRequest(BaseModel):
     value: str
     norm: str | None = None
     comment: str | None = None
+    verdict: bool | None = None
 
 
 class RejectTestRequest(BaseModel):

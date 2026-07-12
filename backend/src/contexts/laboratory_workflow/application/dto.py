@@ -72,6 +72,7 @@ class CompleteTestInput(BaseModel):
     value: str
     norm: str | None = None
     comment: str | None = None
+    verdict: bool | None = None
 
 
 class CloseSampleInput(BaseModel):

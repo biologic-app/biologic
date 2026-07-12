@@ -1,6 +1,7 @@
 <script setup lang="ts" generic="TRow extends object">
 import { computed, h, resolveComponent, useSlots } from "vue";
 import type { TableColumn, TableRow } from "@nuxt/ui";
+import type { RowPinningState } from "@tanstack/table-core";
 import CrudTableLoadingRows from "@/shared/ui/CrudTableLoadingRows.vue";
 import CrudTableShell from "@/shared/ui/CrudTableShell.vue";
 import SelectionActionBar from "@/shared/ui/SelectionActionBar.vue";
@@ -48,6 +49,12 @@ const columnVisibility = defineModel<Record<string, boolean>>(
 const rowSelection = defineModel<Record<string, boolean>>(
   "rowSelection",
   { default: () => ({}) },
+);
+// Закрепление строк сверху (row pinning). Родитель держит здесь id отслеживаемых
+// записей; таблицы без подписок не биндят модель и остаются с пустым состоянием.
+const rowPinning = defineModel<RowPinningState>(
+  "rowPinning",
+  { default: () => ({ top: [], bottom: [] }) },
 );
 
 const UCheckbox = resolveComponent("UCheckbox");
@@ -178,6 +185,7 @@ const forwardedSlotNames = computed(() =>
       <UTable
         v-model:column-visibility="columnVisibility"
         v-model:row-selection="rowSelection"
+        v-model:row-pinning="rowPinning"
         :get-row-id="(row: TRow) => String((row as Record<string, unknown>).id)"
         :data="data"
         :columns="tableColumns"

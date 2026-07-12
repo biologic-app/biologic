@@ -48,3 +48,16 @@ export const unsubscribeFromEntity = async (
   })
   return response.items
 }
+
+// Id сущностей, на которые текущий пользователь подписан вручную (source manual).
+// Питает колонку-пин в таблицах: закреплённые сверху = отслеживаемые записи.
+// Неявные подписки (роль/владелец/сан.врач) сюда не входят — только ручные.
+export const fetchMySubscriptionIds = async (
+  entity: SubscriptionEntity
+): Promise<string[]> => {
+  const response = await apiReadListRequest<{ entity_id: string }>(
+    `/${entity}/subscriptions/mine`,
+    { method: 'GET' }
+  )
+  return response.items.map((row) => String(row.entity_id))
+}

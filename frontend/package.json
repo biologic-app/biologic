@@ -11,7 +11,8 @@
     "typecheck": "vue-tsc -p ./tsconfig.app.json",
     "test": "bun test tests/shared",
     "test:e2e": "playwright test",
-    "test:e2e:video": "playwright test --config=playwright.video.config.ts"
+    "test:e2e:video": "playwright test --config=playwright.video.config.ts",
+    "demo:record": "node tests/e2e/demos/record-entity-modals.mjs"
   },
   "dependencies": {
     "@fontsource-variable/onest": "^5.2.11",
@@ -22,6 +23,7 @@
     "@internationalized/date": "^3.12.0",
     "@nuxt/ui": "^4.5.1",
     "@tanstack/table-core": "^8.21.3",
+    "@tanstack/vue-table": "^8.21.3",
     "@unovis/ts": "^1.6.4",
     "@unovis/vue": "^1.6.4",
     "@vueuse/core": "^14.2.1",

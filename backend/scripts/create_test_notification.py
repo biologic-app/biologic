@@ -12,7 +12,6 @@ from src.contexts.notifications.domain.contracts import NotificationDraft
 from src.contexts.notifications.infrastructure.repositories import SqlAlchemyNotificationRepository
 from src.core.config import get_settings
 
-
 DEFAULT_TITLE = "Test notification"
 DEFAULT_MESSAGE = "This notification was created by scripts.create_test_notification."
 
@@ -24,6 +23,7 @@ async def create_test_notification(
     message: str = DEFAULT_MESSAGE,
     entity_type: str = "manual_tests",
     entity_id: UUID | None = None,
+    target_user_id: UUID | None = None,
 ) -> None:
     engine = create_async_engine(database_url or get_settings().database_url)
     session_factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
@@ -41,6 +41,10 @@ async def create_test_notification(
                     entity_id=entity_id or uuid4(),
                     source_event_type="ManualTestNotificationCreated",
                     payload={"source": "scripts.create_test_notification"},
+                    # Notifications are per-user: /alerts and /alerts/stream filter
+                    # by target_user_id == viewer. Without --target-user-id the row
+                    # is created but no logged-in user will ever see it.
+                    target_user_id=target_user_id,
                 ),
             ],
         )
@@ -51,12 +55,22 @@ async def create_test_notification(
     print(f"  id={record.id}")
     print(f"  title={record.title}")
     print(f"  message={record.message}")
+    print(f"  target_user_id={record.target_user_id}")
     print(f"  created_at={record.created_at.isoformat()}")
+    if record.target_user_id is None:
+        print(
+            "  WARNING: target_user_id is empty — this row won't appear in any "
+            "user's /alerts or SSE stream. Pass --target-user-id <uuid>."
+        )
 
 
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Create one global unread notification for local SSE/frontend testing.",
+        description=(
+            "Create one unread notification for local SSE/frontend testing. "
+            "Pass --target-user-id <uuid> so it reaches that user (notifications "
+            "are per-user); without it the row is invisible to every viewer."
+        ),
     )
     parser.add_argument(
         "--database-url",
@@ -67,6 +81,12 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--message", default=DEFAULT_MESSAGE)
     parser.add_argument("--entity-type", default="manual_tests")
     parser.add_argument("--entity-id", type=UUID, default=None)
+    parser.add_argument(
+        "--target-user-id",
+        type=UUID,
+        default=None,
+        help="User who should receive the notification (their /alerts + SSE stream).",
+    )
     return parser.parse_args(argv)
 
 
@@ -79,5 +99,6 @@ if __name__ == "__main__":
             message=args.message,
             entity_type=args.entity_type,
             entity_id=args.entity_id,
+            target_user_id=args.target_user_id,
         ),
     )
