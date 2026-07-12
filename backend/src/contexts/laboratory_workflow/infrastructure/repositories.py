@@ -690,7 +690,12 @@ class SqlAlchemyWorkflowRepository:
         copies: int | None,
     ) -> CommandResult:
         now = datetime.now(UTC)
-        completed_status_id = await self._sample_status_id(SAMPLE_COMPLETED)
+        # Both terminal sample states may be issued into a protocol: completed
+        # samples carry results, rejected ("брак") ones are reported as excerpts.
+        issuable_status_ids = {
+            await self._sample_status_id(SAMPLE_COMPLETED),
+            await self._sample_status_id(SAMPLE_REJECTED),
+        }
         samples = (
             await self.session.execute(
                 select(Sample).where(Sample.id.in_(sample_ids), Sample.deleted_at.is_(None)),
@@ -698,10 +703,10 @@ class SqlAlchemyWorkflowRepository:
         ).scalars().all()
         if len(samples) != len(set(sample_ids)):
             raise NotFoundError("One or more samples were not found.")
-        if any(sample.status_id != completed_status_id for sample in samples):
+        if any(sample.status_id not in issuable_status_ids for sample in samples):
             raise DomainConflictError(
                 code="protocol_not_issuable",
-                detail="Protocol can be created only for completed samples.",
+                detail="Protocol can be created only for completed or rejected samples.",
             )
         protocol = Protocol(
             id=uuid4(),

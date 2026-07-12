@@ -8,6 +8,7 @@ import {
   apiReadListRequest,
   apiReadRequest,
   apiUpdateRequest,
+  buildApiUrl,
   loadReferenceOptions,
 } from "@/shared/api/client.api";
 import { usePermission } from "@/shared/composables/usePermission";
@@ -177,6 +178,47 @@ async function openPreview() {
     await loadRelatedRows(true);
   }
   previewOpen.value = true;
+}
+
+// Скачивание XLS протокола: `document` — полный документ по всем образцам,
+// `excerpt` — выписка только по образцам в статусе «Брак». Оба эндпоинта отдают
+// бинарный файл (не JSON), поэтому идём напрямую через fetch мимо типизированного
+// SDK-клиента; базовый URL и куки авторизации берём тем же механизмом
+// (buildApiUrl + credentials: 'include'), что и остальные запросы.
+const downloadingKind = ref<"document" | "excerpt" | null>(null);
+
+async function downloadProtocolFile(kind: "document" | "excerpt") {
+  const id = currentItem.value?.id;
+  if (!id) return;
+
+  const errorTitle =
+    kind === "document" ? "Не удалось скачать документ" : "Не удалось сформировать выписку";
+  downloadingKind.value = kind;
+  try {
+    const res = await fetch(buildApiUrl(`/protocols/${id}/${kind}`), {
+      credentials: "include",
+    });
+    if (!res.ok) {
+      toast.add({ title: errorTitle, color: "error", icon: "i-lucide-circle-alert" });
+      return;
+    }
+    const blob = await res.blob();
+    const disposition = res.headers.get("content-disposition") || "";
+    const match = /filename="?([^"]+)"?/.exec(disposition);
+    const filename = match?.[1] || `protocol-${kind}.xlsx`;
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  } catch {
+    toast.add({ title: errorTitle, color: "error", icon: "i-lucide-circle-alert" });
+  } finally {
+    downloadingKind.value = null;
+  }
 }
 
 const {
@@ -866,6 +908,13 @@ function close() {
         :entity-id="String(currentItem?.id)" />
       <UButton v-if="!editing && businessKind === 'protocols'" label="Предпросмотр" icon="i-lucide-file-search"
         color="neutral" variant="outline" size="sm" @click="openPreview" />
+      <UButton v-if="!editing && businessKind === 'protocols'" label="Скачать документ" icon="i-lucide-file-down"
+        color="neutral" variant="outline" size="sm" data-testid="protocol-download-document"
+        :loading="downloadingKind === 'document'" @click="downloadProtocolFile('document')" />
+      <UButton v-if="!editing && businessKind === 'protocols'" label="Сформировать выписку"
+        icon="i-lucide-file-warning" color="neutral" variant="outline" size="sm"
+        data-testid="protocol-download-excerpt" :loading="downloadingKind === 'excerpt'"
+        @click="downloadProtocolFile('excerpt')" />
     </template>
 
     <template #header>

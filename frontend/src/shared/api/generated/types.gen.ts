@@ -2801,6 +2801,62 @@ export type UpdateProtocolApiV1ProtocolsProtocolIdPatchResponses = {
 
 export type UpdateProtocolApiV1ProtocolsProtocolIdPatchResponse = UpdateProtocolApiV1ProtocolsProtocolIdPatchResponses[keyof UpdateProtocolApiV1ProtocolsProtocolIdPatchResponses];
 
+export type ProtocolDocumentApiV1ProtocolsProtocolIdDocumentGetData = {
+    body?: never;
+    path: {
+        /**
+         * Protocol Id
+         */
+        protocol_id: string;
+    };
+    query?: never;
+    url: '/api/v1/protocols/{protocol_id}/document';
+};
+
+export type ProtocolDocumentApiV1ProtocolsProtocolIdDocumentGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ProtocolDocumentApiV1ProtocolsProtocolIdDocumentGetError = ProtocolDocumentApiV1ProtocolsProtocolIdDocumentGetErrors[keyof ProtocolDocumentApiV1ProtocolsProtocolIdDocumentGetErrors];
+
+export type ProtocolDocumentApiV1ProtocolsProtocolIdDocumentGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type ProtocolExcerptApiV1ProtocolsProtocolIdExcerptGetData = {
+    body?: never;
+    path: {
+        /**
+         * Protocol Id
+         */
+        protocol_id: string;
+    };
+    query?: never;
+    url: '/api/v1/protocols/{protocol_id}/excerpt';
+};
+
+export type ProtocolExcerptApiV1ProtocolsProtocolIdExcerptGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ProtocolExcerptApiV1ProtocolsProtocolIdExcerptGetError = ProtocolExcerptApiV1ProtocolsProtocolIdExcerptGetErrors[keyof ProtocolExcerptApiV1ProtocolsProtocolIdExcerptGetErrors];
+
+export type ProtocolExcerptApiV1ProtocolsProtocolIdExcerptGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
 export type RegisterDirectionApiV1DirectionsDirectionIdRegisterPostData = {
     body: RegisterDirectionRequest;
     path: {

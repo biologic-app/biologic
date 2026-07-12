@@ -1194,7 +1194,7 @@ const canCreateProtocolFromSelection = computed(() => {
   const directionId = getValueByPath(rows[0], "direction_id");
   return rows.every(
     (row) =>
-      normalizeStatusCode(row) === "completed"
+      ["completed", "rejected"].includes(normalizeStatusCode(row))
       && getValueByPath(row, "direction_id") === directionId
       && !getValueByPath(row, "protocol_id"),
   );
@@ -1204,7 +1204,7 @@ const openProtocolDialog = async () => {
   if (!canCreateProtocolFromSelection.value) {
     toast.add({
       title: "Создание протокола недоступно",
-      description: "Выберите завершённые образцы одного направления.",
+      description: "Выберите образцы одного направления в статусе «Закрыт» или «Брак».",
       color: "warning",
       icon: "i-lucide-circle-alert",
     });
