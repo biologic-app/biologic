@@ -28,6 +28,7 @@ from src.infrastructure.db.models import (
     Sample,
     SampleLab,
     SampleStatus,
+    Subscription,
     User,
 )
 
@@ -186,6 +187,12 @@ async def _seed(session: AsyncSession) -> None:
 
 
 async def _cleanup(session: AsyncSession) -> None:
+    # Manual subscriptions reference users by FK; clear them before the users go.
+    await session.execute(
+        delete(Subscription).where(
+            Subscription.user_id.in_([U_GLOBAL, U_BRANCH, U_LAB, U_OWNER, U_DOCTOR, U_STATUS])
+        )
+    )
     await session.execute(
         delete(SampleLab).where(SampleLab.sample_id.in_([SAMPLE_LABX, SAMPLE_LABY]))
     )
@@ -263,6 +270,43 @@ async def test_subscription_derivation_role_scopes_and_doctor() -> None:
             assert U_STATUS in rejected_targets
             pending_targets = await repo.resolve_notification_targets("samples", SAMPLE_PENDING)
             assert U_STATUS not in pending_targets
+    finally:
+        async with session_factory() as session:
+            await _cleanup(session)
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_list_user_subscription_ids_returns_only_manual_follows() -> None:
+    database_url = _database_url()
+    if database_url is None:
+        pytest.skip("APP_TEST_DATABASE_URL is not configured")
+
+    engine = create_async_engine(database_url)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+    try:
+        async with session_factory() as session:
+            await _cleanup(session)
+            await _seed(session)
+
+            repo = SubscriptionCrudRepository(session=session)
+
+            # U_OWNER follows DIR_A implicitly (owner) but has no explicit row —
+            # the pin query is manual-only, so it returns nothing for him.
+            assert await repo.list_user_subscription_ids("directions", U_OWNER) == []
+
+            # A manual subscribe inserts an explicit row; the pin query lists it,
+            # scoped by entity_type (no cross-type leakage).
+            await repo.subscribe("directions", DIR_A, U_LAB)
+            await repo.subscribe("samples", SAMPLE_LABX, U_LAB)
+
+            assert await repo.list_user_subscription_ids("directions", U_LAB) == [DIR_A]
+            assert await repo.list_user_subscription_ids("samples", U_LAB) == [SAMPLE_LABX]
+
+            # Unsubscribe soft-deletes the row, which drops out of the query.
+            await repo.unsubscribe("samples", SAMPLE_LABX, U_LAB)
+            assert await repo.list_user_subscription_ids("samples", U_LAB) == []
+            assert await repo.list_user_subscription_ids("directions", U_LAB) == [DIR_A]
     finally:
         async with session_factory() as session:
             await _cleanup(session)

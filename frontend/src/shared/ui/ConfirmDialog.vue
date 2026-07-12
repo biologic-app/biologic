@@ -7,6 +7,10 @@ defineProps<{
   confirmLabel?: string;
   confirmColor?: "primary" | "error" | "neutral";
   confirmIcon?: string;
+  // Приподнимает окно над другой открытой модалкой (карточкой сущности):
+  // у модалок Nuxt UI нет z-index, порядок определяется телепортом в body,
+  // поэтому запущенное из карточки подтверждение иначе оказывается под ней.
+  elevated?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -31,7 +35,8 @@ function onConfirm() {
     :title="title || 'Подтверждение'"
     :dismissible="!loading"
     :ui="{
-      content: 'w-[calc(100vw-2rem)] max-w-[420px]',
+      content: `w-[calc(100vw-2rem)] max-w-[420px]${elevated ? ' z-[60]' : ''}`,
+      overlay: elevated ? 'z-[60]' : undefined,
       header: 'min-h-0 px-5 py-4 sm:px-5',
       body: 'px-5 py-4 sm:px-5 sm:py-4',
       footer: 'px-5 py-3 sm:px-5',

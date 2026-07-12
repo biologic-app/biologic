@@ -21,6 +21,8 @@ export type DetailListItem = {
   color?: DetailListColor;
   // Срочная запись — помечается огоньком рядом с заголовком.
   urgent?: boolean;
+  // Образец с проваленным дедлайном выпуска — помечается будильником.
+  overdue?: boolean;
 };
 
 // Левый master-список детальной модалки с бесконечным скроллом.
@@ -103,12 +105,20 @@ useInfiniteScroll(
             size="md"
             :label="entry.badge"
           />
-          <UIcon
-            v-if="entry.urgent"
-            name="i-lucide-flame"
-            class="ml-auto size-5 shrink-0 text-red-500"
-            title="Срочное"
-          />
+          <span class="ml-auto flex items-center gap-1">
+            <UIcon
+              v-if="entry.overdue"
+              name="i-lucide-alarm-clock-off"
+              class="size-5 shrink-0 text-error"
+              title="Выпуск задержан"
+            />
+            <UIcon
+              v-if="entry.urgent"
+              name="i-lucide-flame"
+              class="size-5 shrink-0 text-red-500"
+              title="Срочное"
+            />
+          </span>
         </span>
       </button>
 

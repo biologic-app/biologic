@@ -27,7 +27,7 @@ import BusinessEntityDetailModal from "@/shared/ui/BusinessEntityDetailModal.vue
 import DictionaryCrudDetailModal from "@/shared/ui/DictionaryCrudDetailModal.vue";
 import ProtocolPreviewModal from "@/shared/ui/ProtocolPreviewModal.vue";
 import type { DetailListItem } from "@/shared/ui/EntityDetailModalShell.vue";
-import { recordCode, shortPersonName } from "@/shared/ui/entity-detail.helpers";
+import { isSampleDeadlineOverdue, recordCode, shortPersonName } from "@/shared/ui/entity-detail.helpers";
 import {
   filterSelectOverlayUi,
   getFilterSelectModelValue,
@@ -67,6 +67,13 @@ import { formatDateTime } from "@/shared/utils/format";
 import { getValueByPath } from "@/shared/utils/object";
 import { getStatusBadgeColor as resolveStatusBadgeColor, resolveStatusCode } from "@/shared/domain/status";
 import { getEntityRule, type EntityDetailKind } from "@/shared/domain/entity-rules";
+import {
+  fetchMySubscriptionIds,
+  subscribeToEntity,
+  unsubscribeFromEntity,
+  type SubscriptionEntity,
+} from "@/shared/api/subscriptions.api";
+import type { RowPinningState } from "@tanstack/table-core";
 
 type DetailKind = EntityDetailKind;
 type BadgeColor = ReturnType<typeof resolveStatusBadgeColor>;
@@ -194,6 +201,9 @@ type DetailStackEntry = {
 
 const detailOpen = ref(false);
 const detailStack = ref<DetailStackEntry[]>([]);
+// Бампается после команды воркфлоу, запущенной из шапки карточки, чтобы
+// открытая карточка перечитала запись (статус изменился) — см. модалку ниже.
+const detailReloadToken = ref(0);
 // Правила сущности (удаление/карточка/создание) — из данных, без preset-веток.
 const entityRule = computed(() => getEntityRule(props.config.presetKey));
 const detailTop = computed<DetailStackEntry | null>(
@@ -217,6 +227,72 @@ const filterReferenceOptionsLoaded = ref(false);
 const filterReferenceOptionsLoading = ref(false);
 const columnVisibility = useTableColumnVisibility(tableSettingsKey, { actions: false });
 const rowSelection = ref<Record<string, boolean>>({});
+
+// Закрепление строк (row pinning) = ручная подписка на запись: пользователь
+// получает уведомления по всем её статусам, а отслеживаемые строки держатся
+// сверху таблицы. Доступно только направлениям и образцам (SubscriptionEntity).
+// Неявные подписки (роль/владелец/сан.врач) сюда не попадают — только ручные.
+const supportsSubscriptions = computed(
+  () => props.config.presetKey === "directions" || props.config.presetKey === "samples",
+);
+const rowPinning = ref<RowPinningState>({ top: [], bottom: [] });
+// Защита от двойных кликов, пока запрос в полёте (не reactive — на рендер не влияет).
+const pinInFlight = new Set<string>();
+
+const isRowPinned = (id: string) => (rowPinning.value.top ?? []).includes(id);
+
+const setRowPinned = (id: string, pinned: boolean) => {
+  const top = new Set(rowPinning.value.top ?? []);
+  if (pinned) {
+    top.add(id);
+  } else {
+    top.delete(id);
+  }
+  rowPinning.value = { top: [...top], bottom: rowPinning.value.bottom ?? [] };
+};
+
+const loadMySubscriptions = async () => {
+  if (!supportsSubscriptions.value) {
+    return;
+  }
+  try {
+    const ids = await fetchMySubscriptionIds(props.config.presetKey as SubscriptionEntity);
+    rowPinning.value = { top: ids, bottom: [] };
+  } catch {
+    // Тихо: отсутствие/сбой подписок не должны ломать таблицу.
+  }
+};
+
+const toggleRowPin = async (row: CrudRow) => {
+  if (!supportsSubscriptions.value) {
+    return;
+  }
+  const id = String(row.id);
+  if (pinInFlight.has(id)) {
+    return;
+  }
+  const entity = props.config.presetKey as SubscriptionEntity;
+  const wasPinned = isRowPinned(id);
+  pinInFlight.add(id);
+  setRowPinned(id, !wasPinned); // оптимистично — мгновенная реакция
+  try {
+    if (wasPinned) {
+      await unsubscribeFromEntity(entity, id);
+    } else {
+      await subscribeToEntity(entity, id);
+    }
+  } catch {
+    setRowPinned(id, wasPinned); // откат при ошибке
+    toast.add({
+      title: "Не удалось изменить отслеживание",
+      color: "error",
+      icon: "i-lucide-circle-alert",
+    });
+  } finally {
+    pinInFlight.delete(id);
+  }
+};
+
 const contextRow = ref<CrudRow | null>(null);
 const contextMenuOpen = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
@@ -302,6 +378,7 @@ watch(
   () => props.refreshToken,
   () => {
     table.refresh();
+    void loadMySubscriptions();
   },
 );
 
@@ -322,6 +399,7 @@ watch(
 );
 
 onMounted(async () => {
+  void loadMySubscriptions();
   await table.fetch();
 });
 
@@ -518,6 +596,7 @@ const toDetailListItem = (row: CrudRow): DetailListItem => ({
   badge: getStatusLabel(row) === "-" ? undefined : getStatusLabel(row),
   color: getStatusBadgeColor(row),
   urgent: Boolean(getValueByPath(row, "is_urgent")),
+  overdue: isSampleDeadlineOverdue(row),
 });
 
 // Левый master-список детальной модалки: текущие строки таблицы (тот же
@@ -696,7 +775,40 @@ const selectedRowsHaveStatus = (allowed: string[]) =>
 const uiColumns = computed(() => {
   const actionColumn = { id: "actions", header: "Действия", meta: { class: { td: "w-auto min-w-[56px] text-right" } } };
 
+  // Колонка-пин: клик подписывает/отписывает на запись и закрепляет её сверху.
+  // Читает isRowPinned/pinInFlight «вживую» при рендере — TanStack перерисует
+  // ячейку при изменении v-model:row-pinning, поэтому цвет/иконка следят за состоянием.
+  const pinColumn = {
+    id: "pin",
+    enableSorting: false,
+    enableHiding: false,
+    header: () => "",
+    meta: { class: { th: "w-10", td: "w-10" } },
+    cell: ({ row }: { row: TableRow<CrudRow> }) => {
+      const rowItem = row.original as CrudRow;
+      if (isSkeletonRow(rowItem)) {
+        return renderSkeletonCell("pin");
+      }
+      const id = String(rowItem.id);
+      const pinned = isRowPinned(id);
+      return h(UButton, {
+        icon: pinned ? "i-lucide-bell-ring" : "i-lucide-bell-plus",
+        color: pinned ? "primary" : "neutral",
+        variant: "ghost",
+        size: "sm",
+        square: true,
+        title: pinned ? "Не отслеживать" : "Отслеживать уведомления",
+        "aria-label": pinned ? "Не отслеживать" : "Отслеживать уведомления",
+        onClick: (event: Event) => {
+          event.stopPropagation();
+          void toggleRowPin(rowItem);
+        },
+      });
+    },
+  };
+
   return [
+    ...(supportsSubscriptions.value ? [pinColumn] : []),
     ...props.config.columns.map((column, columnIndex) => ({
       id: getColumnId(column.field),
       accessorKey: column.field,
@@ -866,6 +978,12 @@ const confirmDelete = async (row: CrudRow) => {
         }, 8000);
         const undoEntry = { item: deletedRow, timeout };
         pendingUndo.value.push(undoEntry);
+        // Если удаление запущено из карточки этой же записи — закрываем её:
+        // сущность больше не существует (восстановить можно из тоста «Отменить»).
+        if (detailOpen.value && String(detailItem.value?.id) === String(row.id)) {
+          detailStack.value = [];
+          detailOpen.value = false;
+        }
         toast.add({
           title: "Запись удалена",
           description: "Запись будет удалена безвозвратно через 8 секунд.",
@@ -950,6 +1068,30 @@ const commandInitialItem = computed(() => {
   return defaults;
 });
 
+// Синхронизирует открытую карточку после мутации выбранных строк: подтягивает
+// свежую строку из перечитанной таблицы в вершину стека (чтобы кнопки шапки и
+// хлебные крошки пересчитались по новому статусу) и форсит перечитку карточки.
+const refreshOpenDetailAfterMutation = (affectedIds: Array<string | number>) => {
+  const openId = detailItem.value?.id;
+  if (!detailOpen.value || openId == null) {
+    return;
+  }
+  if (!affectedIds.some((id) => String(id) === String(openId))) {
+    return;
+  }
+
+  const fresh = table.data.value.find((row) => String(row.id) === String(openId));
+  if (fresh) {
+    const next = [...detailStack.value];
+    const top = next[next.length - 1];
+    if (top) {
+      next[next.length - 1] = { ...top, item: { ...top.item, ...fresh } };
+      detailStack.value = next;
+    }
+  }
+  detailReloadToken.value += 1;
+};
+
 const runWorkflowCommand = async (
   command: WorkflowCommand,
   rows: CrudRow[],
@@ -973,6 +1115,7 @@ const runWorkflowCommand = async (
     rowSelection.value = {};
     commandDialogOpen.value = false;
     await table.refresh();
+    refreshOpenDetailAfterMutation(rows.map((row) => row.id));
     toast.add({
       title: command.successTitle,
       color: "success",
@@ -1367,6 +1510,48 @@ const handleRowSelect = (_event: Event, row: { original: CrudRow }) => {
   openDetail(row.original);
 };
 
+// Действия для шапки карточки: те же переходы статуса, мастер импорта и
+// удаление, что и в меню строки таблицы, но без «Просмотр»/«Редактировать»
+// (уже доступны внутри карточки). Считаются для верхней записи стека и только
+// когда её ресурс совпадает со страницей — все хелперы (workflowCommands,
+// extraRowActions, правила удаления) привязаны к props.config. Вложенные
+// карточки другого ресурса (образец внутри направления) кнопок не получают.
+// Недоступные в текущем статусе действия (например удаление не-черновика) не
+// дизейблятся, а вовсе не показываются — в шапке остаются только выполнимые.
+const detailHeaderActions = computed<DropdownMenuItem[]>(() => {
+  const row = detailItem.value;
+  if (!row || detailMode.value === "create") {
+    return [];
+  }
+  if (detailConfig.value.presetKey !== props.config.presetKey) {
+    return [];
+  }
+
+  const workflowItems: DropdownMenuItem[] = pageWorkflowCommands.value
+    .filter((command) => canRunCommandOnRow(command, row))
+    .map((command) => ({
+      label: command.selection.label,
+      icon: command.icon,
+      color: command.selection.color,
+      onSelect: () => openWorkflowCommand(command.key, [row]),
+    }));
+
+  const extraItems = (props.extraRowActions?.(row) ?? []).filter((item) => !item.disabled);
+
+  const actions = [...workflowItems, ...extraItems];
+
+  if (isDeleteAllowed(row)) {
+    actions.push({
+      label: "Удалить",
+      icon: "i-lucide-trash-2",
+      color: "error",
+      onSelect: () => confirmDelete(row),
+    });
+  }
+
+  return actions;
+});
+
 const contextMenuItems = computed(() =>
   contextRow.value ? getRowActionItems(contextRow.value) : [],
 );
@@ -1543,6 +1728,7 @@ defineExpose({
   <CrudDataTable
     v-model:column-visibility="columnVisibility"
     v-model:row-selection="rowSelection"
+    v-model:row-pinning="rowPinning"
     :data="tableRows"
     :columns="uiColumns"
     :total="table.total.value"
@@ -1654,6 +1840,7 @@ defineExpose({
     :item="commandInitialItem"
     mode="create"
     :loading="commandSaving"
+    :elevated="detailOpen"
     @save="saveWorkflowCommand"
   />
 
@@ -1677,6 +1864,8 @@ defineExpose({
     :start-in-edit="detailStartInEdit"
     :initial-values="detailInitialValues"
     :breadcrumbs="detailBreadcrumbs"
+    :header-actions="detailHeaderActions"
+    :reload-token="detailReloadToken"
     :list-items="detailMode !== 'create' ? contextualListItems : undefined"
     :list-label="contextualListLabel"
     :list-has-more="contextualListHasMore"
@@ -1718,6 +1907,7 @@ defineExpose({
     :title="confirmDialog.title"
     :description="confirmDialog.description"
     :loading="deleting"
+    :elevated="detailOpen"
     confirm-color="error"
     confirm-label="Удалить"
     confirm-icon="i-lucide-trash-2"

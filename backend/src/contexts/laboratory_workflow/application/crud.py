@@ -62,14 +62,14 @@ class WorkflowCrudUseCase:
             await self.directions.list(params),
             params,
             _direction_fields(),
-            ("status", "doctor", "object"),
+            ("status", "doctor", "object", "creator"),
         )
 
     async def read_direction(
         self, direction_id: UUID
     ) -> SingleResponse[dict[str, object]]:
         return _single_response(
-            await self.directions.read(direction_id), _direction_fields()
+            await self.directions.read(direction_id), _direction_fields(), includes=("creator",)
         )
 
     async def create_direction(
@@ -151,11 +151,13 @@ class WorkflowCrudUseCase:
             await self.samples.list(params),
             params,
             _sample_fields(),
-            ("status", "direction", "sample_type", "protocol"),
+            ("status", "direction", "sample_type", "protocol", "creator"),
         )
 
     async def read_sample(self, sample_id: UUID) -> SingleResponse[dict[str, object]]:
-        return _single_response(await self.samples.read(sample_id), _sample_fields())
+        return _single_response(
+            await self.samples.read(sample_id), _sample_fields(), includes=("creator",)
+        )
 
     async def update_sample(
         self,
@@ -191,6 +193,18 @@ class WorkflowCrudUseCase:
     ) -> ListResponse[dict[str, object]]:
         items = await self.subscriptions.unsubscribe(entity_type, entity_id, user_id)
         return _derived_list_response(items)
+
+    async def list_user_subscriptions(
+        self, entity_type: str, user_id: UUID | None
+    ) -> ListResponse[dict[str, object]]:
+        """Ids of entities the given user follows manually — for the pin column.
+
+        Anonymous callers (no ``user_id``) get an empty list rather than an error.
+        """
+        if user_id is None:
+            return _derived_list_response([])
+        ids = await self.subscriptions.list_user_subscription_ids(entity_type, user_id)
+        return _derived_list_response([{"entity_id": str(entity_id)} for entity_id in ids])
 
     async def set_sample_labs(
         self, sample_id: UUID, lab_ids: list[UUID]
@@ -318,10 +332,11 @@ def _single_response(
     item: Any,
     fields: tuple[str, ...],
     *,
+    includes: tuple[str, ...] = (),
     operation: str | None = None,
 ) -> SingleResponse[dict[str, object]]:
     return SingleResponse(
-        data=_serialize(item, fields), meta=ResponseMeta(operation=operation)
+        data=_serialize(item, fields, includes), meta=ResponseMeta(operation=operation)
     )
 
 
@@ -390,6 +405,7 @@ def _sample_fields() -> tuple[str, ...]:
         "completed_at",
         "deadline",
         "verdict",
+        "created_by",
         "created_at",
         "updated_at",
     )
@@ -417,6 +433,7 @@ def _test_fields() -> tuple[str, ...]:
         "value",
         "comment",
         "norm",
+        "verdict",
         "is_active",
         "research_id",
         "indicator_id",

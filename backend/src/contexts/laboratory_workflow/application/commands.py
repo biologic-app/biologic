@@ -12,8 +12,6 @@ from src.contexts.laboratory_workflow.application.dto import (
     TestCommandInput,
     UpdateProtocolInput,
 )
-from src.contexts.notifications.application.push_dispatcher import PushDispatcher
-from src.contexts.notifications.application.service import NotificationRecord
 from src.contexts.notifications.application.subscribers import WorkflowNotificationSubscriber
 from src.core.events import EventPublisher
 from src.domain.uow import UnitOfWork, UnitOfWorkFactory
@@ -30,10 +28,8 @@ class WorkflowCommandService:
         self,
         *,
         uow_factory: UnitOfWorkFactory,
-        push_dispatcher: PushDispatcher | None = None,
     ) -> None:
         self._uow_factory = uow_factory
-        self._push_dispatcher = push_dispatcher
 
     async def register_direction(self, command: RegisterDirectionInput) -> CommandResult:
         async with self._uow_factory() as uow:
@@ -42,9 +38,8 @@ class WorkflowCommandService:
                 actor_id=command.actor_id,
                 comment=command.comment,
             )
-            outbox = await self._publish_events(uow)
+            await self._publish_events(uow)
             await uow.commit()
-        self._dispatch_push(outbox)
         return result
 
     async def register_sample(self, command: RegisterSampleInput) -> CommandResult:
@@ -55,9 +50,8 @@ class WorkflowCommandService:
                 received_at=command.received_at,
                 deadline=command.deadline,
             )
-            outbox = await self._publish_events(uow)
+            await self._publish_events(uow)
             await uow.commit()
-        self._dispatch_push(outbox)
         return result
 
     async def reject_sample(self, command: RejectSampleInput) -> CommandResult:
@@ -67,9 +61,8 @@ class WorkflowCommandService:
                 actor_id=command.actor_id,
                 reason=command.reason,
             )
-            outbox = await self._publish_events(uow)
+            await self._publish_events(uow)
             await uow.commit()
-        self._dispatch_push(outbox)
         return result
 
     async def assign_research(self, command: AssignResearchInput) -> CommandResult:
@@ -99,9 +92,8 @@ class WorkflowCommandService:
                 actor_id=command.actor_id,
                 reason=command.reason or "",
             )
-            outbox = await self._publish_events(uow)
+            await self._publish_events(uow)
             await uow.commit()
-        self._dispatch_push(outbox)
         return result
 
     async def start_research(self, command: ResearchCommandInput) -> CommandResult:
@@ -129,6 +121,7 @@ class WorkflowCommandService:
                 value=command.value,
                 norm=command.norm,
                 comment=command.comment,
+                verdict=command.verdict,
             )
             await uow.commit()
             return result
@@ -197,28 +190,19 @@ class WorkflowCommandService:
             await uow.commit()
             return result
 
-    async def _publish_events(self, uow: UnitOfWork) -> list[NotificationRecord]:
+    async def _publish_events(self, uow: UnitOfWork) -> None:
         """Publisher side of the workflow → notifications pub/sub (see
-        src.core.events.EventPublisher): every domain event the command
-        raised is delivered to the notification subscriber, which resolves
-        a specific target user per event rather than broadcasting it.
-
-        Returns the notifications persisted this way (the push outbox) so the
-        caller can dispatch web push for them once the transaction commits.
+        src.core.events.EventPublisher): every domain event the command raised
+        is delivered to the notification subscriber, which persists one targeted
+        notification per resolved follower — surfaced in-app over SSE.
         """
         events = getattr(uow.workflow, "events", [])
         if not events:
-            return []
+            return
         publisher = EventPublisher()
-        outbox: list[NotificationRecord] = []
         publisher.subscribe(
             WorkflowNotificationSubscriber(
-                repository=uow.notifications, resolver=uow.workflow, outbox=outbox
+                repository=uow.notifications, resolver=uow.workflow
             ),
         )
         await publisher.publish_all(events)
-        return outbox
-
-    def _dispatch_push(self, outbox: list[NotificationRecord]) -> None:
-        if self._push_dispatcher is not None:
-            self._push_dispatcher.dispatch(outbox)

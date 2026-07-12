@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, resolveComponent, watch } from "vue";
-import type { TabsItem, TimelineItem } from "@nuxt/ui";
+import type { DropdownMenuItem, TabsItem, TimelineItem } from "@nuxt/ui";
 import type { CrudModuleConfig } from '@/shared/types/crud';
 import {
+  apiCommandRequest,
   apiCreateRequest,
   apiReadListRequest,
   apiReadRequest,
@@ -43,12 +44,14 @@ import {
   recordCode,
   type DetailTimelineEvent,
   type EntityKind,
+  type RelatedRow,
 } from "@/shared/ui/entity-detail.helpers";
 import { useRelatedEntities } from "@/shared/composables/useRelatedEntities";
 import SubscribeButton from "@/shared/ui/SubscribeButton.vue";
 import {
   DIRECTION_STATUS_FLOW,
   SAMPLE_STATUS_FLOW,
+  SAMPLE_STATUS_REJECTED,
   statusTimelineItems,
 } from "@/shared/domain/status-timeline";
 
@@ -83,6 +86,14 @@ const props = withDefaults(
     // Хлебные крошки стека открытых карточек (см. DictionaryCrudContent).
     // Показываются всегда, когда карточка открыта (даже одна крошка).
     breadcrumbs?: Array<{ label: string }>;
+    // Действия строки (переходы статуса, удаление, мастер импорта), которые
+    // раньше были доступны только из меню строки таблицы. Приходят готовыми
+    // пунктами от родителя (DictionaryCrudContent) и рендерятся кнопками в
+    // шапке карточки. Пустой массив — кнопки не показываем.
+    headerActions?: DropdownMenuItem[];
+    // Инкремент этого счётчика заставляет карточку перечитать запись с бэкенда
+    // (после команды воркфлоу из шапки статус меняется — нужно обновить данные).
+    reloadToken?: number;
   }>(),
   {
     businessKind: null,
@@ -95,6 +106,8 @@ const props = withDefaults(
     startInEdit: false,
     initialValues: null,
     breadcrumbs: () => [],
+    headerActions: () => [],
+    reloadToken: 0,
   },
 );
 
@@ -389,17 +402,142 @@ const statusTransitions = computed(() => {
     if (entry.created_at) datesByCode[to] = formatDateTime(entry.created_at);
     if (entry.actor_name) actorsByCode[to] = entry.actor_name;
   }
+
+  // Первый шаг флоу (draft у направления, pending у образца) в change_log не
+  // фиксируется — заполняем его из полей самой записи: дата создания и
+  // резолвленный создатель (backend отдаёт `creator` как {last_name,...}).
+  const row = currentItem.value;
+  const firstCode = statusFlow.value?.[0]?.code;
+  if (firstCode && !datesByCode[firstCode] && row?.created_at) {
+    datesByCode[firstCode] = formatDateTime(String(row.created_at));
+  }
+  if (firstCode && !actorsByCode[firstCode]) {
+    const creatorName = namedValue(row?.creator ?? row?.created_by);
+    if (creatorName) actorsByCode[firstCode] = creatorName;
+  }
+
   return { datesByCode, actorsByCode };
 });
 
 // Таймлайн статусов: для образца — от отбора до дедлайна выпуска; на каждой
 // достигнутой точке — дата перехода и «Фамилия И.О.» того, кто его выполнил.
+// Ведущий этап «Сбор и формирование»: проставляется в направлении при импорте
+// (дата отбора + ФИО санитарного врача). Показывается и у образца — сбор
+// наследуется от родительского направления. Всегда «пройден» (до первого статуса).
+const collectionLeadItem = computed<TimelineItem | null>(() => {
+  const row = currentItem.value;
+  if (!row) return null;
+  const collectedAt = row.sampled_at ?? row.received_at ?? null;
+  const doctorName =
+    namedValue(row.doctor)
+    || namedValue((row.direction as Record<string, unknown> | undefined)?.doctor);
+  return {
+    value: "collection",
+    title: "Сформировано",
+    icon: "i-lucide-clipboard-pen",
+    description: doctorName || undefined,
+    date: collectedAt ? formatDateTime(String(collectedAt)) : undefined,
+  };
+});
+
+// Русская форма слова «образец» по числу задержавшихся: 1 образец, 2 образца,
+// 5 образцов (падежи по последней цифре, кроме 11–14).
+const pluralizeSamples = (count: number): string => {
+  const mod100 = count % 100;
+  const mod10 = count % 10;
+  if (mod100 >= 11 && mod100 <= 14) return "образцов";
+  if (mod10 === 1) return "образец";
+  if (mod10 >= 2 && mod10 <= 4) return "образца";
+  return "образцов";
+};
+
+// Провал дедлайна выпуска. Образец: свой deadline против completed_at (или
+// «сейчас», если ещё не выпущен). Направление: агрегат по образцам — провалено,
+// если хоть один задерживается, с указанием количества задержавшихся образцов.
+const deadlineStatus = computed<
+  { failed: boolean; deadlineLabel: string; description: string } | null
+>(() => {
+  const row = currentItem.value;
+  if (!row) return null;
+
+  if (props.businessKind === "samples") {
+    const deadlineRaw = row.deadline;
+    if (!deadlineRaw) return null;
+    const deadline = new Date(String(deadlineRaw)).getTime();
+    if (!Number.isFinite(deadline)) return null;
+    const releaseRaw = row.completed_at;
+    const release = releaseRaw ? new Date(String(releaseRaw)).getTime() : Date.now();
+    const failed = release > deadline;
+    return {
+      failed,
+      deadlineLabel: `Дедлайн: ${formatDateTime(String(deadlineRaw))}`,
+      description: failed
+        ? releaseRaw
+          ? "Выпуск позже дедлайна."
+          : "Выпуск задерживается."
+        : releaseRaw
+          ? "Выпущен в срок."
+          : "В пределах срока.",
+    };
+  }
+
+  if (props.businessKind === "directions") {
+    const now = Date.now();
+    const withDeadline = relatedRows.value
+      .map((sample) => ({
+        sample,
+        deadline: sample.deadline ? new Date(String(sample.deadline)).getTime() : Number.NaN,
+      }))
+      .filter((entry) => Number.isFinite(entry.deadline));
+    if (!withDeadline.length) return null;
+    const late = withDeadline.filter(({ sample, deadline }) => {
+      const release = sample.completed_at
+        ? new Date(String(sample.completed_at)).getTime()
+        : now;
+      return release > deadline;
+    });
+    const maxDeadline = Math.max(...withDeadline.map((entry) => entry.deadline));
+    return {
+      failed: late.length > 0,
+      deadlineLabel: `Выпуск первого образца: ${formatDateTime(new Date(maxDeadline).toISOString())}`,
+      description: late.length
+        ? `Задерживается ${late.length} ${pluralizeSamples(late.length)} из ${withDeadline.length}.`
+        : "Все образцы в пределах срока.",
+    };
+  }
+
+  return null;
+});
+
+// Замыкающий индикатор дедлайна: серый (не активен) в пределах срока, красный
+// при провале. У образца в статусе «Брак» выпуска не будет — индикатор скрыт.
+const deadlineTrailItem = computed<TimelineItem | null>(() => {
+  if (statusCode.value === SAMPLE_STATUS_REJECTED.code) return null;
+  const info = deadlineStatus.value;
+  if (!info) return null;
+  const item: TimelineItem = {
+    value: "deadline",
+    title: info.failed ? "Выпуск задержан" : "Дедлайн выпуска",
+    icon: info.failed ? "i-lucide-alarm-clock-off" : "i-lucide-alarm-clock",
+    description: info.description,
+    date: info.deadlineLabel,
+  };
+  if (info.failed) {
+    item.ui = {
+      indicator: "bg-error text-inverted ring-2 ring-error/30",
+      title: "text-error font-semibold",
+      description: "text-error/80",
+    };
+  }
+  return item;
+});
+
 const statusTimeline = computed<TimelineItem[]>(() => {
   const row = currentItem.value;
   if (!row || !statusFlow.value || !statusCode.value) return [];
   const start = row.sampled_at ?? row.received_at ?? row.created_at;
   const end = row.deadline ?? row.completed_at;
-  return statusTimelineItems(statusFlow.value, statusCode.value, {
+  const statusItems = statusTimelineItems(statusFlow.value, statusCode.value, {
     startDate: start ? `Отбор: ${formatDateTime(String(start))}` : null,
     endDate: end
       ? `${row.deadline ? "Дедлайн" : "Завершено"}: ${formatDateTime(String(end))}`
@@ -407,103 +545,13 @@ const statusTimeline = computed<TimelineItem[]>(() => {
     datesByCode: statusTransitions.value.datesByCode,
     actorsByCode: statusTransitions.value.actorsByCode,
   });
+  return [
+    ...(collectionLeadItem.value ? [collectionLeadItem.value] : []),
+    ...statusItems,
+    ...(deadlineTrailItem.value ? [deadlineTrailItem.value] : []),
+  ];
 });
 
-// Дата «DD.MM.YYYY» и время «HH:mm» отдельными строками (дата сверху,
-// время под ней) — для точек дедлайн-таймлайна.
-const dateTimeParts = (time: number) => {
-  const value = new Date(time);
-  return {
-    date: value.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" }),
-    time: value.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
-  };
-};
-// Дедлайн: для направления — крайний (максимальный) дедлайн его образцов,
-// для образца — его собственный дедлайн.
-// Шкала прогресса: от получения/отбора до дедлайна, в часах; чем
-// ближе к дедлайну (меньше времени в запасе) — тем краснее.
-const deadlineInfo = computed(() => {
-  if (isCreate.value) return null
-  if (props.businessKind !== 'directions' && props.businessKind !== 'samples') return null
-
-  const row = currentItem.value
-  if (!row) return null
-
-  let end: number
-
-  if (props.businessKind === 'directions') {
-    const deadlines = relatedRows.value
-      .map((sample) => sample.deadline)
-      .filter((value): value is string => Boolean(value))
-      .map((value) => new Date(value).getTime())
-      .filter((time) => Number.isFinite(time))
-    if (!deadlines.length) return null
-    end = Math.max(...deadlines)
-  } else {
-    const deadlineRaw = row.deadline
-    if (!deadlineRaw) return null
-    end = new Date(String(deadlineRaw)).getTime()
-    if (!Number.isFinite(end)) return null
-  }
-
-  const startRaw = row.received_at ?? row.sampled_at ?? row.created_at
-  const start = startRaw ? new Date(String(startRaw)).getTime() : Number.NaN
-  if (!Number.isFinite(start) || end <= start) return null
-
-  const now = Date.now()
-  const percent = Math.round(Math.min(100, Math.max(0, ((now - start) / (end - start)) * 100)))
-  const totalHours = (end - start) / 3_600_000
-  const elapsedHours = Math.min(totalHours, Math.max(0, (now - start) / 3_600_000))
-
-  return {
-    start: dateTimeParts(start),
-    now: dateTimeParts(now),
-    end: dateTimeParts(end),
-    percent,
-    totalHours,
-    elapsedHours,
-    // Остаток времени до дедлайна: ≤20% — красный, 20–50% — жёлтый, иначе зелёный.
-    color: (percent >= 80 ? 'error' : percent >= 50 ? 'warning' : 'success') as
-      | 'success'
-      | 'warning'
-      | 'error',
-  }
-})
-
-// Цвет кружков-узлов дедлайн-шкалы — тот же, что у прогресса.
-const deadlineNodeClass = computed(() => {
-  const color = deadlineInfo.value?.color;
-  return color === "error"
-    ? "bg-error text-inverted"
-    : color === "warning"
-      ? "bg-warning text-inverted"
-      : "bg-success text-inverted";
-});
-
-// Единый порог переключения в режим "прижать к краю"
-const EDGE_THRESHOLD_LOW = 10
-const EDGE_THRESHOLD_HIGH = 85
-
-function edgeAwareLabelStyle(percent: number) {
-  if (percent <= EDGE_THRESHOLD_LOW) {
-    return { left: '0%', transform: 'translateX(0)' }
-  }
-  if (percent >= EDGE_THRESHOLD_HIGH) {
-    return { left: '100%', transform: 'translateX(-100%)' }
-  }
-  return { left: `${percent}%`, transform: 'translateX(-50%)' }
-}
-
-// Дата/время сверху и подпись "Сейчас" внизу используют одну и ту же логику выравнивания
-const deadlineDateTimeLabelStyle = computed(() =>
-  edgeAwareLabelStyle(deadlineInfo.value?.percent ?? 0)
-)
-const deadlineNowLabelStyle = computed(() =>
-  edgeAwareLabelStyle(deadlineInfo.value?.percent ?? 0)
-)
-
-// Кружок всегда строго на реальном проценте — без клампинга, центрируется через translate в шаблоне
-const deadlineNowCirclePosition = computed(() => deadlineInfo.value?.percent ?? 0)
 // Подписки есть только у направлений и образцов.
 const subscriptionEntity = computed(() =>
   props.businessKind === "directions" || props.businessKind === "samples"
@@ -529,7 +577,7 @@ const technicalAudit = computed<TimelineEvent[]>(() => {
 });
 
 watch(
-  () => [props.open, props.item?.id, props.config.endpoint, props.mode, props.startInEdit] as const,
+  () => [props.open, props.item?.id, props.config.endpoint, props.mode, props.startInEdit, props.reloadToken] as const,
   async ([open, , , mode]) => {
     if (!open) {
       resetState();
@@ -751,23 +799,49 @@ async function saveInline() {
   }
 }
 
+// Сохранение одной строки теста «по-умному»: пустой тест (queued) при первом
+// заполнении переводим queued → in_progress → completed двумя командами
+// (прямой queued → completed запрещён status_policy), заполненный — командой
+// complete, иначе — обычным PATCH черновика. verdict === false — валидное
+// заполненное значение, поэтому проверяем строго через `!== null`.
+async function saveOneTestRow(row: RelatedRow) {
+  const actorId = auth.user?.id;
+  const value = (row.value ?? null) as string | null;
+  const norm = (row.norm ?? null) as string | null;
+  const comment = (row.comment ?? null) as string | null;
+  const verdict = (row.verdict ?? null) as boolean | null;
+  const isFilled =
+    value != null && value !== "" && norm != null && norm !== "" && verdict !== null;
+  const touched =
+    value != null || norm != null || comment != null || verdict !== null;
+  let statusCode = row.statusCode;
+
+  if (statusCode === "queued" && (touched || isFilled)) {
+    await apiCommandRequest(`/tests/${row.id}/start`, {
+      method: "POST",
+      body: { actor_id: actorId },
+    });
+    statusCode = "in_progress";
+  }
+  if (isFilled && statusCode === "in_progress") {
+    await apiCommandRequest(`/tests/${row.id}/complete`, {
+      method: "POST",
+      body: { actor_id: actorId, value, norm, comment, verdict },
+    });
+    return;
+  }
+  await apiUpdateRequest(`/tests/${row.id}`, {
+    method: "PATCH",
+    body: { value, norm, comment, verdict },
+  });
+}
+
 async function saveRelatedTests() {
   if (props.businessKind !== "research") return;
 
   testsSaving.value = true;
   try {
-    await Promise.all(
-      relatedRows.value.map((row) =>
-        apiUpdateRequest<CrudRow>(`/tests/${row.id}`, {
-          method: "PATCH",
-          body: {
-            value: row.value ?? null,
-            norm: row.norm ?? null,
-            comment: row.comment ?? null,
-          },
-        }),
-      ),
-    );
+    await Promise.all(relatedRows.value.map((row) => saveOneTestRow(row)));
     await loadRelatedRows(true);
   } finally {
     testsSaving.value = false;
@@ -781,97 +855,54 @@ function close() {
 </script>
 
 <template>
-  <EntityDetailModalShell
-    v-model:active-tab="activeTab"
-    :open="open"
-    :eyebrow="eyebrowText"
-    :title="headerTitle"
-    :tabs="tabs"
-    size="xl"
-    :default-fullscreen="true"
-    :ready="Boolean(currentItem)"
-    :breadcrumbs="breadcrumbs"
-    :list-items="listItems"
-    :list-label="listLabel"
-    :selected-id="selectedId"
-    :list-has-more="listHasMore"
-    :list-loading-more="listLoadingMore"
-    :body-class="activeTab === 'related' ? 'overflow-hidden' : 'overflow-auto'"
-    @update:open="emit('update:open', $event)"
-    @select="emit('select', $event)"
-    @list-load-more="emit('list-load-more')"
-    @go-to-level="emit('go-to-level', $event)"
-  >
+  <EntityDetailModalShell v-model:active-tab="activeTab" :open="open" :eyebrow="eyebrowText" :title="headerTitle"
+    :tabs="tabs" size="xl" :default-fullscreen="true" :ready="Boolean(currentItem)" :breadcrumbs="breadcrumbs"
+    :list-items="listItems" :list-label="listLabel" :selected-id="selectedId" :list-has-more="listHasMore"
+    :list-loading-more="listLoadingMore" :body-class="activeTab === 'related' ? 'overflow-hidden' : 'overflow-auto'"
+    @update:open="emit('update:open', $event)" @select="emit('select', $event)" @list-load-more="emit('list-load-more')"
+    @go-to-level="emit('go-to-level', $event)">
     <template #header-actions>
-      <SubscribeButton
-        v-if="subscriptionEntity && !isCreate && currentItem?.id"
-        :entity="subscriptionEntity"
-        :entity-id="String(currentItem?.id)"
-      />
-      <UButton
-        v-if="!editing && businessKind === 'protocols'"
-        label="Предпросмотр"
-        icon="i-lucide-file-search"
-        color="neutral"
-        variant="outline"
-        size="sm"
-        @click="openPreview"
-      />
+      <SubscribeButton v-if="subscriptionEntity && !isCreate && currentItem?.id" :entity="subscriptionEntity"
+        :entity-id="String(currentItem?.id)" />
+      <UButton v-if="!editing && businessKind === 'protocols'" label="Предпросмотр" icon="i-lucide-file-search"
+        color="neutral" variant="outline" size="sm" @click="openPreview" />
     </template>
 
     <template #header>
       <div class="mt-3 flex min-w-0 items-center gap-3">
         <div
-          class="flex size-11 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary"
-        >
+          class="flex size-11 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
           <UIcon
             :name="businessKind === 'directions' ? 'i-lucide-clipboard-list' : businessKind === 'samples' ? 'i-lucide-test-tube-2' : businessKind === 'research' ? 'i-lucide-flask-conical' : 'i-lucide-database'"
-            class="size-5"
-          />
+            class="size-5" />
         </div>
-        <div class="min-w-0">
+        <div class="min-w-0 flex-1">
           <div class="flex flex-wrap items-center gap-2">
             <h2 class="truncate text-2xl font-semibold text-highlighted">
               {{ headerTitle }}
             </h2>
-            <UBadge
-              v-if="!isCreate && statusLabel"
-              :color="statusColor"
-              variant="subtle"
-              :label="statusLabel"
-            />
-            <UBadge
-              v-if="!isCreate && currentItem?.is_urgent"
-              color="error"
-              variant="subtle"
-              label="Срочно"
-            />
-            <UBadge
-              v-if="loadError"
-              color="warning"
-              variant="subtle"
-              label="Данные из таблицы"
-            />
+            <UBadge v-if="!isCreate && statusLabel" :color="statusColor" variant="subtle" :label="statusLabel" />
+            <UBadge v-if="!isCreate && currentItem?.is_urgent" color="error" variant="subtle" label="Срочно" />
+            <UBadge v-if="loadError" color="warning" variant="subtle" label="Данные из таблицы" />
           </div>
           <p class="mt-1 truncate text-sm text-muted">
             {{ subtitle }}
           </p>
+        </div>
+        <div v-if="!editing && headerActions.length" class="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <UButton v-for="(action, index) in headerActions" :key="index"
+            :label="typeof action.label === 'string' ? action.label : ''" :icon="action.icon"
+            :color="action.color ?? 'neutral'" variant="subtle" size="sm" :disabled="action.disabled"
+            @click="action.onSelect?.($event)" />
         </div>
       </div>
     </template>
 
     <template #tabs-trailing>
       <UTooltip v-if="!isCreate" text="Технический аудит">
-        <UButton
-          icon="i-lucide-list"
-          :color="activeTab === 'technical' ? 'primary' : 'neutral'"
-          :variant="activeTab === 'technical' ? 'subtle' : 'ghost'"
-          square
-          size="sm"
-          class="ml-auto"
-          data-testid="entity-detail-technical-tab"
-          @click="activeTab = 'technical'"
-        />
+        <UButton icon="i-lucide-list" :color="activeTab === 'technical' ? 'primary' : 'neutral'"
+          :variant="activeTab === 'technical' ? 'subtle' : 'ghost'" square size="sm" class="ml-auto"
+          data-testid="entity-detail-technical-tab" @click="activeTab = 'technical'" />
       </UTooltip>
     </template>
 
@@ -882,66 +913,6 @@ function close() {
 
     <div v-else-if="activeTab === 'card'" class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(19rem,25rem)]">
       <section class="min-w-0 space-y-5">
-        <!-- Дедлайн: Получение — прогресс до дедлайна — Выпуск.
-             Линия прогресса проходит через центры кружков узлов. -->
-        <div v-if="deadlineInfo" class="rounded-lg border border-default bg-elevated/50 p-4"
-          data-testid="direction-deadline-timeline">
-          <div class="grid grid-cols-[auto_1fr_auto] items-center gap-x-2 gap-y-1">
-            <!-- узел слева -->
-            <div class="z-10 flex size-8 items-center justify-center justify-self-center rounded-full"
-              :class="deadlineNodeClass">
-              <UIcon name="i-lucide-inbox" class="size-4" />
-            </div>
-
-            <div class="flex flex-col">
-              <!-- дата/время текущей отметки -->
-              <div class="relative h-6">
-                <p class="absolute bottom-2 whitespace-nowrap text-xs font-medium text-highlighted"
-                  :style="deadlineDateTimeLabelStyle">
-                  {{ deadlineInfo.now.date }} {{ deadlineInfo.now.time }}
-                </p>
-              </div>
-
-              <UProgress :model-value="deadlineInfo.elapsedHours" :max="deadlineInfo.totalHours"
-                :color="deadlineInfo.color" size="sm" />
-
-              <!-- кружок -->
-              <div class="relative h-0">
-                <div class="absolute top-1/2 z-10 size-4 -translate-x-1/2 rounded-full" :style="{
-                  left: `${deadlineNowCirclePosition}%`,
-                  backgroundColor: `var(--ui-${deadlineInfo.color})`,
-                  transform: 'translateY(calc(-10px))'
-                }" />
-              </div>
-
-              <!-- подпись "Сейчас" -->
-              <div class="relative h-4 pt-2">
-                <p class="absolute top-5 whitespace-nowrap text-xs font-bold text-highlighted"
-                  :style="deadlineNowLabelStyle">
-                  Сейчас
-                </p>
-              </div>
-            </div>
-
-            <!-- узел справа -->
-            <div class="z-10 flex size-8 items-center justify-center justify-self-center rounded-full"
-              :class="deadlineNodeClass">
-              <UIcon name="i-lucide-flag" class="size-4" />
-            </div>
-
-            <p class="justify-self-center whitespace-nowrap text-xs font-bold text-highlighted">Получение</p>
-            <div />
-            <p class="justify-self-center whitespace-nowrap text-xs font-bold text-highlighted">Выпуск</p>
-
-            <p class="justify-self-center whitespace-nowrap text-xs text-muted">
-              {{ deadlineInfo.start.date }} {{ deadlineInfo.start.time }}
-            </p>
-            <div />
-            <p class="justify-self-center whitespace-nowrap text-xs text-muted">
-              {{ deadlineInfo.end.date }} {{ deadlineInfo.end.time }}
-            </p>
-          </div>
-        </div>
         <!-- Таймлайн образца: от отбора до дедлайна выпуска
         <div v-if="businessKind === 'samples' && statusTimeline.length"
           class="rounded-lg border border-default p-4">
@@ -965,8 +936,8 @@ function close() {
               Данные
             </h3>
             <div class="flex gap-2">
-              <UButton v-if="!editing && canEditEntity" label="Редактировать" icon="i-lucide-pencil"
-                color="neutral" variant="outline" size="sm" @click="editing = true" />
+              <UButton v-if="!editing && canEditEntity" label="Редактировать" icon="i-lucide-pencil" color="neutral"
+                variant="outline" size="sm" @click="editing = true" />
               <template v-else-if="editing">
                 <UButton :label="isCreate ? 'Отмена' : 'Отменить'" color="neutral" variant="outline" size="sm"
                   :disabled="saving" @click="cancelEdit" />
@@ -976,14 +947,8 @@ function close() {
             </div>
           </div>
 
-          <EntityFieldGrid
-            :fields="gridFields"
-            :editing="editing"
-            :form-state="formState"
-            :reference-options="referenceOptions"
-            :resolve-display="displayFieldValue"
-            @update="setValue"
-          />
+          <EntityFieldGrid :fields="gridFields" :editing="editing" :form-state="formState"
+            :reference-options="referenceOptions" :resolve-display="displayFieldValue" @update="setValue" />
         </div>
 
         <UAlert v-if="loadError" color="warning" variant="subtle" icon="i-lucide-triangle-alert"
@@ -1002,8 +967,8 @@ function close() {
 
           <!-- Направления/образцы: строго статусы из таблиц statuses -->
           <UTimeline v-if="statusTimeline.length" :items="statusTimeline" :model-value="statusCode ?? undefined"
-            :color="statusCode === 'rejected' ? 'error' : 'primary'" orientation="vertical" size="lg"
-            class="w-full" :ui="{
+            :color="statusCode === 'rejected' ? 'error' : 'primary'" orientation="vertical" size="lg" class="w-full"
+            :ui="{
               date: 'text-xs',
               title: 'text-sm font-semibold',
               indicator: 'group-data-[state=active]:ring-2 group-data-[state=active]:ring-primary/30 [&_span]:size-5',

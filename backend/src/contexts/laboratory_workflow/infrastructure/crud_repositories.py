@@ -75,7 +75,12 @@ class DirectionCrudRepository:
         return page
 
     async def read(self, direction_id: UUID) -> Any:
-        return await _read_row(self.session, Direction, "directions", direction_id)
+        row = await _read_row(self.session, Direction, "directions", direction_id)
+        # Единичное чтение не принимает произвольные include-параметры от клиента
+        # (в отличие от list()), но карточка направления всегда должна показывать
+        # ФИО автора — поэтому резолвим его безусловно.
+        await _populate_direction_includes(self.session, [row], ["creator"])
+        return row
 
     async def find_by_year_and_base_no(
         self,
@@ -257,7 +262,11 @@ class SampleCrudRepository:
         return page
 
     async def read(self, sample_id: UUID) -> Any:
-        return await _read_row(self.session, Sample, "samples", sample_id)
+        row = await _read_row(self.session, Sample, "samples", sample_id)
+        # Аналогично направлению: карточка образца всегда должна показывать
+        # ФИО автора, даже без явного include-параметра от клиента.
+        await _populate_sample_includes(self.session, [row], ["creator"])
+        return row
 
     async def create(self, values: dict[str, Any], *, created_by: UUID | None = None) -> Any:
         payload = _pick(values, _sample_write_fields())
@@ -579,6 +588,24 @@ class SubscriptionCrudRepository:
         if row is not None:
             await _delete_row(self.session, row)
         return await self.list_for_entity(entity_type, entity_id)
+
+    async def list_user_subscription_ids(
+        self, entity_type: str, user_id: UUID
+    ) -> list[UUID]:
+        """Entity ids the user follows *manually* (explicit rows in ``subscriptions``).
+
+        Role/owner/doctor followers are derived at read time and never stored, so
+        they are intentionally excluded — the pin column tracks only a user's own
+        manual subscriptions (specific directions/samples they chose to watch).
+        """
+        result = await self.session.execute(
+            select(Subscription.entity_id).where(
+                Subscription.user_id == user_id,
+                Subscription.entity_type == entity_type,
+                Subscription.deleted_at.is_(None),
+            )
+        )
+        return list(result.scalars().all())
 
 
 class SampleLabCrudRepository:
@@ -969,7 +996,7 @@ async def _populate_direction_includes(
     items: list[Any],
     includes_requested: list[str],
 ) -> None:
-    includes = set(includes_requested) & {"status", "doctor", "object"}
+    includes = set(includes_requested) & {"status", "doctor", "object", "creator"}
     if not items or not includes:
         return
 
@@ -991,20 +1018,33 @@ async def _populate_direction_includes(
         for item in items:
             setattr(item, "object", objects.get(item.object_id))
 
+    if "creator" in includes:
+        creator_ids = {item.created_by for item in items if item.created_by is not None}
+        creators = await _created_by_includes(session, creator_ids)
+        for item in items:
+            setattr(item, "creator", creators.get(item.created_by))
+
 
 async def _populate_sample_includes(
     session: AsyncSession,
     items: list[Any],
     includes_requested: list[str],
 ) -> None:
-    includes = set(includes_requested) & {"status"}
+    includes = set(includes_requested) & {"status", "creator"}
     if not items or not includes:
         return
 
-    status_ids = {item.status_id for item in items if item.status_id is not None}
-    statuses = await _sample_status_includes(session, status_ids)
-    for item in items:
-        setattr(item, "status", statuses.get(item.status_id))
+    if "status" in includes:
+        status_ids = {item.status_id for item in items if item.status_id is not None}
+        statuses = await _sample_status_includes(session, status_ids)
+        for item in items:
+            setattr(item, "status", statuses.get(item.status_id))
+
+    if "creator" in includes:
+        creator_ids = {item.created_by for item in items if item.created_by is not None}
+        creators = await _created_by_includes(session, creator_ids)
+        for item in items:
+            setattr(item, "creator", creators.get(item.created_by))
 
 
 async def _populate_protocol_includes(
@@ -1148,6 +1188,28 @@ async def _doctor_includes(
             "patronymic": patronymic,
         }
         for row_id, first_name, last_name, patronymic in result.all()
+    }
+
+
+async def _created_by_includes(
+    session: AsyncSession,
+    user_ids: set[UUID],
+) -> dict[UUID, dict[str, object]]:
+    if not user_ids:
+        return {}
+    result = await session.execute(
+        select(
+            User.id, User.last_name, User.first_name, User.patronymic
+        ).where(User.id.in_(user_ids), *_base_filters(User)),
+    )
+    return {
+        row_id: {
+            "id": row_id,
+            "last_name": last_name,
+            "first_name": first_name,
+            "patronymic": patronymic,
+        }
+        for row_id, last_name, first_name, patronymic in result.all()
     }
 
 
@@ -1533,7 +1595,15 @@ def _test_sortable_fields() -> tuple[str, ...]:
 
 
 def _test_write_fields() -> tuple[str, ...]:
-    return ("value", "comment", "norm", "is_active", "research_id", "indicator_id")
+    return (
+        "value",
+        "comment",
+        "norm",
+        "verdict",
+        "is_active",
+        "research_id",
+        "indicator_id",
+    )
 
 
 def _protocol_sortable_fields() -> tuple[str, ...]:

@@ -12,6 +12,10 @@ const props = defineProps<{
   mode: 'view' | 'edit' | 'create'
   loading?: boolean
   readOnly?: boolean
+  // Приподнимает окно над другой открытой модалкой (карточкой сущности):
+  // у модалок Nuxt UI нет z-index, порядок определяется телепортом в body,
+  // поэтому запущенный из карточки диалог иначе оказывается под ней.
+  elevated?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -125,7 +129,10 @@ const onFileChange = (key: string, event: Event) => {
   <UModal
     :open="open"
     :dismissible="!loading"
-    :ui="{ content: isFullscreen ? 'max-w-full sm:h-[95vh]' : 'max-w-3xl' }"
+    :ui="{
+      content: `${isFullscreen ? 'max-w-full sm:h-[95vh]' : 'max-w-3xl'}${elevated ? ' z-[60]' : ''}`,
+      overlay: elevated ? 'z-[60]' : undefined,
+    }"
     @update:open="emit('update:open', $event)"
   >
     <template #header>
