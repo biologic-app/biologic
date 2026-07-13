@@ -81,28 +81,28 @@ useInfiniteScroll(
         v-for="entry in items"
         :key="entry.id"
         type="button"
-        class="block w-full border-l-4 px-4 py-2.5 text-left transition-colors"
+        class="block w-full border-b border-l-4 border-b-default/60 px-4 py-3 text-left transition-colors last:border-b-0"
         :class="entry.id === selectedId
           ? 'border-l-primary bg-primary/10'
           : 'border-l-transparent hover:bg-elevated'"
         @click="emit('select', entry.id)"
       >
-        <span class="flex items-center gap-1 text-sm font-semibold text-highlighted">
+        <span class="flex items-center gap-1 text-[0.9375rem] font-semibold text-highlighted">
           <span class="truncate">{{ entry.title }}</span>
           <span
             v-if="entry.date"
-            class="ml-auto shrink-0 text-xs font-normal text-muted"
+            class="ml-auto shrink-0 text-[0.8125rem] font-normal text-muted"
           >
             {{ entry.date }}
           </span>
         </span>
         <span
           v-if="entry.subtitle"
-          class="block truncate text-xs text-muted"
+          class="mt-1 block truncate text-[0.8125rem] text-muted"
         >
           {{ entry.subtitle }}
         </span>
-        <span class="mt-1 flex items-center justify-between gap-2">
+        <span class="mt-2 flex items-center justify-between gap-2">
           <UBadge
             v-if="entry.badge"
             :color="entry.color ?? 'neutral'"
