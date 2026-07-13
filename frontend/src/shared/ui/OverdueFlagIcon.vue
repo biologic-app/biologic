@@ -5,6 +5,6 @@
 
 <template>
   <UTooltip text="Выпуск задержан">
-    <UIcon name="i-lucide-alarm-clock-off" class="size-5 shrink-0 text-error" />
+    <UIcon name="i-lucide-alarm-clock-off" class="size-4 shrink-0 text-error" />
   </UTooltip>
 </template>

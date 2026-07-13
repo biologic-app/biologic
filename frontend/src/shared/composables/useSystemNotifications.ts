@@ -84,6 +84,12 @@ const loadNotifications = async () => {
   }
 }
 
+// Prompts for OS-notification permission on every page load (called from
+// onMounted, whose one-shot guard resets on a full reload). The native dialog
+// can only be raised while permission is still 'default' — once the user has
+// granted it there is nothing to ask, and once 'denied' the browser suppresses
+// the dialog for good (only a manual reset in site settings re-enables it), so
+// re-requesting in those states is a no-op by design, not a missed prompt.
 const ensureNotificationPermission = async (): Promise<void> => {
   if (!('Notification' in window) || window.Notification.permission !== 'default') {
     return
@@ -91,25 +97,51 @@ const ensureNotificationPermission = async (): Promise<void> => {
   await window.Notification.requestPermission()
 }
 
-// Replaces the in-app toast with an OS notification when the tab/PWA is open
-// but not focused (backgrounded, minimized, another window active) — the SSE
-// connection still delivers the event, but the user wouldn't see the toast.
-// False when unsupported (e.g. iOS Safari outside a home-screen install),
-// permission isn't granted, or the tab is actually focused — the toast
-// covers all of those cases instead.
+// OS notifications take priority whenever the browser supports them and the
+// user has granted permission — regardless of tab focus. The in-app toast is
+// only a fallback for when an OS notification can't be shown (unsupported, or
+// permission still 'default'/'denied').
 const canShowSystemNotification = (): boolean =>
-  'serviceWorker' in navigator &&
-  'Notification' in window &&
-  window.Notification.permission === 'granted' &&
-  !(document.visibilityState === 'visible' && document.hasFocus())
+  'Notification' in window && window.Notification.permission === 'granted'
 
-const showSystemNotification = async (notification: Notification): Promise<void> => {
-  const registration = await navigator.serviceWorker.ready
-  await registration.showNotification(notification.title, {
+// Shows an OS notification for a live tab. Returns false (so the caller falls
+// back to the toast) if delivery isn't possible, instead of silently losing it.
+// A registered service worker is preferred (required on Android Chrome, and it
+// outlives the tab), but in dev no worker is registered — navigator.serviceWorker
+// .ready would then hang forever, so use getRegistration() (resolves at once)
+// and fall back to the plain Notification constructor, which a live tab can use
+// without any worker.
+const showSystemNotification = async (notification: Notification): Promise<boolean> => {
+  const options: NotificationOptions = {
     body: notification.body,
     icon: '/icon-192.png',
     tag: notification.id
-  })
+  }
+  try {
+    const registration =
+      'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : undefined
+    if (registration) {
+      await registration.showNotification(notification.title, options)
+      return true
+    }
+    new window.Notification(notification.title, options)
+    return true
+  } catch {
+    return false
+  }
+}
+
+// Prefers an OS notification when the tab is open but unfocused, and always
+// falls back to the in-app toast when one can't be shown — so an arriving
+// notification is never silently dropped.
+const deliverNotification = async (
+  notification: Notification,
+  showToast: (notification: Notification) => void
+): Promise<void> => {
+  if (canShowSystemNotification() && (await showSystemNotification(notification))) {
+    return
+  }
+  showToast(notification)
 }
 
 const connectNotificationStream = (showToast: (notification: Notification) => void) => {
@@ -125,11 +157,7 @@ const connectNotificationStream = (showToast: (notification: Notification) => vo
   eventSource.addEventListener('notification.created', (event) => {
     const notification = mapNotification(JSON.parse(event.data) as BackendNotification)
     upsertNotification(notification)
-    if (canShowSystemNotification()) {
-      void showSystemNotification(notification)
-    } else {
-      showToast(notification)
-    }
+    void deliverNotification(notification, showToast)
   })
   eventSource.onerror = () => {
     eventSource?.close()

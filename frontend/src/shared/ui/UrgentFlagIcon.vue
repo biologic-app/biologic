@@ -5,6 +5,6 @@
 
 <template>
   <UTooltip text="Срочно">
-    <UIcon name="i-lucide-flame" class="size-5 shrink-0 text-red-500" />
+    <UIcon name="i-lucide-flame" class="size-4 shrink-0 text-red-500" />
   </UTooltip>
 </template>

@@ -13,13 +13,14 @@ K6_ALL_JSON := $(foreach c,$(K6_CONTEXTS),reports/k6/$(c)-results.json)
         be-dev be-test be-lint be-format be-audit be-seed-data be-analyze-orm-queries \
         be-migrate be-migrate-down be-migration be-migrate-history \
         be-k6-workflow be-k6-scenarios \
-        fe-dev fe-lint fe-typecheck fe-build fe-test fe-e2e fe-format fe-sdk-generate
+        fe-dev fe-preview fe-lint fe-typecheck fe-build fe-test fe-e2e fe-format fe-sdk-generate
 
 help:
 	@echo "Biologic monorepo"
 	@echo "  make install       backend: uv sync  +  frontend: bun install"
 	@echo "  make lint          be-lint + fe-lint (ruff+mypy / eslint)"
 	@echo "  make test          be-test + fe-test (pytest / bun test)"
+	@echo "  make fe-preview    fe-build + serve production build on :5177"
 	@echo "  make format        be-format + fe-format"
 	@echo "  make typecheck     fe-typecheck (vue-tsc)"
 	@echo "  make build         fe-build (production)"
@@ -110,6 +111,9 @@ fe-typecheck:
 
 fe-build:
 	cd frontend && bun run build
+
+fe-preview: fe-build
+	cd frontend && bun run preview -- --port 5177
 
 fe-test:
 	cd frontend && bun test tests/shared

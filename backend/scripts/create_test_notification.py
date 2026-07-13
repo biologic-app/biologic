@@ -48,6 +48,11 @@ async def create_test_notification(
                 ),
             ],
         )
+        # create_many only flushes — the workflow Unit of Work normally owns the
+        # commit. This standalone script has no outer UoW, so it must commit
+        # itself; otherwise the session rolls back on close and the row (already
+        # printed below from the flushed values) never reaches the DB.
+        await session.commit()
     await engine.dispose()
 
     record = records[0]

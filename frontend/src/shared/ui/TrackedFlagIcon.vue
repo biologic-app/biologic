@@ -9,7 +9,7 @@ withDefaults(defineProps<{ tracked?: boolean }>(), { tracked: false });
   <UTooltip :text="tracked ? 'Отслеживается' : 'Не отслеживается'">
     <UIcon
       :name="tracked ? 'i-lucide-bell-ring' : 'i-lucide-bell-off'"
-      class="size-5 shrink-0"
+      class="size-4 shrink-0"
       :class="tracked ? 'text-success' : 'text-error'"
     />
   </UTooltip>
