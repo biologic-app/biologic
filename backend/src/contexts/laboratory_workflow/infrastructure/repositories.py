@@ -104,7 +104,7 @@ class SqlAlchemyWorkflowRepository:
                 ),
             ) from exc
 
-        await self._ensure_direction_ready_for_registration(direction_id)
+        await self._ensure_direction_ready_for_registration(direction)
         target_status_id = await self._direction_status_id(DIRECTION_REGISTERED)
         direction.status_id = target_status_id
         direction.updated_by = actor_id
@@ -242,10 +242,27 @@ class SqlAlchemyWorkflowRepository:
             )
         return code
 
-    async def _ensure_direction_ready_for_registration(self, direction_id: UUID) -> None:
+    async def _ensure_direction_ready_for_registration(self, direction: Direction) -> None:
+        missing_direction_fields = [
+            name
+            for name, value in (
+                ("doctor_id", direction.doctor_id),
+                ("object_id", direction.object_id),
+            )
+            if value is None
+        ]
+        if missing_direction_fields:
+            raise DomainConflictError(
+                code="direction_missing_doctor_or_object",
+                detail=(
+                    "Direction must have a sanitary doctor and an object assigned "
+                    f"before registration. Missing: {', '.join(missing_direction_fields)}."
+                ),
+            )
+
         result = await self.session.execute(
             select(Sample.id, Sample.name, Sample.sample_type_id).where(
-                Sample.direction_id == direction_id,
+                Sample.direction_id == direction.id,
                 Sample.deleted_at.is_(None),
             ),
         )
@@ -690,7 +707,12 @@ class SqlAlchemyWorkflowRepository:
         copies: int | None,
     ) -> CommandResult:
         now = datetime.now(UTC)
-        completed_status_id = await self._sample_status_id(SAMPLE_COMPLETED)
+        # Both terminal sample states may be issued into a protocol: completed
+        # samples carry results, rejected ("брак") ones are reported as excerpts.
+        issuable_status_ids = {
+            await self._sample_status_id(SAMPLE_COMPLETED),
+            await self._sample_status_id(SAMPLE_REJECTED),
+        }
         samples = (
             await self.session.execute(
                 select(Sample).where(Sample.id.in_(sample_ids), Sample.deleted_at.is_(None)),
@@ -698,10 +720,10 @@ class SqlAlchemyWorkflowRepository:
         ).scalars().all()
         if len(samples) != len(set(sample_ids)):
             raise NotFoundError("One or more samples were not found.")
-        if any(sample.status_id != completed_status_id for sample in samples):
+        if any(sample.status_id not in issuable_status_ids for sample in samples):
             raise DomainConflictError(
                 code="protocol_not_issuable",
-                detail="Protocol can be created only for completed samples.",
+                detail="Protocol can be created only for completed or rejected samples.",
             )
         protocol = Protocol(
             id=uuid4(),

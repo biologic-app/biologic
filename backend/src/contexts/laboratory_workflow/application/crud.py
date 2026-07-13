@@ -16,6 +16,12 @@ from src.contexts.laboratory_workflow.application.import_summary import (
 from src.contexts.laboratory_workflow.application.legacy_direction_import import (
     LegacyDirectionXlsImportService,
 )
+from src.contexts.laboratory_workflow.application.protocol_document import (
+    protocol_document_filename,
+    protocol_excerpt_filename,
+    render_excerpt,
+    render_full_document,
+)
 from src.contexts.laboratory_workflow.infrastructure.crud_repositories import (
     DirectionCrudRepository,
     ProtocolCrudRepository,
@@ -44,6 +50,7 @@ class WorkflowCrudUseCase:
         subscriptions: Any = None,
         doctors: Any | None = None,
         objects: Any | None = None,
+        protocol_reports: Any = None,
     ) -> None:
         self.directions = directions
         self.samples = samples
@@ -54,6 +61,7 @@ class WorkflowCrudUseCase:
         self.subscriptions = subscriptions
         self.doctors = doctors
         self.objects = objects
+        self.protocol_reports = protocol_reports
 
     async def list_directions(
         self, params: PaginationParams
@@ -289,6 +297,14 @@ class WorkflowCrudUseCase:
 
     async def delete_protocol(self, protocol_id: UUID) -> None:
         await self.protocols.delete(protocol_id)
+
+    async def protocol_document(self, protocol_id: UUID) -> tuple[str, bytes]:
+        data = await self.protocol_reports.load(protocol_id, only_rejected=False)
+        return protocol_document_filename(data), render_full_document(data)
+
+    async def protocol_excerpt(self, protocol_id: UUID) -> tuple[str, bytes]:
+        data = await self.protocol_reports.load(protocol_id, only_rejected=True)
+        return protocol_excerpt_filename(data), render_excerpt(data)
 
 
 def _payload(payload: BaseModel) -> dict[str, Any]:

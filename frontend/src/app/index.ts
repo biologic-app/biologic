@@ -17,11 +17,8 @@ export const application = createApp(App)
   .use(ui);
 
 setApiHooks({
+  onRefresh: () => useAuth().refresh(),
   onUnauthorized: () => {
-    const auth = useAuth();
-    auth.logoutLocal();
-    if (router.currentRoute.value.name !== "login") {
-      void router.push({ name: "login" });
-    }
+    useAuth().handleAuthLoss();
   },
 });

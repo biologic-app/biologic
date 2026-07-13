@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
 import type { DropdownMenuItem } from '@nuxt/ui'
 import WorkflowCrudPage from '@/shared/ui/WorkflowCrudPage.vue'
-import DirectionImportWizard from '@/modules/directions/components/DirectionImportWizard.vue'
+import DirectionWizard from '@/modules/directions/components/DirectionWizard.vue'
 import { usePermission } from '@/shared/composables/usePermission'
 import { crudModules } from '@/shared/config/crud-modules'
 import type { CrudRow } from '@/shared/types/crud'
@@ -46,7 +46,8 @@ onBeforeUnmount(() => {
   }
 })
 
-const openImportWizard = () => {
+// Единый мастер создания: открывается на экране выбора режима (импорт / вручную).
+const openCreateWizard = () => {
   wizardDirectionId.value = null
   importWizardOpen.value = true
 }
@@ -98,33 +99,25 @@ const onWizardOpenChange = (value: boolean, refresh: () => void) => {
     :extra-row-actions="rowActions"
     :highlight-id="highlightId"
   >
-    <template #navbar-right="{ openCreate, refresh }">
+    <template #navbar-right="{ refresh }">
       <div class="flex items-center gap-2">
-        <UTooltip :text="importDisabled ? 'Нет прав на импорт' : 'Пошаговый импорт направлений'">
+        <UTooltip :text="createMenuDisabled ? 'Нет прав на создание' : 'Создать направление (импорт или вручную)'">
           <UButton
-            label="Импорт направлений"
-            :icon="importDisabled ? 'i-lucide-lock' : 'i-lucide-file-up'"
-            color="neutral"
-            variant="outline"
-            :disabled="importDisabled"
-            data-testid="direction-import-open"
-            data-telemetry="direction-import-open"
-            @click="openImportWizard()"
-          />
-        </UTooltip>
-        <UTooltip :text="createMenuDisabled ? 'Нет прав на создание' : 'Создать направление'">
-          <UButton
-            label="Создать"
-            :icon="createDisabled ? 'i-lucide-lock' : 'i-lucide-plus'"
-            :disabled="createDisabled"
-            @click="openCreate()"
+            label="Создать направление"
+            :icon="createMenuDisabled ? 'i-lucide-lock' : 'i-lucide-plus'"
+            :disabled="createMenuDisabled"
+            data-testid="direction-create-open"
+            data-telemetry="direction-create-open"
+            @click="openCreateWizard()"
           />
         </UTooltip>
       </div>
 
-      <DirectionImportWizard
+      <DirectionWizard
         :open="importWizardOpen"
         :direction-id="wizardDirectionId"
+        :can-import="!importDisabled"
+        :can-create="!createDisabled"
         @update:open="(value: boolean) => onWizardOpenChange(value, refresh)"
         @finished="onWizardFinished"
       />

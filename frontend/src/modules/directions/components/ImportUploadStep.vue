@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import type { DirectionImportContext } from '@/modules/directions/composables/useDirectionImport'
+import type { DirectionWizardContext } from '@/modules/directions/composables/useDirectionWizard'
 
-const props = defineProps<{ ctx: DirectionImportContext }>()
+const props = defineProps<{ ctx: DirectionWizardContext }>()
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const isDragOver = ref(false)

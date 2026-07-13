@@ -27,12 +27,22 @@ describe("reference options", () => {
   test("keeps default reference labels and id values for non-status dictionaries", () => {
     expect(
       formatReferenceOption(
-        { id: "sample-type-id", code: "SM-01", name: "Кровь" },
-        "/sample_types",
+        { id: "branch-id", code: "BR-01", name: "Филиал №1" },
+        "/branches",
       ),
     ).toEqual({
-      label: "Кровь (SM-01)",
-      value: "sample-type-id",
+      label: "Филиал №1 (BR-01)",
+      value: "branch-id",
     });
+  });
+
+  test("does not merge code into the label for sample types", () => {
+    const option = formatReferenceOption(
+      { id: "sample-type-id", code: "SM-01", name: "Кровь" },
+      "/sample_types",
+    );
+
+    expect(option.label).toBe("Кровь");
+    expect(option.label).not.toContain("SM-01");
   });
 });

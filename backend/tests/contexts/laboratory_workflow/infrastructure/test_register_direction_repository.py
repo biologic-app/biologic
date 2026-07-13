@@ -17,6 +17,8 @@ from src.infrastructure.db.models import (
     ChangeLog,
     Direction,
     DirectionStatus,
+    Doctor,
+    Object,
     Research,
     ResearchGoal,
     Sample,
@@ -34,6 +36,8 @@ RESEARCH_ID = UUID("00000000-0000-0000-0000-000000000007")
 RESEARCH_GOAL_ID = UUID("00000000-0000-0000-0000-000000000008")
 SAMPLE_PENDING_STATUS_ID = UUID("00000000-0000-0000-0000-000000000009")
 SAMPLE_REGISTERED_STATUS_ID = UUID("00000000-0000-0000-0000-00000000000a")
+DOCTOR_ID = UUID("00000000-0000-0000-0000-00000000000b")
+OBJECT_ID = UUID("00000000-0000-0000-0000-00000000000c")
 
 
 class RowResult:
@@ -146,7 +150,13 @@ class FakeAsyncSession:
 
 @pytest.mark.asyncio
 async def test_register_direction_changes_draft_to_registered_and_writes_audit() -> None:
-    direction = Direction(id=DIRECTION_ID, year_no=2026, status_id=DRAFT_STATUS_ID)
+    direction = Direction(
+        id=DIRECTION_ID,
+        year_no=2026,
+        status_id=DRAFT_STATUS_ID,
+        doctor_id=DOCTOR_ID,
+        object_id=OBJECT_ID,
+    )
     fake_session = FakeAsyncSession(direction=direction, current_status_code="draft")
     repository = SqlAlchemyWorkflowRepository(session=cast(AsyncSession, fake_session))
 
@@ -182,7 +192,11 @@ async def test_register_direction_changes_draft_to_registered_and_writes_audit()
 @pytest.mark.asyncio
 async def test_register_direction_cascades_samples_to_registered() -> None:
     direction = Direction(
-        id=DIRECTION_ID, year_no=2026, status_id=DRAFT_STATUS_ID
+        id=DIRECTION_ID,
+        year_no=2026,
+        status_id=DRAFT_STATUS_ID,
+        doctor_id=DOCTOR_ID,
+        object_id=OBJECT_ID,
     )
     sample = Sample(
         id=SAMPLE_ID,
@@ -250,7 +264,13 @@ async def test_register_direction_validates_required_samples_and_research(
     research_sample_ids: list[UUID],
     error_code: str,
 ) -> None:
-    direction = Direction(id=DIRECTION_ID, year_no=2026, status_id=DRAFT_STATUS_ID)
+    direction = Direction(
+        id=DIRECTION_ID,
+        year_no=2026,
+        status_id=DRAFT_STATUS_ID,
+        doctor_id=DOCTOR_ID,
+        object_id=OBJECT_ID,
+    )
     fake_session = FakeAsyncSession(
         direction=direction,
         samples=samples,
@@ -266,6 +286,41 @@ async def test_register_direction_validates_required_samples_and_research(
         )
 
     assert exc.value.extra["code"] == error_code
+    assert direction.status_id == DRAFT_STATUS_ID
+    assert not fake_session.flushed
+
+
+@pytest.mark.parametrize(
+    ("doctor_id", "object_id"),
+    [
+        (None, OBJECT_ID),
+        (DOCTOR_ID, None),
+        (None, None),
+    ],
+)
+@pytest.mark.asyncio
+async def test_register_direction_requires_doctor_and_object(
+    doctor_id: UUID | None,
+    object_id: UUID | None,
+) -> None:
+    direction = Direction(
+        id=DIRECTION_ID,
+        year_no=2026,
+        status_id=DRAFT_STATUS_ID,
+        doctor_id=doctor_id,
+        object_id=object_id,
+    )
+    fake_session = FakeAsyncSession(direction=direction, current_status_code="draft")
+    repository = SqlAlchemyWorkflowRepository(session=cast(AsyncSession, fake_session))
+
+    with pytest.raises(DomainConflictError) as exc:
+        await repository.register_direction(
+            direction_id=DIRECTION_ID,
+            actor_id=ACTOR_ID,
+            comment=None,
+        )
+
+    assert exc.value.extra["code"] == "direction_missing_doctor_or_object"
     assert direction.status_id == DRAFT_STATUS_ID
     assert not fake_session.flushed
 
@@ -304,7 +359,13 @@ async def test_register_direction_rejects_missing_or_deleted_current_status() ->
 
 @pytest.mark.asyncio
 async def test_register_direction_status_lookup_uses_stable_code() -> None:
-    direction = Direction(id=DIRECTION_ID, year_no=2026, status_id=DRAFT_STATUS_ID)
+    direction = Direction(
+        id=DIRECTION_ID,
+        year_no=2026,
+        status_id=DRAFT_STATUS_ID,
+        doctor_id=DOCTOR_ID,
+        object_id=OBJECT_ID,
+    )
     fake_session = FakeAsyncSession(direction=direction, current_status_code="draft")
     repository = SqlAlchemyWorkflowRepository(session=cast(AsyncSession, fake_session))
 
@@ -353,7 +414,24 @@ async def test_register_direction_persists_with_real_postgres_when_configured() 
                     ),
                     SampleType(id=SAMPLE_TYPE_ID, code="sample", name="Sample"),
                     ResearchGoal(id=RESEARCH_GOAL_ID, code="goal", name="Goal"),
-                    Direction(id=DIRECTION_ID, year_no=2026, status_id=DRAFT_STATUS_ID),
+                    Doctor(id=DOCTOR_ID, first_name="Test"),
+                    Object(id=OBJECT_ID, code="test-object", name="Test object"),
+                ],
+            )
+            # Flushed separately: SQLAlchemy's flush ordering only sorts by
+            # declared relationship() dependencies, not bare FK columns — Doctor
+            # and Object have neither here, so an insert order relative to
+            # Direction can't be inferred without this explicit boundary.
+            await session.flush()
+            session.add_all(
+                [
+                    Direction(
+                        id=DIRECTION_ID,
+                        year_no=2026,
+                        status_id=DRAFT_STATUS_ID,
+                        doctor_id=DOCTOR_ID,
+                        object_id=OBJECT_ID,
+                    ),
                     Sample(
                         id=SAMPLE_ID,
                         name="Sample",
@@ -410,6 +488,8 @@ async def _cleanup_register_direction_rows(session: AsyncSession) -> None:
     await session.execute(delete(Research).where(Research.id == RESEARCH_ID))
     await session.execute(delete(Sample).where(Sample.id == SAMPLE_ID))
     await session.execute(delete(Direction).where(Direction.id == DIRECTION_ID))
+    await session.execute(delete(Doctor).where(Doctor.id == DOCTOR_ID))
+    await session.execute(delete(Object).where(Object.id == OBJECT_ID))
     await session.execute(delete(ResearchGoal).where(ResearchGoal.id == RESEARCH_GOAL_ID))
     await session.execute(delete(SampleType).where(SampleType.id == SAMPLE_TYPE_ID))
     await session.execute(

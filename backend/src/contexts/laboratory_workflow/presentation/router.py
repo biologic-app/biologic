@@ -29,6 +29,9 @@ from src.contexts.laboratory_workflow.infrastructure.crud_repositories import (
     SubscriptionCrudRepository,
     TestCrudRepository,
 )
+from src.contexts.laboratory_workflow.infrastructure.protocol_report_repository import (
+    ProtocolReportRepository,
+)
 from src.contexts.laboratory_workflow.presentation.schemas import (
     ActorRequest,
     AssignResearchRequest,
@@ -81,11 +84,23 @@ async def get_workflow_crud_use_case(
         subscriptions=SubscriptionCrudRepository(session=session),
         doctors=DoctorRepository(session=session),
         objects=ObjectRepository(session=session),
+        protocol_reports=ProtocolReportRepository(session=session),
     )
 
 
 def _deleted_response() -> Response:
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+_XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def _xlsx_response(filename: str, content: bytes) -> Response:
+    return Response(
+        content=content,
+        media_type=_XLSX_MEDIA_TYPE,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/directions")
@@ -387,6 +402,24 @@ async def read_protocol(
     use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
 ) -> SingleResponse[dict[str, object]]:
     return await use_case.read_protocol(protocol_id)
+
+
+@router.get("/protocols/{protocol_id}/document")
+async def protocol_document(
+    protocol_id: UUID,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+) -> Response:
+    filename, content = await use_case.protocol_document(protocol_id)
+    return _xlsx_response(filename, content)
+
+
+@router.get("/protocols/{protocol_id}/excerpt")
+async def protocol_excerpt(
+    protocol_id: UUID,
+    use_case: Annotated[WorkflowCrudUseCase, Depends(get_workflow_crud_use_case)],
+) -> Response:
+    filename, content = await use_case.protocol_excerpt(protocol_id)
+    return _xlsx_response(filename, content)
 
 
 @router.delete("/protocols/{protocol_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import type { TableColumn } from "@nuxt/ui";
 import {
+  isRowUrgent,
   isSampleDeadlineOverdue,
   normalizeFormValue,
   type EntityKind,
@@ -9,6 +10,10 @@ import {
 } from "@/shared/ui/entity-detail.helpers";
 import { relationRequest } from "@/shared/composables/useRelatedEntities";
 import { getStatusBadgeColor } from "@/shared/domain/status";
+import { fetchMySubscriptionIds } from "@/shared/api/subscriptions.api";
+import TrackedFlagIcon from "@/shared/ui/TrackedFlagIcon.vue";
+import UrgentFlagIcon from "@/shared/ui/UrgentFlagIcon.vue";
+import OverdueFlagIcon from "@/shared/ui/OverdueFlagIcon.vue";
 
 const props = defineProps<{
   businessKind?: EntityKind | null;
@@ -23,7 +28,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (event: "load-more"): void;
   (event: "save-tests"): void;
-  (event: "open-related", payload: { kind: EntityKind; item: RelatedRow }): void;
+  (event: "open-related", payload: { kind: EntityKind; item: RelatedRow; parent?: { kind: EntityKind; item: RelatedRow } }): void;
   (event: "add-sample"): void;
 }>();
 
@@ -31,12 +36,70 @@ const emit = defineEmits<{
 // samples — дерево «образец → исследования», research — плоский список.
 const relationKind = computed(() => relationRequest(props.businessKind)?.kind ?? null);
 
-// Состояние раскрытия дерева образцов. Пустой объект (не undefined) нужен, чтобы
-// UTable подключил onExpandedChange и row.toggleExpanded() работал.
-const expanded = ref<Record<string, boolean>>({});
+// Ручные подписки текущего пользователя на образцы — питает бейдж
+// «Отслеживается» в дереве образцов (аналог pin-колонки в CrudDataTable).
+const subscribedSampleIds = ref<Set<string>>(new Set());
 
-function getSubRows(row: RelatedRow): RelatedRow[] | undefined {
-  return row.children;
+watch(
+  relationKind,
+  async (kind) => {
+    if (kind !== "samples") {
+      subscribedSampleIds.value = new Set();
+      return;
+    }
+    try {
+      const ids = await fetchMySubscriptionIds("samples");
+      subscribedSampleIds.value = new Set(ids);
+    } catch {
+      subscribedSampleIds.value = new Set();
+    }
+  },
+  { immediate: true },
+);
+
+function isSampleTracked(row: RelatedRow): boolean {
+  return subscribedSampleIds.value.has(String(row.id));
+}
+
+// Состояние раскрытия дерева образцов ведём вручную (id раскрытых образцов),
+// а не через v-model:expanded/getSubRows: TanStack row.getIsExpanded() при
+// таком подключении заставляет UTable рендерить свой собственный пустой
+// «expanded»-ряд (см. Table.vue) поверх наших дочерних строк — двойной ряд.
+const expandedSampleIds = ref<Set<string | number>>(new Set());
+
+function toggleSampleExpanded(id: string | number) {
+  const next = new Set(expandedSampleIds.value);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  expandedSampleIds.value = next;
+}
+
+// Плоский список строк дерева «образец → исследования» с учётом раскрытия.
+const sampleTreeRows = computed<RelatedRow[]>(() => {
+  const result: RelatedRow[] = [];
+  for (const sample of props.rows) {
+    result.push(sample);
+    if (sample.children?.length && expandedSampleIds.value.has(sample.id)) {
+      result.push(...sample.children);
+    }
+  }
+  return result;
+});
+
+function isTopLevelSample(row: RelatedRow): boolean {
+  return props.rows.includes(row);
+}
+
+function sampleRowDepth(row: RelatedRow): number {
+  return isTopLevelSample(row) ? 0 : 1;
+}
+
+function canExpandSample(row: RelatedRow): boolean {
+  return isTopLevelSample(row) && Boolean(row.children?.length);
+}
+
+function isSampleExpanded(row: RelatedRow): boolean {
+  return expandedSampleIds.value.has(row.id);
 }
 
 // Дерево образцов: колонка «Тип / Лаборатория» показывает тип образца у
@@ -75,7 +138,17 @@ function setRelatedValue(row: RelatedRow, key: string, value: unknown) {
 
 function openRelated(row: RelatedRow) {
   if (row.relationKind === "tests") return;
-  emit("open-related", { kind: row.relationKind, item: row });
+  // Исследование в дереве образцов открывается через пропущенный уровень —
+  // передаём образец-родителя, чтобы хлебные крошки показали «Направление →
+  // Образец → Исследование», а не перепрыгивали сразу к исследованию.
+  const parentSample = relationKind.value === "samples" && !isTopLevelSample(row)
+    ? props.rows.find((sample) => sample.children?.includes(row))
+    : undefined;
+  emit("open-related", {
+    kind: row.relationKind,
+    item: row,
+    parent: parentSample ? { kind: "samples" as const, item: parentSample } : undefined,
+  });
 }
 
 // Модель вердикта для USelect: null (не указано) сводим к undefined, чтобы
@@ -89,7 +162,6 @@ function verdictModel(row: RelatedRow): boolean | undefined {
 <template>
   <section class="flex h-full min-h-0 flex-col gap-3">
     <div class="flex shrink-0 items-center justify-end gap-3">
-      <UBadge color="neutral" variant="outline" :label="`${rows.length} записей`" />
       <UButton
         v-if="canAddSample"
         label="Добавить образец"
@@ -206,32 +278,30 @@ function verdictModel(row: RelatedRow): boolean | undefined {
     >
       <div class="min-h-0 flex-1 overflow-auto">
         <UTable
-          v-model:expanded="expanded"
-          :data="rows"
+          :data="sampleTreeRows"
           :columns="sampleTreeColumns"
           :loading="loading"
-          :get-sub-rows="getSubRows"
           :ui="{ thead: 'sticky top-0 z-10 bg-elevated', th: 'px-4 py-2 text-left text-sm font-semibold text-highlighted', td: 'px-4 py-2 align-middle text-sm text-muted whitespace-nowrap' }"
         >
           <template #name-cell="{ row }">
-            <div class="flex items-center gap-2" :style="{ paddingLeft: `${row.depth * 1.25}rem` }">
+            <div class="flex items-center gap-2" :style="{ paddingLeft: `${sampleRowDepth(row.original) * 1.25}rem` }">
               <UButton
-                v-if="row.getCanExpand()"
+                v-if="canExpandSample(row.original)"
                 variant="ghost"
                 color="neutral"
                 size="xs"
-                :icon="row.getIsExpanded() ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'"
-                :aria-label="row.getIsExpanded() ? 'Свернуть исследования' : 'Развернуть исследования'"
-                @click="row.toggleExpanded()"
+                :icon="isSampleExpanded(row.original) ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'"
+                :aria-label="isSampleExpanded(row.original) ? 'Свернуть исследования' : 'Развернуть исследования'"
+                @click="toggleSampleExpanded(row.original.id)"
               />
               <span v-else class="inline-block w-7 shrink-0" />
-              <span :class="row.depth === 0 ? 'font-medium text-highlighted' : 'text-muted'">
+              <span :class="sampleRowDepth(row.original) === 0 ? 'font-medium text-highlighted' : 'text-muted'">
                 {{ row.original.title }}
               </span>
             </div>
           </template>
           <template #secondary-cell="{ row }">
-            <span>{{ (row.depth === 0 ? row.original.sampleTypeName : row.original.labName) || '—' }}</span>
+            <span>{{ (sampleRowDepth(row.original) === 0 ? row.original.sampleTypeName : row.original.labName) || '—' }}</span>
           </template>
           <template #status-cell="{ row }">
             <div class="flex items-center gap-2">
@@ -240,18 +310,20 @@ function verdictModel(row: RelatedRow): boolean | undefined {
                 variant="subtle"
                 :label="row.original.statusText"
               />
-              <UIcon
-                v-if="row.depth === 0 && isSampleDeadlineOverdue(row.original)"
-                name="i-lucide-alarm-clock-off"
-                class="size-4 shrink-0 text-error"
-                title="Выпуск задержан"
+              <TrackedFlagIcon
+                v-if="sampleRowDepth(row.original) === 0"
+                :tracked="isSampleTracked(row.original)"
+              />
+              <UrgentFlagIcon v-if="isRowUrgent(row.original)" />
+              <OverdueFlagIcon
+                v-if="sampleRowDepth(row.original) === 0 && isSampleDeadlineOverdue(row.original)"
               />
             </div>
           </template>
           <template #actions-cell="{ row }">
             <div class="flex justify-end">
               <UButton
-                icon="i-lucide-panel-top-open"
+                icon="i-lucide-external-link"
                 color="neutral"
                 variant="ghost"
                 size="sm"
@@ -280,9 +352,11 @@ function verdictModel(row: RelatedRow): boolean | undefined {
     <div v-else class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-default">
       <div class="min-h-0 flex-1 overflow-auto">
         <UTable
+          v-model:expanded="expanded"
           :data="rows"
           :columns="researchColumns"
           :loading="loading"
+          :get-sub-rows="getSubRows"
           :ui="{ thead: 'sticky top-0 z-10 bg-elevated', th: 'px-4 py-2 text-left text-sm font-semibold text-highlighted', td: 'px-4 py-2 align-middle text-sm text-muted whitespace-nowrap' }"
         >
           <template #title-cell="{ row }">
@@ -292,16 +366,19 @@ function verdictModel(row: RelatedRow): boolean | undefined {
             <span>{{ row.original.labName || '—' }}</span>
           </template>
           <template #status-cell="{ row }">
-            <UBadge
-              :color="getStatusBadgeColor(row.original.statusCode)"
-              variant="subtle"
-              :label="row.original.statusText"
-            />
+            <div class="flex items-center gap-2">
+              <UBadge
+                :color="getStatusBadgeColor(row.original.statusCode)"
+                variant="subtle"
+                :label="row.original.statusText"
+              />
+              <UrgentFlagIcon v-if="isRowUrgent(row.original)" />
+            </div>
           </template>
           <template #actions-cell="{ row }">
             <div class="flex justify-end">
               <UButton
-                icon="i-lucide-panel-top-open"
+                icon="i-lucide-external-link"
                 color="neutral"
                 variant="ghost"
                 size="sm"

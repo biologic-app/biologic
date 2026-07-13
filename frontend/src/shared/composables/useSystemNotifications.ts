@@ -84,6 +84,34 @@ const loadNotifications = async () => {
   }
 }
 
+const ensureNotificationPermission = async (): Promise<void> => {
+  if (!('Notification' in window) || window.Notification.permission !== 'default') {
+    return
+  }
+  await window.Notification.requestPermission()
+}
+
+// Replaces the in-app toast with an OS notification when the tab/PWA is open
+// but not focused (backgrounded, minimized, another window active) — the SSE
+// connection still delivers the event, but the user wouldn't see the toast.
+// False when unsupported (e.g. iOS Safari outside a home-screen install),
+// permission isn't granted, or the tab is actually focused — the toast
+// covers all of those cases instead.
+const canShowSystemNotification = (): boolean =>
+  'serviceWorker' in navigator &&
+  'Notification' in window &&
+  window.Notification.permission === 'granted' &&
+  !(document.visibilityState === 'visible' && document.hasFocus())
+
+const showSystemNotification = async (notification: Notification): Promise<void> => {
+  const registration = await navigator.serviceWorker.ready
+  await registration.showNotification(notification.title, {
+    body: notification.body,
+    icon: '/icon-192.png',
+    tag: notification.id
+  })
+}
+
 const connectNotificationStream = (showToast: (notification: Notification) => void) => {
   if (eventSource) {
     return
@@ -97,7 +125,11 @@ const connectNotificationStream = (showToast: (notification: Notification) => vo
   eventSource.addEventListener('notification.created', (event) => {
     const notification = mapNotification(JSON.parse(event.data) as BackendNotification)
     upsertNotification(notification)
-    showToast(notification)
+    if (canShowSystemNotification()) {
+      void showSystemNotification(notification)
+    } else {
+      showToast(notification)
+    }
   })
   eventSource.onerror = () => {
     eventSource?.close()
@@ -113,6 +145,7 @@ export function useSystemNotifications() {
   onMounted(() => {
     if (!initialized) {
       initialized = true
+      void ensureNotificationPermission()
       loadNotifications()
       connectNotificationStream((notification) => {
         toast.add({

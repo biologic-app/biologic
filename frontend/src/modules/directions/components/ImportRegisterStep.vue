@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, reactive } from 'vue'
-import type { DirectionImportContext } from '@/modules/directions/composables/useDirectionImport'
+import type { DirectionWizardContext } from '@/modules/directions/composables/useDirectionWizard'
 import type { DirectionRow } from '@/modules/directions/directions.api'
 
-const props = defineProps<{ ctx: DirectionImportContext }>()
+const props = defineProps<{ ctx: DirectionWizardContext }>()
 
 const directionLabel = (direction: DirectionRow) =>
   direction.year_no && direction.base_no

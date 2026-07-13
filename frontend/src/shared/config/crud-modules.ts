@@ -145,8 +145,7 @@ export const crudModules: Record<string, CrudModuleConfig> = {
     ],
     columns: [
       { field: 'id', header: 'ID', sortable: true },
-      { field: 'year_no', header: 'Год', sortable: true, filter: { type: 'text', placeholder: 'Год' } },
-      { field: 'base_no', header: 'Номер', sortable: true, filter: { type: 'text', placeholder: 'Номер' } },
+      { field: 'base_no', header: '№', sortable: true, filter: { type: 'text', placeholder: 'Номер' } },
       {
         field: 'doctor.name',
         header: 'Врач',
@@ -171,16 +170,18 @@ export const crudModules: Record<string, CrudModuleConfig> = {
         field: 'object.name',
         header: 'Объект',
         sortable: true,
+        width: '220px',
+        wrap: true,
         filter: { type: 'text', placeholder: 'Объект' },
         body: (row: Record<string, unknown>) => {
           const object = row.object as { code?: string | null, name?: string | null } | null | undefined
           if (!object) {
             return '-'
           }
-          return [object.code, object.name].filter(Boolean).join(' — ') || '-'
+          return object.name || object.code || '-'
         }
       },
-      { field: 'status.name', header: 'Статус', sortable: true, filter: { type: 'text', placeholder: 'Статус' } },
+      { field: 'status.name', header: 'Статус', sortable: true, width: '150px', filter: { type: 'text', placeholder: 'Статус' } },
       { field: 'sampled_at', header: 'Отбор', sortable: true, filter: { type: 'dateRange' } },
       { field: 'received_at', header: 'Получение', sortable: true, filter: { type: 'dateRange' } },
       { field: 'completed_at', header: 'Завершение', sortable: true, filter: { type: 'dateRange' } },
@@ -207,6 +208,7 @@ export const crudModules: Record<string, CrudModuleConfig> = {
         }
       }
     ],
+    defaultHiddenColumns: ['sampled_at', 'is_done'],
     fields: [
       { key: 'year_no', label: 'Год', type: 'select', required: true, options: directionEditYearOptions, layout: { span: 4 } },
       { key: 'base_no', label: 'Номер', type: 'number', layout: { span: 4 } },
@@ -215,7 +217,7 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       { key: 'object_id', label: 'Объект', type: 'select', source: '/objects', layout: { span: 4 } },
       { key: 'sampled_at', label: 'Отбор', type: 'date', layout: { span: 4 } },
       { key: 'received_at', label: 'Получение', type: 'date', layout: { span: 4 } },
-      { key: 'completed_at', label: 'Завершение', type: 'date', layout: { span: 4 } }
+      { key: 'completed_at', label: 'Завершение', type: 'date', layout: { span: 4 }, editable: false }
     ]
   },
   samples: {
@@ -265,11 +267,11 @@ export const crudModules: Record<string, CrudModuleConfig> = {
     ],
     columns: [
       { field: 'id', header: 'ID', sortable: true },
-      { field: 'name', header: 'Название', sortable: true, filter: { type: 'text', placeholder: 'Название' } },
-      { field: 'alternate_name', header: 'Альтернативное имя', sortable: true, filter: { type: 'text', placeholder: 'Альтернативное имя' } },
+      { field: 'name', header: 'Название', sortable: true, width: '220px', wrap: true, filter: { type: 'text', placeholder: 'Название' } },
+      { field: 'alternate_name', header: 'Альтернативное имя', sortable: true, width: '220px', wrap: true, filter: { type: 'text', placeholder: 'Альтернативное имя' } },
       { field: 'sample_type.name', header: 'Тип образца', filter: { type: 'text', placeholder: 'Тип образца' } },
       { field: 'direction.name', header: 'Направление', filter: { type: 'text', placeholder: 'Направление' } },
-      { field: 'status.name', header: 'Статус', filter: { type: 'text', placeholder: 'Статус' } },
+      { field: 'status.name', header: 'Статус', width: '150px', filter: { type: 'text', placeholder: 'Статус' } },
       {
         field: 'is_urgent',
         header: 'Срочно',
@@ -294,6 +296,12 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       },
       { field: 'received_at', header: 'Получен', sortable: true, filter: { type: 'dateRange' } }
     ],
+    // Бэкенд не отдаёт sample_type/direction вложенными объектами в списке
+    // образцов (в отличие от status) — колонки резолвят название через
+    // справочник, поэтому его нужно подгрузить сразу, а не только при
+    // открытии панели фильтров.
+    displayReferenceFields: ['sample_type_id', 'direction_id'],
+    defaultHiddenColumns: ['is_urgent', 'alternate_name', 'is_done'],
     fields: [
       { key: 'month_no', label: 'Месяц', type: 'number', layout: { span: 4 } },
       { key: 'name', label: 'Название', required: true, layout: { span: 4 } },
@@ -313,7 +321,7 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       { key: 'protocol_id', label: 'Протокол', type: 'select', source: '/protocols', layout: { span: 4 } },
       { key: 'sampled_at', label: 'Отобран', type: 'date', layout: { span: 4 } },
       { key: 'received_at', label: 'Получен', type: 'date', layout: { span: 4 } },
-      { key: 'completed_at', label: 'Завершён', type: 'date', layout: { span: 4 } }
+      { key: 'completed_at', label: 'Завершён', type: 'date', layout: { span: 4 }, editable: false }
     ]
   },
   objects: {

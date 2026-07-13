@@ -12,3 +12,21 @@ cleanupOutdatedCaches()
 
 self.skipWaiting()
 self.addEventListener('activate', () => self.clients.claim())
+
+// Focuses an already-open tab/window when the user clicks a system
+// notification raised by showSystemNotification (useSystemNotifications.ts);
+// falls back to opening a new window if none is open.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  event.waitUntil(
+    (async () => {
+      const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      const existing = clients[0]
+      if (existing) {
+        await existing.focus()
+        return
+      }
+      await self.clients.openWindow('/')
+    })()
+  )
+})

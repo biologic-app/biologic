@@ -18,8 +18,12 @@ class Settings(BaseSettings):
     database_url: str
     jwt_secret_key: str
     jwt_algorithm: str = "HS256"
-    access_token_ttl_seconds: int = 40
-    refresh_token_ttl_seconds: int = 60
+    access_token_ttl_seconds: int = 1800  # 30 minutes
+    # Refresh token lifetime. Without "remember me" the session is short-lived
+    # (1 day); with it the refresh token lives for 30 days. The window is
+    # absolute — it is minted once at login and never extended on refresh.
+    refresh_token_ttl_seconds: int = 86400  # 1 day
+    refresh_token_remember_ttl_seconds: int = 2592000  # 30 days
     access_cookie_name: str = "access_cookie"
     refresh_cookie_name: str = "refresh_cookie"
     auth_cookie_samesite: Literal["lax", "strict", "none"] = "lax"

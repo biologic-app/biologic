@@ -111,7 +111,9 @@ async function attachSampleChildren(samples: RelatedRow[]): Promise<RelatedRow[]
       typeof sample.sample_type_id === "string"
         ? typeNames.get(sample.sample_type_id) ?? ""
         : "",
-    children: childLists[index],
+    // is_urgent есть только у образца — наследуем на вложенные исследования,
+    // чтобы «Срочно» можно было показать на любом уровне дерева.
+    children: childLists[index].map((child) => ({ ...child, is_urgent: sample.is_urgent })),
   }));
 }
 

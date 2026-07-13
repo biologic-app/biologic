@@ -7,6 +7,8 @@ import type { AuthUser } from "@/shared/types/auth";
 export interface AuthResponse {
   user: AuthUser;
   permissions: Permission[];
+  accessExpiresAt: string | null;
+  refreshExpiresAt: string | null;
 }
 
 interface BackendAuthEnvelope {
@@ -126,6 +128,8 @@ const mapUser = (payload: BackendAuthEnvelope["data"]["user"]): AuthUser => {
 const mapSession = (payload: BackendAuthEnvelope["data"]): AuthResponse => ({
   user: mapUser(payload.user),
   permissions: mapPermissions(payload.permissions || []),
+  accessExpiresAt: payload.access_expires_at ?? null,
+  refreshExpiresAt: payload.refresh_expires_at ?? null,
 });
 
 interface BackendPermissionsEnvelope {
@@ -134,10 +138,21 @@ interface BackendPermissionsEnvelope {
   };
 }
 
-export const login = async (loginValue: string, password: string) => {
+export const login = async (
+  loginValue: string,
+  password: string,
+  rememberMe = false,
+) => {
   const response = await apiRequest<BackendAuthEnvelope>("/auth/login", {
     method: "POST",
-    body: { username: loginValue, password },
+    body: { username: loginValue, password, rememberMe },
+  });
+  return mapSession(response.data);
+};
+
+export const refresh = async () => {
+  const response = await apiRequest<BackendAuthEnvelope>("/auth/refresh", {
+    method: "POST",
   });
   return mapSession(response.data);
 };
