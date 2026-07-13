@@ -214,8 +214,8 @@ export const messages = {
         generatedAt: "Обновлено",
         kpi: {
           directionsDraft: "Черновики направлений",
-          samplesPending: "Образцы на приёмке",
-          urgentOpen: "Срочные в работе",
+          samplesPending: "Образцы на регистрации",
+          urgentOpen: "Срочные образцы в работе",
           directionsToday: "Направлений получено сегодня",
           samplesToday: "Образцов получено сегодня",
         },
