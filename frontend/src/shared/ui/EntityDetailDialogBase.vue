@@ -50,12 +50,16 @@ import {
 } from "@/shared/ui/entity-detail.helpers";
 import { useRelatedEntities } from "@/shared/composables/useRelatedEntities";
 import SubscribeButton from "@/shared/ui/SubscribeButton.vue";
+import StatusFsmGraph from "@/shared/ui/StatusFsmGraph.vue";
 import {
   DIRECTION_STATUS_FLOW,
   SAMPLE_STATUS_FLOW,
   SAMPLE_STATUS_REJECTED,
   statusTimelineItems,
 } from "@/shared/domain/status-timeline";
+import type { FsmEntityKind } from "@/shared/domain/status-fsm";
+import { statusColorToken } from "@/shared/domain/status-color";
+import { statusLabel as resolveStatusLabel, type StatusEntity } from "@/shared/i18n/status-label";
 
 type CrudRow = {
   id: string | number;
@@ -247,11 +251,25 @@ const tabs = computed<TabsItem[]>(() => {
   };
   const related = (props.businessKind && relatedLabels[props.businessKind])
     || { label: "Связанные", icon: "i-lucide-link" };
-  return [
+  const items: TabsItem[] = [
     cardTab,
     { label: related.label, icon: related.icon, value: "related", badge: relatedRows.value.length },
   ];
+  // Схема статусов (FSM) — только для сущностей с жизненным циклом.
+  if (fsmKind.value) {
+    items.push({ label: "Схема статусов", icon: "i-lucide-workflow", value: "flow" });
+  }
+  return items;
 });
+
+// Сущности с графом статусов; для protocols FSM не строим.
+const fsmKind = computed<FsmEntityKind | null>(() =>
+  props.businessKind === "directions"
+  || props.businessKind === "samples"
+  || props.businessKind === "research"
+    ? props.businessKind
+    : null,
+);
 
 const title = computed(() => {
   if (isCreate.value) return "Новая запись";
@@ -329,27 +347,37 @@ const subtitle = computed(() => {
   return props.config.description;
 });
 
-const statusLabel = computed(() => {
-  const row = currentItem.value;
-  return row ? relationDisplayLabel(row, "status") || booleanStatus(row) : "";
+// Сущность в единственном числе для i18n-меток статусов (statusLabels.<entity>).
+const statusEntity = computed<StatusEntity | null>(() => {
+  switch (props.businessKind) {
+    case "directions":
+      return "direction";
+    case "samples":
+      return "sample";
+    case "research":
+      return "research";
+    default:
+      return null;
+  }
 });
 
+// Метка статуса: перевод по (сущность, код) через i18n; фолбэк — имя из бэкенда.
+const statusLabel = computed(() => {
+  const row = currentItem.value;
+  if (!row) return "";
+  const backendName = relationDisplayLabel(row, "status") || booleanStatus(row);
+  const entity = statusEntity.value;
+  return entity ? resolveStatusLabel(entity, statusCode.value, backendName) : backendName;
+});
+
+// Цвет статуса — из бэкенд-поля status.color через единый маппер дизайн-системы.
 const statusColor = computed(() => {
-  const label = statusLabel.value.toLowerCase();
-
-  if (label.includes("заверш") || label.includes("complete") || label.includes("released")) {
-    return "success";
-  }
-
-  if (label.includes("работ") || label.includes("progress") || label.includes("registered")) {
-    return "primary";
-  }
-
-  if (label.includes("отклон") || label.includes("reject") || label.includes("error")) {
-    return "error";
-  }
-
-  return "neutral";
+  const status = currentItem.value?.status;
+  const color =
+    status && typeof status === "object"
+      ? (status as { color?: string | null }).color
+      : null;
+  return statusColorToken(color);
 });
 
 const visibleFields = computed(() => {
@@ -898,7 +926,8 @@ function close() {
   <EntityDetailModalShell v-model:active-tab="activeTab" :open="open" :eyebrow="eyebrowText" :title="headerTitle"
     :tabs="tabs" size="xl" :default-fullscreen="true" :ready="Boolean(currentItem)" :breadcrumbs="breadcrumbs"
     :list-items="listItems" :list-label="listLabel" :selected-id="selectedId" :list-has-more="listHasMore"
-    :list-loading-more="listLoadingMore" :body-class="activeTab === 'related' ? 'overflow-hidden' : 'overflow-auto'"
+    :list-loading-more="listLoadingMore"
+    :body-class="activeTab === 'related' || activeTab === 'flow' ? 'overflow-hidden' : 'overflow-auto'"
     @update:open="emit('update:open', $event)" @select="emit('select', $event)" @list-load-more="emit('list-load-more')"
     @go-to-level="emit('go-to-level', $event)">
     <template #header-actions>
@@ -1035,6 +1064,8 @@ function close() {
         </div>
       </aside>
     </div>
+
+    <StatusFsmGraph v-else-if="activeTab === 'flow' && fsmKind" :kind="fsmKind" />
 
     <TechnicalAuditTimeline v-else-if="activeTab === 'technical'" :events="technicalAudit" />
 

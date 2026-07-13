@@ -20,6 +20,7 @@ from src.contexts.laboratory_workflow.application.dto import (
     TestCommandInput,
     UpdateProtocolInput,
 )
+from src.contexts.laboratory_workflow.domain.status_policy import allowed_transitions_map
 from src.contexts.laboratory_workflow.infrastructure.crud_repositories import (
     DirectionCrudRepository,
     ProtocolCrudRepository,
@@ -50,6 +51,8 @@ from src.contexts.laboratory_workflow.presentation.schemas import (
     SampleCreateRequest,
     SampleLabsUpdateRequest,
     SampleUpdateRequest,
+    StatusTransition,
+    StatusTransitionsResponse,
     SubscriptionRequest,
     TestUpdateRequest,
     UpdateProtocolRequest,
@@ -100,6 +103,22 @@ def _xlsx_response(filename: str, content: bytes) -> Response:
         content=content,
         media_type=_XLSX_MEDIA_TYPE,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/status-transitions")
+async def get_status_transitions() -> StatusTransitionsResponse:
+    # Единый источник правды для UI-схемы статусов: разрешённые переходы из
+    # доменной политики. Фронтенд строит FSM по этому ответу, чтобы схема и
+    # серверная валидация не расходились.
+    return StatusTransitionsResponse(
+        data={
+            resource: [
+                StatusTransition(from_code=from_code, to_code=to_code)
+                for from_code, to_code in pairs
+            ]
+            for resource, pairs in allowed_transitions_map().items()
+        },
     )
 
 

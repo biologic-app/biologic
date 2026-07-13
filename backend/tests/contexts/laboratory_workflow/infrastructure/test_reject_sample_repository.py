@@ -69,9 +69,9 @@ class FakeAsyncSession:
 
 
 @pytest.mark.asyncio
-async def test_reject_sample_changes_pending_to_rejected_and_writes_audit() -> None:
+async def test_reject_sample_changes_registered_to_rejected_and_writes_audit() -> None:
     sample = Sample(id=SAMPLE_ID, name="Sample", status_id=PENDING_STATUS_ID)
-    fake_session = FakeAsyncSession(sample=sample, current_status_code="pending")
+    fake_session = FakeAsyncSession(sample=sample, current_status_code="registered")
     repository = SqlAlchemyWorkflowRepository(session=cast(AsyncSession, fake_session))
 
     result = await repository.reject_sample(
@@ -95,14 +95,33 @@ async def test_reject_sample_changes_pending_to_rejected_and_writes_audit() -> N
     assert audit_entry.actor_id == ACTOR_ID
     assert audit_entry.snapshot == {"status_code": "rejected", "reason": "Container damaged"}
     assert audit_entry.diff == {
-        "status_code": {"from": "pending", "to": "rejected"},
+        "status_code": {"from": "registered", "to": "rejected"},
         "reason": "Container damaged",
     }
     assert len(repository.events) == 1
     assert repository.events[0].event_type == "SampleRejected"
-    assert repository.events[0].from_code == "pending"
+    assert repository.events[0].from_code == "registered"
     assert repository.events[0].to_code == "rejected"
     assert repository.events[0].reason == "Container damaged"
+
+
+@pytest.mark.asyncio
+async def test_reject_sample_rejects_pending_status() -> None:
+    # Образец нельзя забраковать сразу с регистрации (pending → rejected запрещён).
+    sample = Sample(id=SAMPLE_ID, name="Sample", status_id=PENDING_STATUS_ID)
+    fake_session = FakeAsyncSession(sample=sample, current_status_code="pending")
+    repository = SqlAlchemyWorkflowRepository(session=cast(AsyncSession, fake_session))
+
+    with pytest.raises(DomainConflictError) as exc:
+        await repository.reject_sample(
+            sample_id=SAMPLE_ID,
+            actor_id=ACTOR_ID,
+            reason="Container damaged",
+        )
+
+    assert exc.value.extra["code"] == "invalid_status_transition"
+    assert sample.status_id == PENDING_STATUS_ID
+    assert not fake_session.flushed
 
 
 @pytest.mark.asyncio
@@ -141,7 +160,7 @@ async def test_reject_sample_returns_not_found_for_missing_sample() -> None:
 @pytest.mark.asyncio
 async def test_reject_sample_status_lookup_uses_stable_code() -> None:
     sample = Sample(id=SAMPLE_ID, name="Sample", status_id=PENDING_STATUS_ID)
-    fake_session = FakeAsyncSession(sample=sample, current_status_code="pending")
+    fake_session = FakeAsyncSession(sample=sample, current_status_code="registered")
     repository = SqlAlchemyWorkflowRepository(session=cast(AsyncSession, fake_session))
 
     await repository.reject_sample(

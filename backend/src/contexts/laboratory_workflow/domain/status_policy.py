@@ -21,12 +21,10 @@ ALLOWED_TRANSITIONS: dict[str, set[tuple[str, str]]] = {
         ("registered", "in_progress"),
         ("in_progress", "partially_completed"),
         ("in_progress", "completed"),
-        ("partially_completed", "in_progress"),
         ("partially_completed", "completed"),
     },
     "samples": {
         ("pending", "registered"),
-        ("pending", "rejected"),
         ("registered", "in_progress"),
         ("registered", "rejected"),
         ("in_progress", "analyzed"),
@@ -59,3 +57,9 @@ def ensure_allowed_transition(resource: str, from_code: str, to_code: str) -> No
             from_code=from_code,
             to_code=to_code,
         )
+
+
+def allowed_transitions_map() -> dict[str, list[tuple[str, str]]]:
+    """Serializable snapshot of ALLOWED_TRANSITIONS — единый источник правды для
+    UI-схемы статусов. Пары отсортированы для стабильного ответа API."""
+    return {resource: sorted(pairs) for resource, pairs in ALLOWED_TRANSITIONS.items()}

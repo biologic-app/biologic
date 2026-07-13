@@ -21,7 +21,6 @@ def test_direction_patch_status_transition_is_not_allowed() -> None:
     ("resource", "from_code", "to_code"),
     [
         ("samples", "pending", "registered"),
-        ("samples", "pending", "rejected"),
         ("samples", "registered", "rejected"),
         ("samples", "in_progress", "rejected"),
         ("samples", "analyzed", "completed"),
@@ -35,3 +34,18 @@ def test_direction_patch_status_transition_is_not_allowed() -> None:
 )
 def test_allowed_mvp_transitions(resource: str, from_code: str, to_code: str) -> None:
     ensure_allowed_transition(resource, from_code, to_code)
+
+
+@pytest.mark.parametrize(
+    ("resource", "from_code", "to_code"),
+    [
+        # Образец нельзя забраковать сразу с регистрации — только из
+        # «Зарегистрирован»/«На исследовании».
+        ("samples", "pending", "rejected"),
+        # У направления нет возврата из «Частично выполнено» в «В работе».
+        ("directions", "partially_completed", "in_progress"),
+    ],
+)
+def test_disallowed_transitions(resource: str, from_code: str, to_code: str) -> None:
+    with pytest.raises(InvalidStatusTransition):
+        ensure_allowed_transition(resource, from_code, to_code)

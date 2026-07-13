@@ -552,6 +552,43 @@ export type LabCreateRequest = {
 };
 
 /**
+ * LabStatusCount
+ *
+ * Samples assigned to a laboratory, broken down by current status — the two
+ * levels of the nested donut (lab → status).
+ */
+export type LabStatusCount = {
+    /**
+     * Lab Id
+     */
+    lab_id: string;
+    /**
+     * Lab Code
+     */
+    lab_code: string;
+    /**
+     * Lab Name
+     */
+    lab_name: string;
+    /**
+     * Status Code
+     */
+    status_code: string | null;
+    /**
+     * Status Name
+     */
+    status_name: string | null;
+    /**
+     * Status Color
+     */
+    status_color?: string | null;
+    /**
+     * Count
+     */
+    count: number;
+};
+
+/**
  * LabUpdateRequest
  */
 export type LabUpdateRequest = {
@@ -770,6 +807,44 @@ export type ProtocolTypeUpdateRequest = {
 };
 
 /**
+ * RecentDirection
+ */
+export type RecentDirection = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Year No
+     */
+    year_no: number | null;
+    /**
+     * Base No
+     */
+    base_no: number | null;
+    /**
+     * Status Code
+     */
+    status_code: string | null;
+    /**
+     * Status Name
+     */
+    status_name: string | null;
+    /**
+     * Status Color
+     */
+    status_color?: string | null;
+    /**
+     * Is Urgent
+     */
+    is_urgent: boolean;
+    /**
+     * Received At
+     */
+    received_at: string | null;
+};
+
+/**
  * RegisterDirectionRequest
  */
 export type RegisterDirectionRequest = {
@@ -799,6 +874,70 @@ export type RegisterSampleRequest = {
      * Deadline
      */
     deadline?: string | null;
+};
+
+/**
+ * RegistrarDashboard
+ */
+export type RegistrarDashboard = {
+    /**
+     * Generated At
+     */
+    generated_at: string;
+    kpis: RegistrarKpis;
+    /**
+     * Directions By Status
+     */
+    directions_by_status: Array<StatusCount>;
+    /**
+     * Samples By Status
+     */
+    samples_by_status: Array<StatusCount>;
+    /**
+     * Samples By Lab
+     */
+    samples_by_lab: Array<LabStatusCount>;
+    /**
+     * Recent Directions
+     */
+    recent_directions: Array<RecentDirection>;
+    /**
+     * Timeline
+     */
+    timeline: Array<TimelineBucket>;
+};
+
+/**
+ * RegistrarKpis
+ *
+ * Headline numbers for the intake desk. Org-wide (the dashboard reports on
+ * what the lab received, not who keyed it in — `created_by` is technical).
+ *
+ * `directions_draft` / `samples_pending` are the intake queue (what still needs
+ * registering); `*_received_today` count rows whose `received_at` falls on the
+ * current day; `urgent_open` is urgent, not-done directions + samples.
+ */
+export type RegistrarKpis = {
+    /**
+     * Directions Draft
+     */
+    directions_draft: number;
+    /**
+     * Samples Pending
+     */
+    samples_pending: number;
+    /**
+     * Urgent Open
+     */
+    urgent_open: number;
+    /**
+     * Directions Received Today
+     */
+    directions_received_today: number;
+    /**
+     * Samples Received Today
+     */
+    samples_received_today: number;
 };
 
 /**
@@ -1340,6 +1479,14 @@ export type SingleResponseCommandResult = {
 };
 
 /**
+ * SingleResponse[RegistrarDashboard]
+ */
+export type SingleResponseRegistrarDashboard = {
+    data: RegistrarDashboard;
+    meta: ResponseMeta;
+};
+
+/**
  * SingleResponse[dict[str, int]]
  */
 export type SingleResponseDictStrInt = {
@@ -1363,6 +1510,63 @@ export type SingleResponseDictStrObject = {
         [key: string]: unknown;
     };
     meta: ResponseMeta;
+};
+
+/**
+ * StatusCount
+ *
+ * One row of a lifecycle-status breakdown (e.g. directions in `draft`).
+ *
+ * `id` is the status-table UUID — the value the list pages filter on
+ * (`status_id`), so the dashboard can deep-link a card to the filtered list.
+ */
+export type StatusCount = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Code
+     */
+    code: string | null;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Count
+     */
+    count: number;
+    /**
+     * Color
+     */
+    color?: string | null;
+};
+
+/**
+ * StatusTransition
+ */
+export type StatusTransition = {
+    /**
+     * From Code
+     */
+    from_code: string;
+    /**
+     * To Code
+     */
+    to_code: string;
+};
+
+/**
+ * StatusTransitionsResponse
+ */
+export type StatusTransitionsResponse = {
+    /**
+     * Data
+     */
+    data: {
+        [key: string]: Array<StatusTransition>;
+    };
 };
 
 /**
@@ -1464,6 +1668,27 @@ export type TestUpdateRequest = {
      * Status Id
      */
     status_id?: string | null;
+};
+
+/**
+ * TimelineBucket
+ *
+ * One time bucket of sample intake, bucketed by `received_at`. `by_status`
+ * maps every sample-status code to how many of the bucket's received samples
+ * currently sit in that status, so the whole lifecycle (including defects) is
+ * visible over time.
+ */
+export type TimelineBucket = {
+    /**
+     * Bucket Start
+     */
+    bucket_start: string;
+    /**
+     * By Status
+     */
+    by_status: {
+        [key: string]: number;
+    };
 };
 
 /**
@@ -1672,6 +1897,22 @@ export type HealthApiV1HealthGetResponses = {
 };
 
 export type HealthApiV1HealthGetResponse = HealthApiV1HealthGetResponses[keyof HealthApiV1HealthGetResponses];
+
+export type GetStatusTransitionsApiV1StatusTransitionsGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/status-transitions';
+};
+
+export type GetStatusTransitionsApiV1StatusTransitionsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: StatusTransitionsResponse;
+};
+
+export type GetStatusTransitionsApiV1StatusTransitionsGetResponse = GetStatusTransitionsApiV1StatusTransitionsGetResponses[keyof GetStatusTransitionsApiV1StatusTransitionsGetResponses];
 
 export type ListDirectionsApiV1DirectionsGetData = {
     body?: never;
@@ -3288,6 +3529,44 @@ export type DashboardSummaryApiV1DashboardSummaryGetResponses = {
 };
 
 export type DashboardSummaryApiV1DashboardSummaryGetResponse = DashboardSummaryApiV1DashboardSummaryGetResponses[keyof DashboardSummaryApiV1DashboardSummaryGetResponses];
+
+export type RegistrarDashboardApiV1DashboardRegistrarGetData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Date From
+         */
+        date_from: string;
+        /**
+         * Date To
+         */
+        date_to: string;
+        /**
+         * Period
+         */
+        period?: 'daily' | 'weekly' | 'monthly';
+    };
+    url: '/api/v1/dashboard/registrar';
+};
+
+export type RegistrarDashboardApiV1DashboardRegistrarGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RegistrarDashboardApiV1DashboardRegistrarGetError = RegistrarDashboardApiV1DashboardRegistrarGetErrors[keyof RegistrarDashboardApiV1DashboardRegistrarGetErrors];
+
+export type RegistrarDashboardApiV1DashboardRegistrarGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: SingleResponseRegistrarDashboard;
+};
+
+export type RegistrarDashboardApiV1DashboardRegistrarGetResponse = RegistrarDashboardApiV1DashboardRegistrarGetResponses[keyof RegistrarDashboardApiV1DashboardRegistrarGetResponses];
 
 export type ListAlertsApiV1AlertsGetData = {
     body?: never;

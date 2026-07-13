@@ -8,6 +8,17 @@ class StrictRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class StatusTransition(BaseModel):
+    from_code: str
+    to_code: str
+
+
+class StatusTransitionsResponse(BaseModel):
+    # Разрешённые переходы по ресурсам ("directions" | "samples" | "research" |
+    # "tests") — из доменной политики status_policy.ALLOWED_TRANSITIONS.
+    data: dict[str, list[StatusTransition]]
+
+
 class DirectionCreateRequest(StrictRequest):
     year_no: int
     base_no: int | None = None

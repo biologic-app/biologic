@@ -89,7 +89,7 @@ export const workflowCommands: WorkflowCommand[] = [
     selection: { label: "Брак", color: "warning" },
     resource: "samples",
     action: "reject",
-    statuses: ["pending", "registered", "in_progress"],
+    statuses: ["registered", "in_progress"],
     endpoint: (row) => `/samples/${row.id}/reject`,
     fields: [{ key: "reason", label: "Причина", type: "textarea", required: true }],
     successTitle: "Образцы помечены как брак",
