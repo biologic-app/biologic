@@ -352,9 +352,11 @@ function verdictModel(row: RelatedRow): boolean | undefined {
     <div v-else class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-default">
       <div class="min-h-0 flex-1 overflow-auto">
         <UTable
+          v-model:expanded="expanded"
           :data="rows"
           :columns="researchColumns"
           :loading="loading"
+          :get-sub-rows="getSubRows"
           :ui="{ thead: 'sticky top-0 z-10 bg-elevated', th: 'px-4 py-2 text-left text-sm font-semibold text-highlighted', td: 'px-4 py-2 align-middle text-sm text-muted whitespace-nowrap' }"
         >
           <template #title-cell="{ row }">

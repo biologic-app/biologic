@@ -820,7 +820,40 @@ const renderDirectionNumberCell = (rowItem: CrudRow) => {
 const uiColumns = computed(() => {
   const actionColumn = { id: "actions", header: "Действия", meta: { class: { td: "w-auto min-w-[56px] text-right" } } };
 
+  // Колонка-пин: клик подписывает/отписывает на запись и закрепляет её сверху.
+  // Читает isRowPinned/pinInFlight «вживую» при рендере — TanStack перерисует
+  // ячейку при изменении v-model:row-pinning, поэтому цвет/иконка следят за состоянием.
+  const pinColumn = {
+    id: "pin",
+    enableSorting: false,
+    enableHiding: false,
+    header: () => "",
+    meta: { class: { th: "w-10", td: "w-10" } },
+    cell: ({ row }: { row: TableRow<CrudRow> }) => {
+      const rowItem = row.original as CrudRow;
+      if (isSkeletonRow(rowItem)) {
+        return renderSkeletonCell("pin");
+      }
+      const id = String(rowItem.id);
+      const pinned = isRowPinned(id);
+      return h(UButton, {
+        icon: pinned ? "i-lucide-bell-ring" : "i-lucide-bell-plus",
+        color: pinned ? "primary" : "neutral",
+        variant: "ghost",
+        size: "sm",
+        square: true,
+        title: pinned ? "Не отслеживать" : "Отслеживать уведомления",
+        "aria-label": pinned ? "Не отслеживать" : "Отслеживать уведомления",
+        onClick: (event: Event) => {
+          event.stopPropagation();
+          void toggleRowPin(rowItem);
+        },
+      });
+    },
+  };
+
   return [
+    ...(supportsSubscriptions.value ? [pinColumn] : []),
     ...props.config.columns.map((column, columnIndex) => ({
       id: getColumnId(column.field),
       accessorKey: column.field,
