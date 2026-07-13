@@ -7,6 +7,7 @@ import { useI18n } from 'vue-i18n'
 import { useLocale } from '@/shared/composables/useLocale'
 import { sampleStatusOrder } from '@/modules/dashboard/sample-status-viz'
 import { statusColorVar } from '@/shared/domain/status-color'
+import { statusLabel } from '@/shared/i18n/status-label'
 import type { Period } from '@/modules/dashboard/types'
 import type { StatusCount, TimelineBucket } from '@/shared/api/generated'
 
@@ -22,7 +23,7 @@ const { width } = useElementSize(cardRef)
 const { t } = useI18n()
 const { dateFnsLocale, intlLocale } = useLocale()
 
-type Series = { code: string; name: string; color: string }
+type Series = { code: string; label: string; color: string }
 type DataRecord = { date: Date; byStatus: Record<string, number> }
 
 // One stacked series per sample status, in lifecycle order, coloured from the
@@ -32,7 +33,7 @@ const series = computed<Series[]>(() =>
     .filter((status): status is StatusCount & { code: string } => Boolean(status.code))
     .slice()
     .sort((a, b) => sampleStatusOrder(a.code) - sampleStatusOrder(b.code))
-    .map((status) => ({ code: status.code, name: status.name, color: statusColorVar(status.color) }))
+    .map((status) => ({ code: status.code, label: statusLabel('sample', status.code), color: statusColorVar(status.color) }))
 )
 
 const data = computed<DataRecord[]>(() =>
@@ -80,7 +81,7 @@ const template = (d: DataRecord) => {
     .filter((s) => (d.byStatus[s.code] ?? 0) > 0)
     .map(
       (s) =>
-        `<div><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${s.color};margin-right:6px"></span>${s.name}: <b>${formatNum(d.byStatus[s.code] ?? 0)}</b></div>`
+        `<div><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${s.color};margin-right:6px"></span>${s.label}: <b>${formatNum(d.byStatus[s.code] ?? 0)}</b></div>`
     )
     .join('')
   return `<div style="font-size:13px;line-height:1.7"><b>${formatDate(d.date)}</b>${lines || '<div>—</div>'}</div>`
@@ -98,7 +99,14 @@ const template = (d: DataRecord) => {
           <p class="text-xs text-muted uppercase mb-1.5">
             {{ t('dashboard.registrar.chart.title') }}
           </p>
-          <p class="text-3xl text-highlighted font-semibold">
+          <USkeleton
+            v-if="loading && !data.length"
+            class="h-9 w-16"
+          />
+          <p
+            v-else
+            class="text-3xl text-highlighted font-semibold"
+          >
             {{ formatNum(totalReceived) }}
           </p>
         </div>
@@ -107,7 +115,14 @@ const template = (d: DataRecord) => {
             <p class="text-xs text-muted uppercase mb-1">
               {{ t('dashboard.registrar.chart.completed') }}
             </p>
-            <p class="text-xl font-semibold text-success">
+            <USkeleton
+              v-if="loading && !data.length"
+              class="h-7 w-10"
+            />
+            <p
+              v-else
+              class="text-xl font-semibold text-success"
+            >
               {{ formatNum(totalCompleted) }}
             </p>
           </div>
@@ -115,7 +130,14 @@ const template = (d: DataRecord) => {
             <p class="text-xs text-muted uppercase mb-1">
               {{ t('dashboard.registrar.chart.rejected') }}
             </p>
-            <p class="text-xl font-semibold text-error">
+            <USkeleton
+              v-if="loading && !data.length"
+              class="h-7 w-10"
+            />
+            <p
+              v-else
+              class="text-xl font-semibold text-error"
+            >
               {{ formatNum(totalRejected) }}
             </p>
           </div>
@@ -123,17 +145,29 @@ const template = (d: DataRecord) => {
       </div>
 
       <div class="flex items-center gap-x-5 gap-y-1.5 mt-3 flex-wrap">
-        <div
-          v-for="item in series"
-          :key="item.code"
-          class="flex items-center gap-1.5 text-xs text-muted"
-        >
-          <span
-            class="size-2.5 rounded-sm inline-block"
-            :style="{ backgroundColor: item.color }"
-          />
-          {{ item.name }}
-        </div>
+        <template v-if="loading && !series.length">
+          <div
+            v-for="i in 4"
+            :key="i"
+            class="flex items-center gap-1.5"
+          >
+            <USkeleton class="size-2.5 rounded-sm" />
+            <USkeleton class="h-3 w-16" />
+          </div>
+        </template>
+        <template v-else>
+          <div
+            v-for="item in series"
+            :key="item.code"
+            class="flex items-center gap-1.5 text-xs text-muted"
+          >
+            <span
+              class="size-2.5 rounded-sm inline-block"
+              :style="{ backgroundColor: item.color }"
+            />
+            {{ item.label }}
+          </div>
+        </template>
       </div>
     </template>
 

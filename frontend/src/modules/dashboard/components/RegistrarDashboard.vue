@@ -44,15 +44,15 @@ const listLink = (
   filters: Record<string, unknown>
 ): RouteLocationRaw => ({ name, query: { filters: JSON.stringify(filters) } })
 
+// KPI chrome (icon/label) is static UI, not backend data, so it's always
+// rendered — only `value` and `link` depend on the dashboard response and
+// fall back to undefined (→ skeleton) while it's loading.
 const kpiCards = computed(() => {
   const data = dashboard.value
-  if (!data) {
-    return []
-  }
 
-  const draftDirectionId = statusId(data.directions_by_status, 'draft')
-  const pendingSampleId = statusId(data.samples_by_status, 'pending')
-  const openSampleIds = collectStatusIds(data.samples_by_status, [
+  const draftDirectionId = statusId(data?.directions_by_status, 'draft')
+  const pendingSampleId = statusId(data?.samples_by_status, 'pending')
+  const openSampleIds = collectStatusIds(data?.samples_by_status, [
     'registered',
     'in_progress',
     'partially_completed'
@@ -62,7 +62,7 @@ const kpiCards = computed(() => {
     {
       key: 'directions_draft',
       label: t('dashboard.registrar.kpi.directionsDraft'),
-      value: data.kpis.directions_draft,
+      value: data?.kpis.directions_draft,
       icon: 'i-lucide-file-pen',
       link: draftDirectionId
         ? listLink('directions', { status_id: [draftDirectionId] })
@@ -71,38 +71,38 @@ const kpiCards = computed(() => {
     {
       key: 'samples_pending',
       label: t('dashboard.registrar.kpi.samplesPending'),
-      value: data.kpis.samples_pending,
+      value: data?.kpis.samples_pending,
       icon: 'i-lucide-inbox',
       link: pendingSampleId ? listLink('samples', { status_id: [pendingSampleId] }) : undefined
     },
     {
       key: 'urgent_open',
       label: t('dashboard.registrar.kpi.urgentOpen'),
-      value: data.kpis.urgent_open,
+      value: data?.kpis.urgent_open,
       icon: 'i-lucide-flame',
-      link: listLink('samples', {
-        is_urgent: true,
-        ...(openSampleIds.length ? { status_id: openSampleIds } : {})
-      })
+      link: data
+        ? listLink('samples', {
+            is_urgent: true,
+            ...(openSampleIds.length ? { status_id: openSampleIds } : {})
+          })
+        : undefined
     },
     {
       key: 'directions_today',
       label: t('dashboard.registrar.kpi.directionsToday'),
-      value: data.kpis.directions_received_today,
+      value: data?.kpis.directions_received_today,
       icon: 'i-lucide-file-plus-2',
       link: undefined
     },
     {
       key: 'samples_today',
       label: t('dashboard.registrar.kpi.samplesToday'),
-      value: data.kpis.samples_received_today,
+      value: data?.kpis.samples_received_today,
       icon: 'i-lucide-package-plus',
       link: undefined
     }
   ]
 })
-
-const skeletonItems = Array.from({ length: 5 }, (_, index) => index)
 
 const formatNumber = (value: number): string => value.toLocaleString(intlLocale.value)
 
@@ -169,58 +169,50 @@ watch(
           :description="errorMessage"
         />
 
-        <!-- KPI cards -->
+        <!-- KPI cards — icon/label are static chrome and always render; only the
+             value (backend data) skeletons while the dashboard is loading. -->
         <UPageGrid class="lg:grid-cols-5 gap-4 sm:gap-6 lg:gap-px">
-          <template v-if="isLoading && !kpiCards.length">
-            <UPageCard
-              v-for="item in skeletonItems"
-              :key="item"
-              variant="subtle"
-              :ui="{ container: 'gap-y-3', wrapper: 'items-start' }"
-              class="lg:rounded-none first:rounded-l-lg last:rounded-r-lg"
-            >
-              <USkeleton class="size-10 rounded-full" />
-              <USkeleton class="h-3 w-24" />
-              <USkeleton class="h-7 w-16" />
-            </UPageCard>
-          </template>
-
-          <template v-else>
-            <UPageCard
-              v-for="card in kpiCards"
-              :key="card.key"
-              :icon="card.icon"
-              :title="card.label"
-              variant="subtle"
-              :ui="{
-                container: 'gap-y-1.5',
-                wrapper: 'items-start',
-                leading: 'p-2.5 rounded-full bg-primary/10 ring ring-inset ring-primary/25',
-                title: 'font-normal text-muted text-xs uppercase'
-              }"
-              class="lg:rounded-none first:rounded-l-lg last:rounded-r-lg hover:z-1"
-            >
-              <div class="flex items-end justify-between gap-2 w-full">
-                <span class="text-2xl font-semibold text-highlighted">
-                  {{ formatNumber(card.value) }}
-                </span>
-                <UTooltip
-                  v-if="card.link"
-                  :text="t('dashboard.registrar.openList')"
-                >
-                  <UButton
-                    icon="i-lucide-square-arrow-right-enter"
-                    color="primary"
-                    variant="ghost"
-                    size="md"
-                    :ui="{ leadingIcon: 'size-6' }"
-                    :aria-label="t('dashboard.registrar.openList')"
-                    @click="router.push(card.link)"
-                  />
-                </UTooltip>
-              </div>
-            </UPageCard>
-          </template>
+          <UPageCard
+            v-for="card in kpiCards"
+            :key="card.key"
+            :icon="card.icon"
+            :title="card.label"
+            variant="subtle"
+            :ui="{
+              container: 'gap-y-1.5',
+              wrapper: 'items-start',
+              leading: 'p-2.5 rounded-full bg-primary/10 ring ring-inset ring-primary/25',
+              title: 'font-normal text-muted text-xs uppercase'
+            }"
+            class="lg:rounded-none first:rounded-l-lg last:rounded-r-lg hover:z-1"
+          >
+            <div class="flex items-end justify-between gap-2 w-full">
+              <USkeleton
+                v-if="card.value === undefined"
+                class="h-7 w-16"
+              />
+              <span
+                v-else
+                class="text-2xl font-semibold text-highlighted"
+              >
+                {{ formatNumber(card.value) }}
+              </span>
+              <UTooltip
+                v-if="card.link"
+                :text="t('dashboard.registrar.openList')"
+              >
+                <UButton
+                  icon="i-lucide-square-arrow-right-enter"
+                  color="primary"
+                  variant="ghost"
+                  size="md"
+                  :ui="{ leadingIcon: 'size-6' }"
+                  :aria-label="t('dashboard.registrar.openList')"
+                  @click="router.push(card.link)"
+                />
+              </UTooltip>
+            </div>
+          </UPageCard>
         </UPageGrid>
 
         <!-- Operational timeline chart — fills the remaining panel height -->
