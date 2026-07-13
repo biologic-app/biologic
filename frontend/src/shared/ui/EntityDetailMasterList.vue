@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useInfiniteScroll } from "@vueuse/core";
+import TrackedFlagIcon from "@/shared/ui/TrackedFlagIcon.vue";
+import UrgentFlagIcon from "@/shared/ui/UrgentFlagIcon.vue";
+import OverdueFlagIcon from "@/shared/ui/OverdueFlagIcon.vue";
 
 export type DetailListColor =
   | "primary"
@@ -23,6 +26,8 @@ export type DetailListItem = {
   urgent?: boolean;
   // Образец с проваленным дедлайном выпуска — помечается будильником.
   overdue?: boolean;
+  // Запись отслеживается (подписка) — помечается колокольчиком.
+  tracked?: boolean;
 };
 
 // Левый master-список детальной модалки с бесконечным скроллом.
@@ -106,18 +111,9 @@ useInfiniteScroll(
             :label="entry.badge"
           />
           <span class="ml-auto flex items-center gap-1">
-            <UIcon
-              v-if="entry.overdue"
-              name="i-lucide-alarm-clock-off"
-              class="size-5 shrink-0 text-error"
-              title="Выпуск задержан"
-            />
-            <UIcon
-              v-if="entry.urgent"
-              name="i-lucide-flame"
-              class="size-5 shrink-0 text-red-500"
-              title="Срочное"
-            />
+            <TrackedFlagIcon v-if="entry.tracked" :tracked="true" />
+            <OverdueFlagIcon v-if="entry.overdue" />
+            <UrgentFlagIcon v-if="entry.urgent" />
           </span>
         </span>
       </button>

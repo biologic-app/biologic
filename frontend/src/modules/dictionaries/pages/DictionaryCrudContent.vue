@@ -26,6 +26,9 @@ import RowContextMenu from "@/shared/ui/RowContextMenu.vue";
 import BusinessEntityDetailModal from "@/shared/ui/BusinessEntityDetailModal.vue";
 import DictionaryCrudDetailModal from "@/shared/ui/DictionaryCrudDetailModal.vue";
 import ProtocolPreviewModal from "@/shared/ui/ProtocolPreviewModal.vue";
+import TrackedFlagIcon from "@/shared/ui/TrackedFlagIcon.vue";
+import UrgentFlagIcon from "@/shared/ui/UrgentFlagIcon.vue";
+import OverdueFlagIcon from "@/shared/ui/OverdueFlagIcon.vue";
 import type { DetailListItem } from "@/shared/ui/EntityDetailModalShell.vue";
 import { isSampleDeadlineOverdue, recordCode, shortPersonName } from "@/shared/ui/entity-detail.helpers";
 import {
@@ -225,7 +228,10 @@ const formReferenceOptionsLoaded = ref(false);
 const formReferenceOptionsLoading = ref(false);
 const filterReferenceOptionsLoaded = ref(false);
 const filterReferenceOptionsLoading = ref(false);
-const columnVisibility = useTableColumnVisibility(tableSettingsKey, { actions: false });
+const columnVisibility = useTableColumnVisibility(tableSettingsKey, {
+  actions: false,
+  ...Object.fromEntries((props.config.defaultHiddenColumns ?? []).map((field) => [field, false])),
+});
 const rowSelection = ref<Record<string, boolean>>({});
 
 // Закрепление строк (row pinning) = ручная подписка на запись: пользователь
@@ -400,6 +406,10 @@ watch(
 
 onMounted(async () => {
   void loadMySubscriptions();
+  // Точечная подгрузка (не весь набор фильтров — см. loadDisplayReferenceOptions)
+  // для колонок, у которых бэкенд не отдаёт вложенный объект и рендер иначе
+  // до первого открытия панели фильтров показывал короткий код записи.
+  void loadDisplayReferenceOptions();
   await table.fetch();
 });
 
@@ -434,6 +444,29 @@ async function loadFormReferenceOptions() {
   } finally {
     formReferenceOptionsLoading.value = false;
   }
+}
+
+async function loadDisplayReferenceOptions() {
+  const fields = props.config.displayReferenceFields;
+  if (!fields?.length) {
+    return;
+  }
+
+  await Promise.all(
+    filterFields.value
+      .filter((field) => fields.includes(field.field) && field.filter?.source && referenceOptions.value[field.field] === undefined)
+      .map(async (field) => {
+        const endpoint = field.filter?.source;
+        if (!endpoint) {
+          return;
+        }
+        const options = await loadReferenceOptions(endpoint).catch(() => []);
+        referenceOptions.value = {
+          ...referenceOptions.value,
+          [field.field]: options as ReferenceOption[],
+        };
+      }),
+  );
 }
 
 async function loadFilterReferenceOptions() {
@@ -568,15 +601,15 @@ const listItemDate = (row: CrudRow): string => {
   return `${dateLabel} ${timeLabel}`;
 };
 
-// Подзаголовок строки списка: объект · врач (дата — отдельно, в заголовке).
+// Подзаголовок строки списка: врач · объект (дата — отдельно, в заголовке).
 const listItemSubtitle = (row: CrudRow): string => {
   const doctor = getValueByPath(row, "doctor");
   const doctorName = doctor && typeof doctor === "object"
     ? shortPersonName(doctor as Record<string, unknown>)
     : "";
   return [
-    getStringValue(getValueByPath(row, "object.name")),
     doctorName,
+    getStringValue(getValueByPath(row, "object.name")),
     getStringValue(getValueByPath(row, "code")),
   ]
     .filter(Boolean)
@@ -597,6 +630,7 @@ const toDetailListItem = (row: CrudRow): DetailListItem => ({
   color: getStatusBadgeColor(row),
   urgent: Boolean(getValueByPath(row, "is_urgent")),
   overdue: isSampleDeadlineOverdue(row),
+  tracked: supportsSubscriptions.value && isRowPinned(String(row.id)),
 });
 
 // Левый master-список детальной модалки: текущие строки таблицы (тот же
@@ -772,43 +806,21 @@ const selectedRowsHaveStatus = (allowed: string[]) =>
   selectedRows.value.length > 0
   && selectedRows.value.every((row) => allowed.includes(normalizeStatusCode(row)));
 
+// Объединённая колонка «№ год-номер» для направлений — год и номер больше не
+// разнесены по колонкам. Статусные иконки (колокольчик/срочность/брак) теперь
+// рендерятся рядом со статусом, см. #status-cell.
+const renderDirectionNumberCell = (rowItem: CrudRow) => {
+  const yearNo = getValueByPath(rowItem, "year_no");
+  const baseNo = getValueByPath(rowItem, "base_no");
+  const hasBaseNo = typeof baseNo === "number" || (typeof baseNo === "string" && baseNo.trim());
+  const hasYearNo = typeof yearNo === "number" || (typeof yearNo === "string" && yearNo.trim());
+  return hasBaseNo ? (hasYearNo ? `№ ${yearNo}-${baseNo}` : `№ ${baseNo}`) : "-";
+};
+
 const uiColumns = computed(() => {
   const actionColumn = { id: "actions", header: "Действия", meta: { class: { td: "w-auto min-w-[56px] text-right" } } };
 
-  // Колонка-пин: клик подписывает/отписывает на запись и закрепляет её сверху.
-  // Читает isRowPinned/pinInFlight «вживую» при рендере — TanStack перерисует
-  // ячейку при изменении v-model:row-pinning, поэтому цвет/иконка следят за состоянием.
-  const pinColumn = {
-    id: "pin",
-    enableSorting: false,
-    enableHiding: false,
-    header: () => "",
-    meta: { class: { th: "w-10", td: "w-10" } },
-    cell: ({ row }: { row: TableRow<CrudRow> }) => {
-      const rowItem = row.original as CrudRow;
-      if (isSkeletonRow(rowItem)) {
-        return renderSkeletonCell("pin");
-      }
-      const id = String(rowItem.id);
-      const pinned = isRowPinned(id);
-      return h(UButton, {
-        icon: pinned ? "i-lucide-bell-ring" : "i-lucide-bell-plus",
-        color: pinned ? "primary" : "neutral",
-        variant: "ghost",
-        size: "sm",
-        square: true,
-        title: pinned ? "Не отслеживать" : "Отслеживать уведомления",
-        "aria-label": pinned ? "Не отслеживать" : "Отслеживать уведомления",
-        onClick: (event: Event) => {
-          event.stopPropagation();
-          void toggleRowPin(rowItem);
-        },
-      });
-    },
-  };
-
   return [
-    ...(supportsSubscriptions.value ? [pinColumn] : []),
     ...props.config.columns.map((column, columnIndex) => ({
       id: getColumnId(column.field),
       accessorKey: column.field,
@@ -835,6 +847,10 @@ const uiColumns = computed(() => {
           return renderSkeletonCell(column.field, columnIndex);
         }
 
+        if (props.config.presetKey === "directions" && column.field === "base_no") {
+          return renderDirectionNumberCell(rowItem);
+        }
+
         if (column.body) {
           return column.body(rowItem);
         }
@@ -846,7 +862,11 @@ const uiColumns = computed(() => {
           return h(
             UBadge,
             {
-              color: "neutral",
+              color: referenceCell && column.field === "is_urgent"
+                ? "error"
+                : referenceCell && column.field === "is_done"
+                  ? "success"
+                  : "neutral",
               variant: "subtle",
             },
             () => (referenceCell ? "Да" : "Нет"),
@@ -862,6 +882,10 @@ const uiColumns = computed(() => {
       meta: {
         class: {
           th: column.width ? `w-[${column.width}]` : undefined,
+          td: [
+            column.width ? `w-[${column.width}]` : undefined,
+            column.wrap ? "whitespace-normal break-words" : undefined,
+          ].filter(Boolean).join(" ") || undefined,
         },
       },
     })),
@@ -1372,14 +1396,15 @@ const goToDetailLevel = (index: number) => {
   detailStack.value = detailStack.value.slice(0, index + 1);
 };
 
-// Крестик/Esc/«Закрыть» карточки возвращают на предыдущий уровень стека,
-// а не закрывают всё окно (закрытие — только когда стек опустел).
+// Крестик закрывает всё окно целиком (весь стек карточек). Возврат на
+// родительский уровень — через хлебные крошки (go-to-level), а не крестиком.
 const onDetailOpenChange = (value: boolean) => {
   if (value) {
     detailOpen.value = true;
     return;
   }
-  popDetail();
+  detailStack.value = [];
+  detailOpen.value = false;
 };
 
 const getEntityDisplayName = (row: CrudRow | null): string => {
@@ -1442,7 +1467,17 @@ const onDetailSaved = (row: CrudRow) => {
     : [row, ...table.data.value];
 };
 
-const openRelatedDetail = (payload: { kind: DetailKind; item: CrudRow }) => {
+const openRelatedDetail = (payload: { kind: DetailKind; item: CrudRow; parent?: { kind: DetailKind; item: CrudRow } }) => {
+  // Открытие исследования из дерева «образец → исследования» (вкладка
+  // образцов направления) проходит по пропущенному уровню — сначала кладём
+  // образец, чтобы хлебные крошки читались «Направление → Образец →
+  // Исследование», а не перепрыгивали сразу к исследованию.
+  if (payload.parent) {
+    const parentConfig = crudModules[payload.parent.kind];
+    if (parentConfig) {
+      pushDetail(payload.parent.item, parentConfig);
+    }
+  }
   const config = crudModules[payload.kind];
   if (config) {
     pushDetail(payload.item, config);
@@ -1479,8 +1514,16 @@ const getRowWorkflowActionItems = (row: CrudRow): DropdownMenuItem[] =>
 const getRowActionItems = (row: CrudRow): DropdownMenuItem[] => {
   const workflowItems = getRowWorkflowActionItems(row);
   const extraItems = props.extraRowActions?.(row) ?? [];
+  const pinned = supportsSubscriptions.value && isRowPinned(String(row.id));
   return [
     { label: "Просмотр", icon: "i-lucide-eye", onSelect: () => openDetail(row) },
+    ...(supportsSubscriptions.value
+      ? [{
+          label: pinned ? "Не отслеживать" : "Отслеживать",
+          icon: pinned ? "i-lucide-bell-off" : "i-lucide-bell-plus",
+          onSelect: () => void toggleRowPin(row),
+        }]
+      : []),
     ...(props.config.presetKey === "protocols"
       ? [{ label: "Предпросмотр", icon: "i-lucide-file-search", onSelect: () => openPreview(row) }]
       : []),
@@ -1768,12 +1811,21 @@ defineExpose({
     </template>
     <template #status-cell="{ row }">
       <USkeleton v-if="isSkeletonRow(row.original)" class="h-5 w-24" />
-      <UBadge
-        v-else
-        :color="getStatusBadgeColor(row.original)"
-        variant="subtle"
-        :label="getStatusLabel(row.original)"
-      />
+      <div v-else class="flex items-center gap-2">
+        <UBadge
+          :color="getStatusBadgeColor(row.original)"
+          variant="subtle"
+          :label="getStatusLabel(row.original)"
+        />
+        <span class="flex items-center gap-1.5">
+          <TrackedFlagIcon
+            v-if="supportsSubscriptions && isRowPinned(String(row.original.id))"
+            :tracked="true"
+          />
+          <UrgentFlagIcon v-if="row.original.is_urgent" />
+          <OverdueFlagIcon v-if="isSampleDeadlineOverdue(row.original)" />
+        </span>
+      </div>
     </template>
     <template #selection-actions="{ actionClass }">
       <UButton
