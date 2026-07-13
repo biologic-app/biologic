@@ -39,6 +39,7 @@ import {
   entityDisplayCode,
   formatDisplay,
   formatPlain,
+  isSampleDeadlineOverdue,
   makeEvent,
   namedValue,
   pickText,
@@ -115,7 +116,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   (event: "update:open", value: boolean): void;
   (event: "saved", item: CrudRow): void;
-  (event: "open-related", payload: { kind: EntityKind; item: CrudRow }): void;
+  (event: "open-related", payload: { kind: EntityKind; item: CrudRow; parent?: { kind: EntityKind; item: CrudRow } }): void;
   (event: "create-related", payload: { kind: EntityKind }): void;
   (event: "go-to-level", index: number): void;
   (event: "select", id: string | number): void;
@@ -248,7 +249,7 @@ const tabs = computed<TabsItem[]>(() => {
     || { label: "Связанные", icon: "i-lucide-link" };
   return [
     cardTab,
-    { label: related.label, icon: related.icon, value: "related" },
+    { label: related.label, icon: related.icon, value: "related", badge: relatedRows.value.length },
   ];
 });
 
@@ -294,7 +295,7 @@ const subtitle = computed(() => {
   if (!row) return "";
 
   if (props.businessKind === "directions") {
-    // Год и номер уже в заголовке («№ 2025-461»); показываем дату, объект и врача.
+    // Год и номер уже в заголовке («№ 2025-461»); показываем дату, врача и объект.
     const sampledAt = row.sampled_at ?? row.received_at;
     return compact([
       sampledAt
@@ -304,8 +305,8 @@ const subtitle = computed(() => {
           year: "numeric",
         })
         : null,
-      namedValue(row.object),
       namedValue(row.doctor),
+      namedValue(row.object),
     ]).join(" · ") || props.config.description;
   }
 
@@ -367,6 +368,7 @@ const gridFields = computed<GridField[]>(() =>
     label: field.label,
     type: field.type === "file" ? "text" : field.type,
     required: field.required,
+    editable: field.editable,
     options: field.options,
     value: field.value,
   })),
@@ -524,7 +526,6 @@ const deadlineStatus = computed<
   }
 
   if (props.businessKind === "directions") {
-    const now = Date.now();
     const withDeadline = relatedRows.value
       .map((sample) => ({
         sample,
@@ -532,12 +533,9 @@ const deadlineStatus = computed<
       }))
       .filter((entry) => Number.isFinite(entry.deadline));
     if (!withDeadline.length) return null;
-    const late = withDeadline.filter(({ sample, deadline }) => {
-      const release = sample.completed_at
-        ? new Date(String(sample.completed_at)).getTime()
-        : now;
-      return release > deadline;
-    });
+    // «Брак» — терминальный статус: такой образец не выпускается и не считается
+    // задержанным (та же логика, что в isSampleDeadlineOverdue для таблиц/списка).
+    const late = withDeadline.filter(({ sample }) => isSampleDeadlineOverdue(sample));
     const maxDeadline = Math.max(...withDeadline.map((entry) => entry.deadline));
     return {
       failed: late.length > 0,
@@ -980,24 +978,19 @@ function close() {
         </div> -->
 
         <div>
-          <div class="mb-3 flex items-center justify-between gap-3">
-            <h3 class="text-sm font-semibold text-highlighted">
-              Данные
-            </h3>
-            <div class="flex gap-2">
-              <UButton v-if="!editing && canEditEntity" label="Редактировать" icon="i-lucide-pencil" color="neutral"
-                variant="outline" size="sm" @click="editing = true" />
-              <template v-else-if="editing">
-                <UButton :label="isCreate ? 'Отмена' : 'Отменить'" color="neutral" variant="outline" size="sm"
-                  :disabled="saving" @click="cancelEdit" />
-                <UButton label="Сохранить" icon="i-lucide-save" color="primary" size="sm" :loading="saving"
-                  @click="saveInline" />
-              </template>
-            </div>
-          </div>
-
           <EntityFieldGrid :fields="gridFields" :editing="editing" :form-state="formState"
             :reference-options="referenceOptions" :resolve-display="displayFieldValue" @update="setValue" />
+
+          <div class="mt-3 flex items-center justify-end gap-2">
+            <UButton v-if="!editing && canEditEntity" label="Редактировать" icon="i-lucide-pencil" color="neutral"
+              variant="outline" size="sm" @click="editing = true" />
+            <template v-else-if="editing">
+              <UButton :label="isCreate ? 'Отмена' : 'Отменить'" color="neutral" variant="outline" size="sm"
+                :disabled="saving" @click="cancelEdit" />
+              <UButton label="Сохранить" icon="i-lucide-save" color="primary" size="sm" :loading="saving"
+                @click="saveInline" />
+            </template>
+          </div>
         </div>
 
         <UAlert v-if="loadError" color="warning" variant="subtle" icon="i-lucide-triangle-alert"

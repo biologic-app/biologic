@@ -3,6 +3,7 @@
 // и сборка событий таймлайна. Тестируемы и переиспользуемы между табами.
 import { formatDateTime } from "@/shared/utils/format";
 import { getValueByPath } from "@/shared/utils/object";
+import { SAMPLE_STATUS_REJECTED } from "@/shared/domain/status-timeline";
 
 export type DetailFieldValue = string | number | boolean | null;
 
@@ -162,7 +163,11 @@ export function recordCode(row: Record<string, unknown> & { id: string | number 
 // сравниваем дедлайн с фактическим выпуском (completed_at) или «сейчас», если
 // образец ещё не выпущен. Совпадает с формулой deadlineStatus в
 // EntityDetailDialogBase — вынесено для переиспользования в таблице и списке.
+// «Брак» — терминальный статус: выпуска не будет, поэтому дедлайн не считается
+// проваленным (согласовано с deadlineTrailItem, который скрывает индикатор).
 export function isSampleDeadlineOverdue(row: Record<string, unknown>): boolean {
+  const statusCode = row.statusCode ?? getValueByPath(row, "status.code");
+  if (statusCode === SAMPLE_STATUS_REJECTED.code) return false;
   const deadlineRaw = row.deadline;
   if (deadlineRaw === null || deadlineRaw === undefined || deadlineRaw === "") return false;
   const deadline = new Date(String(deadlineRaw)).getTime();
@@ -170,6 +175,12 @@ export function isSampleDeadlineOverdue(row: Record<string, unknown>): boolean {
   const completedRaw = row.completed_at;
   const release = completedRaw ? new Date(String(completedRaw)).getTime() : Date.now();
   return release > deadline;
+}
+
+// Срочность образца/направления — сырое поле is_urgent (research/tests его не
+// имеют, но получают через наследование от родительского образца).
+export function isRowUrgent(row: Record<string, unknown>): boolean {
+  return row.is_urgent === true;
 }
 
 export function normalizeFormValue(value: unknown): DetailFieldValue {
