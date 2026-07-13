@@ -9,8 +9,8 @@ import {
   type RelatedRow,
 } from "@/shared/ui/entity-detail.helpers";
 import { relationRequest } from "@/shared/composables/useRelatedEntities";
-import { statusColorToken } from "@/shared/domain/status-color";
 import { fetchMySubscriptionIds } from "@/shared/api/subscriptions.api";
+import StatusBadge from "@/shared/ui/StatusBadge.vue";
 import TrackedFlagIcon from "@/shared/ui/TrackedFlagIcon.vue";
 import UrgentFlagIcon from "@/shared/ui/UrgentFlagIcon.vue";
 import OverdueFlagIcon from "@/shared/ui/OverdueFlagIcon.vue";
@@ -222,7 +222,7 @@ function verdictModel(row: RelatedRow): boolean | undefined {
                 </p>
               </td>
               <td class="px-3 py-2 align-top">
-                <UBadge :color="statusColorToken(row.statusColor)" variant="subtle" :label="row.statusText" />
+                <StatusBadge :color="row.statusColor" :label="row.statusText" />
               </td>
               <td class="px-3 py-2 align-top">
                 <UInput
@@ -305,9 +305,8 @@ function verdictModel(row: RelatedRow): boolean | undefined {
           </template>
           <template #status-cell="{ row }">
             <div class="flex items-center gap-2">
-              <UBadge
-                :color="statusColorToken(row.original.statusColor)"
-                variant="subtle"
+              <StatusBadge
+                :color="row.original.statusColor"
                 :label="row.original.statusText"
               />
               <TrackedFlagIcon
@@ -365,9 +364,8 @@ function verdictModel(row: RelatedRow): boolean | undefined {
           </template>
           <template #status-cell="{ row }">
             <div class="flex items-center gap-2">
-              <UBadge
-                :color="statusColorToken(row.original.statusColor)"
-                variant="subtle"
+              <StatusBadge
+                :color="row.original.statusColor"
                 :label="row.original.statusText"
               />
               <UrgentFlagIcon v-if="isRowUrgent(row.original)" />

@@ -1,9 +1,12 @@
 """Design-system-neutral color names for lifecycle status catalogs.
 
 The values here are generic color-name strings (not Nuxt UI tokens, not hex).
-The frontend maps these names onto its own design system separately. Keep the
-vocabulary in :data:`ALLOWED_STATUS_COLORS` fixed; each per-entity mapping is
-keyed by the stable status ``code`` strings defined in :mod:`src.core.status_codes`.
+The FRONTEND owns the color vocabulary and is the single source of truth: it
+maps these names onto its own design system (``shared/domain/status-color.ts``)
+and falls back to a neutral color for any name it does not recognise. The
+backend only assigns and stores a name per status; it does not constrain the
+vocabulary. Each per-entity mapping below is keyed by the stable status
+``code`` strings defined in :mod:`src.core.status_codes`.
 """
 
 from src.core.status_codes import (
@@ -27,19 +30,6 @@ from src.core.status_codes import (
     TEST_IN_PROGRESS,
     TEST_QUEUED,
     TEST_REJECTED,
-)
-
-ALLOWED_STATUS_COLORS: frozenset[str] = frozenset(
-    {
-        "gray",
-        "indigo",
-        "blue",
-        "violet",
-        "lime",
-        "green",
-        "amber",
-        "red",
-    }
 )
 
 DIRECTION_STATUS_COLORS: dict[str, str] = {

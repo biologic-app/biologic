@@ -33,40 +33,6 @@ body {
   --color-green-900: oklch(17.276% 0.02184 161.78);
 }
 
-/* Extra design-system status colors (indigo/violet/lime). Nuxt UI only emits
-   `--ui-color-<alias>-*` root vars for statically-scanned utilities; our status
-   colors are applied dynamically (statusColorToken/statusColorVar in
-   `shared/domain/status-color.ts`), so we define the vars explicitly here to
-   avoid Tailwind tree-shaking them (which would render badges/charts
-   colorless). Values map to Tailwind's default palettes. */
-:root {
-  --ui-color-indigo-400: var(--color-indigo-400);
-  --ui-color-indigo-500: var(--color-indigo-500);
-  --ui-indigo: var(--ui-color-indigo-500);
-  --ui-color-violet-400: var(--color-violet-400);
-  --ui-color-violet-500: var(--color-violet-500);
-  --ui-violet: var(--ui-color-violet-500);
-  --ui-color-lime-400: var(--color-lime-400);
-  --ui-color-lime-500: var(--color-lime-500);
-  --ui-lime: var(--ui-color-lime-500);
-  /* Default semantic aliases: Nuxt UI does not emit `--ui-color-<alias>-*`
-     root vars in this Vite setup, so statusColorVar() (var(--ui-color-<token>-500))
-     resolves to nothing for these. Define them off Tailwind's base palette. */
-  --ui-color-neutral-400: var(--color-zinc-400);
-  --ui-color-neutral-500: var(--color-zinc-500);
-  --ui-color-info-400: var(--color-blue-400);
-  --ui-color-info-500: var(--color-blue-500);
-  --ui-color-success-400: var(--color-green-400);
-  --ui-color-success-500: var(--color-green-500);
-  --ui-color-warning-400: var(--color-amber-400);
-  --ui-color-warning-500: var(--color-amber-500);
-  --ui-color-error-400: var(--color-red-400);
-  --ui-color-error-500: var(--color-red-500);
-}
-
 .dark {
   --ui-primary: var(--ui-color-primary-500);
-  --ui-indigo: var(--ui-color-indigo-400);
-  --ui-violet: var(--ui-color-violet-400);
-  --ui-lime: var(--ui-color-lime-400);
 }

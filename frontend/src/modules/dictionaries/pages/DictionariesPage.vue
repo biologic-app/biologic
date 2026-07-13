@@ -21,6 +21,9 @@ const crudContent = ref<InstanceType<typeof DictionaryCrudContent> | null>(null)
 const tableSearch = ref("");
 const refreshToken = ref(0);
 
+// Кнопка «Обновить» — перезагрузка данных таблицы через метод дочернего CRUD.
+const refresh = () => crudContent.value?.refresh();
+
 const moduleKey = computed(() => {
   const rawModule = route.params.module;
   const key = Array.isArray(rawModule) ? rawModule[0] : rawModule;
@@ -132,10 +135,11 @@ watch(
             </UButton>
             <UTooltip text="Обновить данные">
               <UButton
+                label="Обновить"
                 color="neutral"
                 variant="subtle"
                 icon="i-lucide-refresh-cw"
-                @click="refreshToken++"
+                @click="refresh"
               />
             </UTooltip>
 

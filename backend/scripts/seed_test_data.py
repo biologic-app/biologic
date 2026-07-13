@@ -328,38 +328,40 @@ SEED_USERS: tuple[dict[str, object], ...] = (
     },
 )
 
-# Status seed rows: (code, name, color). Colors are design-system-neutral
-# names from src.core.status_colors (ALLOWED_STATUS_COLORS vocabulary).
-DIRECTION_STATUSES: tuple[tuple[str, str, str], ...] = (
-    ("draft", "Черновик", "gray"),
-    ("registered", "Зарегистрировано", "indigo"),
-    ("in_progress", "В работе", "blue"),
-    ("partially_completed", "Частично выполнено", "lime"),
-    ("completed", "Выполнено", "green"),
+# Status seed rows: (code, color). The stable `code` is the sole status
+# identity; the frontend translates labels via i18n. Colors are design-system-
+# neutral names (see src.core.status_colors); the frontend owns the color
+# vocabulary and maps each name onto its design system.
+DIRECTION_STATUSES: tuple[tuple[str, str], ...] = (
+    ("draft", "gray"),
+    ("registered", "indigo"),
+    ("in_progress", "blue"),
+    ("partially_completed", "lime"),
+    ("completed", "green"),
 )
 
-SAMPLE_STATUSES: tuple[tuple[str, str, str], ...] = (
-    ("pending", "На регистрации", "amber"),
-    ("registered", "Зарегистрирован", "indigo"),
-    ("rejected", "Брак", "red"),
-    ("in_progress", "На исследовании", "blue"),
-    ("analyzed", "Обработан", "violet"),
-    ("completed", "Закрыт", "green"),
+SAMPLE_STATUSES: tuple[tuple[str, str], ...] = (
+    ("pending", "amber"),
+    ("registered", "indigo"),
+    ("rejected", "red"),
+    ("in_progress", "blue"),
+    ("analyzed", "violet"),
+    ("completed", "green"),
 )
 
-RESEARCH_STATUSES: tuple[tuple[str, str, str], ...] = (
-    ("draft", "Черновик", "gray"),
-    ("ordered", "Запланировано", "amber"),
-    ("in_progress", "В работе", "blue"),
-    ("completed", "Завершено", "green"),
-    ("rejected", "Отклонено", "red"),
+RESEARCH_STATUSES: tuple[tuple[str, str], ...] = (
+    ("draft", "gray"),
+    ("ordered", "amber"),
+    ("in_progress", "blue"),
+    ("completed", "green"),
+    ("rejected", "red"),
 )
 
-TEST_STATUSES: tuple[tuple[str, str, str], ...] = (
-    ("queued", "Запланировано", "amber"),
-    ("in_progress", "Выполняется", "blue"),
-    ("completed", "Выполнено", "green"),
-    ("rejected", "Отклонено", "red"),
+TEST_STATUSES: tuple[tuple[str, str], ...] = (
+    ("queued", "amber"),
+    ("in_progress", "blue"),
+    ("completed", "green"),
+    ("rejected", "red"),
 )
 
 # Realistic branches/protocol types. Previously ~100 synthetic placeholder
@@ -608,18 +610,17 @@ async def _seed_bootstrap_data(connection: AsyncConnection) -> None:
         await connection.execute(
             text(
                 f"""
-                INSERT INTO {table} (code, name, color)
+                INSERT INTO {table} (code, color)
                 SELECT * FROM unnest(
-                    CAST(:code AS text[]), CAST(:name AS text[]), CAST(:color AS text[])
+                    CAST(:code AS text[]), CAST(:color AS text[])
                 )
                 ON CONFLICT (code) DO UPDATE
-                SET name = EXCLUDED.name, color = EXCLUDED.color
+                SET color = EXCLUDED.color
                 """  # noqa: S608 (table is one of 4 fixed literals above, not user input)
             ),
             {
-                "code": [code for code, _, _ in status_rows],
-                "name": [name for _, name, _ in status_rows],
-                "color": [color for _, _, color in status_rows],
+                "code": [code for code, _ in status_rows],
+                "color": [color for _, color in status_rows],
             },
         )
 

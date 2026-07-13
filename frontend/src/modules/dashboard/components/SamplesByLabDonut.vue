@@ -80,7 +80,7 @@ const centralSubLabel = computed(() => selectedLab.value ?? props.totalLabel)
 const statusLegend = computed(() => {
   const seen = new Map<string, { code: string; label: string; color: string }>()
   for (const row of props.rows) {
-    const key = row.status_code ?? row.status_name ?? '—'
+    const key = row.status_code ?? '—'
     if (!seen.has(key)) {
       seen.set(key, {
         code: key,

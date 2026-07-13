@@ -14,7 +14,7 @@ from src.core.responses import ListResponse, SingleResponse
 from src.domain.uow import UnitOfWorkFactory
 from src.infrastructure.repositories.catalogs import reject_status_write
 
-_FIELDS = ("id", "code", "name", "color", "created_at", "updated_at")
+_FIELDS = ("id", "code", "color", "created_at", "updated_at")
 
 
 class SampleStatusCrudUseCase:

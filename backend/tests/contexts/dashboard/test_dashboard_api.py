@@ -64,13 +64,11 @@ class FakeDashboardUseCase:
                 "samples_by_status": [
                     {
                         "status_code": "registered",
-                        "status_name": "Зарегистрирован",
                         "status_color": "indigo",
                         "count": 7,
                     },
                     {
                         "status_code": "completed",
-                        "status_name": "Завершён",
                         "status_color": "green",
                         "count": 3,
                     },
@@ -120,13 +118,11 @@ class FakeRegistrarDashboardUseCase:
                     StatusCount(
                         id=UUID("018f9a10-0000-7000-8000-0000000000b1"),
                         code="draft",
-                        name="Черновик",
                         count=3,
                     ),
                     StatusCount(
                         id=UUID("018f9a10-0000-7000-8000-0000000000b2"),
                         code="registered",
-                        name="Зарегистрировано",
                         count=8,
                     ),
                 ],
@@ -134,14 +130,12 @@ class FakeRegistrarDashboardUseCase:
                     StatusCount(
                         id=UUID("018f9a10-0000-7000-8000-0000000000c1"),
                         code="pending",
-                        name="Ожидает приёмки",
                         count=5,
                         color="amber",
                     ),
                     StatusCount(
                         id=UUID("018f9a10-0000-7000-8000-0000000000c2"),
                         code="completed",
-                        name="Завершён",
                         count=9,
                         color="green",
                     ),
@@ -152,7 +146,6 @@ class FakeRegistrarDashboardUseCase:
                         lab_code="BAC",
                         lab_name="Бактериология",
                         status_code="registered",
-                        status_name="Зарегистрирован",
                         status_color="indigo",
                         count=7,
                     ),
@@ -161,7 +154,6 @@ class FakeRegistrarDashboardUseCase:
                         lab_code="BAC",
                         lab_name="Бактериология",
                         status_code="rejected",
-                        status_name="Брак",
                         status_color="red",
                         count=2,
                     ),
@@ -172,7 +164,6 @@ class FakeRegistrarDashboardUseCase:
                         year_no=2026,
                         base_no=17,
                         status_code="draft",
-                        status_name="Черновик",
                         status_color="gray",
                         is_urgent=True,
                         received_at=datetime(2026, 7, 13, 9, 0, tzinfo=UTC),
@@ -284,7 +275,7 @@ def test_registrar_dashboard_endpoint_returns_intake_read_model(
         assert data["kpis"]["samples_received_today"] == 6
         assert data["directions_by_status"][0]["code"] == "draft"
         assert data["directions_by_status"][0]["id"] == "018f9a10-0000-7000-8000-0000000000b1"
-        assert data["samples_by_status"][0]["name"] == "Ожидает приёмки"
+        assert data["samples_by_status"][0]["code"] == "pending"
         assert data["samples_by_status"][1]["code"] == "completed"
         assert data["samples_by_status"][1]["color"] == "green"
         assert data["recent_directions"][0]["base_no"] == 17

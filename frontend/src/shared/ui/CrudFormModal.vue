@@ -3,6 +3,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import type { FormField } from '@/shared/types/form'
 import { getFormFieldLayoutClass } from '@/shared/ui/form-layout'
 import { fromDateTimeLocalValue, toDateTimeLocalValue } from '@/shared/utils/format'
+import StatusColorPicker from '@/shared/ui/StatusColorPicker.vue'
 
 const props = defineProps<{
   open: boolean
@@ -113,6 +114,11 @@ const submit = () => {
       return
     }
 
+    if (field.type === 'color') {
+      payload[field.key] = form[field.key]
+      return
+    }
+
     payload[field.key] = form[field.key] === '' ? null : form[field.key]
   })
 
@@ -188,6 +194,11 @@ const onFileChange = (key: string, event: Event) => {
             :required="field.required"
             :disabled="readOnly"
             clear
+          />
+
+          <StatusColorPicker
+            v-else-if="field.type === 'color'"
+            v-model="form[field.key]"
           />
 
           <UInput

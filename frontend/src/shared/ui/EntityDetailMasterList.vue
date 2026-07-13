@@ -4,19 +4,11 @@ import { useInfiniteScroll } from "@vueuse/core";
 import TrackedFlagIcon from "@/shared/ui/TrackedFlagIcon.vue";
 import UrgentFlagIcon from "@/shared/ui/UrgentFlagIcon.vue";
 import OverdueFlagIcon from "@/shared/ui/OverdueFlagIcon.vue";
+import StatusBadge from "@/shared/ui/StatusBadge.vue";
 
-// Includes the status-color tokens (see `shared/domain/status-color.ts`) so a
-// status badge color threads straight into the master-list item.
-export type DetailListColor =
-  | "primary"
-  | "info"
-  | "success"
-  | "warning"
-  | "error"
-  | "neutral"
-  | "indigo"
-  | "violet"
-  | "lime";
+// Raw backend color token (see `shared/domain/status-color.ts`) threaded into
+// the master-list item's status badge, rendered via `StatusBadge`.
+export type DetailListColor = string | null;
 
 export type DetailListItem = {
   id: string | number;
@@ -108,11 +100,9 @@ useInfiniteScroll(
           {{ entry.subtitle }}
         </span>
         <span class="mt-2 flex items-center justify-between gap-2">
-          <UBadge
+          <StatusBadge
             v-if="entry.badge"
-            :color="entry.color ?? 'neutral'"
-            variant="subtle"
-            size="md"
+            :color="entry.color"
             :label="entry.badge"
           />
           <span class="ml-auto flex items-center gap-1">

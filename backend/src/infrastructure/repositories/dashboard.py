@@ -72,8 +72,8 @@ _SAMPLE_STATUS_ORDER = {
 
 
 def _sorted_by_lifecycle(rows: list[StatusCount], order: dict[str, int]) -> list[StatusCount]:
-    # Unknown/legacy codes sort after the canonical pipeline, then by name.
-    return sorted(rows, key=lambda row: (order.get(row.code or "", len(order)), row.name))
+    # Unknown/legacy codes sort after the canonical pipeline, then by code.
+    return sorted(rows, key=lambda row: (order.get(row.code or "", len(order)), row.code or ""))
 
 
 class SqlAlchemyDashboardRepository:
@@ -168,9 +168,9 @@ class SqlAlchemyDashboardRepository:
         result = await self.session.execute(
             text(
                 """
-                SELECT status_code, status_name, status_color, count
+                SELECT status_code, status_color, count
                 FROM dashboard_samples_by_status
-                ORDER BY count DESC, status_name
+                ORDER BY count DESC, status_code
                 """
             )
         )
@@ -229,7 +229,6 @@ class SqlAlchemyRegistrarDashboardRepository:
             select(
                 DirectionStatus.id,
                 DirectionStatus.code,
-                DirectionStatus.name,
                 DirectionStatus.color,
                 func.count(Direction.id),
             )
@@ -245,13 +244,12 @@ class SqlAlchemyRegistrarDashboardRepository:
             .group_by(
                 DirectionStatus.id,
                 DirectionStatus.code,
-                DirectionStatus.name,
                 DirectionStatus.color,
             )
         )
         rows = [
-            StatusCount(id=status_id, code=code, name=name, color=color, count=count)
-            for status_id, code, name, color, count in result.all()
+            StatusCount(id=status_id, code=code, color=color, count=count)
+            for status_id, code, color, count in result.all()
         ]
         return _sorted_by_lifecycle(rows, _DIRECTION_STATUS_ORDER)
 
@@ -260,7 +258,6 @@ class SqlAlchemyRegistrarDashboardRepository:
             select(
                 SampleStatus.id,
                 SampleStatus.code,
-                SampleStatus.name,
                 SampleStatus.color,
                 func.count(Sample.id),
             )
@@ -276,13 +273,12 @@ class SqlAlchemyRegistrarDashboardRepository:
             .group_by(
                 SampleStatus.id,
                 SampleStatus.code,
-                SampleStatus.name,
                 SampleStatus.color,
             )
         )
         rows = [
-            StatusCount(id=status_id, code=code, name=name, color=color, count=count)
-            for status_id, code, name, color, count in result.all()
+            StatusCount(id=status_id, code=code, color=color, count=count)
+            for status_id, code, color, count in result.all()
         ]
         return _sorted_by_lifecycle(rows, _SAMPLE_STATUS_ORDER)
 
@@ -317,7 +313,6 @@ class SqlAlchemyRegistrarDashboardRepository:
                 Lab.code.label("lab_code"),
                 Lab.name.label("lab_name"),
                 SampleStatus.code.label("status_code"),
-                SampleStatus.name.label("status_name"),
                 SampleStatus.color.label("status_color"),
                 func.count(Sample.id).label("cnt"),
             )
@@ -334,7 +329,6 @@ class SqlAlchemyRegistrarDashboardRepository:
                 Lab.code,
                 Lab.name,
                 SampleStatus.code,
-                SampleStatus.name,
                 SampleStatus.color,
             )
         )
@@ -344,7 +338,6 @@ class SqlAlchemyRegistrarDashboardRepository:
                 lab_code=row.lab_code,
                 lab_name=row.lab_name,
                 status_code=row.status_code,
-                status_name=row.status_name,
                 status_color=row.status_color,
                 count=row.cnt,
             )
@@ -393,7 +386,6 @@ class SqlAlchemyRegistrarDashboardRepository:
                 Direction.is_urgent,
                 Direction.received_at,
                 DirectionStatus.code.label("status_code"),
-                DirectionStatus.name.label("status_name"),
                 DirectionStatus.color.label("status_color"),
             )
             .outerjoin(DirectionStatus, Direction.status_id == DirectionStatus.id)
@@ -412,7 +404,6 @@ class SqlAlchemyRegistrarDashboardRepository:
                 is_urgent=row.is_urgent,
                 received_at=row.received_at,
                 status_code=row.status_code,
-                status_name=row.status_name,
                 status_color=row.status_color,
             )
             for row in result.all()

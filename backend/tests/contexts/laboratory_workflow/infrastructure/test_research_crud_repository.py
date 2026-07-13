@@ -66,7 +66,7 @@ class FakeAsyncSession:
         if "FROM labs" in sql:
             return FakeRowsResult([(LAB_ID, "lab", "Lab")])
         if "FROM research_statuses" in sql:
-            return FakeRowsResult([(STATUS_ID, "draft", "Draft", "gray")])
+            return FakeRowsResult([(STATUS_ID, "draft", "gray")])
         if "FROM research" in sql:
             return FakeRowsResult([(self.research, None)])
         raise AssertionError(f"Unexpected query: {sql}")
@@ -136,7 +136,7 @@ async def test_research_list_populates_requested_includes() -> None:
         "name": "Goal",
     }
     assert item.lab == {"id": LAB_ID, "code": "lab", "name": "Lab"}
-    assert item.status == {"id": STATUS_ID, "code": "draft", "name": "Draft", "color": "gray"}
+    assert item.status == {"id": STATUS_ID, "code": "draft", "color": "gray"}
 
 
 @pytest.mark.asyncio

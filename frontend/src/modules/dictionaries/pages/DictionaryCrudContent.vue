@@ -72,7 +72,7 @@ import { clone } from "@/shared/utils/clone";
 import { formatDateTime } from "@/shared/utils/format";
 import { getValueByPath } from "@/shared/utils/object";
 import { resolveStatusCode } from "@/shared/domain/status";
-import { statusColorToken, type StatusToken } from "@/shared/domain/status-color";
+import StatusBadge from "@/shared/ui/StatusBadge.vue";
 import { statusLabel, type StatusEntity } from "@/shared/i18n/status-label";
 import { getEntityRule, type EntityDetailKind } from "@/shared/domain/entity-rules";
 import {
@@ -84,7 +84,6 @@ import {
 import type { RowPinningState } from "@tanstack/table-core";
 
 type DetailKind = EntityDetailKind;
-type BadgeColor = StatusToken;
 type ReferenceValue = string | number | boolean | null;
 type ReferenceOption = { label: string; value: ReferenceValue };
 
@@ -594,11 +593,13 @@ const STATUS_ENTITY_BY_RESOURCE: Record<string, StatusEntity> = {
   research: "research",
   tests: "test",
 };
+// Ключи — рантайм-presetKey из config.ts (там он переопределяется на
+// `statuses-<entity>`), а не configKey `*-statuses` из crud-modules.
 const STATUS_ENTITY_BY_PRESET: Record<string, StatusEntity> = {
-  "direction-statuses": "direction",
-  "sample-statuses": "sample",
-  "research-statuses": "research",
-  "test-statuses": "test",
+  "statuses-directions": "direction",
+  "statuses-samples": "sample",
+  "statuses-research": "research",
+  "statuses-tests": "test",
 };
 
 const getStatusLabel = (row: CrudRow) => {
@@ -618,7 +619,6 @@ const getStatusLabel = (row: CrudRow) => {
   const statusValue = getValueByPath(row, "status");
   const label =
     getStringValue(getValueByPath(row, "status.name"))
-    || getStringValue(getValueByPath(row, "status_name"))
     || getStringValue(statusValue)
     || resolveReferenceCell(row, "status.name");
 
@@ -631,17 +631,23 @@ const normalizeStatusCode = (row: CrudRow) => {
   return resolveStatusCode(value);
 };
 
-// Цвет бейджа статуса — из бэкенд-поля color: вложенный status.color у бизнес-
+// Сырой цвет статуса из бэкенд-поля color: вложенный status.color у бизнес-
 // сущностей (include=status) либо верхнеуровневый color у справочника статусов.
-const getStatusBadgeColor = (row: CrudRow): BadgeColor => {
+// Токен отдаётся как есть в StatusBadge (единый источник словаря цветов).
+const getStatusBadgeColor = (row: CrudRow): string | null => {
   const nested = getValueByPath(row, "status");
-  const color =
+  return (
     (nested && typeof nested === "object"
       ? (nested as { color?: string | null }).color
       : null)
-    ?? (typeof row.color === "string" ? row.color : null);
-  return statusColorToken(color);
+    ?? (typeof row.color === "string" ? row.color : null)
+  );
 };
+
+// Справочник статусов (*_statuses) несёт color на верхнем уровне строки —
+// отдаётся как есть в StatusBadge синтетической колонки «Название».
+const statusCatalogColor = (row: CrudRow): string | null =>
+  typeof row.color === "string" ? row.color : null;
 
 // Нормализация строки в элемент левого master-списка (общий маппер для
 // корневой таблицы и контекстного списка соседей вложенного уровня).
@@ -1816,6 +1822,8 @@ defineExpose({
   // Используется страницей справочников (только массовое удаление).
   selectedCount,
   deleteSelected,
+  // Кнопка «Обновить» на странице справочников — перезагрузка данных таблицы.
+  refresh: () => table.refresh(),
 });
 </script>
 
@@ -1922,12 +1930,19 @@ defineExpose({
         />
       </UDropdownMenu>
     </template>
+    <template #label-cell="{ row }">
+      <USkeleton v-if="isSkeletonRow(row.original)" class="h-5 w-24" />
+      <StatusBadge
+        v-else
+        :color="statusCatalogColor(row.original)"
+        :label="getStatusLabel(row.original)"
+      />
+    </template>
     <template #status-cell="{ row }">
       <USkeleton v-if="isSkeletonRow(row.original)" class="h-5 w-24" />
       <div v-else class="flex items-center gap-2">
-        <UBadge
+        <StatusBadge
           :color="getStatusBadgeColor(row.original)"
-          variant="subtle"
           :label="getStatusLabel(row.original)"
         />
         <span class="flex items-center gap-1.5">

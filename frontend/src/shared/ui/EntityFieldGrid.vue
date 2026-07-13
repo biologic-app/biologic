@@ -2,13 +2,16 @@
 import { reactive } from "vue";
 import { CalendarDateTime, getLocalTimeZone, parseDateTime } from "@internationalized/date";
 import { formatDisplay, type DetailFieldValue } from "@/shared/ui/entity-detail.helpers";
+import StatusBadge from "@/shared/ui/StatusBadge.vue";
+import StatusColorPicker from "@/shared/ui/StatusColorPicker.vue";
+import { statusColorName } from "@/shared/i18n/status-label";
 
 export type FieldOption = { label: string; value: DetailFieldValue };
 
 export type GridField = {
   key: string;
   label: string;
-  type?: "text" | "number" | "textarea" | "boolean" | "select" | "password" | "date";
+  type?: "text" | "number" | "textarea" | "boolean" | "select" | "password" | "date" | "color";
   required?: boolean;
   // По умолчанию поле редактируемо; readonly-поля показываются только в просмотре.
   editable?: boolean;
@@ -74,6 +77,13 @@ function optionValue(key: string) {
 
 function optionsFor(field: GridField): FieldOption[] {
   return field.options ?? props.referenceOptions[field.key] ?? [];
+}
+
+// Токен цвета статуса для просмотра/бейджа: из значения записи (view) либо
+// текущего состояния формы (edit).
+function colorToken(field: GridField) {
+  const value = props.formState[field.key] ?? field.value;
+  return typeof value === "string" ? value : null;
 }
 
 // Дата хранится в formState как ISO-строка; UInputDate работает с CalendarDateTime.
@@ -175,6 +185,11 @@ function setDateInputRef(key: string, el: unknown) {
                 </UPopover>
               </template>
             </UInputDate>
+            <StatusColorPicker
+              v-else-if="field.type === 'color'"
+              :model-value="formString(field.key)"
+              @update:model-value="emit('update', field.key, $event)"
+            />
             <UInput
               v-else
               :model-value="formString(field.key)"
@@ -183,6 +198,11 @@ function setDateInputRef(key: string, el: unknown) {
               @update:model-value="emit('update', field.key, $event)"
             />
           </template>
+          <StatusBadge
+            v-else-if="field.type === 'color'"
+            :color="colorToken(field)"
+            :label="statusColorName(colorToken(field))"
+          />
           <span v-else class="block break-words whitespace-pre-line">
             {{ displayValue(field) }}
           </span>

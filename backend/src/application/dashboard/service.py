@@ -54,7 +54,6 @@ class StatusCount(BaseModel):
 
     id: UUID
     code: str | None
-    name: str
     count: int
     color: str | None = None
 
@@ -80,7 +79,6 @@ class RecentDirection(BaseModel):
     year_no: int | None
     base_no: int | None
     status_code: str | None
-    status_name: str | None
     status_color: str | None = None
     is_urgent: bool
     received_at: datetime | None
@@ -104,7 +102,6 @@ class LabStatusCount(BaseModel):
     lab_code: str
     lab_name: str
     status_code: str | None
-    status_name: str | None
     status_color: str | None = None
     count: int
 

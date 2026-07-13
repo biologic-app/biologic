@@ -403,17 +403,16 @@ export const crudModules: Record<string, CrudModuleConfig> = {
     initialFilters: {
       global: textFilter(),
       code: textFilter(),
-      name: textFilter(),
       updated_at: dateFilter()
     },
     columns: [
       { field: 'id', header: 'ID', sortable: true },
       { field: 'code', header: 'Код', sortable: true, filter: { type: 'text', placeholder: 'Код' } },
-      { field: 'name', header: 'Название', sortable: true, filter: { type: 'text', placeholder: 'Название' } },
+      { field: 'label', header: 'Название', sortable: false },
       { field: 'updated_at', header: 'Обновлено', sortable: true, filter: { type: 'dateRange' } }
     ],
     fields: [
-      { key: 'name', label: 'Название', required: true }
+      { key: 'color', label: 'Цвет', type: 'color', required: true }
     ]
   },
   'sample-statuses': {
@@ -426,17 +425,16 @@ export const crudModules: Record<string, CrudModuleConfig> = {
     initialFilters: {
       global: textFilter(),
       code: textFilter(),
-      name: textFilter(),
       updated_at: dateFilter()
     },
     columns: [
       { field: 'id', header: 'ID', sortable: true },
       { field: 'code', header: 'Код', sortable: true, filter: { type: 'text', placeholder: 'Код' } },
-      { field: 'name', header: 'Название', sortable: true, filter: { type: 'text', placeholder: 'Название' } },
+      { field: 'label', header: 'Название', sortable: false },
       { field: 'updated_at', header: 'Обновлено', sortable: true, filter: { type: 'dateRange' } }
     ],
     fields: [
-      { key: 'name', label: 'Название', required: true }
+      { key: 'color', label: 'Цвет', type: 'color', required: true }
     ]
   },
   'research-statuses': {
@@ -449,17 +447,16 @@ export const crudModules: Record<string, CrudModuleConfig> = {
     initialFilters: {
       global: textFilter(),
       code: textFilter(),
-      name: textFilter(),
       updated_at: dateFilter()
     },
     columns: [
       { field: 'id', header: 'ID', sortable: true },
       { field: 'code', header: 'Код', sortable: true, filter: { type: 'text', placeholder: 'Код' } },
-      { field: 'name', header: 'Название', sortable: true, filter: { type: 'text', placeholder: 'Название' } },
+      { field: 'label', header: 'Название', sortable: false },
       { field: 'updated_at', header: 'Обновлено', sortable: true, filter: { type: 'dateRange' } }
     ],
     fields: [
-      { key: 'name', label: 'Название', required: true }
+      { key: 'color', label: 'Цвет', type: 'color', required: true }
     ]
   },
   'test-statuses': {
@@ -472,17 +469,16 @@ export const crudModules: Record<string, CrudModuleConfig> = {
     initialFilters: {
       global: textFilter(),
       code: textFilter(),
-      name: textFilter(),
       updated_at: dateFilter()
     },
     columns: [
       { field: 'id', header: 'ID', sortable: true },
       { field: 'code', header: 'Код', sortable: true, filter: { type: 'text', placeholder: 'Код' } },
-      { field: 'name', header: 'Название', sortable: true, filter: { type: 'text', placeholder: 'Название' } },
+      { field: 'label', header: 'Название', sortable: false },
       { field: 'updated_at', header: 'Обновлено', sortable: true, filter: { type: 'dateRange' } }
     ],
     fields: [
-      { key: 'name', label: 'Название', required: true }
+      { key: 'color', label: 'Цвет', type: 'color', required: true }
     ]
   },
   doctors: {

@@ -12,31 +12,11 @@ from src.application.catalogs.use_cases.test_status_crud import (
     _FIELDS as TEST_STATUS_FIELDS,
 )
 from src.core.status_colors import (
-    ALLOWED_STATUS_COLORS,
     DIRECTION_STATUS_COLORS,
     RESEARCH_STATUS_COLORS,
     SAMPLE_STATUS_COLORS,
     TEST_STATUS_COLORS,
 )
-
-_ALL_MAPS = (
-    DIRECTION_STATUS_COLORS,
-    SAMPLE_STATUS_COLORS,
-    RESEARCH_STATUS_COLORS,
-    TEST_STATUS_COLORS,
-)
-
-
-def test_allowed_vocabulary_is_the_fixed_eight() -> None:
-    assert ALLOWED_STATUS_COLORS == frozenset(
-        {"gray", "indigo", "blue", "violet", "lime", "green", "amber", "red"}
-    )
-
-
-def test_every_mapped_color_is_in_the_allowed_vocabulary() -> None:
-    for mapping in _ALL_MAPS:
-        for code, color in mapping.items():
-            assert color in ALLOWED_STATUS_COLORS, (code, color)
 
 
 def test_per_status_colors_match_the_specification() -> None:

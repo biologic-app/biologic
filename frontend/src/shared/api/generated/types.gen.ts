@@ -575,10 +575,6 @@ export type LabStatusCount = {
      */
     status_code: string | null;
     /**
-     * Status Name
-     */
-    status_name: string | null;
-    /**
      * Status Color
      */
     status_color?: string | null;
@@ -826,10 +822,6 @@ export type RecentDirection = {
      * Status Code
      */
     status_code: string | null;
-    /**
-     * Status Name
-     */
-    status_name: string | null;
     /**
      * Status Color
      */
@@ -1530,10 +1522,6 @@ export type StatusCount = {
      */
     code: string | null;
     /**
-     * Name
-     */
-    name: string;
-    /**
      * Count
      */
     count: number;
@@ -1574,9 +1562,9 @@ export type StatusTransitionsResponse = {
  */
 export type StatusUpdateRequest = {
     /**
-     * Name
+     * Color
      */
-    name: string;
+    color: string;
 };
 
 /**

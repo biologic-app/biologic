@@ -58,7 +58,7 @@ import {
   statusTimelineItems,
 } from "@/shared/domain/status-timeline";
 import type { FsmEntityKind } from "@/shared/domain/status-fsm";
-import { statusColorToken } from "@/shared/domain/status-color";
+import StatusBadge from "@/shared/ui/StatusBadge.vue";
 import { statusLabel as resolveStatusLabel, type StatusEntity } from "@/shared/i18n/status-label";
 
 type CrudRow = {
@@ -371,14 +371,12 @@ const statusLabel = computed(() => {
   return relationDisplayLabel(row, "status") || booleanStatus(row);
 });
 
-// Цвет статуса — из бэкенд-поля status.color через единый маппер дизайн-системы.
+// Сырой цвет статуса из бэкенд-поля status.color — отдаётся в StatusBadge.
 const statusColor = computed(() => {
   const status = currentItem.value?.status;
-  const color =
-    status && typeof status === "object"
-      ? (status as { color?: string | null }).color
-      : null;
-  return statusColorToken(color);
+  return status && typeof status === "object"
+    ? (status as { color?: string | null }).color
+    : null;
 });
 
 const visibleFields = computed(() => {
@@ -958,7 +956,7 @@ function close() {
             <h2 class="truncate text-2xl font-semibold text-highlighted">
               {{ headerTitle }}
             </h2>
-            <UBadge v-if="!isCreate && statusLabel" :color="statusColor" variant="subtle" :label="statusLabel" />
+            <StatusBadge v-if="!isCreate && statusLabel" :color="statusColor" :label="statusLabel" />
             <UBadge v-if="!isCreate && currentItem?.is_urgent" color="error" variant="subtle" label="Срочно" />
             <UBadge v-if="loadError" color="warning" variant="subtle" label="Данные из таблицы" />
           </div>

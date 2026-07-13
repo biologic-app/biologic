@@ -17,21 +17,11 @@ export default defineConfig(({ mode }) => ({
     ...(mode !== 'production' ? [VueDevTools()] : []),
     ui({
       ui: {
-        // Extra design-system colors (indigo/violet/lime) alias the matching
-        // Tailwind palettes so they work as `<UBadge :color="'indigo'">` and
-        // generate `--ui-color-{indigo,violet,lime}-{shade}` CSS vars — the
-        // targets of the status-color mapper (`shared/domain/status-color.ts`).
         colors: {
           primary: 'green',
-          neutral: 'zinc',
-          indigo: 'indigo',
-          violet: 'violet',
-          lime: 'lime'
+          neutral: 'zinc'
         }
       },
-      // Declare the semantic color set (defaults + the three extra aliases) so
-      // Nuxt UI generates their theme tokens/types and they're valid `:color`
-      // values on components.
       theme: {
         colors: [
           'primary',
@@ -40,10 +30,7 @@ export default defineConfig(({ mode }) => ({
           'info',
           'warning',
           'error',
-          'neutral',
-          'indigo',
-          'violet',
-          'lime'
+          'neutral'
         ]
       }
     }),

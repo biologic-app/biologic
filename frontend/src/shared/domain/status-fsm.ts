@@ -11,7 +11,7 @@
 //   loop    — цель раньше источника по оси жизненного цикла (возврат);
 //   forward — движение вперёд.
 
-import type { StatusColorName } from '@/shared/domain/status-color'
+import type { StatusBaseColor } from '@/shared/domain/status-color'
 
 export type FsmEntityKind = 'directions' | 'samples' | 'research' | 'tests'
 
@@ -23,7 +23,7 @@ export interface FsmNode {
   icon: string
   // Design-system-neutral color name (backend seed palette). Part of the static
   // diagram spec — the graph resolves it through `statusColorVar` for SVG fills.
-  color: StatusColorName
+  color: StatusBaseColor
 }
 
 export interface FsmLink {

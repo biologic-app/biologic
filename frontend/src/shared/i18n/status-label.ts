@@ -1,4 +1,5 @@
 import { i18n } from '@/shared/i18n'
+import { parseStatusColor } from '@/shared/domain/status-color'
 
 // Entity kind used to scope the i18n status-label lookup (`statusLabels.<entity>`).
 export type StatusEntity = 'direction' | 'sample' | 'research' | 'test'
@@ -17,4 +18,18 @@ export function statusLabel(entity: StatusEntity, code?: string | null): string 
     }
   }
   return code || ''
+}
+
+/**
+ * Human-readable name for a status color token via the `colorNames` /
+ * `colorModifiers` i18n namespaces, e.g. `blue-dark` → «Синий (тёмный)».
+ * The `base` modifier is omitted, so `blue` → «Синий».
+ */
+export function statusColorName(token?: string | null): string {
+  const { base, modifier } = parseStatusColor(token)
+  const baseName = i18n.global.t(`colorNames.${base}`)
+  if (modifier === 'base') {
+    return baseName
+  }
+  return `${baseName} (${i18n.global.t(`colorModifiers.${modifier}`)})`
 }

@@ -78,7 +78,6 @@ class ProtocolReportRepository:
                 Sample.id,
                 Sample.name,
                 SampleType.name,
-                SampleStatus.name,
                 SampleStatus.code,
                 Direction.year_no,
                 Direction.base_no,
@@ -96,7 +95,7 @@ class ProtocolReportRepository:
             query = query.where(SampleStatus.code == SAMPLE_REJECTED)
 
         records = (await self.session.execute(query)).all()
-        rejected_ids = [record[0] for record in records if record[4] == SAMPLE_REJECTED]
+        rejected_ids = [record[0] for record in records if record[3] == SAMPLE_REJECTED]
         reasons = await self._reject_reasons(rejected_ids)
 
         rows: list[ProtocolSampleRow] = []
@@ -106,8 +105,8 @@ class ProtocolReportRepository:
                     name=record[1],
                     sample_type=record[2],
                     status=record[3],
-                    direction_no=_direction_no(record[5], record[6]),
-                    received_at=record[7] or record[8],
+                    direction_no=_direction_no(record[4], record[5]),
+                    received_at=record[6] or record[7],
                     reject_reason=reasons.get(record[0]),
                 ),
             )

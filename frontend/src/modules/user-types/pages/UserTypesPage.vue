@@ -609,6 +609,7 @@ onMounted(async () => {
             </UButton>
             <UTooltip text="Обновить данные">
               <UButton
+                label="Обновить"
                 color="neutral"
                 variant="subtle"
                 icon="i-lucide-refresh-cw"
