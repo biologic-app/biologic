@@ -1,30 +1,67 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
 import type { StepperItem } from '@nuxt/ui'
-import { useDirectionImport, type WizardStep } from '@/modules/directions/composables/useDirectionImport'
+import {
+  useDirectionWizard,
+  type WizardMode,
+  type WizardStep
+} from '@/modules/directions/composables/useDirectionWizard'
+import ModeSelectStep from '@/modules/directions/components/ModeSelectStep.vue'
 import ImportUploadStep from '@/modules/directions/components/ImportUploadStep.vue'
 import ImportReviewStep from '@/modules/directions/components/ImportReviewStep.vue'
 import ImportFillStep from '@/modules/directions/components/ImportFillStep.vue'
 import ImportRegisterStep from '@/modules/directions/components/ImportRegisterStep.vue'
 
-const props = defineProps<{ open: boolean; directionId?: string | null }>()
+const props = defineProps<{
+  open: boolean
+  directionId?: string | null
+  canImport?: boolean
+  canCreate?: boolean
+}>()
 const emit = defineEmits<{
   (e: 'update:open', value: boolean): void
   (e: 'finished', directionId: string | null): void
 }>()
 
-const ctx = useDirectionImport()
+const ctx = useDirectionWizard()
+const toast = useToast()
 
-const steps: StepperItem[] = [
-  { title: 'Загрузка', icon: 'i-lucide-upload', value: 0 },
-  { title: 'Предпросмотр', icon: 'i-lucide-list-checks', value: 1 },
-  { title: 'Дозаполнение', icon: 'i-lucide-pencil', value: 2 },
-  { title: 'Регистрация', icon: 'i-lucide-clipboard-check', value: 3 }
-]
+type NamedStep = Exclude<WizardStep, 'select'>
 
-const stepTitle = computed(() => steps[ctx.step]?.title ?? 'Импорт направлений')
+const STEP_META: Record<NamedStep, { title: string; icon: string }> = {
+  upload: { title: 'Загрузка', icon: 'i-lucide-upload' },
+  review: { title: 'Предпросмотр', icon: 'i-lucide-list-checks' },
+  fill: { title: 'Дозаполнение', icon: 'i-lucide-pencil' },
+  register: { title: 'Регистрация', icon: 'i-lucide-clipboard-check' }
+}
 
-// Имя загруженного файла показываем подзаголовком в шапке модалки.
+// Активный набор шагов зависит от режима: импорт проходит загрузку и предпросмотр,
+// ручное создание и дозаполнение черновика начинаются сразу с шага заполнения.
+const MODE_STEPS: Record<WizardMode, WizardStep[]> = {
+  select: [],
+  import: ['upload', 'review', 'fill', 'register'],
+  manual: ['fill', 'register'],
+  draft: ['fill', 'register']
+}
+
+const activeSteps = computed(() => MODE_STEPS[ctx.mode])
+const currentStepIndex = computed(() => activeSteps.value.indexOf(ctx.step))
+const stepperItems = computed<StepperItem[]>(() =>
+  activeSteps.value.map((step, index) => ({
+    title: STEP_META[step as NamedStep].title,
+    icon: STEP_META[step as NamedStep].icon,
+    value: index
+  }))
+)
+
+const stepTitle = computed(() =>
+  ctx.step === 'select' ? '' : STEP_META[ctx.step as NamedStep].title
+)
+const modalTitle = computed(() =>
+  stepTitle.value ? `Создание направления — ${stepTitle.value}` : 'Создание направления'
+)
+
+// Имя загруженного файла показываем подзаголовком в шапке модалки (только импорт).
 const fileName = computed(() => ctx.fileName || ctx.summary?.filename || '')
 
 watch(
@@ -41,13 +78,32 @@ watch(
   }
 )
 
+const onChoose = async (mode: 'import' | 'manual') => {
+  if (mode === 'import') {
+    ctx.chooseImport()
+    return
+  }
+  const result = await ctx.startManual()
+  if (!result.ok) {
+    toast.add({
+      title: 'Не удалось создать направление',
+      description: result.message,
+      color: 'error',
+      icon: 'i-lucide-circle-alert'
+    })
+  }
+}
+
 const finish = () => {
   emit('finished', ctx.directions[0]?.id ?? null)
   emit('update:open', false)
 }
 
 const goBack = () => {
-  ctx.goToStep((ctx.step - 1) as WizardStep)
+  const index = currentStepIndex.value
+  if (index > 0) {
+    ctx.goToStep(activeSteps.value[index - 1])
+  }
 }
 
 const submitUpload = () => {
@@ -55,9 +111,7 @@ const submitUpload = () => {
 }
 
 // «Далее: регистрация» только сохраняет данные и показывает сводку: направления
-// остаются в статусе «Черновик» до явного нажатия «Зарегистрировать» на шаге 4.
-const toast = useToast()
-
+// остаются в статусе «Черновик» до явного нажатия «Зарегистрировать» на шаге регистрации.
 const proceedToRegister = async () => {
   if (ctx.savingKey || ctx.registering) {
     return
@@ -72,10 +126,10 @@ const proceedToRegister = async () => {
     })
     return
   }
-  ctx.goToStep(3)
+  ctx.goToStep('register')
 }
 
-// Регистрация выполнена — на шаге 4 уже есть результаты; кнопка меняется на «Готово».
+// Регистрация выполнена — на шаге регистрации уже есть результаты; кнопка меняется на «Готово».
 const hasRegisterResults = computed(() => Object.keys(ctx.registerResults).length > 0)
 
 const submitRegister = async () => {
@@ -91,30 +145,40 @@ const submitRegister = async () => {
     :open="open"
     :dismissible="!ctx.importing && !ctx.registering"
     :ui="{ content: 'max-w-4xl' }"
-    :title="`Импорт направлений — ${stepTitle}`"
+    :title="modalTitle"
     :description="fileName || undefined"
     @update:open="emit('update:open', $event)"
   >
     <template #body>
       <div class="flex flex-col gap-6">
-        <UStepper
-          :items="steps"
-          :model-value="ctx.step"
-          disabled
-          class="w-full"
+        <ModeSelectStep
+          v-if="ctx.step === 'select'"
+          :can-import="canImport"
+          :can-create="canCreate"
+          :loading="ctx.loadingResults"
+          @choose="onChoose"
         />
 
-        <ImportUploadStep v-if="ctx.step === 0" :ctx="ctx" />
-        <ImportReviewStep v-else-if="ctx.step === 1" :ctx="ctx" />
-        <ImportFillStep v-else-if="ctx.step === 2" :ctx="ctx" />
-        <ImportRegisterStep v-else :ctx="ctx" />
+        <template v-else>
+          <UStepper
+            :items="stepperItems"
+            :model-value="currentStepIndex"
+            disabled
+            class="w-full"
+          />
+
+          <ImportUploadStep v-if="ctx.step === 'upload'" :ctx="ctx" />
+          <ImportReviewStep v-else-if="ctx.step === 'review'" :ctx="ctx" />
+          <ImportFillStep v-else-if="ctx.step === 'fill'" :ctx="ctx" />
+          <ImportRegisterStep v-else :ctx="ctx" />
+        </template>
       </div>
     </template>
 
-    <template #footer>
+    <template v-if="ctx.step !== 'select'" #footer>
       <div class="flex w-full items-center justify-between gap-3">
         <UButton
-          v-if="ctx.step > 0 && !(ctx.existingDraft && ctx.step === 2)"
+          v-if="currentStepIndex > 0"
           label="Назад"
           icon="i-lucide-chevron-left"
           color="primary"
@@ -124,7 +188,7 @@ const submitRegister = async () => {
 
         <div class="flex items-center gap-2">
           <UButton
-            v-if="ctx.step === 0"
+            v-if="ctx.step === 'upload'"
             label="Далее"
             icon="i-lucide-chevron-right"
             trailing
@@ -136,17 +200,17 @@ const submitRegister = async () => {
             @click="submitUpload"
           />
           <UButton
-            v-else-if="ctx.step === 1"
+            v-else-if="ctx.step === 'review'"
             label="Далее: дозаполнение"
             icon="i-lucide-chevron-right"
             trailing
             color="primary"
             :disabled="!ctx.directions.length"
             data-telemetry="direction-import-to-fill"
-            @click="ctx.goToStep(2)"
+            @click="ctx.goToStep('fill')"
           />
           <UButton
-            v-else-if="ctx.step === 2"
+            v-else-if="ctx.step === 'fill'"
             label="Далее: регистрация"
             icon="i-lucide-chevron-right"
             trailing
@@ -157,7 +221,7 @@ const submitRegister = async () => {
             @click="proceedToRegister"
           />
           <UButton
-            v-else-if="ctx.step === 3 && !hasRegisterResults"
+            v-else-if="ctx.step === 'register' && !hasRegisterResults"
             label="Зарегистрировать"
             icon="i-lucide-clipboard-check"
             color="primary"
@@ -168,7 +232,7 @@ const submitRegister = async () => {
             @click="submitRegister"
           />
           <UButton
-            v-else-if="ctx.step === 3"
+            v-else-if="ctx.step === 'register'"
             label="Готово"
             icon="i-lucide-check"
             color="primary"

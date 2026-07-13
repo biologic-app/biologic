@@ -33,12 +33,13 @@ const isObjectReferencePath = (path: string) => {
   return normalizedPath === "/objects";
 };
 
-const formatReferenceLabel = (row: PlainObject, path: string) => {
-  if (isStatusReferencePath(path) && row.name) {
-    return String(row.name);
-  }
+const isSampleTypeReferencePath = (path: string) => {
+  const normalizedPath = path.toLowerCase().split("?")[0]?.replace(/\/+$/, "") ?? "";
+  return normalizedPath === "/sample_types";
+};
 
-  if (isObjectReferencePath(path) && row.name) {
+const formatReferenceLabel = (row: PlainObject, path: string) => {
+  if ((isStatusReferencePath(path) || isObjectReferencePath(path) || isSampleTypeReferencePath(path)) && row.name) {
     return String(row.name);
   }
 
@@ -55,12 +56,8 @@ const formatReferenceLabel = (row: PlainObject, path: string) => {
     return personName;
   }
 
-  const documentNumber = compact([
-    row.year_no ? `${row.year_no}` : null,
-    row.base_no ? `№ ${row.base_no}` : null,
-  ]).join(" ");
-  if (documentNumber) {
-    return documentNumber;
+  if (row.base_no !== null && row.base_no !== undefined && row.base_no !== "") {
+    return row.year_no ? `№ ${row.year_no}-${row.base_no}` : `№ ${row.base_no}`;
   }
 
   const researchParts = compact([

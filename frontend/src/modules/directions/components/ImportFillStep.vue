@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
-import type { DirectionImportContext } from '@/modules/directions/composables/useDirectionImport'
+import type { DirectionWizardContext } from '@/modules/directions/composables/useDirectionWizard'
 
-const props = defineProps<{ ctx: DirectionImportContext }>()
+const props = defineProps<{ ctx: DirectionWizardContext }>()
 const toast = useToast()
 
 const direction = computed(() => props.ctx.directions[props.ctx.currentIndex] ?? null)
@@ -45,18 +45,20 @@ const importSigner = computed(() => {
 
 const importSamplingDepartment = computed(() => importDocument.value?.sampling_department || '')
 
-// Аккордеон образцов: в один момент времени открыт максимум один образец.
-// При смене направления открытый образец сбрасывается.
-const openSampleId = ref<string | null>(null)
+// Аккордеон образцов (UAccordion, type="single"): в один момент времени открыт
+// максимум один образец. При смене направления открытый образец сбрасывается.
+const openSampleId = ref<string | undefined>(undefined)
 
-// Все образцы направления рендерятся сразу (без пагинации); аккордеон держит
-// открытым максимум один, поэтому DOM большого направления остаётся лёгким.
-const allSamples = computed(() => samples.value.map((sample, index) => ({ sample, index })))
+// Элементы аккордеона: value — id образца (им управляет открытие/закрытие),
+// плюс сам образец и его порядковый номер для отрисовки заголовка и тела.
+const sampleItems = computed(() =>
+  samples.value.map((sample, index) => ({ value: sample.id, sample, index }))
+)
 
 watch(
   () => direction.value?.id,
   (id) => {
-    openSampleId.value = null
+    openSampleId.value = undefined
     // Подгружаем существующие Research образцов направления и инициализируем наборы целей.
     if (id) {
       void props.ctx.ensureResearchForDirection(id)
@@ -159,11 +161,6 @@ const onSampleTypeChange = (sampleId: string, typeId: unknown) => {
   }
 }
 
-const isSampleCollapsed = (id: string) => openSampleId.value !== id
-const toggleSample = (id: string) => {
-  openSampleId.value = openSampleId.value === id ? null : id
-}
-
 const showNewDoctor = ref(false)
 const showNewObject = ref(false)
 const creatingDoctor = ref(false)
@@ -173,6 +170,71 @@ const newObject = reactive({ code: '', name: '', full_name: '', address: '' })
 
 const missingClass = (value: unknown) =>
   value === null || value === undefined || value === '' ? 'ring-2 ring-warning/60 rounded-md' : ''
+
+// Реквизиты направления (год/номер) — редактируемы; автосохранение на blur.
+const saveRequisites = async () => {
+  if (!direction.value) {
+    return
+  }
+  const ok = await props.ctx.saveDirection(direction.value.id, {
+    year_no: direction.value.year_no,
+    base_no: direction.value.base_no
+  })
+  if (!ok) {
+    toast.add({
+      title: 'Не удалось сохранить номер направления',
+      description: 'Возможно, направление с таким годом и номером уже есть.',
+      color: 'error',
+      icon: 'i-lucide-circle-alert'
+    })
+  }
+}
+
+// Добавление пустого образца в направление (раскрываем его в аккордеоне).
+const adding = ref(false)
+const addSample = async () => {
+  if (!direction.value) {
+    return
+  }
+  adding.value = true
+  try {
+    const id = await props.ctx.addSample(direction.value.id)
+    if (id) {
+      openSampleId.value = id
+    } else {
+      toast.add({ title: 'Не удалось добавить образец', color: 'error', icon: 'i-lucide-circle-alert' })
+    }
+  } finally {
+    adding.value = false
+  }
+}
+
+// Удаление образца — с подтверждением в модальном окне.
+const pendingDelete = ref<{ id: string; label: string } | null>(null)
+const deleting = ref(false)
+const requestDelete = (sample: (typeof samples.value)[number]) => {
+  pendingDelete.value = { id: sample.id, label: sample.name || 'Без названия' }
+}
+const confirmDelete = async () => {
+  if (!direction.value || !pendingDelete.value) {
+    return
+  }
+  const { id } = pendingDelete.value
+  deleting.value = true
+  try {
+    const ok = await props.ctx.removeSample(direction.value.id, id)
+    if (!ok) {
+      toast.add({ title: 'Не удалось удалить образец', color: 'error', icon: 'i-lucide-circle-alert' })
+      return
+    }
+    if (openSampleId.value === id) {
+      openSampleId.value = undefined
+    }
+    pendingDelete.value = null
+  } finally {
+    deleting.value = false
+  }
+}
 
 const createDoctor = async () => {
   if (!newDoctor.first_name.trim()) {
@@ -233,6 +295,29 @@ const createObject = async () => {
       <h3 class="mb-3 text-sm font-semibold text-highlighted">
         Данные направления
       </h3>
+      <div class="mb-4 grid gap-4 sm:grid-cols-2">
+        <div class="flex flex-col gap-2">
+          <label class="text-sm font-medium text-toned">Год <span class="text-error">*</span></label>
+          <UInput
+            v-model.number="direction.year_no"
+            type="number"
+            placeholder="Год"
+            :class="missingClass(direction.year_no)"
+            data-testid="direction-fill-year"
+            @blur="saveRequisites"
+          />
+        </div>
+        <div class="flex flex-col gap-2">
+          <label class="text-sm font-medium text-toned">Номер</label>
+          <UInput
+            v-model.number="direction.base_no"
+            type="number"
+            placeholder="Номер"
+            data-testid="direction-fill-base-no"
+            @blur="saveRequisites"
+          />
+        </div>
+      </div>
       <div class="grid gap-4 md:grid-cols-2">
         <div class="flex flex-col gap-2">
           <div class="flex items-center justify-between">
@@ -335,31 +420,35 @@ const createObject = async () => {
           size="sm"
           :label="String(samples.length)"
         />
+        <UButton
+          class="ml-auto"
+          size="xs"
+          icon="i-lucide-plus"
+          label="Добавить образец"
+          :loading="adding"
+          data-testid="direction-fill-add-sample"
+          data-telemetry="direction-fill-add-sample"
+          @click="addSample"
+        />
       </div>
 
       <p v-if="!samples.length" class="text-sm text-muted">
-        У направления нет образцов.
+        У направления нет образцов — добавьте первый кнопкой выше.
       </p>
 
-      <div
-        v-for="{ sample, index } in allSamples"
-        :key="sample.id"
-        class="rounded-lg border border-default p-4"
+      <UAccordion
+        v-model="openSampleId"
+        :items="sampleItems"
+        class="rounded-lg border border-default px-4"
+        :ui="{ label: 'flex flex-1 items-center gap-2 min-w-0' }"
       >
-        <button
-          type="button"
-          class="flex w-full items-center gap-2 text-left"
-          :class="isSampleCollapsed(sample.id) ? '' : 'mb-3'"
-          data-testid="direction-fill-sample-toggle"
-          @click="toggleSample(sample.id)"
-        >
+        <template #default="{ item }">
+          <span
+            class="truncate text-sm text-toned"
+            data-testid="direction-fill-sample-toggle"
+          >{{ item.sample.name || 'Без названия' }}</span>
           <UIcon
-            :name="isSampleCollapsed(sample.id) ? 'i-lucide-chevron-right' : 'i-lucide-chevron-down'"
-            class="size-4 text-muted"
-          />
-          <span class="truncate text-sm text-toned">{{ sample.name || 'Без названия' }}</span>
-          <UIcon
-            v-if="!sample.name || !sample.sample_type_id"
+            v-if="!item.sample.name || !item.sample.sample_type_id"
             name="i-lucide-triangle-alert"
             class="size-4 shrink-0 text-warning"
           />
@@ -368,147 +457,189 @@ const createObject = async () => {
             variant="outline"
             size="md"
             class="ml-auto"
-            :label="`${index + 1} из ${samples.length}`"
+            :label="`${item.index + 1} из ${samples.length}`"
           />
-        </button>
-        <div v-show="!isSampleCollapsed(sample.id)" class="grid gap-4 md:grid-cols-2">
-          <div class="flex flex-col gap-2">
-            <label class="text-sm font-medium text-toned">Название</label>
-            <UInput
-              v-model="sample.name"
-              placeholder="Название образца"
-              :class="missingClass(sample.name)"
-              data-testid="direction-fill-sample-name"
-              @blur="autoSaveSample(sample)"
-            />
-          </div>
-          <div class="flex flex-col gap-2">
-            <label class="text-sm font-medium text-toned">Тип образца</label>
-            <USelectMenu
-              v-model="sample.sample_type_id"
-              :items="ctx.sampleTypeOptions"
-              value-key="value"
-              label-key="label"
-              :search-input="{ placeholder: 'Поиск типа' }"
-              placeholder="Выберите тип"
-              :class="missingClass(sample.sample_type_id)"
-              data-testid="direction-fill-sample-type"
-              clear
-              @update:model-value="(value) => onSampleTypeChange(sample.id, value)"
-            />
-          </div>
-          <div class="flex flex-col gap-2">
-            <label class="text-sm font-medium text-toned">Альтернативное имя</label>
-            <UInput
-              v-model="sample.alternate_name"
-              placeholder="Альтернативное имя"
-              @blur="autoSaveSample(sample)"
-            />
-          </div>
-          <div class="flex flex-col gap-2">
-            <label class="text-sm font-medium text-toned">Масса</label>
-            <UInput
-              v-model="sample.mass"
-              placeholder="Масса"
-              @blur="autoSaveSample(sample)"
-            />
-          </div>
-          <div class="flex flex-col gap-2 md:col-span-2">
-            <label class="text-sm font-medium text-toned">Комментарий</label>
-            <UTextarea
-              v-model="sample.comment"
-              autoresize
-              :rows="2"
-              placeholder="Комментарий"
-              @blur="autoSaveSample(sample)"
-            />
-          </div>
-          <div class="flex flex-col gap-2 md:col-span-2">
-            <label class="text-sm font-medium text-toned">Лаборатории образца</label>
-            <USelectMenu
-              :model-value="sampleLabIds(sample.id)"
-              :items="labItems"
-              value-key="value"
-              label-key="label"
-              multiple
-              :search-input="{ placeholder: 'Поиск лаборатории' }"
-              data-testid="direction-fill-lab-select"
-              data-telemetry="direction-fill-lab-select"
-              @update:model-value="(value) => setSampleLabIds(sample.id, value)"
+          <UIcon
+            name="i-lucide-trash-2"
+            class="size-4 shrink-0 cursor-pointer text-muted hover:text-error"
+            data-testid="direction-fill-remove-sample"
+            data-telemetry="direction-fill-remove-sample"
+            @click.stop="requestDelete(item.sample)"
+          />
+        </template>
+
+        <template #body="{ item }">
+          <div class="grid gap-4 md:grid-cols-2">
+            <div class="flex flex-col gap-2">
+              <label class="text-sm font-medium text-toned">Название</label>
+              <UInput
+                v-model="item.sample.name"
+                placeholder="Название образца"
+                :class="missingClass(item.sample.name)"
+                data-testid="direction-fill-sample-name"
+                @blur="autoSaveSample(item.sample)"
+              />
+            </div>
+            <div class="flex flex-col gap-2">
+              <label class="text-sm font-medium text-toned">Тип образца</label>
+              <USelectMenu
+                v-model="item.sample.sample_type_id"
+                :items="ctx.sampleTypeOptions"
+                value-key="value"
+                label-key="label"
+                :search-input="{ placeholder: 'Поиск типа' }"
+                placeholder="Выберите тип"
+                :class="missingClass(item.sample.sample_type_id)"
+                data-testid="direction-fill-sample-type"
+                clear
+                @update:model-value="(value) => onSampleTypeChange(item.sample.id, value)"
+              />
+            </div>
+            <div class="flex flex-col gap-2">
+              <label class="text-sm font-medium text-toned">Альтернативное имя</label>
+              <UInput
+                v-model="item.sample.alternate_name"
+                placeholder="Альтернативное имя"
+                @blur="autoSaveSample(item.sample)"
+              />
+            </div>
+            <div class="flex flex-col gap-2">
+              <label class="text-sm font-medium text-toned">Масса</label>
+              <UInput
+                v-model="item.sample.mass"
+                placeholder="Масса"
+                @blur="autoSaveSample(item.sample)"
+              />
+            </div>
+            <div class="flex flex-col gap-2 md:col-span-2">
+              <label class="text-sm font-medium text-toned">Комментарий</label>
+              <UTextarea
+                v-model="item.sample.comment"
+                autoresize
+                :rows="2"
+                placeholder="Комментарий"
+                @blur="autoSaveSample(item.sample)"
+              />
+            </div>
+            <div class="flex flex-col gap-2 md:col-span-2">
+              <label class="text-sm font-medium text-toned">Лаборатории образца</label>
+              <USelectMenu
+                :model-value="sampleLabIds(item.sample.id)"
+                :items="labItems"
+                value-key="value"
+                label-key="label"
+                multiple
+                :search-input="{ placeholder: 'Поиск лаборатории' }"
+                data-testid="direction-fill-lab-select"
+                data-telemetry="direction-fill-lab-select"
+                @update:model-value="(value) => setSampleLabIds(item.sample.id, value)"
+              >
+                <div v-if="sampleLabs(item.sample.id).length" class="flex flex-wrap gap-1">
+                  <UBadge
+                    v-for="lab in sampleLabs(item.sample.id)"
+                    :key="lab.id"
+                    color="primary"
+                    variant="subtle"
+                    size="sm"
+                    :title="lab.name || ''"
+                    data-testid="direction-fill-lab-chip"
+                  >
+                    <span>{{ lab.code || lab.name || '' }}</span>
+                    <UIcon
+                      name="i-lucide-x"
+                      class="size-3 cursor-pointer"
+                      data-testid="direction-fill-lab-remove"
+                      data-telemetry="direction-fill-lab-remove"
+                      @click.stop="removeSampleLab(item.sample.id, lab.id)"
+                    />
+                  </UBadge>
+                </div>
+                <span v-else class="text-dimmed">Выберите лаборатории</span>
+              </USelectMenu>
+              <p v-if="!sampleLabs(item.sample.id).length" class="text-xs text-muted">
+                Лаборатории не проставлены — добавьте вручную, иначе цели по типу подобрать нельзя.
+              </p>
+            </div>
+            <div
+              class="flex flex-col gap-2 md:col-span-2"
+              data-testid="direction-fill-goals"
             >
-              <div v-if="sampleLabs(sample.id).length" class="flex flex-wrap gap-1">
-                <UBadge
-                  v-for="lab in sampleLabs(sample.id)"
-                  :key="lab.id"
-                  color="primary"
-                  variant="subtle"
-                  size="sm"
-                  :title="lab.name || ''"
-                  data-testid="direction-fill-lab-chip"
-                >
-                  <span>{{ lab.code || lab.name || '' }}</span>
-                  <UIcon
-                    name="i-lucide-x"
-                    class="size-3 cursor-pointer"
-                    data-testid="direction-fill-lab-remove"
-                    data-telemetry="direction-fill-lab-remove"
-                    @click.stop="removeSampleLab(sample.id, lab.id)"
-                  />
-                </UBadge>
-              </div>
-              <span v-else class="text-dimmed">Выберите лаборатории</span>
-            </USelectMenu>
-            <p v-if="!sampleLabs(sample.id).length" class="text-xs text-muted">
-              Лаборатории не проставлены — добавьте вручную, иначе цели по типу подобрать нельзя.
-            </p>
+              <label class="text-sm font-medium text-toned">Цели исследования</label>
+              <USelectMenu
+                :model-value="sampleGoals(item.sample.id)"
+                :items="researchGoalItems"
+                value-key="value"
+                label-key="label"
+                multiple
+                :disabled="!item.sample.sample_type_id"
+                :search-input="{ placeholder: 'Поиск цели' }"
+                data-testid="direction-fill-goal-add"
+                data-telemetry="direction-fill-goal-add"
+                @update:model-value="(value) => setSampleGoals(item.sample.id, value)"
+              >
+                <div v-if="sampleGoals(item.sample.id).length" class="flex flex-wrap gap-1">
+                  <UBadge
+                    v-for="goalId in sampleGoals(item.sample.id)"
+                    :key="goalId"
+                    color="neutral"
+                    variant="subtle"
+                    size="sm"
+                    :title="goalMeta(goalId).lab_name || ''"
+                  >
+                    <span>{{ goalMeta(goalId).name }}</span>
+                    <UIcon
+                      name="i-lucide-x"
+                      class="size-3 cursor-pointer"
+                      data-testid="direction-fill-goal-remove"
+                      data-telemetry="direction-fill-goal-remove"
+                      @click.stop="ctx.removeSampleGoal(item.sample.id, goalId)"
+                    />
+                  </UBadge>
+                </div>
+                <span v-else class="text-dimmed">
+                  {{ item.sample.sample_type_id ? 'Добавьте цель вручную' : 'Сначала выберите тип образца' }}
+                </span>
+              </USelectMenu>
+            </div>
           </div>
-          <div
-            class="flex flex-col gap-2 md:col-span-2"
-            data-testid="direction-fill-goals"
-          >
-            <label class="text-sm font-medium text-toned">Цели исследования</label>
-            <USelectMenu
-              :model-value="sampleGoals(sample.id)"
-              :items="researchGoalItems"
-              value-key="value"
-              label-key="label"
-              multiple
-              :disabled="!sample.sample_type_id"
-              :search-input="{ placeholder: 'Поиск цели' }"
-              data-testid="direction-fill-goal-add"
-              data-telemetry="direction-fill-goal-add"
-              @update:model-value="(value) => setSampleGoals(sample.id, value)"
-            >
-              <div v-if="sampleGoals(sample.id).length" class="flex flex-wrap gap-1">
-                <UBadge
-                  v-for="goalId in sampleGoals(sample.id)"
-                  :key="goalId"
-                  color="neutral"
-                  variant="subtle"
-                  size="sm"
-                  :title="goalMeta(goalId).lab_name || ''"
-                >
-                  <span>{{ goalMeta(goalId).name }}</span>
-                  <UIcon
-                    name="i-lucide-x"
-                    class="size-3 cursor-pointer"
-                    data-testid="direction-fill-goal-remove"
-                    data-telemetry="direction-fill-goal-remove"
-                    @click.stop="ctx.removeSampleGoal(sample.id, goalId)"
-                  />
-                </UBadge>
-              </div>
-              <span v-else class="text-dimmed">
-                {{ sample.sample_type_id ? 'Добавьте цель вручную' : 'Сначала выберите тип образца' }}
-              </span>
-            </USelectMenu>
-          </div>
-        </div>
-      </div>
+        </template>
+      </UAccordion>
     </section>
   </div>
 
   <p v-else class="text-sm text-muted">
     Нет направлений для дозаполнения.
   </p>
+
+  <UModal
+    :open="!!pendingDelete"
+    title="Удалить образец?"
+    :dismissible="!deleting"
+    @update:open="(value) => { if (!value) pendingDelete = null }"
+  >
+    <template #body>
+      <p class="text-sm text-toned">
+        Образец «{{ pendingDelete?.label }}» будет удалён без возможности восстановления.
+      </p>
+    </template>
+    <template #footer>
+      <div class="flex w-full justify-end gap-2">
+        <UButton
+          label="Отмена"
+          color="neutral"
+          variant="ghost"
+          :disabled="deleting"
+          @click="pendingDelete = null"
+        />
+        <UButton
+          label="Удалить"
+          color="error"
+          icon="i-lucide-trash-2"
+          :loading="deleting"
+          data-testid="direction-fill-remove-confirm"
+          @click="confirmDelete"
+        />
+      </div>
+    </template>
+  </UModal>
 </template>

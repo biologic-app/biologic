@@ -10,6 +10,9 @@ export interface TableColumn {
   header: string
   sortable?: boolean
   width?: string
+  // Разрешить перенос текста на вторую строку, если он не помещается по ширине
+  // колонки (по умолчанию ячейки в один ряд, без переноса).
+  wrap?: boolean
   filter?: {
     type: FilterType
     placeholder?: string

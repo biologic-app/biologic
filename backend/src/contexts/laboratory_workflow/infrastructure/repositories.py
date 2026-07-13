@@ -104,7 +104,7 @@ class SqlAlchemyWorkflowRepository:
                 ),
             ) from exc
 
-        await self._ensure_direction_ready_for_registration(direction_id)
+        await self._ensure_direction_ready_for_registration(direction)
         target_status_id = await self._direction_status_id(DIRECTION_REGISTERED)
         direction.status_id = target_status_id
         direction.updated_by = actor_id
@@ -242,10 +242,27 @@ class SqlAlchemyWorkflowRepository:
             )
         return code
 
-    async def _ensure_direction_ready_for_registration(self, direction_id: UUID) -> None:
+    async def _ensure_direction_ready_for_registration(self, direction: Direction) -> None:
+        missing_direction_fields = [
+            name
+            for name, value in (
+                ("doctor_id", direction.doctor_id),
+                ("object_id", direction.object_id),
+            )
+            if value is None
+        ]
+        if missing_direction_fields:
+            raise DomainConflictError(
+                code="direction_missing_doctor_or_object",
+                detail=(
+                    "Direction must have a sanitary doctor and an object assigned "
+                    f"before registration. Missing: {', '.join(missing_direction_fields)}."
+                ),
+            )
+
         result = await self.session.execute(
             select(Sample.id, Sample.name, Sample.sample_type_id).where(
-                Sample.direction_id == direction_id,
+                Sample.direction_id == direction.id,
                 Sample.deleted_at.is_(None),
             ),
         )

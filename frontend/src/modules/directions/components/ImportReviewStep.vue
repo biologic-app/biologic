@@ -1,14 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { DirectionImportContext } from '@/modules/directions/composables/useDirectionImport'
+import type { DirectionWizardContext } from '@/modules/directions/composables/useDirectionWizard'
 import type { ImportIssue } from '@/modules/directions/directions.api'
 
-const props = defineProps<{ ctx: DirectionImportContext }>()
-
-// Предупреждения прячем по умолчанию; ошибки импорта важны — показываем сразу
-// (блок остаётся сворачиваемым, но развёрнут по умолчанию).
-const showWarnings = ref(false)
-const showErrors = ref(true)
+const props = defineProps<{ ctx: DirectionWizardContext }>()
 
 const formatIssue = (issue: ImportIssue): string => {
   const parts: string[] = []
@@ -33,6 +28,26 @@ const flattenErrors = (issues: ImportIssue[]): string[] =>
 const summary = computed(() => props.ctx.summary)
 const warnings = computed(() => (summary.value?.warnings ?? []).map(formatIssue).filter(Boolean))
 const errors = computed(() => flattenErrors(summary.value?.errors ?? []).filter(Boolean))
+
+// Ошибки и предупреждения — единый аккордеон (type="multiple": секции независимы).
+// Ошибки важны — раскрыты по умолчанию; предупреждения свёрнуты.
+interface IssueSection {
+  value: string
+  kind: 'errors' | 'warnings'
+  count: number
+  messages: string[]
+}
+const issueItems = computed<IssueSection[]>(() => {
+  const items: IssueSection[] = []
+  if (errors.value.length) {
+    items.push({ value: 'errors', kind: 'errors', count: errors.value.length, messages: errors.value })
+  }
+  if (warnings.value.length) {
+    items.push({ value: 'warnings', kind: 'warnings', count: warnings.value.length, messages: warnings.value })
+  }
+  return items
+})
+const openIssues = ref<string[]>(['errors'])
 
 const directionTitle = (directionId: string, index: number) => {
   const direction = props.ctx.directions[index]
@@ -191,68 +206,40 @@ const samplePreview = (directionId: string) => {
       </div>
     </section>
 
-    <section v-if="errors.length" class="flex flex-col gap-2">
-      <button
-        type="button"
-        class="flex w-full items-center gap-2 rounded-lg border border-default px-3 py-2 text-left text-sm font-medium text-toned hover:bg-elevated/50"
-        data-testid="direction-import-errors-toggle"
-        @click="showErrors = !showErrors"
-      >
+    <UAccordion
+      v-if="issueItems.length"
+      v-model="openIssues"
+      type="multiple"
+      :items="issueItems"
+      class="rounded-lg border border-default px-4"
+      :ui="{ label: 'flex flex-1 items-center gap-2 min-w-0' }"
+    >
+      <template #default="{ item }">
         <UIcon
-          :name="showErrors ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'"
-          class="size-4 text-muted"
+          :name="item.kind === 'errors' ? 'i-lucide-circle-alert' : 'i-lucide-triangle-alert'"
+          class="size-4 shrink-0"
+          :class="item.kind === 'errors' ? 'text-error' : 'text-warning'"
         />
-        <UIcon name="i-lucide-circle-alert" class="size-4 text-error" />
-        <span>Ошибки ({{ errors.length }})</span>
-      </button>
-      <UAlert
-        v-if="showErrors"
-        color="error"
-        variant="subtle"
-        icon="i-lucide-circle-alert"
-        title="Ошибки импорта"
-        data-testid="direction-import-errors"
-      >
-        <template #description>
-          <ul class="list-disc pl-4">
-            <li v-for="(message, index) in errors" :key="index">
-              {{ message }}
-            </li>
-          </ul>
-        </template>
-      </UAlert>
-    </section>
+        <span :data-testid="`direction-import-${item.kind}-toggle`">
+          {{ item.kind === 'errors' ? 'Ошибки' : 'Предупреждения' }} ({{ item.count }})
+        </span>
+      </template>
 
-    <section v-if="warnings.length" class="flex flex-col gap-2">
-      <button
-        type="button"
-        class="flex w-full items-center gap-2 rounded-lg border border-default px-3 py-2 text-left text-sm font-medium text-toned hover:bg-elevated/50"
-        data-testid="direction-import-warnings-toggle"
-        @click="showWarnings = !showWarnings"
-      >
-        <UIcon
-          :name="showWarnings ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'"
-          class="size-4 text-muted"
-        />
-        <UIcon name="i-lucide-triangle-alert" class="size-4 text-warning" />
-        <span>Предупреждения ({{ warnings.length }})</span>
-      </button>
-      <UAlert
-        v-if="showWarnings"
-        color="warning"
-        variant="subtle"
-        icon="i-lucide-triangle-alert"
-        title="Предупреждения импорта"
-        data-testid="direction-import-warnings"
-      >
-        <template #description>
-          <ul class="list-disc pl-4">
-            <li v-for="(message, index) in warnings" :key="index">
-              {{ message }}
-            </li>
-          </ul>
-        </template>
-      </UAlert>
-    </section>
+      <template #body="{ item }">
+        <UAlert
+          :color="item.kind === 'errors' ? 'error' : 'warning'"
+          variant="subtle"
+          :data-testid="`direction-import-${item.kind}`"
+        >
+          <template #description>
+            <ul class="list-disc pl-4">
+              <li v-for="(message, index) in item.messages" :key="index">
+                {{ message }}
+              </li>
+            </ul>
+          </template>
+        </UAlert>
+      </template>
+    </UAccordion>
   </div>
 </template>

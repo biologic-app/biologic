@@ -21,4 +21,6 @@ export interface FormField {
   accept?: string
   source?: string
   layout?: FieldLayout
+  // По умолчанию поле редактируемо; readonly-поля показываются только в просмотре.
+  editable?: boolean
 }

@@ -115,12 +115,23 @@ const normalizeParamValue = (key: string, value: unknown) => {
 
 let hooks = {
   onUnauthorized: () => {},
-  onForbidden: () => {}
+  onForbidden: () => {},
+  // Attempt a token refresh. Resolves `true` when a fresh access token was
+  // obtained (the failed request should be retried), `false` otherwise (the
+  // session is gone — the refresh handler is responsible for logging out).
+  onRefresh: async (): Promise<boolean> => false
 }
 
 export const setApiHooks = (next: Partial<typeof hooks>) => {
   hooks = { ...hooks, ...next }
 }
+
+// Endpoints that must never trigger the refresh-and-retry flow: the refresh
+// call itself (would recurse), and login/logout (a 401 there is terminal).
+const NON_REFRESHABLE_PATHS = ['/auth/refresh', '/auth/login', '/auth/logout']
+
+const isRefreshablePath = (path: string) =>
+  !NON_REFRESHABLE_PATHS.some((suffix) => path.replace(apiPrefix, '').startsWith(suffix))
 
 const buildApiPath = (path: string) => {
   const isAbsolute = /^https?:\/\//i.test(path)
@@ -232,7 +243,8 @@ export interface ApiClientError {
 
 export const apiRequest = async <T>(
   path: string,
-  options: ApiRequestOptions = {}
+  options: ApiRequestOptions = {},
+  allowRefresh = true
 ): Promise<T> => {
   const { body, headers, method = 'GET', params, ...requestInit } = options
   const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData
@@ -267,6 +279,14 @@ export const apiRequest = async <T>(
     }
 
     if (status === 401) {
+      // Access token expired: refresh once, then replay the original request.
+      // If refreshing fails the session is unrecoverable → sign the user out.
+      if (allowRefresh && isRefreshablePath(path)) {
+        const refreshed = await hooks.onRefresh()
+        if (refreshed) {
+          return apiRequest<T>(path, options, false)
+        }
+      }
       hooks.onUnauthorized()
     }
 

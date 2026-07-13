@@ -25,7 +25,7 @@ defineProps<{
 const emit = defineEmits<{
   (event: "update:open", value: boolean): void;
   (event: "saved", item: CrudRow): void;
-  (event: "open-related", payload: { kind: EntityKind; item: CrudRow }): void;
+  (event: "open-related", payload: { kind: EntityKind; item: CrudRow; parent?: { kind: EntityKind; item: CrudRow } }): void;
   (event: "create-related", payload: { kind: EntityKind }): void;
   (event: "go-to-level", index: number): void;
   (event: "select", id: string | number): void;

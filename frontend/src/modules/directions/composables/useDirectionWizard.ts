@@ -3,11 +3,15 @@ import { useAuth } from '@/modules/auth'
 import type { ApiClientError } from '@/shared/api/client.api'
 import {
   assignSampleResearch,
+  createDirection,
   createDoctor,
   createObject,
+  createSample,
   deleteResearch,
+  deleteSample,
   fetchDirection,
   fetchDirectionSamples,
+  fetchNextBaseNo,
   fetchResearchGoalCatalog,
   fetchSampleLabs,
   fetchSampleResearch,
@@ -31,7 +35,14 @@ import {
   type WorkflowImportSummary
 } from '@/modules/directions/directions.api'
 
-export type WizardStep = 0 | 1 | 2 | 3
+// Шаги мастера. Активный набор зависит от режима (см. WizardMode):
+//   import: upload → review → fill → register
+//   manual/draft: fill → register (реквизиты встроены в шаг fill)
+export type WizardStep = 'select' | 'upload' | 'review' | 'fill' | 'register'
+
+// Режим наполнения: экран выбора, импорт из файла, ручное создание,
+// либо дозаполнение уже существующего черновика (открыт из строки таблицы).
+export type WizardMode = 'select' | 'import' | 'manual' | 'draft'
 
 export interface RegisterOutcome {
   ok: boolean
@@ -43,6 +54,7 @@ const REGISTER_ERROR_MESSAGES: Record<string, string> = {
   direction_missing_samples: 'В направлении нет ни одного образца.',
   direction_missing_sample_data: 'У образцов не заполнены обязательные поля (название и тип образца).',
   direction_missing_research_assignments: 'Образцам не назначены исследования.',
+  direction_missing_doctor_or_object: 'В направлении не указан санитарный врач и/или объект.',
   status_not_configured: 'Не настроен статус направления.'
 }
 
@@ -57,14 +69,15 @@ const registerErrorMessage = (error: unknown): { code?: string; message: string 
   return { message: 'Не удалось зарегистрировать направление.' }
 }
 
-export function useDirectionImport() {
+export function useDirectionWizard() {
   const auth = useAuth()
 
   const state = reactive({
-    step: 0 as WizardStep,
-    // Режим «существующий черновик»: мастер открыт из строки таблицы сразу на
-    // шаге дозаполнения; шаги загрузки/предпросмотра и кнопка «Назад» скрыты.
-    existingDraft: false,
+    step: 'select' as WizardStep,
+    // Режим мастера. 'draft' — открыт из строки таблицы сразу на шаге
+    // дозаполнения; 'manual' — ручное создание (черновик создан заранее);
+    // 'import' — импорт из файла; 'select' — экран выбора режима.
+    mode: 'select' as WizardMode,
     fileType: 'xlsx' as ImportType,
     fileName: '',
     fileSize: 0,
@@ -124,7 +137,7 @@ export function useDirectionImport() {
     try {
       const response = await importDirections(selectedFile, state.fileType)
       state.summary = response.data
-      state.step = 1
+      state.step = 'review'
       await loadResults()
       return true
     } catch (error) {
@@ -135,25 +148,31 @@ export function useDirectionImport() {
     }
   }
 
+  // Общая загрузка справочников для шага дозаполнения (врачи, объекты, типы
+  // образцов, лаборатории, полный каталог целей). Используется всеми режимами.
+  const loadFillOptions = async () => {
+    const [doctors, objects, sampleTypes, labs, goalCatalog] = await Promise.all([
+      loadDoctorOptions(),
+      loadObjectOptions(),
+      loadSampleTypeOptions(),
+      loadLabOptions().catch(() => [] as ReferenceOption[]),
+      fetchResearchGoalCatalog().catch(() => [] as ResearchGoalOption[])
+    ])
+    state.doctorOptions = doctors
+    state.objectOptions = objects
+    state.sampleTypeOptions = sampleTypes
+    state.labOptions = labs
+    state.researchGoalCatalog = goalCatalog
+    for (const goal of goalCatalog) {
+      state.goalLabById[goal.id] = { name: goal.name, lab_id: goal.lab_id, lab_name: goal.lab_name }
+    }
+  }
+
   const loadResults = async () => {
     const directionIds = state.summary?.direction_ids ?? []
     state.loadingResults = true
     try {
-      const [doctors, objects, sampleTypes, labs, goalCatalog] = await Promise.all([
-        loadDoctorOptions(),
-        loadObjectOptions(),
-        loadSampleTypeOptions(),
-        loadLabOptions().catch(() => [] as ReferenceOption[]),
-        fetchResearchGoalCatalog().catch(() => [] as ResearchGoalOption[])
-      ])
-      state.doctorOptions = doctors
-      state.objectOptions = objects
-      state.sampleTypeOptions = sampleTypes
-      state.labOptions = labs
-      state.researchGoalCatalog = goalCatalog
-      for (const goal of goalCatalog) {
-        state.goalLabById[goal.id] = { name: goal.name, lab_id: goal.lab_id, lab_name: goal.lab_name }
-      }
+      await loadFillOptions()
 
       if (!directionIds.length) {
         state.directions = []
@@ -185,31 +204,13 @@ export function useDirectionImport() {
     }
   }
 
-  // Открыть мастер для уже существующего draft-направления сразу на шаге
-  // дозаполнения: тянем справочники, само направление, его образцы и
-  // существующие Research (набор целей на образец).
-  const loadExistingDraft = async (directionId: string) => {
-    reset()
-    state.existingDraft = true
+  // Наполнить шаг дозаполнения одним направлением: справочники, само направление,
+  // его образцы и существующие Research (набор целей). Общий код для manual/draft.
+  const hydrateFillStep = async (directionId: string) => {
     state.loadingResults = true
-    state.step = 2
+    state.step = 'fill'
     try {
-      const [doctors, objects, sampleTypes, labs, goalCatalog] = await Promise.all([
-        loadDoctorOptions(),
-        loadObjectOptions(),
-        loadSampleTypeOptions(),
-        loadLabOptions().catch(() => [] as ReferenceOption[]),
-        fetchResearchGoalCatalog().catch(() => [] as ResearchGoalOption[])
-      ])
-      state.doctorOptions = doctors
-      state.objectOptions = objects
-      state.sampleTypeOptions = sampleTypes
-      state.labOptions = labs
-      state.researchGoalCatalog = goalCatalog
-      for (const goal of goalCatalog) {
-        state.goalLabById[goal.id] = { name: goal.name, lab_id: goal.lab_id, lab_name: goal.lab_name }
-      }
-
+      await loadFillOptions()
       const direction = await fetchDirection(directionId)
       state.directions = [direction]
       const samples = await fetchDirectionSamples(direction.id)
@@ -218,6 +219,82 @@ export function useDirectionImport() {
       await ensureResearchForDirection(direction.id)
     } finally {
       state.loadingResults = false
+    }
+  }
+
+  // Открыть мастер для уже существующего draft-направления (из строки таблицы).
+  const loadExistingDraft = async (directionId: string) => {
+    reset()
+    state.mode = 'draft'
+    await hydrateFillStep(directionId)
+  }
+
+  // Экран выбора → импорт из файла.
+  const chooseImport = () => {
+    state.mode = 'import'
+    state.step = 'upload'
+  }
+
+  // Экран выбора → ручное создание: сразу создаём пустой черновик с авто-нумерацией
+  // (год = текущий, base_no = следующий за год; оба редактируемы в шаге дозаполнения)
+  // и переходим на шаг дозаполнения. При конфликте номера backend вернёт ошибку.
+  const startManual = async (): Promise<{ ok: boolean; message?: string }> => {
+    reset()
+    state.mode = 'manual'
+    state.loadingResults = true
+    try {
+      const yearNo = new Date().getFullYear()
+      const baseNo = await fetchNextBaseNo(yearNo).catch(() => null)
+      const created = await createDirection({ year_no: yearNo, base_no: baseNo })
+      await hydrateFillStep(created.data.id)
+      return { ok: true }
+    } catch (error) {
+      state.mode = 'select'
+      state.step = 'select'
+      state.loadingResults = false
+      return {
+        ok: false,
+        message: isApiClientError(error) ? error.message : 'Не удалось создать направление.'
+      }
+    }
+  }
+
+  // Добавить пустой образец в направление (POST) и положить его в состояние.
+  // Возвращает id нового образца (для авто-раскрытия в аккордеоне) либо null.
+  const addSample = async (directionId: string): Promise<string | null> => {
+    try {
+      const response = await createSample(directionId, { name: '' })
+      const row = normalizeSampleRow(response.data)
+      const list = state.samplesByDirection[directionId] ?? []
+      state.samplesByDirection[directionId] = [...list, row]
+      return row.id
+    } catch {
+      return null
+    }
+  }
+
+  // Удалить образец (DELETE) и вычистить связанные с ним карты состояния.
+  const removeSample = async (directionId: string, sampleId: string): Promise<boolean> => {
+    try {
+      await deleteSample(sampleId)
+      const list = state.samplesByDirection[directionId] ?? []
+      state.samplesByDirection[directionId] = list.filter((sample) => sample.id !== sampleId)
+      delete state.researchGoalsBySample[sampleId]
+      delete state.labsBySample[sampleId]
+      const prefix = `${sampleId}:`
+      for (const key of Object.keys(state.researchIdByKey)) {
+        if (key.startsWith(prefix)) {
+          delete state.researchIdByKey[key]
+        }
+      }
+      for (const key of suggestionsCache.keys()) {
+        if (key.startsWith(prefix)) {
+          suggestionsCache.delete(key)
+        }
+      }
+      return true
+    } catch {
+      return false
     }
   }
 
@@ -500,6 +577,8 @@ export function useDirectionImport() {
       return true
     }
     const okDirection = await saveDirection(direction.id, {
+      year_no: direction.year_no,
+      base_no: direction.base_no,
       doctor_id: direction.doctor_id,
       object_id: direction.object_id,
       is_urgent: direction.is_urgent
@@ -554,8 +633,8 @@ export function useDirectionImport() {
 
   const reset = () => {
     selectedFile = null
-    state.step = 0
-    state.existingDraft = false
+    state.step = 'select'
+    state.mode = 'select'
     state.fileType = 'xlsx'
     state.fileName = ''
     state.fileSize = 0
@@ -585,6 +664,10 @@ export function useDirectionImport() {
     runImport,
     loadResults,
     loadExistingDraft,
+    chooseImport,
+    startManual,
+    addSample,
+    removeSample,
     currentDirection,
     goToStep,
     goToDirection,
@@ -608,4 +691,4 @@ export function useDirectionImport() {
   })
 }
 
-export type DirectionImportContext = ReturnType<typeof useDirectionImport>
+export type DirectionWizardContext = ReturnType<typeof useDirectionWizard>

@@ -609,6 +609,10 @@ export type LoginRequest = {
      * Password
      */
     password: string;
+    /**
+     * Remember Me
+     */
+    remember_me?: boolean;
 };
 
 /**
@@ -3411,6 +3415,22 @@ export type LoginApiV1AuthLoginPostResponses = {
 };
 
 export type LoginApiV1AuthLoginPostResponse = LoginApiV1AuthLoginPostResponses[keyof LoginApiV1AuthLoginPostResponses];
+
+export type RefreshApiV1AuthRefreshPostData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/auth/refresh';
+};
+
+export type RefreshApiV1AuthRefreshPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SingleResponseDictStrObject;
+};
+
+export type RefreshApiV1AuthRefreshPostResponse = RefreshApiV1AuthRefreshPostResponses[keyof RefreshApiV1AuthRefreshPostResponses];
 
 export type MeApiV1AuthMeGetData = {
     body?: never;

@@ -55,7 +55,7 @@ export interface DirectionRow {
 
 export interface SampleRow {
   id: string
-  // Текстовые поля нормализуются в пустую строку при загрузке (см. useDirectionImport),
+  // Текстовые поля нормализуются в пустую строку при загрузке (см. useDirectionWizard),
   // чтобы их можно было напрямую биндить к UInput/UTextarea (они не принимают null).
   name: string
   alternate_name: string
@@ -120,6 +120,35 @@ export const updateDirection = (id: string, body: Record<string, unknown>) =>
 
 export const updateSample = (id: string, body: Record<string, unknown>) =>
   apiUpdateRequest<SampleRow>(`/samples/${id}`, { method: 'PATCH', body })
+
+// Ручное создание черновика направления (POST /directions). Обязателен year_no;
+// base_no необязателен, backend лишь проверяет уникальность пары (year_no, base_no).
+export const createDirection = (body: Record<string, unknown>) =>
+  apiCreateRequest<DirectionRow>('/directions', { method: 'POST', body })
+
+// Добавление образца в направление (POST /directions/{id}/samples). Обязателен name.
+export const createSample = (directionId: string, body: Record<string, unknown>) =>
+  apiCreateRequest<SampleRow>(`/directions/${directionId}/samples`, { method: 'POST', body })
+
+// Удаление образца до регистрации (DELETE /samples/{id}).
+export const deleteSample = (sampleId: string) =>
+  apiDeleteRequest<Record<string, unknown>>(`/samples/${sampleId}`, { method: 'DELETE' })
+
+// FE-нумерация (best-effort): следующий base_no за год = max(base_no за год) + 1.
+// Гонка возможна — при конфликте backend вернёт 409 на создании, номер правится вручную.
+export const fetchNextBaseNo = async (yearNo: number): Promise<number> => {
+  const response = await apiReadListRequest<DirectionRow>('/directions', {
+    method: 'GET',
+    params: {
+      limit: 1,
+      sort_by: 'base_no',
+      sort_order: 'desc',
+      filters: JSON.stringify({ year_no: yearNo })
+    }
+  })
+  const top = response.items[0]?.base_no ?? 0
+  return (top ?? 0) + 1
+}
 
 export const registerDirection = (id: string, actorId: string | null, comment: string | null) =>
   apiCommandRequest<Record<string, unknown>>(`/directions/${id}/register`, {

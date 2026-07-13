@@ -183,7 +183,7 @@ function setDateInputRef(key: string, el: unknown) {
               @update:model-value="emit('update', field.key, $event)"
             />
           </template>
-          <span v-else class="block truncate">
+          <span v-else class="block break-words whitespace-pre-line">
             {{ displayValue(field) }}
           </span>
         </dd>

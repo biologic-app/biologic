@@ -41,7 +41,7 @@ async function onSubmit(payload: FormSubmitEvent<LoginSchema>) {
   const username = payload.data.username.trim();
   const password = payload.data.password;
   try {
-    await auth.login(username, password);
+    await auth.login(username, password, payload.data.remember);
     await router.push({ name: "dashboard" });
     toast.add({
       title: t("common.success"),
@@ -117,7 +117,12 @@ const roleItems = computed(() =>
             </p>
           </div>
 
-          <UForm :schema="schema" :state="state" class="space-y-4" @submit="onSubmit($event)">
+          <UForm
+            :schema="schema"
+            :state="state"
+            class="space-y-4"
+            @submit="onSubmit($event)"
+          >
             <UFormField name="username" :label="t('login.username')">
               <UInput
                 v-model="state.username"
