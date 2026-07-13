@@ -74,6 +74,10 @@ function normalizeRelatedRow(row: DetailRow, kind: RelationKind): RelatedRow {
   const statusCode = resolveStatusCode(
     String(statusCodeRaw ?? statusText).trim().toLowerCase(),
   );
+  // Реальный цвет статуса из include=status (бэкенд) — источник для бейджа.
+  const statusColor = isRecord(row.status)
+    ? ((row.status as { color?: unknown }).color as string | null | undefined) ?? null
+    : null;
   return {
     ...row,
     relationKind: kind,
@@ -81,6 +85,7 @@ function normalizeRelatedRow(row: DetailRow, kind: RelationKind): RelatedRow {
     title: pickText(row, ["name", "indicator.name", "research_goal.name", "sample.name", "code"]),
     statusText,
     statusCode,
+    statusColor,
     updatedAtText: formatDisplay(row.updated_at ?? row.completed_at ?? row.received_at),
     // lab приходит в include исследований; для образцов поле отсутствует → "".
     labName: namedValue(row.lab),

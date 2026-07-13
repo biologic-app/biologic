@@ -9,6 +9,8 @@ import {
 const textFilter = () => ({ value: '', matchMode: 'contains' })
 const dateFilter = () => ({ value: [null, null], matchMode: 'between' })
 const multiFilter = () => ({ value: '', matchMode: 'equals' })
+// Multi-select filter: value is an array of selected ids (IN-list on the API).
+const multiSelectFilter = () => ({ value: [] as string[], matchMode: 'in' })
 const currentYear = new Date().getFullYear()
 const directionYearOptions = Array.from(
   { length: currentYear - 2000 + 1 },
@@ -70,6 +72,17 @@ const selectFilterField = (
   filter: { type: 'select', placeholder, source }
 })
 
+const multiSelectFilterField = (
+  field: string,
+  header: string,
+  source: string,
+  placeholder = header
+): TableFilterField => ({
+  field,
+  header,
+  filter: { type: 'multiSelect', placeholder, source }
+})
+
 const auditFilterFields = new Set(['created_at', 'updated_at'])
 const referenceFilterSources: Record<string, Record<string, { field: string, source: string }>> = {
   objects: {
@@ -120,7 +133,7 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       base_no: textFilter(),
       doctor_id: textFilter(),
       object_id: textFilter(),
-      status_id: textFilter(),
+      status_id: multiSelectFilter(),
       sampled_at: dateFilter(),
       received_at: dateFilter(),
       completed_at: dateFilter(),
@@ -136,7 +149,7 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       textFilterField('base_no', 'Номер'),
       selectFilterField('doctor_id', 'Врач', '/doctors'),
       selectFilterField('object_id', 'Объект', '/objects'),
-      selectFilterField('status_id', 'Статус', '/direction_statuses'),
+      multiSelectFilterField('status_id', 'Статус', '/direction_statuses'),
       booleanFilterField('is_done', 'Завершено'),
       booleanFilterField('is_urgent', 'Срочно'),
       dateFilterField('sampled_at', 'Отбор'),
@@ -238,7 +251,7 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       supplier: textFilter(),
       sample_type_id: textFilter(),
       direction_id: textFilter(),
-      status_id: textFilter(),
+      status_id: multiSelectFilter(),
       protocol_id: textFilter(),
       is_urgent: multiFilter(),
       is_done: multiFilter(),
@@ -256,7 +269,7 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       textFilterField('supplier', 'Поставщик'),
       selectFilterField('sample_type_id', 'Тип образца', '/sample_types'),
       selectFilterField('direction_id', 'Направление', '/directions'),
-      selectFilterField('status_id', 'Статус', '/sample_statuses'),
+      multiSelectFilterField('status_id', 'Статус', '/sample_statuses'),
       selectFilterField('protocol_id', 'Протокол', '/protocols'),
       booleanFilterField('is_urgent', 'Срочно'),
       booleanFilterField('is_done', 'Готов'),
@@ -797,7 +810,7 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       sample_id: textFilter(),
       research_goal_id: textFilter(),
       lab_id: textFilter(),
-      status_id: textFilter(),
+      status_id: multiSelectFilter(),
       comment: textFilter(),
       recommendation: textFilter(),
       created_at: dateFilter(),
@@ -808,7 +821,7 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       selectFilterField('sample_id', 'Образец', '/samples'),
       selectFilterField('research_goal_id', 'Цель исследования', '/research_goals'),
       selectFilterField('lab_id', 'Лаборатория', '/labs'),
-      selectFilterField('status_id', 'Статус', '/research_statuses'),
+      multiSelectFilterField('status_id', 'Статус', '/research_statuses'),
       dateFilterField('received_at', 'Получен'),
       dateFilterField('completed_at', 'Завершён')
     ],
@@ -846,7 +859,7 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       global: textFilter(),
       research_id: textFilter(),
       indicator_id: textFilter(),
-      status_id: textFilter(),
+      status_id: multiSelectFilter(),
       value: textFilter(),
       norm: textFilter(),
       comment: textFilter(),
@@ -855,7 +868,7 @@ export const crudModules: Record<string, CrudModuleConfig> = {
     filterFields: [
       selectFilterField('research_id', 'Исследование', '/research'),
       selectFilterField('indicator_id', 'Показатель', '/indicators'),
-      selectFilterField('status_id', 'Статус', '/test_statuses'),
+      multiSelectFilterField('status_id', 'Статус', '/test_statuses'),
       textFilterField('value', 'Значение'),
       textFilterField('norm', 'Норма'),
       textFilterField('comment', 'Комментарий'),

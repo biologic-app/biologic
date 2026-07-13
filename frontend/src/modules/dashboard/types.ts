@@ -36,6 +36,7 @@ export interface DashboardTimelineItem {
 export interface DashboardStatusItem {
   status_code: string | null
   status_name: string
+  status_color: string | null
   count: number
 }
 

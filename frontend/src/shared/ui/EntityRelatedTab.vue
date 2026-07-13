@@ -9,7 +9,7 @@ import {
   type RelatedRow,
 } from "@/shared/ui/entity-detail.helpers";
 import { relationRequest } from "@/shared/composables/useRelatedEntities";
-import { getStatusBadgeColor } from "@/shared/domain/status";
+import { statusColorToken } from "@/shared/domain/status-color";
 import { fetchMySubscriptionIds } from "@/shared/api/subscriptions.api";
 import TrackedFlagIcon from "@/shared/ui/TrackedFlagIcon.vue";
 import UrgentFlagIcon from "@/shared/ui/UrgentFlagIcon.vue";
@@ -222,7 +222,7 @@ function verdictModel(row: RelatedRow): boolean | undefined {
                 </p>
               </td>
               <td class="px-3 py-2 align-top">
-                <UBadge :color="getStatusBadgeColor(row.statusCode)" variant="subtle" :label="row.statusText" />
+                <UBadge :color="statusColorToken(row.statusColor)" variant="subtle" :label="row.statusText" />
               </td>
               <td class="px-3 py-2 align-top">
                 <UInput
@@ -306,7 +306,7 @@ function verdictModel(row: RelatedRow): boolean | undefined {
           <template #status-cell="{ row }">
             <div class="flex items-center gap-2">
               <UBadge
-                :color="getStatusBadgeColor(row.original.statusCode)"
+                :color="statusColorToken(row.original.statusColor)"
                 variant="subtle"
                 :label="row.original.statusText"
               />
@@ -352,11 +352,9 @@ function verdictModel(row: RelatedRow): boolean | undefined {
     <div v-else class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-default">
       <div class="min-h-0 flex-1 overflow-auto">
         <UTable
-          v-model:expanded="expanded"
           :data="rows"
           :columns="researchColumns"
           :loading="loading"
-          :get-sub-rows="getSubRows"
           :ui="{ thead: 'sticky top-0 z-10 bg-elevated', th: 'px-4 py-2 text-left text-sm font-semibold text-highlighted', td: 'px-4 py-2 align-middle text-sm text-muted whitespace-nowrap' }"
         >
           <template #title-cell="{ row }">
@@ -368,7 +366,7 @@ function verdictModel(row: RelatedRow): boolean | undefined {
           <template #status-cell="{ row }">
             <div class="flex items-center gap-2">
               <UBadge
-                :color="getStatusBadgeColor(row.original.statusCode)"
+                :color="statusColorToken(row.original.statusColor)"
                 variant="subtle"
                 :label="row.original.statusText"
               />

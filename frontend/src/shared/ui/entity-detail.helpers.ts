@@ -22,8 +22,11 @@ export interface RelatedRow extends DetailRow {
   title: string;
   statusText: string;
   // Нормализованный код статуса (resolveStatusCode) — для группировки строк и
-  // цвета статус-бейджа, консистентно со списками в DictionaryCrudContent.
+  // логики статусов, консистентно со списками в DictionaryCrudContent.
   statusCode: string;
+  // Реальный цвет статуса из include=status (бэкенд) — источник для бейджа
+  // через statusColorToken. Пусто, если статус не пришёл с записью.
+  statusColor?: string | null;
   updatedAtText: string;
   // Лаборатория исследования (research_goal/lab приходят в include). Пусто для
   // образцов.

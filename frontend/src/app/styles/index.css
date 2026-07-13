@@ -33,6 +33,27 @@ body {
   --color-green-900: oklch(17.276% 0.02184 161.78);
 }
 
+/* Extra design-system status colors (indigo/violet/lime). Nuxt UI only emits
+   `--ui-color-<alias>-*` root vars for statically-scanned utilities; our status
+   colors are applied dynamically (statusColorToken/statusColorVar in
+   `shared/domain/status-color.ts`), so we define the vars explicitly here to
+   avoid Tailwind tree-shaking them (which would render badges/charts
+   colorless). Values map to Tailwind's default palettes. */
+:root {
+  --ui-color-indigo-400: var(--color-indigo-400);
+  --ui-color-indigo-500: var(--color-indigo-500);
+  --ui-indigo: var(--ui-color-indigo-500);
+  --ui-color-violet-400: var(--color-violet-400);
+  --ui-color-violet-500: var(--color-violet-500);
+  --ui-violet: var(--ui-color-violet-500);
+  --ui-color-lime-400: var(--color-lime-400);
+  --ui-color-lime-500: var(--color-lime-500);
+  --ui-lime: var(--ui-color-lime-500);
+}
+
 .dark {
   --ui-primary: var(--ui-color-primary-500);
+  --ui-indigo: var(--ui-color-indigo-400);
+  --ui-violet: var(--ui-color-violet-400);
+  --ui-lime: var(--ui-color-lime-400);
 }

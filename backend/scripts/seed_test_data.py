@@ -328,36 +328,38 @@ SEED_USERS: tuple[dict[str, object], ...] = (
     },
 )
 
-DIRECTION_STATUSES: tuple[tuple[str, str], ...] = (
-    ("draft", "Черновик"),
-    ("registered", "Зарегистрировано"),
-    ("in_progress", "В работе"),
-    ("partially_completed", "Частично выполнено"),
-    ("completed", "Выполнено"),
+# Status seed rows: (code, name, color). Colors are design-system-neutral
+# names from src.core.status_colors (ALLOWED_STATUS_COLORS vocabulary).
+DIRECTION_STATUSES: tuple[tuple[str, str, str], ...] = (
+    ("draft", "Черновик", "gray"),
+    ("registered", "Зарегистрировано", "indigo"),
+    ("in_progress", "В работе", "blue"),
+    ("partially_completed", "Частично выполнено", "lime"),
+    ("completed", "Выполнено", "green"),
 )
 
-SAMPLE_STATUSES: tuple[tuple[str, str], ...] = (
-    ("pending", "На регистрации"),
-    ("registered", "Зарегистрирован"),
-    ("rejected", "Брак"),
-    ("in_progress", "На исследовании"),
-    ("analyzed", "Обработан"),
-    ("completed", "Закрыт"),
+SAMPLE_STATUSES: tuple[tuple[str, str, str], ...] = (
+    ("pending", "На регистрации", "amber"),
+    ("registered", "Зарегистрирован", "indigo"),
+    ("rejected", "Брак", "red"),
+    ("in_progress", "На исследовании", "blue"),
+    ("analyzed", "Обработан", "violet"),
+    ("completed", "Закрыт", "green"),
 )
 
-RESEARCH_STATUSES: tuple[tuple[str, str], ...] = (
-    ("draft", "Черновик"),
-    ("ordered", "Запланировано"),
-    ("in_progress", "В работе"),
-    ("completed", "Завершено"),
-    ("rejected", "Отклонено"),
+RESEARCH_STATUSES: tuple[tuple[str, str, str], ...] = (
+    ("draft", "Черновик", "gray"),
+    ("ordered", "Запланировано", "amber"),
+    ("in_progress", "В работе", "blue"),
+    ("completed", "Завершено", "green"),
+    ("rejected", "Отклонено", "red"),
 )
 
-TEST_STATUSES: tuple[tuple[str, str], ...] = (
-    ("queued", "Запланировано"),
-    ("in_progress", "Выполняется"),
-    ("completed", "Выполнено"),
-    ("rejected", "Отклонено"),
+TEST_STATUSES: tuple[tuple[str, str, str], ...] = (
+    ("queued", "Запланировано", "amber"),
+    ("in_progress", "Выполняется", "blue"),
+    ("completed", "Выполнено", "green"),
+    ("rejected", "Отклонено", "red"),
 )
 
 # Realistic branches/protocol types. Previously ~100 synthetic placeholder
@@ -597,23 +599,43 @@ async def _seed_bootstrap_data(connection: AsyncConnection) -> None:
             {"key": role_key, "name": payload["name"], "scope_type": payload["scope_type"]},
         )
 
-    for table, rows in (
+    for table, status_rows in (
         ("direction_statuses", DIRECTION_STATUSES),
         ("sample_statuses", SAMPLE_STATUSES),
         ("research_statuses", RESEARCH_STATUSES),
         ("test_statuses", TEST_STATUSES),
-        ("protocol_types", PROTOCOL_TYPES),
     ):
         await connection.execute(
             text(
                 f"""
-                INSERT INTO {table} (code, name)
-                SELECT * FROM unnest(CAST(:code AS text[]), CAST(:name AS text[]))
-                ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
-                """  # noqa: S608 (table is one of 5 fixed literals above, not user input)
+                INSERT INTO {table} (code, name, color)
+                SELECT * FROM unnest(
+                    CAST(:code AS text[]), CAST(:name AS text[]), CAST(:color AS text[])
+                )
+                ON CONFLICT (code) DO UPDATE
+                SET name = EXCLUDED.name, color = EXCLUDED.color
+                """  # noqa: S608 (table is one of 4 fixed literals above, not user input)
             ),
-            {"code": [code for code, _ in rows], "name": [name for _, name in rows]},
+            {
+                "code": [code for code, _, _ in status_rows],
+                "name": [name for _, name, _ in status_rows],
+                "color": [color for _, _, color in status_rows],
+            },
         )
+
+    await connection.execute(
+        text(
+            """
+            INSERT INTO protocol_types (code, name)
+            SELECT * FROM unnest(CAST(:code AS text[]), CAST(:name AS text[]))
+            ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+            """
+        ),
+        {
+            "code": [code for code, _ in PROTOCOL_TYPES],
+            "name": [name for _, name in PROTOCOL_TYPES],
+        },
+    )
 
     # branches.code has no unique/exclusion constraint (unlike the tables
     # above), so ON CONFLICT cannot target it — guard with NOT EXISTS instead.

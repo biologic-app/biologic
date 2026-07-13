@@ -9,6 +9,9 @@ const selected = defineModel<Range>({ required: true })
 const { t } = useI18n()
 const { intlLocale } = useLocale()
 
+// Disallow picking future dates — the dashboard only reports on data up to now.
+const maxDate = today(getLocalTimeZone())
+
 const ranges = computed(() => [
   { label: t('dashboard.ranges.last7Days'), days: 7 },
   { label: t('dashboard.ranges.last14Days'), days: 14 },
@@ -129,8 +132,10 @@ function formatDisplayDate(date: Date) {
 
         <UCalendar
           v-model="calendarRange"
+          :max-value="maxDate"
           class="p-2"
-          :number-of-months="2"
+          :number-of-months="3"
+          week-numbers
           range
         />
       </div>

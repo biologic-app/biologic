@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { CalendarDate, getLocalTimeZone, parseDate as parseCalendarDate } from "@internationalized/date";
+import { CalendarDate, getLocalTimeZone, parseDate as parseCalendarDate, today } from "@internationalized/date";
 import { useI18n } from "vue-i18n";
 import { useLocale } from "@/shared/composables/useLocale";
 import {
@@ -57,6 +57,9 @@ const calendarRange = computed({
 });
 
 const hasValue = computed(() => Boolean(model.value?.[0] || model.value?.[1]));
+
+// Disallow picking future dates in date-range filters.
+const maxDate = today(getLocalTimeZone());
 
 const displayValue = computed(() => {
   const [start, end] = model.value ?? [null, null];
@@ -128,6 +131,7 @@ const formatDisplayDate = (value: CalendarDate) =>
 
           <UCalendar
             v-model="calendarRange"
+            :max-value="maxDate"
             class="p-2"
             :number-of-months="2"
             range

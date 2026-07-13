@@ -16,6 +16,7 @@ import type { FormField } from "@/shared/types/form";
 import { workflowCommands } from "@/shared/domain/workflow-commands";
 import type { WorkflowCommand, WorkflowCommandKey } from "@/shared/domain/workflow-commands";
 import type { TableColumn, TableFilters } from "@/shared/types/table";
+import { useRoute } from "vue-router";
 import CrudFormModal from "@/shared/ui/CrudFormModal.vue";
 import CrudDataTable from "@/shared/ui/CrudDataTable.vue";
 import CrudTableEmptyState from "@/shared/ui/CrudTableEmptyState.vue";
@@ -33,7 +34,9 @@ import type { DetailListItem } from "@/shared/ui/EntityDetailModalShell.vue";
 import { isSampleDeadlineOverdue, recordCode, shortPersonName } from "@/shared/ui/entity-detail.helpers";
 import {
   filterSelectOverlayUi,
+  getFilterMultiSelectModelValue,
   getFilterSelectModelValue,
+  normalizeFilterMultiSelectValue,
   normalizeFilterSelectValue,
 } from "@/shared/ui/filter-select";
 import {
@@ -68,7 +71,8 @@ import { crudModules, getCrudModuleFilterFields } from "@/shared/config/crud-mod
 import { clone } from "@/shared/utils/clone";
 import { formatDateTime } from "@/shared/utils/format";
 import { getValueByPath } from "@/shared/utils/object";
-import { getStatusBadgeColor as resolveStatusBadgeColor, resolveStatusCode } from "@/shared/domain/status";
+import { resolveStatusCode } from "@/shared/domain/status";
+import { statusColorToken, type StatusToken } from "@/shared/domain/status-color";
 import { getEntityRule, type EntityDetailKind } from "@/shared/domain/entity-rules";
 import {
   fetchMySubscriptionIds,
@@ -79,7 +83,7 @@ import {
 import type { RowPinningState } from "@tanstack/table-core";
 
 type DetailKind = EntityDetailKind;
-type BadgeColor = ReturnType<typeof resolveStatusBadgeColor>;
+type BadgeColor = StatusToken;
 type ReferenceValue = string | number | boolean | null;
 type ReferenceOption = { label: string; value: ReferenceValue };
 
@@ -330,6 +334,9 @@ const createFilterMeta = (field: TableColumn) => {
   if (field.filter?.type === "dateRange") {
     return { value: [null, null], matchMode: "between" };
   }
+  if (field.filter?.type === "multiSelect") {
+    return { value: [] as string[], matchMode: "in" };
+  }
   return { value: "", matchMode: "contains" };
 };
 
@@ -338,7 +345,7 @@ const getFilterOptions = (field: TableColumn) =>
 
 const isFilterOptionsLoading = (field: TableColumn) =>
   filterReferenceOptionsLoading.value
-  && field.filter?.type === "select"
+  && (field.filter?.type === "select" || field.filter?.type === "multiSelect")
   && field.filter.options === undefined
   && Boolean(field.filter.source)
   && referenceOptions.value[field.field] === undefined;
@@ -404,12 +411,42 @@ watch(
   },
 );
 
+// Deep links (e.g. dashboard KPI cards) can pre-filter the list via a
+// ?filters=<json> query param — same field→value shape the table itself emits,
+// e.g. ?filters={"status_id":"<uuid>","is_urgent":true}. Values seed the
+// matching filter fields (overriding stored/default), and the filter UI stays
+// editable afterwards. Applied in-memory only — not persisted to table settings
+// — so navigating back without the query clears it.
+const route = useRoute();
+
+function applyUrlFilters(): void {
+  const raw = route.query.filters;
+  if (typeof raw !== "string") {
+    return;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return;
+  }
+  const next: TableFilters = { ...table.filters.value };
+  for (const [field, value] of Object.entries(parsed as Record<string, unknown>)) {
+    next[field] = { value, matchMode: next[field]?.matchMode ?? "equals" };
+  }
+  table.filters.value = next;
+}
+
 onMounted(async () => {
   void loadMySubscriptions();
   // Точечная подгрузка (не весь набор фильтров — см. loadDisplayReferenceOptions)
   // для колонок, у которых бэкенд не отдаёт вложенный объект и рендер иначе
   // до первого открытия панели фильтров показывал короткий код записи.
   void loadDisplayReferenceOptions();
+  applyUrlFilters();
   await table.fetch();
 });
 
@@ -480,7 +517,7 @@ async function loadFilterReferenceOptions() {
       filterFields.value
         .filter(
           (field) =>
-            field.filter?.type === "select"
+            (field.filter?.type === "select" || field.filter?.type === "multiSelect")
             && field.filter.options === undefined
             && field.filter.source,
         )
@@ -565,8 +602,17 @@ const normalizeStatusCode = (row: CrudRow) => {
   return resolveStatusCode(value);
 };
 
-const getStatusBadgeColor = (row: CrudRow): BadgeColor =>
-  resolveStatusBadgeColor(normalizeStatusCode(row));
+// Цвет бейджа статуса — из бэкенд-поля color: вложенный status.color у бизнес-
+// сущностей (include=status) либо верхнеуровневый color у справочника статусов.
+const getStatusBadgeColor = (row: CrudRow): BadgeColor => {
+  const nested = getValueByPath(row, "status");
+  const color =
+    (nested && typeof nested === "object"
+      ? (nested as { color?: string | null }).color
+      : null)
+    ?? (typeof row.color === "string" ? row.color : null);
+  return statusColorToken(color);
+};
 
 // Нормализация строки в элемент левого master-списка (общий маппер для
 // корневой таблицы и контекстного списка соседей вложенного уровня).
@@ -1768,7 +1814,10 @@ defineExpose({
 
         <USelectMenu
           v-else-if="filterField.filter?.type === 'select' || filterField.filter?.type === 'multiSelect'"
-          :model-value="getFilterSelectModelValue(filters[filterField.field].value)"
+          :multiple="filterField.filter?.type === 'multiSelect'"
+          :model-value="filterField.filter?.type === 'multiSelect'
+            ? getFilterMultiSelectModelValue(filters[filterField.field].value)
+            : getFilterSelectModelValue(filters[filterField.field].value)"
           :items="getFilterOptions(filterField)"
           value-key="value"
           label-key="label"
@@ -1778,7 +1827,9 @@ defineExpose({
           :loading="isFilterOptionsLoading(filterField)"
           clear
           @update:model-value="
-            filters[filterField.field].value = normalizeFilterSelectValue($event)
+            filters[filterField.field].value = filterField.filter?.type === 'multiSelect'
+              ? normalizeFilterMultiSelectValue($event)
+              : normalizeFilterSelectValue($event)
           "
         >
           <template #empty>

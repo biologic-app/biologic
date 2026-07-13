@@ -5,6 +5,7 @@ import { VisXYContainer, VisLine, VisAxis, VisArea, VisCrosshair, VisTooltip } f
 import { useElementSize } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { useLocale } from '@/shared/composables/useLocale'
+import { statusColorToken } from '@/shared/domain/status-color'
 import type {
   DashboardLabItem,
   DashboardSampleTypeItem,
@@ -83,12 +84,7 @@ function maxCount(items: Array<DashboardStatusItem | DashboardSampleTypeItem>) {
   return Math.max(...items.map(item => item.count), 1)
 }
 
-function statusColor(item: DashboardStatusItem) {
-  if (item.status_code === 'completed') return 'success'
-  if (item.status_code === 'rejected') return 'error'
-  if (item.status_code === 'in_progress' || item.status_code === 'analyzed') return 'primary'
-  return 'neutral'
-}
+const statusColor = (item: DashboardStatusItem) => statusColorToken(item.status_color)
 
 function labTotal(item: DashboardLabItem) {
   return item.active_count + item.completed_count

@@ -5,13 +5,18 @@ import TrackedFlagIcon from "@/shared/ui/TrackedFlagIcon.vue";
 import UrgentFlagIcon from "@/shared/ui/UrgentFlagIcon.vue";
 import OverdueFlagIcon from "@/shared/ui/OverdueFlagIcon.vue";
 
+// Includes the status-color tokens (see `shared/domain/status-color.ts`) so a
+// status badge color threads straight into the master-list item.
 export type DetailListColor =
   | "primary"
   | "info"
   | "success"
   | "warning"
   | "error"
-  | "neutral";
+  | "neutral"
+  | "indigo"
+  | "violet"
+  | "lime";
 
 export type DetailListItem = {
   id: string | number;
