@@ -96,7 +96,7 @@ const fitViewPadding = { top: 48, right: 40, bottom: 48, left: 40 }
 
 // Подпись узла — только код статуса, переведённый через i18n (statusLabels.*).
 const nodeLabel = (node: GraphNodeDatum): string =>
-  statusLabel(ENTITY_BY_KIND[props.kind], node.code, node.name)
+  statusLabel(ENTITY_BY_KIND[props.kind], node.code)
 const nodeIcon = (node: GraphNodeDatum): string => `#fsm-ic-${node.code}`
 const nodeIconSize = (): number => 22
 const nodeFill = (node: GraphNodeDatum): string =>

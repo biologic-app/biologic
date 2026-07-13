@@ -6,6 +6,7 @@ import { useElementSize } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { useLocale } from '@/shared/composables/useLocale'
 import { statusColorToken } from '@/shared/domain/status-color'
+import { statusLabel } from '@/shared/i18n/status-label'
 import type {
   DashboardLabItem,
   DashboardSampleTypeItem,
@@ -197,7 +198,7 @@ function labTotal(item: DashboardLabItem) {
           <div v-for="item in statusItems" :key="item.status_code || item.status_name" class="space-y-1.5">
             <div class="flex items-center justify-between gap-3">
               <UBadge :color="statusColor(item)" variant="subtle">
-                {{ item.status_name }}
+                {{ statusLabel('sample', item.status_code) }}
               </UBadge>
               <span class="text-sm font-medium text-highlighted">{{ formatNum(item.count) }}</span>
             </div>

@@ -49,6 +49,19 @@ body {
   --ui-color-lime-400: var(--color-lime-400);
   --ui-color-lime-500: var(--color-lime-500);
   --ui-lime: var(--ui-color-lime-500);
+  /* Default semantic aliases: Nuxt UI does not emit `--ui-color-<alias>-*`
+     root vars in this Vite setup, so statusColorVar() (var(--ui-color-<token>-500))
+     resolves to nothing for these. Define them off Tailwind's base palette. */
+  --ui-color-neutral-400: var(--color-zinc-400);
+  --ui-color-neutral-500: var(--color-zinc-500);
+  --ui-color-info-400: var(--color-blue-400);
+  --ui-color-info-500: var(--color-blue-500);
+  --ui-color-success-400: var(--color-green-400);
+  --ui-color-success-500: var(--color-green-500);
+  --ui-color-warning-400: var(--color-amber-400);
+  --ui-color-warning-500: var(--color-amber-500);
+  --ui-color-error-400: var(--color-red-400);
+  --ui-color-error-500: var(--color-red-500);
 }
 
 .dark {

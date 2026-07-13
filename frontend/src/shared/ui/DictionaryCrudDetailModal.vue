@@ -145,6 +145,11 @@ function isEditableField(field: GridField) {
 }
 
 function currentStateLabel(row: CrudRow) {
+  // TODO(status-i18n): this is the generic (non-business) dictionary modal — it
+  // has no reliable (StatusEntity, status code) pair, and this label feeds the
+  // technical-audit fallback as a generic record-state descriptor rather than a
+  // lifecycle status badge. Business entities with a real lifecycle status go
+  // through EntityDetailDialogBase, which already translates via statusLabel.
   const status = pickText(row, ["status.name", "state.name", "status", "state"]);
   if (status) return status;
 

@@ -73,6 +73,7 @@ import { formatDateTime } from "@/shared/utils/format";
 import { getValueByPath } from "@/shared/utils/object";
 import { resolveStatusCode } from "@/shared/domain/status";
 import { statusColorToken, type StatusToken } from "@/shared/domain/status-color";
+import { statusLabel, type StatusEntity } from "@/shared/i18n/status-label";
 import { getEntityRule, type EntityDetailKind } from "@/shared/domain/entity-rules";
 import {
   fetchMySubscriptionIds,
@@ -585,7 +586,35 @@ const resolveReferenceCell = (row: CrudRow, columnField: string) => {
 const getStringValue = (value: unknown) =>
   typeof value === "string" && value.trim() ? value.trim() : "";
 
+// Статус-несущие ресурсы (бизнес-сущности) и справочники статусов (*_statuses)
+// маппятся на i18n-сущность метки статуса (statusLabels.<entity>).
+const STATUS_ENTITY_BY_RESOURCE: Record<string, StatusEntity> = {
+  directions: "direction",
+  samples: "sample",
+  research: "research",
+  tests: "test",
+};
+const STATUS_ENTITY_BY_PRESET: Record<string, StatusEntity> = {
+  "direction-statuses": "direction",
+  "sample-statuses": "sample",
+  "research-statuses": "research",
+  "test-statuses": "test",
+};
+
 const getStatusLabel = (row: CrudRow) => {
+  // Справочник статусов (*_statuses): код статуса — собственный `code` строки.
+  const catalogEntity = STATUS_ENTITY_BY_PRESET[props.config.presetKey];
+  if (catalogEntity) {
+    return statusLabel(catalogEntity, getStringValue(getValueByPath(row, "code"))) || "-";
+  }
+
+  // Бизнес-сущность с жизненным циклом: код — из include=status (status.code).
+  const entity = STATUS_ENTITY_BY_RESOURCE[props.config.resource];
+  if (entity) {
+    return statusLabel(entity, getStringValue(getValueByPath(row, "status.code"))) || "-";
+  }
+
+  // Остальные (не статус-несущие) справочники — прежнее поведение.
   const statusValue = getValueByPath(row, "status");
   const label =
     getStringValue(getValueByPath(row, "status.name"))

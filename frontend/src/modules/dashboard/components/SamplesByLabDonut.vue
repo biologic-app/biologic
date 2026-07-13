@@ -5,6 +5,7 @@ import { NestedDonut } from '@unovis/ts'
 import { useLocale } from '@/shared/composables/useLocale'
 import { LAB_RING_COLORS } from '@/modules/dashboard/sample-status-viz'
 import { statusColorVar } from '@/shared/domain/status-color'
+import { statusLabel } from '@/shared/i18n/status-label'
 import type { LabStatusCount } from '@/shared/api/generated'
 
 const props = defineProps<{
@@ -32,7 +33,7 @@ const hasData = computed(() => props.rows.length > 0)
 // Two-level donut: inner ring = laboratory, outer ring = sample status.
 const layers = [
   (d: LabStatusCount) => d.lab_name,
-  (d: LabStatusCount) => d.status_name ?? '—'
+  (d: LabStatusCount) => d.status_code ?? '—'
 ]
 const value = (d: LabStatusCount) => d.count
 
@@ -77,11 +78,15 @@ const formatNum = (n: number) => n.toLocaleString(intlLocale.value)
 const centralSubLabel = computed(() => selectedLab.value ?? props.totalLabel)
 
 const statusLegend = computed(() => {
-  const seen = new Map<string, { name: string; color: string }>()
+  const seen = new Map<string, { code: string; label: string; color: string }>()
   for (const row of props.rows) {
     const key = row.status_code ?? row.status_name ?? '—'
     if (!seen.has(key)) {
-      seen.set(key, { name: row.status_name ?? '—', color: statusColorVar(row.status_color) })
+      seen.set(key, {
+        code: key,
+        label: statusLabel('sample', row.status_code),
+        color: statusColorVar(row.status_color)
+      })
     }
   }
   return [...seen.values()]
@@ -127,14 +132,14 @@ const statusLegend = computed(() => {
       <div class="flex flex-col gap-2">
         <div
           v-for="status in statusLegend"
-          :key="status.name"
+          :key="status.code"
           class="flex items-center gap-2 text-sm text-muted"
         >
           <span
             class="size-3 rounded-full inline-block shrink-0"
             :style="{ backgroundColor: status.color }"
           />
-          {{ status.name }}
+          {{ status.label }}
         </div>
       </div>
     </div>

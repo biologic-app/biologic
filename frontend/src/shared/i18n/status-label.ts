@@ -5,19 +5,16 @@ export type StatusEntity = 'direction' | 'sample' | 'research' | 'test'
 
 /**
  * Translate a lifecycle status by (entity, code) via the `statusLabels` i18n
- * namespace. Falls back to the raw backend `name` when the key is missing,
- * else the code itself.
+ * namespace. i18n is the single source of truth for status labels — the raw
+ * backend `name` is never used. Falls back to the code itself when no key
+ * exists (surfaces a missing translation instead of masking it).
  */
-export function statusLabel(
-  entity: StatusEntity,
-  code?: string | null,
-  fallbackName?: string | null,
-): string {
+export function statusLabel(entity: StatusEntity, code?: string | null): string {
   if (code) {
     const key = `statusLabels.${entity}.${code}`
     if (i18n.global.te(key)) {
       return i18n.global.t(key)
     }
   }
-  return fallbackName?.trim() || code || ''
+  return code || ''
 }

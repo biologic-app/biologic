@@ -1158,14 +1158,19 @@ async def _direction_status_includes(
     if not status_ids:
         return {}
     result = await session.execute(
-        select(DirectionStatus.id, DirectionStatus.code, DirectionStatus.name).where(
+        select(
+            DirectionStatus.id,
+            DirectionStatus.code,
+            DirectionStatus.name,
+            DirectionStatus.color,
+        ).where(
             DirectionStatus.id.in_(status_ids),
             *_base_filters(DirectionStatus),
         ),
     )
     return {
-        row_id: {"id": row_id, "code": code, "name": name}
-        for row_id, code, name in result.all()
+        row_id: {"id": row_id, "code": code, "name": name, "color": color}
+        for row_id, code, name, color in result.all()
     }
 
 
@@ -1237,14 +1242,19 @@ async def _sample_status_includes(
     if not status_ids:
         return {}
     result = await session.execute(
-        select(SampleStatus.id, SampleStatus.code, SampleStatus.name).where(
+        select(
+            SampleStatus.id,
+            SampleStatus.code,
+            SampleStatus.name,
+            SampleStatus.color,
+        ).where(
             SampleStatus.id.in_(status_ids),
             *_base_filters(SampleStatus),
         ),
     )
     return {
-        row_id: {"id": row_id, "code": code, "name": name}
-        for row_id, code, name in result.all()
+        row_id: {"id": row_id, "code": code, "name": name, "color": color}
+        for row_id, code, name, color in result.all()
     }
 
 
@@ -1300,14 +1310,19 @@ async def _test_status_includes(
     if not status_ids:
         return {}
     result = await session.execute(
-        select(TestStatus.id, TestStatus.code, TestStatus.name).where(
+        select(
+            TestStatus.id,
+            TestStatus.code,
+            TestStatus.name,
+            TestStatus.color,
+        ).where(
             TestStatus.id.in_(status_ids),
             *_base_filters(TestStatus),
         ),
     )
     return {
-        row_id: {"id": row_id, "code": code, "name": name}
-        for row_id, code, name in result.all()
+        row_id: {"id": row_id, "code": code, "name": name, "color": color}
+        for row_id, code, name, color in result.all()
     }
 
 
@@ -1367,14 +1382,19 @@ async def _research_status_includes(
     if not status_ids:
         return {}
     result = await session.execute(
-        select(ResearchStatus.id, ResearchStatus.code, ResearchStatus.name).where(
+        select(
+            ResearchStatus.id,
+            ResearchStatus.code,
+            ResearchStatus.name,
+            ResearchStatus.color,
+        ).where(
             ResearchStatus.id.in_(status_ids),
             *_base_filters(ResearchStatus),
         ),
     )
     return {
-        row_id: {"id": row_id, "code": code, "name": name}
-        for row_id, code, name in result.all()
+        row_id: {"id": row_id, "code": code, "name": name, "color": color}
+        for row_id, code, name, color in result.all()
     }
 
 

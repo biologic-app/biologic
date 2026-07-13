@@ -361,13 +361,14 @@ const statusEntity = computed<StatusEntity | null>(() => {
   }
 });
 
-// Метка статуса: перевод по (сущность, код) через i18n; фолбэк — имя из бэкенда.
+// Метка статуса: только перевод по (сущность, код) через i18n. Для сущностей без
+// жизненного цикла (protocols) i18n-сущности нет — используем backend-подпись.
 const statusLabel = computed(() => {
   const row = currentItem.value;
   if (!row) return "";
-  const backendName = relationDisplayLabel(row, "status") || booleanStatus(row);
   const entity = statusEntity.value;
-  return entity ? resolveStatusLabel(entity, statusCode.value, backendName) : backendName;
+  if (entity) return resolveStatusLabel(entity, statusCode.value);
+  return relationDisplayLabel(row, "status") || booleanStatus(row);
 });
 
 // Цвет статуса — из бэкенд-поля status.color через единый маппер дизайн-системы.
