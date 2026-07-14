@@ -44,7 +44,7 @@ onMounted(() => {
     arrow
   >
     <template #content>
-      <div class="w-72 space-y-3 p-4">
+      <div data-tour-popover class="w-72 space-y-3 p-4">
         <div class="flex items-start justify-between gap-4">
           <p class="font-semibold text-highlighted">
             {{ engine.current.value?.title }}
@@ -55,6 +55,7 @@ onMounted(() => {
             variant="ghost"
             size="xs"
             square
+            data-testid="tour-close"
             @click="engine.finish()"
           />
         </div>

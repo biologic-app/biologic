@@ -20,6 +20,12 @@ const activeContext = ref<TourContext | null>(null)
 
 const engine = useTour(activeSteps, { scrollIntoView: true })
 
+// True for as long as the *current* step owns a dialog it opened via its own
+// `action` (from when that action runs until we advance to a different
+// step) — the window in which a foreign-looking dialog being open is
+// actually expected and legitimately ours, not a conflict to resolve.
+let currentStepOwnsDialog = false
+
 // A step's `action` (e.g. opening a modal) mounts a Reka UI dialog/popover
 // layer *after* our own tour popover — Reka's DismissableLayer stack then
 // disables pointer-events on every layer below the most recently opened one,
@@ -27,6 +33,10 @@ const engine = useTour(activeSteps, { scrollIntoView: true })
 // Detect that lockout and transparently remount our popover so it re-registers
 // as the topmost layer — reclaims click-through, visual stacking, and a11y
 // visibility all at once, since all three are decided by DOM/registration order.
+// Only do this while `currentStepOwnsDialog` — i.e. the dialog burying us is
+// the one *we* opened via the current step's own action, not a dialog the
+// user opened independently (that case is handled below by yielding instead
+// of reclaiming).
 let suppressPersist = false
 let reclaiming = false
 
@@ -47,11 +57,59 @@ async function reclaimTopLayer() {
 
 if (typeof document !== 'undefined' && typeof MutationObserver !== 'undefined') {
   const overlayObserver = new MutationObserver(() => {
-    if (engine.open.value && document.body.style.pointerEvents === 'none') {
+    if (currentStepOwnsDialog && engine.open.value && document.body.style.pointerEvents === 'none') {
       void reclaimTopLayer()
     }
   })
   overlayObserver.observe(document.body, { attributes: true, attributeFilter: ['style'] })
+}
+
+// A step's own `action` legitimately opens a dialog (handled above) — but if
+// the *user* opens an unrelated dialog while the tour is sitting on an
+// ordinary step (e.g. they click "Create direction" themselves instead of
+// following the tour), that dialog and our popover become two independent
+// DismissableLayer roots. Unlike the same-layer lockout above, this one
+// isn't self-healing by remounting on top — the user's dialog has its own
+// focus trap. Yield to it: end the tour so the user's action isn't blocked.
+function isOpenDialog(element: Element) {
+  return element.getAttribute('role') === 'dialog' && element.getAttribute('data-state') === 'open'
+}
+
+function isForeignOpenDialogElement(element: Element) {
+  return isOpenDialog(element) && !element.querySelector('[data-tour-popover]')
+}
+
+function mutationOpensForeignDialog(mutation: MutationRecord) {
+  if (mutation.type === 'attributes') {
+    return mutation.target instanceof Element && isForeignOpenDialogElement(mutation.target)
+  }
+
+  // Reka mounts a dialog's content fresh on each open with `data-state="open"`
+  // already set — that's a childList insertion, not an attribute change on an
+  // existing node, so it needs its own check.
+  return Array.from(mutation.addedNodes).some(
+    (node) =>
+      node instanceof Element &&
+      (isForeignOpenDialogElement(node) ||
+        Array.from(node.querySelectorAll('[role="dialog"]')).some(isForeignOpenDialogElement))
+  )
+}
+
+if (typeof document !== 'undefined' && typeof MutationObserver !== 'undefined') {
+  const foreignDialogObserver = new MutationObserver((mutations) => {
+    if (!engine.open.value || currentStepOwnsDialog) {
+      return
+    }
+    if (mutations.some(mutationOpensForeignDialog)) {
+      engine.finish()
+    }
+  })
+  foreignDialogObserver.observe(document.body, {
+    attributes: true,
+    attributeFilter: ['data-state'],
+    childList: true,
+    subtree: true
+  })
 }
 
 function resolveTourKey(tour: TourDefinition, context: TourContext) {
@@ -129,6 +187,32 @@ function waitForFrame() {
   })
 }
 
+// Autostart runs after an async permissions/context load, so a user who
+// clicks fast (e.g. "Create direction") can already have an unrelated modal
+// open by the time it fires. Starting the tour on top of it stacks two
+// independent DismissableLayer roots — Reka then intercepts pointer events
+// on both the modal's and the tour's own buttons, and neither closes via the
+// usual gestures. Wait for any such foreign dialog to close before autostarting.
+function hasOpenForeignDialog() {
+  if (typeof document === 'undefined') {
+    return false
+  }
+
+  return Boolean(document.querySelector('[role="dialog"][data-state="open"]'))
+}
+
+async function waitForNoForeignDialog(attempts = 150) {
+  for (let index = 0; index < attempts; index += 1) {
+    if (!hasOpenForeignDialog()) {
+      return true
+    }
+
+    await waitForFrame()
+  }
+
+  return !hasOpenForeignDialog()
+}
+
 async function ensureRoute(step: AppTourStep | undefined) {
   if (!step?.routeName || router.currentRoute.value.name === step.routeName) {
     return
@@ -159,13 +243,29 @@ async function goToStep(index: number) {
     return
   }
 
+  // Reset before the new step's own `action` (if any) runs, so it starts
+  // scoped to just this step rather than inheriting the previous one's.
+  currentStepOwnsDialog = false
+
   await ensureRoute(step)
   if (step.action) {
+    currentStepOwnsDialog = true
     await runTourAction(step.action)
     await waitForFrame()
   }
   await waitForStepTarget(step)
   engine.goTo(index)
+
+  // The overlay observer above only reacts to a *change* on body's
+  // `pointer-events` style — but a step's action can open a dialog that had
+  // already set it to `none` before our popover even mounted, so there's no
+  // fresh mutation to catch. Check directly instead of waiting for one.
+  if (currentStepOwnsDialog) {
+    await waitForFrame()
+    if (document.body.style.pointerEvents === 'none') {
+      await reclaimTopLayer()
+    }
+  }
 }
 
 async function stepNext() {
@@ -271,6 +371,11 @@ export async function startAutostartTour(scope: TourScope, context: TourContext)
   }
 
   attemptedAutostarts.add(attemptKey)
+
+  if (hasOpenForeignDialog() && !(await waitForNoForeignDialog())) {
+    return false
+  }
+
   return startResolvedTour(tour, context)
 }
 
