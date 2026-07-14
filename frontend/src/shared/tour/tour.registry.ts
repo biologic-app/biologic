@@ -1,4 +1,4 @@
-import type { TourDefinition } from '@/shared/tour/types'
+import type { AppTourStep, TourDefinition } from '@/shared/tour/types'
 import { i18n } from '@/shared/i18n'
 
 const t = (key: string) => i18n.global.t(key).toString()
@@ -7,6 +7,10 @@ function getBaseIntro(role: string) {
   return role === 'admin'
     ? t('tour.dashboard.base.adminIntro')
     : t('tour.dashboard.base.intro')
+}
+
+function dataTourTarget(attr: string): AppTourStep['target'] {
+  return () => document.querySelector(`[data-tour="${attr}"]`) ?? undefined
 }
 
 export const tourRegistry: TourDefinition[] = [
@@ -20,50 +24,40 @@ export const tourRegistry: TourDefinition[] = [
     steps: (context) => [
       {
         routeName: 'dashboard',
-        popover: {
-          title: t('tour.dashboard.base.title'),
-          description: getBaseIntro(context.user.role)
-        }
+        title: t('tour.dashboard.base.title'),
+        body: getBaseIntro(context.user.role)
       },
       {
         routeName: 'dashboard',
-        element: '[data-tour="dashboard-notifications"]',
-        popover: {
-          title: t('tour.dashboard.base.notificationsTitle'),
-          description: t('tour.dashboard.base.notificationsDescription'),
-          side: 'bottom',
-          align: 'end'
-        }
+        target: dataTourTarget('dashboard-notifications'),
+        title: t('tour.dashboard.base.notificationsTitle'),
+        body: t('tour.dashboard.base.notificationsDescription'),
+        side: 'bottom',
+        align: 'end'
       },
       {
         routeName: 'dashboard',
-        element: '[data-tour="dashboard-range"]',
-        popover: {
-          title: t('tour.dashboard.base.rangeTitle'),
-          description: t('tour.dashboard.base.rangeDescription'),
-          side: 'bottom',
-          align: 'start'
-        }
+        target: dataTourTarget('dashboard-range'),
+        title: t('tour.dashboard.base.rangeTitle'),
+        body: t('tour.dashboard.base.rangeDescription'),
+        side: 'bottom',
+        align: 'start'
       },
       {
         routeName: 'dashboard',
-        element: '[data-tour="dashboard-period"]',
-        popover: {
-          title: t('tour.dashboard.base.periodTitle'),
-          description: t('tour.dashboard.base.periodDescription'),
-          side: 'bottom',
-          align: 'start'
-        }
+        target: dataTourTarget('dashboard-period'),
+        title: t('tour.dashboard.base.periodTitle'),
+        body: t('tour.dashboard.base.periodDescription'),
+        side: 'bottom',
+        align: 'start'
       },
       {
         routeName: 'dashboard',
-        element: '[data-tour="dashboard-tour-menu"]',
-        popover: {
-          title: t('tour.dashboard.base.tourMenuTitle'),
-          description: t('tour.dashboard.base.tourMenuDescription'),
-          side: 'bottom',
-          align: 'end'
-        }
+        target: dataTourTarget('dashboard-tour-menu'),
+        title: t('tour.dashboard.base.tourMenuTitle'),
+        body: t('tour.dashboard.base.tourMenuDescription'),
+        side: 'bottom',
+        align: 'end'
       }
     ]
   }

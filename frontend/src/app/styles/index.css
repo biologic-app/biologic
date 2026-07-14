@@ -1,7 +1,5 @@
 @import "tailwindcss" theme(static);
 @import "@nuxt/ui";
-@import "driver.js/dist/driver.css";
-@import "./tour.css";
 @import "@fontsource-variable/onest/wght.css";
 @import "@fontsource/public-sans/400.css";
 @import "@fontsource/public-sans/500.css";
