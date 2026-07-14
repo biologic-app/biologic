@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { getLocalTimeZone, CalendarDate, today } from '@internationalized/date'
 import { useI18n } from 'vue-i18n'
 import { useLocale } from '@/shared/composables/useLocale'
+import DateRangeCalendarPopover from '@/shared/ui/DateRangeCalendarPopover.vue'
 import type { Range } from '@/modules/dashboard/types'
 
 const selected = defineModel<Range>({ required: true })
@@ -80,6 +81,20 @@ const selectRange = (range: { days?: number, months?: number, years?: number }) 
   }
 }
 
+const presetOptions = computed(() =>
+  ranges.value.map(range => ({
+    label: range.label,
+    selected: isRangeSelected(range)
+  }))
+)
+
+const selectPresetByIndex = (index: number) => {
+  const range = ranges.value[index]
+  if (range) {
+    selectRange(range)
+  }
+}
+
 function formatDisplayDate(date: Date) {
   return new Intl.DateTimeFormat(intlLocale.value, {
     dateStyle: 'medium'
@@ -88,57 +103,39 @@ function formatDisplayDate(date: Date) {
 </script>
 
 <template>
-  <UPopover :content="{ align: 'start' }" :modal="true">
-    <UButton
-      color="neutral"
-      variant="ghost"
-      icon="i-lucide-calendar"
-      class="data-[state=open]:bg-elevated group"
-    >
-      <span class="truncate">
-        <template v-if="selected.start">
-          <template v-if="selected.end">
-            {{ formatDisplayDate(selected.start) }} - {{ formatDisplayDate(selected.end) }}
+  <DateRangeCalendarPopover
+    v-model="calendarRange"
+    :presets="presetOptions"
+    :max-value="maxDate"
+    :number-of-months="3"
+    week-numbers
+    @select-preset="selectPresetByIndex"
+  >
+    <template #trigger>
+      <UButton
+        color="neutral"
+        variant="ghost"
+        icon="i-lucide-calendar"
+        class="data-[state=open]:bg-elevated group"
+      >
+        <span class="truncate">
+          <template v-if="selected.start">
+            <template v-if="selected.end">
+              {{ formatDisplayDate(selected.start) }} - {{ formatDisplayDate(selected.end) }}
+            </template>
+            <template v-else>
+              {{ formatDisplayDate(selected.start) }}
+            </template>
           </template>
           <template v-else>
-            {{ formatDisplayDate(selected.start) }}
+            {{ t('dashboard.ranges.pickDate') }}
           </template>
+        </span>
+
+        <template #trailing>
+          <UIcon name="i-lucide-chevron-down" class="shrink-0 text-dimmed size-5 group-data-[state=open]:rotate-180 transition-transform duration-200" />
         </template>
-        <template v-else>
-          {{ t('dashboard.ranges.pickDate') }}
-        </template>
-      </span>
-
-      <template #trailing>
-        <UIcon name="i-lucide-chevron-down" class="shrink-0 text-dimmed size-5 group-data-[state=open]:rotate-180 transition-transform duration-200" />
-      </template>
-    </UButton>
-
-    <template #content>
-      <div class="flex items-stretch sm:divide-x divide-default">
-        <div class="hidden sm:flex flex-col justify-center">
-          <UButton
-            v-for="(range, index) in ranges"
-            :key="index"
-            :label="range.label"
-            color="neutral"
-            variant="ghost"
-            class="rounded-none px-4"
-            :class="[isRangeSelected(range) ? 'bg-elevated' : 'hover:bg-elevated/50']"
-            truncate
-            @click="selectRange(range)"
-          />
-        </div>
-
-        <UCalendar
-          v-model="calendarRange"
-          :max-value="maxDate"
-          class="p-2"
-          :number-of-months="3"
-          week-numbers
-          range
-        />
-      </div>
+      </UButton>
     </template>
-  </UPopover>
+  </DateRangeCalendarPopover>
 </template>

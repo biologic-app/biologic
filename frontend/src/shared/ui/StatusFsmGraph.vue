@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { VisSingleContainer, VisGraph } from '@unovis/vue'
 import {
   buildEntityFsm,
@@ -21,6 +22,8 @@ import { statusLabel, type StatusEntity } from '@/shared/i18n/status-label'
 const props = defineProps<{
   kind: FsmEntityKind
 }>()
+
+const { t } = useI18n()
 
 // Разрешённые переходы: приоритет — ответ API (единый источник правды), фолбэк —
 // зеркало STATIC_TRANSITIONS, пока/если запрос не завершён или упал.
@@ -127,7 +130,7 @@ const linkLabel = (link: GraphLinkDatum) =>
 <template>
   <div class="flex h-full min-h-0 flex-col gap-3">
     <p class="text-sm text-muted">
-      Схема переходов статусов: весь процесс от начального до терминальных состояний.
+      {{ t('crud.statusFlowDescription') }}
     </p>
 
     <div class="status-fsm min-h-0 flex-1 overflow-hidden rounded-lg border border-default bg-elevated/30">

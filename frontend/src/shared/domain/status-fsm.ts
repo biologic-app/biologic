@@ -11,7 +11,11 @@
 //   loop    — цель раньше источника по оси жизненного цикла (возврат);
 //   forward — движение вперёд.
 
+import { i18n } from '@/shared/i18n'
 import type { StatusBaseColor } from '@/shared/domain/status-color'
+
+const t = (key: string, params?: Record<string, unknown>) =>
+  i18n.global.t(key, params ?? {}).toString()
 
 export type FsmEntityKind = 'directions' | 'samples' | 'research' | 'tests'
 
@@ -54,71 +58,80 @@ export const FSM_ICON_BODIES: Record<string, string> = {
   queued: '<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M13 5h8m-8 7h8m-8 7h8M3 17l2 2l4-4"/><rect width="6" height="6" x="3" y="4" rx="1"/></g>',
 }
 
+// Каталог узлов хранит i18n-ключ имени (nameKey), а не готовый текст — резолвится
+// через t() в момент построения FSM/словаря имён, чтобы переключение языка
+// применялось сразу без перезагрузки.
+type FsmNodeDef = { code: string; nameKey: string; icon: string; color: StatusBaseColor }
+
 // Презентация узлов (порядок = ось жизненного цикла) по каждому виду сущности.
-const FSM_NODES: Record<FsmEntityKind, FsmNode[]> = {
+const FSM_NODES: Record<FsmEntityKind, FsmNodeDef[]> = {
   directions: [
-    { code: 'draft', name: 'Черновик', icon: 'i-lucide-file-pen-line', color: 'gray' },
-    { code: 'registered', name: 'Зарегистрировано', icon: 'i-lucide-clipboard-check', color: 'indigo' },
-    { code: 'in_progress', name: 'В работе', icon: 'i-lucide-flask-conical', color: 'blue' },
-    { code: 'partially_completed', name: 'Частично выполнено', icon: 'i-lucide-circle-dashed', color: 'lime' },
-    { code: 'completed', name: 'Выполнено', icon: 'i-lucide-circle-check', color: 'green' },
+    { code: 'draft', nameKey: 'statusLabels.direction.draft', icon: 'i-lucide-file-pen-line', color: 'gray' },
+    { code: 'registered', nameKey: 'statusLabels.direction.registered', icon: 'i-lucide-clipboard-check', color: 'indigo' },
+    { code: 'in_progress', nameKey: 'statusLabels.direction.in_progress', icon: 'i-lucide-flask-conical', color: 'blue' },
+    { code: 'partially_completed', nameKey: 'statusLabels.direction.partially_completed', icon: 'i-lucide-circle-dashed', color: 'lime' },
+    { code: 'completed', nameKey: 'statusLabels.direction.completed', icon: 'i-lucide-circle-check', color: 'green' },
   ],
   samples: [
-    { code: 'pending', name: 'На регистрации', icon: 'i-lucide-inbox', color: 'amber' },
-    { code: 'registered', name: 'Зарегистрирован', icon: 'i-lucide-clipboard-check', color: 'indigo' },
-    { code: 'in_progress', name: 'На исследовании', icon: 'i-lucide-flask-conical', color: 'blue' },
-    { code: 'analyzed', name: 'Обработан', icon: 'i-lucide-microscope', color: 'violet' },
-    { code: 'completed', name: 'Закрыт', icon: 'i-lucide-circle-check', color: 'green' },
-    { code: 'rejected', name: 'Брак', icon: 'i-lucide-circle-x', color: 'red' },
+    { code: 'pending', nameKey: 'statusLabels.sample.pending', icon: 'i-lucide-inbox', color: 'amber' },
+    { code: 'registered', nameKey: 'statusLabels.sample.registered', icon: 'i-lucide-clipboard-check', color: 'indigo' },
+    { code: 'in_progress', nameKey: 'statusLabels.sample.in_progress', icon: 'i-lucide-flask-conical', color: 'blue' },
+    { code: 'analyzed', nameKey: 'statusLabels.sample.analyzed', icon: 'i-lucide-microscope', color: 'violet' },
+    { code: 'completed', nameKey: 'statusLabels.sample.completed', icon: 'i-lucide-circle-check', color: 'green' },
+    { code: 'rejected', nameKey: 'statusLabels.sample.rejected', icon: 'i-lucide-circle-x', color: 'red' },
   ],
   research: [
-    { code: 'draft', name: 'Черновик', icon: 'i-lucide-file-pen-line', color: 'gray' },
-    { code: 'ordered', name: 'Заказано', icon: 'i-lucide-clipboard-list', color: 'amber' },
-    { code: 'in_progress', name: 'В работе', icon: 'i-lucide-flask-conical', color: 'blue' },
-    { code: 'completed', name: 'Завершено', icon: 'i-lucide-circle-check', color: 'green' },
-    { code: 'rejected', name: 'Отклонено', icon: 'i-lucide-circle-x', color: 'red' },
+    { code: 'draft', nameKey: 'statusLabels.research.draft', icon: 'i-lucide-file-pen-line', color: 'gray' },
+    // Название узла в диаграмме исторически отличается от общего статус-лейбла
+    // (statusLabels.research.ordered = «Запланировано») — сохраняем как есть.
+    { code: 'ordered', nameKey: 'statusFsm.researchOrdered', icon: 'i-lucide-clipboard-list', color: 'amber' },
+    { code: 'in_progress', nameKey: 'statusLabels.research.in_progress', icon: 'i-lucide-flask-conical', color: 'blue' },
+    { code: 'completed', nameKey: 'statusLabels.research.completed', icon: 'i-lucide-circle-check', color: 'green' },
+    { code: 'rejected', nameKey: 'statusLabels.research.rejected', icon: 'i-lucide-circle-x', color: 'red' },
   ],
   tests: [
-    { code: 'queued', name: 'В очереди', icon: 'i-lucide-list-todo', color: 'amber' },
-    { code: 'in_progress', name: 'В работе', icon: 'i-lucide-flask-conical', color: 'blue' },
-    { code: 'completed', name: 'Завершено', icon: 'i-lucide-circle-check', color: 'green' },
-    { code: 'rejected', name: 'Отклонено', icon: 'i-lucide-circle-x', color: 'red' },
+    // См. комментарий выше — узел «queued» диаграммы отличается от statusLabels.test.queued.
+    { code: 'queued', nameKey: 'statusFsm.testsQueued', icon: 'i-lucide-list-todo', color: 'amber' },
+    { code: 'in_progress', nameKey: 'statusLabels.test.in_progress', icon: 'i-lucide-flask-conical', color: 'blue' },
+    { code: 'completed', nameKey: 'statusLabels.test.completed', icon: 'i-lucide-circle-check', color: 'green' },
+    { code: 'rejected', nameKey: 'statusLabels.test.rejected', icon: 'i-lucide-circle-x', color: 'red' },
   ],
 }
 
 // Подписи рёбер по `${from}->${to}` (по видам — коды пар повторяются между
-// сущностями с разным смыслом). Отсутствующая подпись → ребро без текста.
+// сущностями с разным смыслом). Значения — i18n-ключи; отсутствующая подпись
+// → ребро без текста.
 const FSM_LINK_LABELS: Record<FsmEntityKind, Record<string, string>> = {
   directions: {
-    'draft->registered': 'Регистрация',
-    'registered->in_progress': 'В работу',
-    'in_progress->partially_completed': 'Частично',
-    'in_progress->completed': 'Завершение',
-    'partially_completed->completed': 'Завершение',
+    'draft->registered': 'statusFsm.linkLabels.registration',
+    'registered->in_progress': 'statusFsm.linkLabels.toWork',
+    'in_progress->partially_completed': 'statusFsm.linkLabels.partial',
+    'in_progress->completed': 'statusFsm.linkLabels.completion',
+    'partially_completed->completed': 'statusFsm.linkLabels.completion',
   },
   samples: {
-    'pending->registered': 'Регистрация',
-    'registered->in_progress': 'В работу',
-    'registered->rejected': 'Брак',
-    'in_progress->analyzed': 'Обработка',
-    'in_progress->rejected': 'Брак',
-    'analyzed->in_progress': 'Возврат',
-    'analyzed->completed': 'Закрытие',
+    'pending->registered': 'statusFsm.linkLabels.registration',
+    'registered->in_progress': 'statusFsm.linkLabels.toWork',
+    'registered->rejected': 'statusFsm.linkLabels.defect',
+    'in_progress->analyzed': 'statusFsm.linkLabels.processing',
+    'in_progress->rejected': 'statusFsm.linkLabels.defect',
+    'analyzed->in_progress': 'statusFsm.linkLabels.revert',
+    'analyzed->completed': 'statusFsm.linkLabels.closing',
   },
   research: {
-    'draft->ordered': 'Подтверждение',
-    'draft->rejected': 'Отклонение',
-    'ordered->in_progress': 'В работу',
-    'ordered->rejected': 'Отклонение',
-    'in_progress->completed': 'Завершение',
-    'completed->in_progress': 'Возврат',
+    'draft->ordered': 'statusFsm.linkLabels.confirmation',
+    'draft->rejected': 'statusFsm.linkLabels.rejection',
+    'ordered->in_progress': 'statusFsm.linkLabels.toWork',
+    'ordered->rejected': 'statusFsm.linkLabels.rejection',
+    'in_progress->completed': 'statusFsm.linkLabels.completion',
+    'completed->in_progress': 'statusFsm.linkLabels.revert',
   },
   tests: {
-    'queued->in_progress': 'В работу',
-    'queued->rejected': 'Отклонение',
-    'in_progress->completed': 'Результат',
-    'in_progress->queued': 'В очередь',
-    'in_progress->rejected': 'Отклонение',
+    'queued->in_progress': 'statusFsm.linkLabels.toWork',
+    'queued->rejected': 'statusFsm.linkLabels.rejection',
+    'in_progress->completed': 'statusFsm.linkLabels.result',
+    'in_progress->queued': 'statusFsm.linkLabels.toQueue',
+    'in_progress->rejected': 'statusFsm.linkLabels.rejection',
   },
 }
 
@@ -179,10 +192,13 @@ export const buildEntityFsm = (
         : (order.get(to) ?? 0) < (order.get(from) ?? 0)
           ? 'loop'
           : 'forward'
-    return { source: from, target: to, kind: kindOf, label: labels[`${from}->${to}`] ?? '' }
+    const labelKey = labels[`${from}->${to}`]
+    return { source: from, target: to, kind: kindOf, label: labelKey ? t(labelKey) : '' }
   })
 
-  const nodes: FsmNode[] = catalog.filter((node) => referenced.has(node.code))
+  const nodes: FsmNode[] = catalog
+    .filter((node) => referenced.has(node.code))
+    .map((node) => ({ code: node.code, name: t(node.nameKey), icon: node.icon, color: node.color }))
   const known = new Set(nodes.map((node) => node.code))
   for (const code of referenced) {
     if (!known.has(code)) nodes.push({ code, name: code, icon: 'i-lucide-circle', color: 'gray' })
@@ -195,6 +211,6 @@ export const buildEntityFsm = (
 export const entityFsm = (kind: FsmEntityKind): EntityFsm =>
   buildEntityFsm(kind, STATIC_TRANSITIONS[kind])
 
-// Русские названия статусов по коду для данной сущности.
+// Названия статусов по коду для данной сущности (локализованы).
 export const fsmStatusNames = (kind: FsmEntityKind): Record<string, string> =>
-  Object.fromEntries(FSM_NODES[kind].map((node) => [node.code, node.name]))
+  Object.fromEntries(FSM_NODES[kind].map((node) => [node.code, t(node.nameKey)]))

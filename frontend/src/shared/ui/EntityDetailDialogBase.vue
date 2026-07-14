@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, resolveComponent, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import type { DropdownMenuItem, TabsItem, TimelineItem } from "@nuxt/ui";
 import type { CrudModuleConfig } from '@/shared/types/crud';
 import {
@@ -54,7 +55,7 @@ import StatusFsmGraph from "@/shared/ui/StatusFsmGraph.vue";
 import {
   DIRECTION_STATUS_FLOW,
   SAMPLE_STATUS_FLOW,
-  SAMPLE_STATUS_REJECTED,
+  SAMPLE_STATUS_REJECTED_CODE,
   statusTimelineItems,
 } from "@/shared/domain/status-timeline";
 import type { FsmEntityKind } from "@/shared/domain/status-fsm";
@@ -142,6 +143,7 @@ const previewOpen = ref(false);
 const { can } = usePermission();
 const auth = useAuth();
 const toast = useToast();
+const { t } = useI18n();
 const { formState, sync, setValue, buildPayload, missingRequired } = useEntityForm();
 
 // Режим определяется внутренне: после успешного создания карточка сама
@@ -197,7 +199,7 @@ async function downloadProtocolFile(kind: "document" | "excerpt") {
   if (!id) return;
 
   const errorTitle =
-    kind === "document" ? "Не удалось скачать документ" : "Не удалось сформировать выписку";
+    kind === "document" ? t("entityDetail.failedToDownloadDocument") : t("entityDetail.failedToGenerateExcerpt");
   downloadingKind.value = kind;
   try {
     const res = await fetch(buildApiUrl(`/protocols/${id}/${kind}`), {
@@ -239,25 +241,25 @@ const {
 });
 
 const tabs = computed<TabsItem[]>(() => {
-  const cardTab = { label: "Карточка", icon: "i-lucide-panel-top", value: "card" as const };
+  const cardTab = { label: t("entityDetail.cardTab"), icon: "i-lucide-panel-top", value: "card" as const };
   // У новой записи ещё нет истории/аудита/связанных — оставляем только карточку.
   if (isCreate.value) return [cardTab];
   // «Технический аудит» — не в списке: он рендерится отдельной иконкой,
   // прижатой к правому краю строки вкладок.
   const relatedLabels: Partial<Record<string, { label: string; icon: string }>> = {
-    directions: { label: "Образцы", icon: "i-lucide-test-tube-2" },
-    samples: { label: "Исследования", icon: "i-lucide-flask-conical" },
-    research: { label: "Тесты", icon: "i-lucide-list-checks" },
+    directions: { label: t("nav.samples"), icon: "i-lucide-test-tube-2" },
+    samples: { label: t("nav.research"), icon: "i-lucide-flask-conical" },
+    research: { label: t("nav.tests"), icon: "i-lucide-list-checks" },
   };
   const related = (props.businessKind && relatedLabels[props.businessKind])
-    || { label: "Связанные", icon: "i-lucide-link" };
+    || { label: t("entityDetail.relatedTab"), icon: "i-lucide-link" };
   const items: TabsItem[] = [
     cardTab,
     { label: related.label, icon: related.icon, value: "related", badge: relatedRows.value.length },
   ];
   // Схема статусов (FSM) — только для сущностей с жизненным циклом.
   if (fsmKind.value) {
-    items.push({ label: "Схема статусов", icon: "i-lucide-workflow", value: "flow" });
+    items.push({ label: t("entityDetail.statusSchemeTab"), icon: "i-lucide-workflow", value: "flow" });
   }
   return items;
 });
@@ -272,7 +274,7 @@ const fsmKind = computed<FsmEntityKind | null>(() =>
 );
 
 const title = computed(() => {
-  if (isCreate.value) return "Новая запись";
+  if (isCreate.value) return t("entityDetail.newRecord");
   const row = currentItem.value;
   if (!row) return props.config.title;
 
@@ -305,7 +307,7 @@ const headerTitle = computed(() => {
 });
 
 const eyebrowText = computed(
-  () => `${isCreate.value ? "Создание" : "Карточка"} · ${props.config.title}`,
+  () => `${isCreate.value ? t("entityDetail.creating") : t("entityDetail.cardTab")} · ${props.config.title}`,
 );
 
 const subtitle = computed(() => {
@@ -407,33 +409,33 @@ const statusHistory = computed<TimelineEvent[]>(() => {
 
   if (props.businessKind === "directions") {
     return compactEvents([
-      makeEvent("created", "Создано", "Направление сформировано.", namedValue(row.doctor), row.sampled_at),
-      makeEvent("received", "Получено", "Направление принято в обработку.", "registrar", row.received_at),
-      row.completed_at ? makeEvent("completed", "Завершено", "Статус переведен в финальное состояние.", "process", row.completed_at) : null,
+      makeEvent("created", t("entityDetail.timeline.created"), t("entityDetail.timeline.directionFormed"), namedValue(row.doctor), row.sampled_at),
+      makeEvent("received", t("entityDetail.timeline.received"), t("entityDetail.timeline.directionAccepted"), "registrar", row.received_at),
+      row.completed_at ? makeEvent("completed", t("entityDetail.timeline.completed"), t("entityDetail.timeline.finalStateGeneric"), "process", row.completed_at) : null,
     ]);
   }
 
   if (props.businessKind === "samples") {
     return compactEvents([
-      makeEvent("created", "Создано", "Образец связан с направлением.", namedValue(row.direction), row.sampled_at ?? row.received_at),
-      makeEvent("registered", "Зарегистрировано", "Образец принят в работу.", "registrar", row.received_at),
-      row.completed_at ? makeEvent("closed", "Закрыто", row.verdict ? String(row.verdict) : "Статус переведен в финальное состояние.", "process", row.completed_at) : null,
+      makeEvent("created", t("entityDetail.timeline.created"), t("entityDetail.timeline.sampleLinked"), namedValue(row.direction), row.sampled_at ?? row.received_at),
+      makeEvent("registered", t("entityDetail.timeline.registered"), t("entityDetail.timeline.sampleAccepted"), "registrar", row.received_at),
+      row.completed_at ? makeEvent("closed", t("entityDetail.timeline.closed"), row.verdict ? String(row.verdict) : t("entityDetail.timeline.finalStateGeneric"), "process", row.completed_at) : null,
     ]);
   }
 
   if (props.businessKind === "research") {
     return compactEvents([
-      makeEvent("assigned", "Назначено", "Исследование прикреплено к образцу.", relationDisplayLabel(row, "research_goal"), row.created_at ?? row.received_at),
-      makeEvent("started", "В работе", "Лаборатория получила исследование.", relationDisplayLabel(row, "lab"), row.received_at),
-      row.completed_at ? makeEvent("completed", "Завершено", row.recommendation ? String(row.recommendation) : "Результат зафиксирован.", "process", row.completed_at) : null,
+      makeEvent("assigned", t("entityDetail.timeline.assigned"), t("entityDetail.timeline.researchAttached"), relationDisplayLabel(row, "research_goal"), row.created_at ?? row.received_at),
+      makeEvent("started", t("entityDetail.timeline.inProgress"), t("entityDetail.timeline.labReceived"), relationDisplayLabel(row, "lab"), row.received_at),
+      row.completed_at ? makeEvent("completed", t("entityDetail.timeline.completed"), row.recommendation ? String(row.recommendation) : t("entityDetail.timeline.resultRecorded"), "process", row.completed_at) : null,
     ]);
   }
 
   if (props.businessKind === "protocols") {
     return compactEvents([
-      makeEvent("created", "Создано", "Протокол сформирован по завершённым образцам.", "registrar", row.created_at),
+      makeEvent("created", t("entityDetail.timeline.created"), t("entityDetail.timeline.protocolFormed"), "registrar", row.created_at),
       row.issued_at
-        ? makeEvent("issued", "Выдано", row.is_signed ? "Протокол подписан и выдан." : "Протокол выдан.", "process", row.issued_at)
+        ? makeEvent("issued", t("entityDetail.timeline.issued"), row.is_signed ? t("entityDetail.timeline.protocolSignedIssued") : t("entityDetail.timeline.protocolIssued"), "process", row.issued_at)
         : null,
     ]);
   }
@@ -454,8 +456,8 @@ const statusCode = computed(() => {
 
 // Цепочка статусов из таблиц direction_statuses / sample_statuses — только они.
 const statusFlow = computed(() => {
-  if (props.businessKind === "directions") return DIRECTION_STATUS_FLOW;
-  if (props.businessKind === "samples") return SAMPLE_STATUS_FLOW;
+  if (props.businessKind === "directions") return DIRECTION_STATUS_FLOW();
+  if (props.businessKind === "samples") return SAMPLE_STATUS_FLOW();
   return null;
 });
 
@@ -504,23 +506,12 @@ const collectionLeadItem = computed<TimelineItem | null>(() => {
     || namedValue((row.direction as Record<string, unknown> | undefined)?.doctor);
   return {
     value: "collection",
-    title: "Сформировано",
+    title: t("entityDetail.timeline.formed"),
     icon: "i-lucide-clipboard-pen",
     description: doctorName || undefined,
     date: collectedAt ? formatDateTime(String(collectedAt)) : undefined,
   };
 });
-
-// Русская форма слова «образец» по числу задержавшихся: 1 образец, 2 образца,
-// 5 образцов (падежи по последней цифре, кроме 11–14).
-const pluralizeSamples = (count: number): string => {
-  const mod100 = count % 100;
-  const mod10 = count % 10;
-  if (mod100 >= 11 && mod100 <= 14) return "образцов";
-  if (mod10 === 1) return "образец";
-  if (mod10 >= 2 && mod10 <= 4) return "образца";
-  return "образцов";
-};
 
 // Провал дедлайна выпуска. Образец: свой deadline против completed_at (или
 // «сейчас», если ещё не выпущен). Направление: агрегат по образцам — провалено,
@@ -541,14 +532,14 @@ const deadlineStatus = computed<
     const failed = release > deadline;
     return {
       failed,
-      deadlineLabel: `Дедлайн: ${formatDateTime(String(deadlineRaw))}`,
+      deadlineLabel: t("entityDetail.deadlineLabel", { date: formatDateTime(String(deadlineRaw)) }),
       description: failed
         ? releaseRaw
-          ? "Выпуск позже дедлайна."
-          : "Выпуск задерживается."
+          ? t("entityDetail.releasedAfterDeadline")
+          : t("entityDetail.releaseDelayed")
         : releaseRaw
-          ? "Выпущен в срок."
-          : "В пределах срока.",
+          ? t("entityDetail.releasedOnTime")
+          : t("entityDetail.withinDeadline"),
     };
   }
 
@@ -566,10 +557,10 @@ const deadlineStatus = computed<
     const maxDeadline = Math.max(...withDeadline.map((entry) => entry.deadline));
     return {
       failed: late.length > 0,
-      deadlineLabel: `Выпуск первого образца: ${formatDateTime(new Date(maxDeadline).toISOString())}`,
+      deadlineLabel: t("entityDetail.firstSampleRelease", { date: formatDateTime(new Date(maxDeadline).toISOString()) }),
       description: late.length
-        ? `Задерживается ${late.length} ${pluralizeSamples(late.length)} из ${withDeadline.length}.`
-        : "Все образцы в пределах срока.",
+        ? t("entityDetail.samplesDelayed", { n: late.length, total: withDeadline.length }, late.length)
+        : t("entityDetail.allSamplesWithinDeadline"),
     };
   }
 
@@ -579,12 +570,12 @@ const deadlineStatus = computed<
 // Замыкающий индикатор дедлайна: серый (не активен) в пределах срока, красный
 // при провале. У образца в статусе «Брак» выпуска не будет — индикатор скрыт.
 const deadlineTrailItem = computed<TimelineItem | null>(() => {
-  if (statusCode.value === SAMPLE_STATUS_REJECTED.code) return null;
+  if (statusCode.value === SAMPLE_STATUS_REJECTED_CODE) return null;
   const info = deadlineStatus.value;
   if (!info) return null;
   const item: TimelineItem = {
     value: "deadline",
-    title: info.failed ? "Выпуск задержан" : "Дедлайн выпуска",
+    title: info.failed ? t("entityDetail.releaseDelayedTitle") : t("entityDetail.deadlineTitle"),
     icon: info.failed ? "i-lucide-alarm-clock-off" : "i-lucide-alarm-clock",
     description: info.description,
     date: info.deadlineLabel,
@@ -605,9 +596,9 @@ const statusTimeline = computed<TimelineItem[]>(() => {
   const start = row.sampled_at ?? row.received_at ?? row.created_at;
   const end = row.deadline ?? row.completed_at;
   const statusItems = statusTimelineItems(statusFlow.value, statusCode.value, {
-    startDate: start ? `Отбор: ${formatDateTime(String(start))}` : null,
+    startDate: start ? t("entityDetail.samplingDate", { date: formatDateTime(String(start)) }) : null,
     endDate: end
-      ? `${row.deadline ? "Дедлайн" : "Завершено"}: ${formatDateTime(String(end))}`
+      ? `${row.deadline ? t("entityDetail.deadlineWord") : t("entityDetail.timeline.completed")}: ${formatDateTime(String(end))}`
       : null,
     datesByCode: statusTransitions.value.datesByCode,
     actorsByCode: statusTransitions.value.actorsByCode,
@@ -636,9 +627,9 @@ const technicalAudit = computed<TimelineEvent[]>(() => {
 
   return buildFallbackAuditEvents(row, {
     stateLabel: statusLabel.value,
-    savedDescription: "Изменения сохранены через API.",
+    savedDescription: t("entityDetail.changesSavedViaApi"),
     extra: props.businessKind === "research"
-      ? [makeEvent("recommendation", "Текущая рекомендация", formatPlain(row.recommendation), "api", row.updated_at ?? row.modified_at ?? null)]
+      ? [makeEvent("recommendation", t("entityDetail.currentRecommendation"), formatPlain(row.recommendation), "api", row.updated_at ?? row.modified_at ?? null)]
       : [],
   });
 });
@@ -682,7 +673,7 @@ watch(
       detail.value = { ...props.item, ...response.data };
     } catch (error) {
       detail.value = props.item;
-      loadError.value = error instanceof Error ? error.message : "Не удалось загрузить детальную запись";
+      loadError.value = error instanceof Error ? error.message : t("entityDetail.failedToLoadDetail");
     } finally {
       syncForm();
       loading.value = false;
@@ -780,7 +771,7 @@ function validateRequiredFields(): boolean {
   if (missing.length) {
     const missingKeys = new Set(missing.map((field) => field.key));
     toast.add({
-      title: "Заполните обязательные поля",
+      title: t("entityDetail.fillRequiredFields"),
       description: props.config.fields
         .filter((field) => missingKeys.has(field.key))
         .map((field) => field.label)
@@ -932,12 +923,12 @@ function close() {
     <template #header-actions>
       <SubscribeButton v-if="subscriptionEntity && !isCreate && currentItem?.id" :entity="subscriptionEntity"
         :entity-id="String(currentItem?.id)" />
-      <UButton v-if="!editing && businessKind === 'protocols'" label="Предпросмотр" icon="i-lucide-file-search"
+      <UButton v-if="!editing && businessKind === 'protocols'" :label="t('crud.preview')" icon="i-lucide-file-search"
         color="neutral" variant="outline" size="sm" @click="openPreview" />
-      <UButton v-if="!editing && businessKind === 'protocols'" label="Скачать документ" icon="i-lucide-file-down"
+      <UButton v-if="!editing && businessKind === 'protocols'" :label="t('entityDetail.downloadDocument')" icon="i-lucide-file-down"
         color="neutral" variant="outline" size="sm" data-testid="protocol-download-document"
         :loading="downloadingKind === 'document'" @click="downloadProtocolFile('document')" />
-      <UButton v-if="!editing && businessKind === 'protocols'" label="Сформировать выписку"
+      <UButton v-if="!editing && businessKind === 'protocols'" :label="t('entityDetail.generateExcerpt')"
         icon="i-lucide-file-warning" color="neutral" variant="outline" size="sm"
         data-testid="protocol-download-excerpt" :loading="downloadingKind === 'excerpt'"
         @click="downloadProtocolFile('excerpt')" />
@@ -953,12 +944,12 @@ function close() {
         </div>
         <div class="min-w-0 flex-1">
           <div class="flex flex-wrap items-center gap-2">
-            <h2 class="truncate text-2xl font-semibold text-highlighted">
+            <h2 data-tour="entity-detail-header" class="truncate text-2xl font-semibold text-highlighted">
               {{ headerTitle }}
             </h2>
             <StatusBadge v-if="!isCreate && statusLabel" :color="statusColor" :label="statusLabel" />
-            <UBadge v-if="!isCreate && currentItem?.is_urgent" color="error" variant="subtle" label="Срочно" />
-            <UBadge v-if="loadError" color="warning" variant="subtle" label="Данные из таблицы" />
+            <UBadge v-if="!isCreate && currentItem?.is_urgent" color="error" variant="subtle" :label="t('dashboard.registrar.table.urgent')" />
+            <UBadge v-if="loadError" color="warning" variant="subtle" :label="t('entityDetail.dataFromTable')" />
           </div>
           <p class="mt-1 truncate text-sm text-muted">
             {{ subtitle }}
@@ -974,7 +965,7 @@ function close() {
     </template>
 
     <template #tabs-trailing>
-      <UTooltip v-if="!isCreate" text="Технический аудит">
+      <UTooltip v-if="!isCreate" :text="t('entityDetail.technicalAuditTab')">
         <UButton icon="i-lucide-list" :color="activeTab === 'technical' ? 'primary' : 'neutral'"
           :variant="activeTab === 'technical' ? 'subtle' : 'ghost'" square size="sm" class="ml-auto"
           data-testid="entity-detail-technical-tab" @click="activeTab = 'technical'" />
@@ -1010,29 +1001,29 @@ function close() {
             :reference-options="referenceOptions" :resolve-display="displayFieldValue" @update="setValue" />
 
           <div class="mt-3 flex items-center justify-end gap-2">
-            <UButton v-if="!editing && canEditEntity" label="Редактировать" icon="i-lucide-pencil" color="neutral"
+            <UButton v-if="!editing && canEditEntity" :label="t('access.actions.edit')" icon="i-lucide-pencil" color="neutral"
               variant="outline" size="sm" @click="editing = true" />
             <template v-else-if="editing">
-              <UButton :label="isCreate ? 'Отмена' : 'Отменить'" color="neutral" variant="outline" size="sm"
+              <UButton :label="isCreate ? t('common.cancel') : t('entityDetail.cancelEdit')" color="neutral" variant="outline" size="sm"
                 :disabled="saving" @click="cancelEdit" />
-              <UButton label="Сохранить" icon="i-lucide-save" color="primary" size="sm" :loading="saving"
+              <UButton :label="t('common.save')" icon="i-lucide-save" color="primary" size="sm" :loading="saving"
                 @click="saveInline" />
             </template>
           </div>
         </div>
 
         <UAlert v-if="loadError" color="warning" variant="subtle" icon="i-lucide-triangle-alert"
-          title="Backend вернул ошибку при чтении карточки"
-          description="Карточка построена по данным строки таблицы." />
+          :title="t('entityDetail.backendReadError')"
+          :description="t('entityDetail.cardBuiltFromRow')" />
       </section>
 
       <aside v-if="!isCreate" class="h-full min-w-0">
         <div class="h-full rounded-lg border border-default p-4">
           <div class="mb-3 flex items-center justify-between gap-3">
-            <h3 class="text-sm font-semibold text-highlighted">Жизненный цикл</h3>
+            <h3 class="text-sm font-semibold text-highlighted">{{ t('entityDetail.lifecycle') }}</h3>
 
             <UBadge v-if="!statusTimeline.length" color="neutral" variant="outline"
-              :label="`${statusHistory.length} события`" />
+              :label="t('entityDetail.timeline.eventsCount', { n: statusHistory.length }, statusHistory.length)" />
           </div>
 
           <!-- Направления/образцы: строго статусы из таблиц statuses -->
@@ -1054,7 +1045,7 @@ function close() {
                   <UBadge v-if="stepperItem.actor" color="neutral" variant="outline" size="sm"
                     :label="stepperItem.actor" />
                   <p class="font-mono text-xs text-muted">
-                    {{ stepperItem.date ? formatDateTime(stepperItem.date) : 'Дата не указана' }}
+                    {{ stepperItem.date ? formatDateTime(stepperItem.date) : t('entityDetail.timeline.noDate') }}
                   </p>
                 </div>
               </div>

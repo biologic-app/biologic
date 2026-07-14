@@ -82,6 +82,7 @@ import {
   type SubscriptionEntity,
 } from "@/shared/api/subscriptions.api";
 import type { RowPinningState } from "@tanstack/table-core";
+import { useI18n } from "vue-i18n";
 
 type DetailKind = EntityDetailKind;
 type ReferenceValue = string | number | boolean | null;
@@ -119,6 +120,7 @@ const UBadge = resolveComponent("UBadge");
 const toast = useToast();
 const auth = useAuth();
 const { can } = usePermission();
+const { t } = useI18n();
 const filterModalOpen = defineModel<boolean>("filterOpen", { default: false });
 const tableSettingsKey = `table-settings:dictionaries:${props.config.presetKey}:${JSON.stringify(props.requestParams ?? {})}`;
 const sortableFields = computed(() =>
@@ -155,7 +157,7 @@ function undoDelete(undoEntry: { item: CrudRow; timeout: ReturnType<typeof setTi
   }).catch(() => {
     table.data.value = table.data.value.filter((row) => row.id !== undoEntry.item.id);
     toast.add({
-      title: "Не удалось восстановить запись",
+      title: t("crud.failedToRestoreRecord"),
       color: "error",
       icon: "i-lucide-circle-alert",
     });
@@ -294,7 +296,7 @@ const toggleRowPin = async (row: CrudRow) => {
   } catch {
     setRowPinned(id, wasPinned); // откат при ошибке
     toast.add({
-      title: "Не удалось изменить отслеживание",
+      title: t("crud.failedToToggleTracking"),
       color: "error",
       icon: "i-lucide-circle-alert",
     });
@@ -579,7 +581,7 @@ const resolveReferenceCell = (row: CrudRow, columnField: string) => {
   }
 
   const shortCode = formatShortEntityCode(idValue);
-  return shortCode ? `Запись ${shortCode}` : "";
+  return shortCode ? t("crud.recordCode", { code: shortCode }) : "";
 };
 
 const getStringValue = (value: unknown) =>
@@ -704,7 +706,7 @@ const toDetailListItem = (row: CrudRow): DetailListItem => ({
     || getStringValue(getValueByPath(row, "name"))
     || getStringValue(getValueByPath(row, "full_name"))
     || getStringValue(getValueByPath(row, "code"))
-    || `Запись ${formatShortEntityCode(row.id)}`,
+    || t("crud.recordCode", { code: formatShortEntityCode(row.id) }),
   date: listItemDate(row),
   subtitle: listItemSubtitle(row),
   badge: getStatusLabel(row) === "-" ? undefined : getStatusLabel(row),
@@ -801,13 +803,13 @@ watch(
 
 // Заголовок над master-списком отражает, ЧТО в нём показано (сущности текущего
 // верхнего уровня стека). Для detail-сущностей достаточно словаря kind → метка.
-const detailKindLabels: Record<string, string> = {
-  directions: "Направления",
-  samples: "Образцы",
-  research: "Исследования",
-  tests: "Тесты",
-  protocols: "Протоколы",
-};
+const detailKindLabels = computed<Record<string, string>>(() => ({
+  directions: t("nav.directions"),
+  samples: t("nav.samples"),
+  research: t("nav.research"),
+  tests: t("nav.tests"),
+  protocols: t("nav.protocols"),
+}));
 
 // Есть ли контекстный (по родителю) список вместо корневой таблицы.
 const hasContextualList = computed(() =>
@@ -831,7 +833,7 @@ const contextualListLoadingMore = computed(() =>
 );
 
 const contextualListLabel = computed(() =>
-  detailKind.value ? detailKindLabels[detailKind.value] ?? "" : "",
+  detailKind.value ? detailKindLabels.value[detailKind.value] ?? "" : "",
 );
 
 const loadContextualList = () => {
@@ -875,8 +877,8 @@ const getActorId = () => {
   }
 
   toast.add({
-    title: "Не удалось выполнить действие",
-    description: "Текущий пользователь не определён.",
+    title: t("crud.actionFailedTitle"),
+    description: t("crud.currentUserUndefined"),
     color: "error",
     icon: "i-lucide-circle-alert",
   });
@@ -899,7 +901,7 @@ const renderDirectionNumberCell = (rowItem: CrudRow) => {
 };
 
 const uiColumns = computed(() => {
-  const actionColumn = { id: "actions", header: "Действия", meta: { class: { td: "w-auto min-w-[56px] text-right" } } };
+  const actionColumn = { id: "actions", header: t("access.columns.actions"), meta: { class: { td: "w-auto min-w-[56px] text-right" } } };
 
   // Колонка-пин: клик подписывает/отписывает на запись и закрепляет её сверху.
   // Читает isRowPinned/pinInFlight «вживую» при рендере — TanStack перерисует
@@ -923,8 +925,8 @@ const uiColumns = computed(() => {
         variant: "ghost",
         size: "sm",
         square: true,
-        title: pinned ? "Не отслеживать" : "Отслеживать уведомления",
-        "aria-label": pinned ? "Не отслеживать" : "Отслеживать уведомления",
+        title: pinned ? t("crud.untrack") : t("crud.trackNotifications"),
+        "aria-label": pinned ? t("crud.untrack") : t("crud.trackNotifications"),
         onClick: (event: Event) => {
           event.stopPropagation();
           void toggleRowPin(rowItem);
@@ -983,7 +985,7 @@ const uiColumns = computed(() => {
                   : "neutral",
               variant: "subtle",
             },
-            () => (referenceCell ? "Да" : "Нет"),
+            () => (referenceCell ? t("access.yes") : t("access.no")),
           );
         }
 
@@ -1030,7 +1032,7 @@ const isApiClientError = (error: unknown): error is ApiClientError =>
 const errorMessage = (error: unknown) => {
   if (isApiClientError(error)) return error.message;
   if (error instanceof Error) return error.message;
-  return "Попробуйте ещё раз";
+  return t("access.tryAgain");
 };
 
 const onSave = async (payload: Record<string, unknown>) => {
@@ -1070,7 +1072,7 @@ const onSave = async (payload: Record<string, unknown>) => {
     dialog.close();
   } catch (error: unknown) {
     toast.add({
-      title: "Не удалось сохранить",
+      title: t("crud.failedToSave"),
       description: errorMessage(error),
       color: "error",
       icon: "i-lucide-circle-alert",
@@ -1083,7 +1085,7 @@ const onSave = async (payload: Record<string, unknown>) => {
 const confirmDelete = async (row: CrudRow) => {
   if (!isDeleteAllowed(row)) {
     toast.add({
-      title: "Удаление недоступно",
+      title: t("crud.deleteUnavailable"),
       description: deleteRestriction.value,
       color: "warning",
       icon: "i-lucide-circle-alert",
@@ -1095,12 +1097,12 @@ const confirmDelete = async (row: CrudRow) => {
   // (и их исследования/тесты) на бэкенде — предупреждаем об этом явно.
   const description =
     props.config.presetKey === "directions"
-      ? `Направление и все связанные с ним образцы будут удалены безвозвратно. Продолжить?`
-      : `Вы уверены, что хотите удалить запись ${row.id}? Это действие нельзя отменить.`;
+      ? t("crud.deleteDirectionCascadeConfirm")
+      : t("crud.deleteRecordConfirm", { id: row.id });
 
   confirmDialog.value = {
     open: true,
-    title: "Удалить запись",
+    title: t("crud.deleteRecordTitle"),
     description,
     async onConfirm() {
       deleting.value = true;
@@ -1123,13 +1125,13 @@ const confirmDelete = async (row: CrudRow) => {
           detailOpen.value = false;
         }
         toast.add({
-          title: "Запись удалена",
-          description: "Запись будет удалена безвозвратно через 8 секунд.",
+          title: t("crud.recordDeleted"),
+          description: t("crud.recordDeletedPending"),
           color: "success",
           icon: "i-lucide-circle-check",
           actions: [
             {
-              label: "Отменить",
+              label: t("access.undo"),
               icon: "i-lucide-undo-2",
               onClick: () => undoDelete(undoEntry),
             },
@@ -1139,7 +1141,7 @@ const confirmDelete = async (row: CrudRow) => {
       } catch (error: unknown) {
         rollback();
         toast.add({
-          title: "Не удалось удалить",
+          title: t("crud.failedToDelete"),
           description: errorMessage(error),
           color: "error",
           icon: "i-lucide-circle-alert",
@@ -1290,8 +1292,8 @@ const openWorkflowCommand = async (key: WorkflowCommandKey, rows: CrudRow[]) => 
   const allowedRows = rows.filter((row) => command && canRunCommandOnRow(command, row));
   if (!command || !allowedRows.length) {
     toast.add({
-      title: "Действие недоступно",
-      description: "Проверьте статус выбранных записей и права доступа.",
+      title: t("crud.actionUnavailable"),
+      description: t("crud.checkStatusAndPermissions"),
       color: "warning",
       icon: "i-lucide-circle-alert",
     });
@@ -1341,8 +1343,8 @@ const canCreateProtocolFromSelection = computed(() => {
 const openProtocolDialog = async () => {
   if (!canCreateProtocolFromSelection.value) {
     toast.add({
-      title: "Создание протокола недоступно",
-      description: "Выберите образцы одного направления в статусе «Закрыт» или «Брак».",
+      title: t("crud.protocolCreationUnavailable"),
+      description: t("crud.protocolCreationHint"),
       color: "warning",
       icon: "i-lucide-circle-alert",
     });
@@ -1379,13 +1381,13 @@ const saveProtocolCommand = async (payload: Record<string, unknown>) => {
     protocolDialogOpen.value = false;
     await table.refresh();
     toast.add({
-      title: "Протокол создан",
+      title: t("crud.protocolCreated"),
       color: "success",
       icon: "i-lucide-circle-check",
     });
   } catch (error: unknown) {
     toast.add({
-      title: "Не удалось создать протокол",
+      title: t("crud.failedToCreateProtocol"),
       description: errorMessage(error),
       color: "error",
       icon: "i-lucide-circle-alert",
@@ -1402,7 +1404,7 @@ const deleteSelected = async () => {
 
   if (!canDeleteSelected.value) {
     toast.add({
-      title: "Удаление недоступно",
+      title: t("crud.deleteUnavailable"),
       description: deleteRestriction.value,
       color: "warning",
       icon: "i-lucide-circle-alert",
@@ -1412,8 +1414,8 @@ const deleteSelected = async () => {
 
   confirmDialog.value = {
     open: true,
-    title: "Удалить выбранные записи",
-    description: `Вы уверены, что хотите удалить ${selectedRows.value.length} записей? Это действие нельзя отменить.`,
+    title: t("crud.deleteSelectedTitle"),
+    description: t("crud.deleteSelectedConfirm", { count: selectedRows.value.length }),
     async onConfirm() {
       deleting.value = true;
 
@@ -1430,14 +1432,14 @@ const deleteSelected = async () => {
         );
         rowSelection.value = {};
         toast.add({
-          title: "Записи удалены",
+          title: t("crud.recordsDeleted"),
           color: "success",
           icon: "i-lucide-circle-check",
         });
       } catch (error: unknown) {
         table.data.value = previous;
         toast.add({
-          title: "Не удалось удалить выбранные записи",
+          title: t("crud.failedToDeleteSelected"),
           description: errorMessage(error),
           color: "error",
           icon: "i-lucide-circle-alert",
@@ -1540,7 +1542,7 @@ const getEntityDisplayName = (row: CrudRow | null): string => {
 // становится неактивным и показывает свой номер «№ 2025-461».
 const stackEntryLabel = (entry: DetailStackEntry, isActive: boolean): string => {
   if (entry.mode === "create") {
-    return `${entry.config.title}: новая запись`;
+    return t("crud.newRecordTitle", { title: entry.config.title });
   }
   if (entry.config.presetKey === "directions" && entry.item) {
     if (isActive) {
@@ -1630,19 +1632,19 @@ const getRowActionItems = (row: CrudRow): DropdownMenuItem[] => {
   const extraItems = props.extraRowActions?.(row) ?? [];
   const pinned = supportsSubscriptions.value && isRowPinned(String(row.id));
   return [
-    { label: "Просмотр", icon: "i-lucide-eye", onSelect: () => openDetail(row) },
+    { label: t("access.actions.view"), icon: "i-lucide-eye", onSelect: () => openDetail(row) },
     ...(supportsSubscriptions.value
       ? [{
-          label: pinned ? "Не отслеживать" : "Отслеживать",
+          label: pinned ? t("crud.untrack") : t("crud.track"),
           icon: pinned ? "i-lucide-bell-off" : "i-lucide-bell-plus",
           onSelect: () => void toggleRowPin(row),
         }]
       : []),
     ...(props.config.presetKey === "protocols"
-      ? [{ label: "Предпросмотр", icon: "i-lucide-file-search", onSelect: () => openPreview(row) }]
+      ? [{ label: t("crud.preview"), icon: "i-lucide-file-search", onSelect: () => openPreview(row) }]
       : []),
     {
-      label: "Редактировать",
+      label: t("access.actions.edit"),
       icon: can(props.config.resource, "edit") ? "i-lucide-pencil" : "i-lucide-lock",
       disabled: !can(props.config.resource, "edit"),
       onSelect: () => openEdit(row),
@@ -1650,7 +1652,7 @@ const getRowActionItems = (row: CrudRow): DropdownMenuItem[] => {
     ...extraItems,
     ...workflowItems,
     {
-      label: "Удалить",
+      label: t("common.delete"),
       icon: "i-lucide-trash-2",
       color: "error",
       disabled: !isDeleteAllowed(row),
@@ -1699,7 +1701,7 @@ const detailHeaderActions = computed<DropdownMenuItem[]>(() => {
 
   if (isDeleteAllowed(row)) {
     actions.push({
-      label: "Удалить",
+      label: t("common.delete"),
       icon: "i-lucide-trash-2",
       color: "error",
       onSelect: () => confirmDelete(row),
@@ -1762,7 +1764,7 @@ const columnMenuItems = computed(() =>
       },
     })),
     {
-      label: "Действия",
+      label: t("access.columns.actions"),
       type: "checkbox" as const,
       checked: columnVisibility.value.actions !== false,
       onUpdateChecked(checked: boolean) {
@@ -1812,6 +1814,17 @@ const clearSelection = () => {
   rowSelection.value = {};
 };
 
+// Для туров: открывает карточку первой реальной (не skeleton) строки таблицы,
+// без нужды дожидаться клика пользователя по конкретной записи.
+const openFirstRowDetail = () => {
+  const first = table.data.value.find((row) => !isSkeletonRow(row));
+  if (!first) {
+    return false;
+  }
+  openDetail(first);
+  return true;
+};
+
 defineExpose({
   openCreate,
   createDisabled,
@@ -1824,6 +1837,7 @@ defineExpose({
   deleteSelected,
   // Кнопка «Обновить» на странице справочников — перезагрузка данных таблицы.
   refresh: () => table.refresh(),
+  openFirstRowDetail,
 });
 </script>
 
@@ -1875,7 +1889,7 @@ defineExpose({
               class="flex items-center gap-2 py-1 text-sm text-muted"
             >
               <UIcon name="i-lucide-loader-circle" class="size-4 animate-spin" />
-              <span>Загрузка...</span>
+              <span>{{ t('crud.loadingEllipsis') }}</span>
             </div>
           </template>
         </USelectMenu>
@@ -1893,6 +1907,7 @@ defineExpose({
     v-model:column-visibility="columnVisibility"
     v-model:row-selection="rowSelection"
     v-model:row-pinning="rowPinning"
+    data-tour="crud-table"
     :data="tableRows"
     :columns="uiColumns"
     :total="table.total.value"
@@ -1970,7 +1985,7 @@ defineExpose({
       />
       <UButton
         v-if="config.presetKey === 'samples' && can('protocols', 'create')"
-        label="Создать протокол"
+        :label="t('crud.createProtocol')"
         icon="i-lucide-file-check-2"
         color="primary"
         variant="ghost"
@@ -1983,13 +1998,13 @@ defineExpose({
     </template>
     <template #empty>
       <CrudTableEmptyState
-        :title="activeFilterCount ? 'Ничего не найдено' : 'Нет записей'"
+        :title="activeFilterCount ? t('access.notFound') : t('crud.noRecords')"
         :description="activeFilterCount
-          ? `В справочнике «${config.title}» нет записей, соответствующих фильтрам.`
-          : `В справочнике «${config.title}» пока нет данных. Создайте первую запись.`"
+          ? t('crud.noRecordsMatchingFilter', { title: config.title })
+          : t('crud.noRecordsYet', { title: config.title })"
         :filtered="activeFilterCount > 0"
         :error="table.error.value"
-        error-description="Не удалось загрузить данные. Проверьте подключение или повторите попытку позже."
+        :error-description="t('crud.failedToLoadData')"
         @clear-filters="resetFilters"
         @retry="table.refresh()"
       />
@@ -2000,10 +2015,10 @@ defineExpose({
     v-model:open="dialog.visible.value"
     :title="
       dialog.mode.value === 'create'
-        ? `Создать: ${config.title}`
+        ? t('crud.createTitle', { title: config.title })
         : dialog.mode.value === 'edit'
-          ? `Редактировать: ${config.title}`
-          : `Просмотр: ${config.title}`
+          ? t('crud.editTitle', { title: config.title })
+          : t('crud.viewTitle', { title: config.title })
     "
     :fields="formFields"
     :item="dialog.selected.value"
@@ -2015,7 +2030,7 @@ defineExpose({
 
   <CrudFormModal
     v-model:open="commandDialogOpen"
-    :title="activeCommand?.title || 'Действие'"
+    :title="activeCommand?.title || t('crud.action')"
     :fields="commandFields"
     :item="commandInitialItem"
     mode="create"
@@ -2026,7 +2041,7 @@ defineExpose({
 
   <CrudFormModal
     v-model:open="protocolDialogOpen"
-    :title="`Создать протокол (${selectedCount} образцов)`"
+    :title="t('crud.createProtocolWithCount', { count: selectedCount })"
     :fields="protocolFields"
     :item="{}"
     mode="create"
@@ -2089,7 +2104,7 @@ defineExpose({
     :loading="deleting"
     :elevated="detailOpen"
     confirm-color="error"
-    confirm-label="Удалить"
+    :confirm-label="t('common.delete')"
     confirm-icon="i-lucide-trash-2"
     @confirm="confirmDialog.onConfirm"
   />

@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { DirectionWizardContext } from '@/modules/directions/composables/useDirectionWizard'
 
 const props = defineProps<{ ctx: DirectionWizardContext }>()
+const { t } = useI18n()
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const isDragOver = ref(false)
@@ -40,17 +42,15 @@ const formatFileSize = (bytes: number): string => {
     return ''
   }
   return bytes < 1024 * 1024
-    ? `${Math.max(1, Math.round(bytes / 1024))} КБ`
-    : `${(bytes / (1024 * 1024)).toFixed(1)} МБ`
+    ? t('directionWizard.fileSizeKb', { value: Math.max(1, Math.round(bytes / 1024)) })
+    : t('directionWizard.fileSizeMb', { value: (bytes / (1024 * 1024)).toFixed(1) })
 }
 </script>
 
 <template>
   <div class="flex flex-col gap-5">
     <p class="text-sm text-muted">
-      Загрузите файл направлений в формате Excel (.xlsx или .xls). Импорт создаст
-      направления и образцы в статусе «черновик», после чего мастер поможет дозаполнить
-      недостающие данные и зарегистрировать их.
+      {{ t('directionWizard.uploadDescription') }}
     </p>
 
     <div
@@ -85,7 +85,7 @@ const formatFileSize = (bytes: number): string => {
           <UIcon name="i-lucide-check" class="size-7" />
         </div>
         <p class="text-sm font-semibold text-success">
-          Файл готов к импорту
+          {{ t('directionWizard.fileReady') }}
         </p>
         <p class="flex items-center gap-1.5 text-sm font-medium text-highlighted">
           <UIcon name="i-lucide-file-spreadsheet" class="size-4 shrink-0 text-success" />
@@ -99,7 +99,7 @@ const formatFileSize = (bytes: number): string => {
           color="neutral"
           variant="soft"
           icon="i-lucide-x"
-          label="Выбрать другой файл"
+          :label="t('directionWizard.pickAnotherFile')"
           data-testid="import-excel-clear"
           @click.stop="pickAnotherFile"
         />
@@ -107,10 +107,10 @@ const formatFileSize = (bytes: number): string => {
       <template v-else>
         <UIcon name="i-lucide-upload" class="size-8 text-muted" />
         <p class="text-sm text-toned">
-          <span class="font-medium text-primary">Выберите файл</span> или перетащите его сюда
+          <span class="font-medium text-primary">{{ t('directionWizard.chooseFile') }}</span> {{ t('directionWizard.orDragHere') }}
         </p>
         <p class="text-xs text-muted">
-          Excel (.xlsx или .xls)
+          {{ t('directionWizard.excelFormat') }}
         </p>
       </template>
     </div>
@@ -120,7 +120,7 @@ const formatFileSize = (bytes: number): string => {
       color="error"
       variant="subtle"
       icon="i-lucide-circle-alert"
-      title="Не удалось импортировать"
+      :title="t('directionWizard.failedToImport')"
       :description="ctx.importError"
     />
   </div>

@@ -122,14 +122,17 @@ const toggle = async () => {
         data-testid="subscribers-list-trigger"
       >
         <template v-if="!compact">
-          <UAvatar
+          <UTooltip
             v-for="row in visibleSubscribers"
             :key="row.user_id"
-            :text="initials(row)"
-            :title="`${fullName(row)} — ${SOURCE_HINTS[row.source]}`"
-            size="2xs"
-            class="ring-2 ring-bg"
-          />
+            :text="`${fullName(row)} — ${SOURCE_HINTS[row.source]}`"
+          >
+            <UAvatar
+              :text="initials(row)"
+              size="2xs"
+              class="ring-2 ring-bg"
+            />
+          </UTooltip>
           <span v-if="restCount" class="pl-2.5 text-xs text-muted">+{{ restCount }}</span>
         </template>
         <UBadge

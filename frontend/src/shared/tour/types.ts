@@ -11,6 +11,8 @@ export interface AppTourStep extends TourStep {
   body?: string
   side?: 'top' | 'right' | 'bottom' | 'left'
   align?: 'start' | 'center' | 'end'
+  /** Key into the tour action registry — run once before waiting for `target`. */
+  action?: string
 }
 
 export interface TourContext {

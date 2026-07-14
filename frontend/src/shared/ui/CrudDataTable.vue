@@ -1,5 +1,6 @@
 <script setup lang="ts" generic="TRow extends object">
 import { computed, h, resolveComponent, useSlots } from "vue";
+import { useI18n } from "vue-i18n";
 import type { TableColumn, TableRow } from "@nuxt/ui";
 import type { RowPinningState } from "@tanstack/table-core";
 import CrudTableLoadingRows from "@/shared/ui/CrudTableLoadingRows.vue";
@@ -58,6 +59,7 @@ const rowPinning = defineModel<RowPinningState>(
 );
 
 const UCheckbox = resolveComponent("UCheckbox");
+const { t } = useI18n();
 const slots = useSlots();
 const reservedSlotNames = new Set([
   "before-table",
@@ -87,7 +89,7 @@ const selectColumn: TableColumn<TRow> = {
         : table.getIsAllPageRowsSelected(),
       "onUpdate:modelValue": (value: boolean | "indeterminate") =>
         table.toggleAllPageRowsSelected(!!value),
-      ariaLabel: "Выбрать все строки",
+      ariaLabel: t("crud.selectAllRows"),
     }),
   cell: ({ row }) => {
     if (isSkeletonRow(row.original)) {
@@ -98,7 +100,7 @@ const selectColumn: TableColumn<TRow> = {
       modelValue: row.getIsSelected(),
       "onUpdate:modelValue": (value: boolean | "indeterminate") =>
         row.toggleSelected(!!value),
-      ariaLabel: "Выбрать строку",
+      ariaLabel: t("customers.selectRow"),
     });
   },
 };
@@ -218,7 +220,7 @@ const forwardedSlotNames = computed(() =>
               :colspan="visibleColumnCount"
               class="border-r border-b border-default px-6 py-3 text-center text-xs text-dimmed"
             >
-              Всего записей: {{ total }}
+              {{ t('crud.totalRecords', { total }) }}
             </td>
           </tr>
         </template>

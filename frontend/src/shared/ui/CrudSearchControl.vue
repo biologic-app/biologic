@@ -22,7 +22,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <UFieldGroup>
+  <UFieldGroup data-tour="crud-search">
     <UBadge
       color="neutral"
       variant="outline"

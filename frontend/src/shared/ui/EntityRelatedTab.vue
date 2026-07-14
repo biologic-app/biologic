@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import type { TableColumn } from "@nuxt/ui";
 import {
   isRowUrgent,
@@ -31,6 +32,8 @@ const emit = defineEmits<{
   (event: "open-related", payload: { kind: EntityKind; item: RelatedRow; parent?: { kind: EntityKind; item: RelatedRow } }): void;
   (event: "add-sample"): void;
 }>();
+
+const { t } = useI18n();
 
 // Вид дочерней коллекции карточки: tests — редактируемая таблица показателей,
 // samples — дерево «образец → исследования», research — плоский список.
@@ -104,28 +107,28 @@ function isSampleExpanded(row: RelatedRow): boolean {
 
 // Дерево образцов: колонка «Тип / Лаборатория» показывает тип образца у
 // родителя и лабораторию у дочернего исследования.
-const sampleTreeColumns: TableColumn<RelatedRow>[] = [
-  { id: "name", header: "Название" },
-  { id: "secondary", header: "Тип / Лаборатория" },
-  { id: "status", header: "Статус" },
-  { accessorKey: "updatedAtText", header: "Обновлено" },
+const sampleTreeColumns = computed<TableColumn<RelatedRow>[]>(() => [
+  { id: "name", header: t("access.columns.name") },
+  { id: "secondary", header: t("entityRelated.typeOrLab") },
+  { id: "status", header: t("common.status") },
+  { accessorKey: "updatedAtText", header: t("crudFields.updated") },
   { id: "actions", header: "" },
-];
+]);
 
 // Плоский список исследований образца.
-const researchColumns: TableColumn<RelatedRow>[] = [
-  { accessorKey: "title", header: "Цель исследования" },
-  { id: "lab", header: "Лаборатория" },
-  { id: "status", header: "Статус" },
-  { accessorKey: "updatedAtText", header: "Обновлено" },
+const researchColumns = computed<TableColumn<RelatedRow>[]>(() => [
+  { accessorKey: "title", header: t("crudFields.researchGoal") },
+  { id: "lab", header: t("access.columns.laboratory") },
+  { id: "status", header: t("common.status") },
+  { accessorKey: "updatedAtText", header: t("crudFields.updated") },
   { id: "actions", header: "" },
-];
+]);
 
 // Вердикт врача по тесту: соответствует / не соответствует / не указано (null).
-const verdictOptions = [
-  { label: "Соответствует", value: true },
-  { label: "Не соответствует", value: false },
-];
+const verdictOptions = computed(() => [
+  { label: t("entityRelated.verdictMatches"), value: true },
+  { label: t("entityRelated.verdictDoesNotMatch"), value: false },
+]);
 
 function relatedString(row: RelatedRow, key: string) {
   const value = row[key];
@@ -164,7 +167,7 @@ function verdictModel(row: RelatedRow): boolean | undefined {
     <div class="flex shrink-0 items-center justify-end gap-3">
       <UButton
         v-if="canAddSample"
-        label="Добавить образец"
+        :label="t('directionWizard.addSample')"
         icon="i-lucide-plus"
         size="sm"
         color="primary"
@@ -173,7 +176,7 @@ function verdictModel(row: RelatedRow): boolean | undefined {
       />
       <UButton
         v-if="businessKind === 'research' && rows.length"
-        label="Сохранить тесты"
+        :label="t('entityRelated.saveTests')"
         icon="i-lucide-save"
         size="sm"
         color="primary"
@@ -191,22 +194,22 @@ function verdictModel(row: RelatedRow): boolean | undefined {
           <thead class="sticky top-0 z-10 bg-elevated text-left text-xs font-medium uppercase text-muted">
             <tr>
               <th class="border-b border-default px-3 py-2">
-                Показатель
+                {{ t('crudFields.indicator') }}
               </th>
               <th class="border-b border-default px-3 py-2">
-                Статус
+                {{ t('common.status') }}
               </th>
               <th class="border-b border-default px-3 py-2">
-                Значение
+                {{ t('workflowCommands.formFields.value') }}
               </th>
               <th class="border-b border-default px-3 py-2">
-                Норма
+                {{ t('workflowCommands.formFields.norm') }}
               </th>
               <th class="border-b border-default px-3 py-2">
-                Вердикт врача
+                {{ t('entityRelated.doctorVerdict') }}
               </th>
               <th class="border-b border-default px-3 py-2">
-                Комментарий
+                {{ t('workflowCommands.formFields.comment') }}
               </th>
             </tr>
           </thead>
@@ -240,7 +243,7 @@ function verdictModel(row: RelatedRow): boolean | undefined {
                 <USelect
                   :model-value="verdictModel(row)"
                   :items="verdictOptions"
-                  placeholder="Не указано"
+                  :placeholder="t('entityRelated.notSpecified')"
                   class="w-full min-w-44"
                   @update:model-value="setRelatedValue(row, 'verdict', $event)"
                 />
@@ -257,12 +260,12 @@ function verdictModel(row: RelatedRow): boolean | undefined {
           </tbody>
         </table>
         <div v-if="!loading && !rows.length" class="px-4 py-8 text-center text-sm text-muted">
-          Связанные элементы не найдены.
+          {{ t('entityRelated.noRelatedItems') }}
         </div>
       </div>
       <div v-if="hasMore" class="shrink-0 border-t border-default px-3 py-2 text-center">
         <UButton
-          label="Загрузить ещё"
+          :label="t('entityRelated.loadMore')"
           color="neutral"
           variant="outline"
           size="sm"
@@ -291,7 +294,7 @@ function verdictModel(row: RelatedRow): boolean | undefined {
                 color="neutral"
                 size="xs"
                 :icon="isSampleExpanded(row.original) ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'"
-                :aria-label="isSampleExpanded(row.original) ? 'Свернуть исследования' : 'Развернуть исследования'"
+                :aria-label="isSampleExpanded(row.original) ? t('entityRelated.collapseResearch') : t('entityRelated.expandResearch')"
                 @click="toggleSampleExpanded(row.original.id)"
               />
               <span v-else class="inline-block w-7 shrink-0" />
@@ -326,19 +329,19 @@ function verdictModel(row: RelatedRow): boolean | undefined {
                 color="neutral"
                 variant="ghost"
                 size="sm"
-                aria-label="Открыть карточку"
+                :aria-label="t('entityRelated.openCard')"
                 @click="openRelated(row.original)"
               />
             </div>
           </template>
         </UTable>
         <div v-if="!loading && !rows.length" class="px-4 py-8 text-center text-sm text-muted">
-          Связанные элементы не найдены.
+          {{ t('entityRelated.noRelatedItems') }}
         </div>
       </div>
       <div v-if="hasMore" class="shrink-0 border-t border-default px-3 py-2 text-center">
         <UButton
-          label="Загрузить ещё"
+          :label="t('entityRelated.loadMore')"
           color="neutral"
           variant="outline"
           size="sm"
@@ -378,19 +381,19 @@ function verdictModel(row: RelatedRow): boolean | undefined {
                 color="neutral"
                 variant="ghost"
                 size="sm"
-                aria-label="Открыть карточку"
+                :aria-label="t('entityRelated.openCard')"
                 @click="openRelated(row.original)"
               />
             </div>
           </template>
         </UTable>
         <div v-if="!loading && !rows.length" class="px-4 py-8 text-center text-sm text-muted">
-          Связанные элементы не найдены.
+          {{ t('entityRelated.noRelatedItems') }}
         </div>
       </div>
       <div v-if="hasMore" class="shrink-0 border-t border-default px-3 py-2 text-center">
         <UButton
-          label="Загрузить ещё"
+          :label="t('entityRelated.loadMore')"
           color="neutral"
           variant="outline"
           size="sm"

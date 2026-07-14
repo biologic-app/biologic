@@ -17,7 +17,7 @@ onMounted(() => {
 
 <template>
   <UTooltip :text="t('tour.menu.tooltip')" :kbds="['T']" placement="bottom">
-    <span data-tour="dashboard-tour-menu" class="relative inline-flex">
+    <span :data-tour="`${scope}-tour-menu`" class="relative inline-flex">
       <UButton
         icon="i-lucide-compass"
         color="neutral"

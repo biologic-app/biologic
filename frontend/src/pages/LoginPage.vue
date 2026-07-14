@@ -170,7 +170,7 @@ const roleItems = computed(() =>
                   variant="outline"
                   icon="i-lucide-chevron-down"
                   :disabled="auth.loading"
-                  aria-label="Войти как роль"
+                  :aria-label="t('login.loginAsRole')"
                 />
               </UDropdownMenu>
             </UFieldGroup>

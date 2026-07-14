@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { CalendarDate, getLocalTimeZone, parseDate as parseCalendarDate, today } from "@internationalized/date";
 import { useI18n } from "vue-i18n";
 import { useLocale } from "@/shared/composables/useLocale";
+import DateRangeCalendarPopover from "@/shared/ui/DateRangeCalendarPopover.vue";
 import {
   DATE_RANGE_PRESETS,
   isDateRangePresetSelected,
@@ -82,12 +83,22 @@ const clear = () => {
   model.value = [null, null];
 };
 
-const selectPreset = (preset: DateRangePreset) => {
-  model.value = selectDateRangePreset(preset, presetCurrentDate.value);
+const selectPresetByIndex = (index: number) => {
+  const preset = ranges.value[index];
+  if (preset) {
+    model.value = selectDateRangePreset(preset, presetCurrentDate.value);
+  }
 };
 
 const isPresetSelected = (preset: DateRangePreset) =>
   isDateRangePresetSelected(model.value ?? [null, null], preset, presetCurrentDate.value);
+
+const presetOptions = computed(() =>
+  ranges.value.map((preset) => ({
+    label: preset.label,
+    selected: isPresetSelected(preset),
+  })),
+);
 
 const formatDisplayDate = (value: CalendarDate) =>
   new Intl.DateTimeFormat(intlLocale.value, { dateStyle: "medium" }).format(
@@ -97,48 +108,25 @@ const formatDisplayDate = (value: CalendarDate) =>
 
 <template>
   <UFieldGroup>
-    <UPopover :content="{ align: 'start' }" :modal="true">
-      <UButton
-        color="neutral"
-        variant="outline"
-        icon="i-lucide-calendar"
-        block
-        class="justify-start data-[state=open]:bg-elevated group"
-      >
-        <span class="truncate">{{ displayValue }}</span>
-      </UButton>
-
-      <template #content>
-        <div class="flex flex-col sm:flex-row sm:divide-x divide-default">
-          <div class="flex sm:w-52 sm:flex-col sm:justify-center overflow-x-auto sm:overflow-visible">
-            <UButton
-              v-for="preset in ranges"
-              :key="preset.label"
-              :label="preset.label"
-              color="neutral"
-              variant="ghost"
-              class="w-full justify-start rounded-none px-4"
-              :ui="{ label: 'w-full text-left' }"
-              :class="[
-                isPresetSelected(preset)
-                  ? 'bg-elevated'
-                  : 'hover:bg-elevated/50',
-              ]"
-              truncate
-              @click="selectPreset(preset)"
-            />
-          </div>
-
-          <UCalendar
-            v-model="calendarRange"
-            :max-value="maxDate"
-            class="p-2"
-            :number-of-months="2"
-            range
-          />
-        </div>
+    <DateRangeCalendarPopover
+      v-model="calendarRange"
+      :presets="presetOptions"
+      :max-value="maxDate"
+      :number-of-months="2"
+      @select-preset="selectPresetByIndex"
+    >
+      <template #trigger>
+        <UButton
+          color="neutral"
+          variant="outline"
+          icon="i-lucide-calendar"
+          block
+          class="justify-start data-[state=open]:bg-elevated group"
+        >
+          <span class="truncate">{{ displayValue }}</span>
+        </UButton>
       </template>
-    </UPopover>
+    </DateRangeCalendarPopover>
 
     <UTooltip :text="t('common.clear')">
       <UButton

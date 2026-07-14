@@ -72,7 +72,7 @@ useInfiniteScroll(
     </div>
     <div
       ref="scrollEl"
-      class="master-scroll min-h-0 flex-1 overflow-y-auto py-1"
+      class="min-h-0 flex-1 overflow-y-auto py-1 [scrollbar-width:thin] [scrollbar-color:var(--ui-border-accented)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--ui-border-accented)]"
     >
       <button
         v-for="entry in items"
@@ -123,24 +123,3 @@ useInfiniteScroll(
     </div>
   </aside>
 </template>
-
-<style scoped>
-/* Тонкий скроллбар — стандартный слишком широк для узкого списка. */
-.master-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: var(--ui-border-accented) transparent;
-}
-
-.master-scroll::-webkit-scrollbar {
-  width: 6px;
-}
-
-.master-scroll::-webkit-scrollbar-thumb {
-  background-color: var(--ui-border-accented);
-  border-radius: 9999px;
-}
-
-.master-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-</style>

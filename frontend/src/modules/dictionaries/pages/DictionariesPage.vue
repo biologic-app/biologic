@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { useI18n } from "vue-i18n";
 import type { NavigationMenuItem } from "@nuxt/ui";
 import {
   defaultDictionaryKey,
@@ -11,12 +12,14 @@ import {
   statusDictionaryItems,
 } from "@/modules/dictionaries/config";
 import DictionaryCrudContent from "@/modules/dictionaries/pages/DictionaryCrudContent.vue";
+import NotificationsBellButton from "@/shared/ui/NotificationsBellButton.vue";
 import { usePermission } from "@/shared/composables/usePermission";
 import CrudSearchControl from "@/shared/ui/CrudSearchControl.vue";
 
 const route = useRoute();
 const router = useRouter();
 const { can } = usePermission();
+const { t } = useI18n();
 const crudContent = ref<InstanceType<typeof DictionaryCrudContent> | null>(null);
 const tableSearch = ref("");
 const refreshToken = ref(0);
@@ -89,19 +92,21 @@ watch(
 <template>
   <UDashboardPanel id="dictionaries" :ui="{ body: 'min-h-0 overflow-hidden' }">
     <template #header>
-      <UDashboardNavbar title="Справочники">
+      <UDashboardNavbar :title="t('dictionaries.title')">
         <template #leading>
           <UDashboardSidebarCollapse />
         </template>
         <template #right>
-          <UTooltip :text="createDisabled ? 'Нет прав на создание' : 'Создать запись'">
+          <UTooltip :text="createDisabled ? t('dictionaries.noCreatePermission') : t('dictionaries.createRecord')">
             <UButton
-              label="Создать"
+              :label="t('common.create')"
               :icon="createDisabled ? 'i-lucide-lock' : 'i-lucide-plus'"
               :disabled="createDisabled"
               @click="crudContent?.openCreate()"
             />
           </UTooltip>
+
+          <NotificationsBellButton />
         </template>
       </UDashboardNavbar>
 
@@ -116,7 +121,7 @@ watch(
       <UDashboardToolbar>
         <template #left>
           <div class="flex w-full flex-col gap-3 lg:flex-row lg:items-center">
-            <CrudSearchControl v-model="tableSearch" placeholder="Поиск по справочнику" />
+            <CrudSearchControl v-model="tableSearch" :placeholder="t('dictionaries.searchPlaceholder')" />
           </div>
         </template>
         <template #right>
@@ -126,16 +131,16 @@ watch(
               color="error"
               variant="subtle"
               icon="i-lucide-trash"
-              label="Удалить"
+              :label="t('common.delete')"
               @click="crudContent?.deleteSelected()"
             >
               <template #trailing>
                 <UKbd>{{ crudContent?.selectedCount }}</UKbd>
               </template>
             </UButton>
-            <UTooltip text="Обновить данные">
+            <UTooltip :text="t('access.refreshData')">
               <UButton
-                label="Обновить"
+                :label="t('common.update')"
                 color="neutral"
                 variant="subtle"
                 icon="i-lucide-refresh-cw"
@@ -144,7 +149,7 @@ watch(
             </UTooltip>
 
             <UDropdownMenu :items="crudContent?.columnMenuItems || []" :content="{ align: 'end' }">
-              <UTooltip text="Столбцы таблицы">
+              <UTooltip :text="t('access.tableColumns')">
                 <UButton color="neutral" variant="subtle" trailing-icon="i-lucide-settings-2" />
               </UTooltip>
             </UDropdownMenu>

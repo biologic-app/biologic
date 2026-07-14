@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { StepperItem } from '@nuxt/ui'
 import {
   useDirectionWizard,
@@ -25,15 +26,16 @@ const emit = defineEmits<{
 
 const ctx = useDirectionWizard()
 const toast = useToast()
+const { t } = useI18n()
 
 type NamedStep = Exclude<WizardStep, 'select'>
 
-const STEP_META: Record<NamedStep, { title: string; icon: string }> = {
-  upload: { title: 'Загрузка', icon: 'i-lucide-upload' },
-  review: { title: 'Предпросмотр', icon: 'i-lucide-list-checks' },
-  fill: { title: 'Дозаполнение', icon: 'i-lucide-pencil' },
-  register: { title: 'Регистрация', icon: 'i-lucide-clipboard-check' }
-}
+const STEP_META = computed<Record<NamedStep, { title: string; icon: string }>>(() => ({
+  upload: { title: t('directionWizard.stepUpload'), icon: 'i-lucide-upload' },
+  review: { title: t('directionWizard.stepReview'), icon: 'i-lucide-list-checks' },
+  fill: { title: t('directionWizard.stepFill'), icon: 'i-lucide-pencil' },
+  register: { title: t('directionWizard.stepRegister'), icon: 'i-lucide-clipboard-check' }
+}))
 
 // Активный набор шагов зависит от режима: импорт проходит загрузку и предпросмотр,
 // ручное создание и дозаполнение черновика начинаются сразу с шага заполнения.
@@ -48,17 +50,17 @@ const activeSteps = computed(() => MODE_STEPS[ctx.mode])
 const currentStepIndex = computed(() => activeSteps.value.indexOf(ctx.step))
 const stepperItems = computed<StepperItem[]>(() =>
   activeSteps.value.map((step, index) => ({
-    title: STEP_META[step as NamedStep].title,
-    icon: STEP_META[step as NamedStep].icon,
+    title: STEP_META.value[step as NamedStep].title,
+    icon: STEP_META.value[step as NamedStep].icon,
     value: index
   }))
 )
 
 const stepTitle = computed(() =>
-  ctx.step === 'select' ? '' : STEP_META[ctx.step as NamedStep].title
+  ctx.step === 'select' ? '' : STEP_META.value[ctx.step as NamedStep].title
 )
 const modalTitle = computed(() =>
-  stepTitle.value ? `Создание направления — ${stepTitle.value}` : 'Создание направления'
+  stepTitle.value ? t('directionWizard.titleWithStep', { step: stepTitle.value }) : t('directionWizard.title')
 )
 
 // Имя загруженного файла показываем подзаголовком в шапке модалки (только импорт).
@@ -86,7 +88,7 @@ const onChoose = async (mode: 'import' | 'manual') => {
   const result = await ctx.startManual()
   if (!result.ok) {
     toast.add({
-      title: 'Не удалось создать направление',
+      title: t('directionWizard.failedToCreateDirection'),
       description: result.message,
       color: 'error',
       icon: 'i-lucide-circle-alert'
@@ -119,8 +121,8 @@ const proceedToRegister = async () => {
   const ok = await ctx.persistAll()
   if (!ok) {
     toast.add({
-      title: 'Не удалось сохранить часть данных',
-      description: 'Проверьте направление и образцы, затем попробуйте снова.',
+      title: t('directionWizard.failedToSavePartial'),
+      description: t('directionWizard.checkDirectionAndSamples'),
       color: 'error',
       icon: 'i-lucide-circle-alert'
     })
@@ -179,7 +181,7 @@ const submitRegister = async () => {
       <div class="flex w-full items-center justify-between gap-3">
         <UButton
           v-if="currentStepIndex > 0"
-          label="Назад"
+          :label="t('directionWizard.back')"
           icon="i-lucide-chevron-left"
           color="primary"
           @click="goBack"
@@ -189,7 +191,7 @@ const submitRegister = async () => {
         <div class="flex items-center gap-2">
           <UButton
             v-if="ctx.step === 'upload'"
-            label="Далее"
+            :label="t('directionWizard.next')"
             icon="i-lucide-chevron-right"
             trailing
             color="primary"
@@ -201,7 +203,7 @@ const submitRegister = async () => {
           />
           <UButton
             v-else-if="ctx.step === 'review'"
-            label="Далее: дозаполнение"
+            :label="t('directionWizard.nextToFill')"
             icon="i-lucide-chevron-right"
             trailing
             color="primary"
@@ -211,7 +213,7 @@ const submitRegister = async () => {
           />
           <UButton
             v-else-if="ctx.step === 'fill'"
-            label="Далее: регистрация"
+            :label="t('directionWizard.nextToRegister')"
             icon="i-lucide-chevron-right"
             trailing
             color="primary"
@@ -222,7 +224,7 @@ const submitRegister = async () => {
           />
           <UButton
             v-else-if="ctx.step === 'register' && !hasRegisterResults"
-            label="Зарегистрировать"
+            :label="t('directionWizard.register')"
             icon="i-lucide-clipboard-check"
             color="primary"
             :loading="ctx.registering"
@@ -233,7 +235,7 @@ const submitRegister = async () => {
           />
           <UButton
             v-else-if="ctx.step === 'register'"
-            label="Готово"
+            :label="t('directionWizard.done')"
             icon="i-lucide-check"
             color="primary"
             data-telemetry="direction-import-finish"

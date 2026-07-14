@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 
 const props = withDefaults(
   defineProps<{
@@ -36,12 +37,14 @@ const getSkeletonWidth = (key: string, index: number) => {
   if (key === "actions") return "2rem";
   return index % 3 === 0 ? "70%" : index % 3 === 1 ? "86%" : "58%";
 };
+
+const { t } = useI18n();
 </script>
 
 <template>
   <div v-if="compact" class="flex items-center gap-3 px-6 py-3 text-sm text-muted">
     <UIcon name="i-lucide-loader-circle" class="size-4 animate-spin" />
-    <span>Подгружаем данные...</span>
+    <span>{{ t('crud.loadingData') }}</span>
     <USkeleton class="h-3 w-32" />
   </div>
 

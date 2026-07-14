@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { reactive } from "vue";
+import { useI18n } from "vue-i18n";
 import { CalendarDateTime, getLocalTimeZone, parseDateTime } from "@internationalized/date";
 import { formatDisplay, type DetailFieldValue } from "@/shared/ui/entity-detail.helpers";
 import StatusBadge from "@/shared/ui/StatusBadge.vue";
@@ -121,6 +122,8 @@ const dateInputRefs = reactive<Record<string, { inputsRef?: { $el: HTMLElement }
 function setDateInputRef(key: string, el: unknown) {
   dateInputRefs[key] = el as { inputsRef?: { $el: HTMLElement }[] } | null;
 }
+
+const { t } = useI18n();
 </script>
 
 <template>
@@ -172,7 +175,7 @@ function setDateInputRef(key: string, el: unknown) {
                     variant="link"
                     size="sm"
                     icon="i-lucide-calendar"
-                    aria-label="Выбрать дату"
+                    :aria-label="t('crud.chooseDate')"
                     class="px-0"
                   />
                   <template #content>

@@ -1,0 +1,81 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e27]:
+    - generic [ref=e28]:
+      - generic [ref=e29]:
+        - generic [ref=e31]: Biologic LIMS
+        - generic [ref=e32]:
+          - heading "Laboratory operations in one interface." [level=1] [ref=e33]
+          - paragraph [ref=e34]: A Nuxt UI sign-in screen for internal users with fast access to notifications, patients, and process journals.
+      - generic [ref=e36]:
+        - generic [ref=e37]:
+          - paragraph [ref=e38]: Theme
+          - tablist [ref=e40]:
+            - tab "Light" [selected] [ref=e42]:
+              - img [ref=e43]
+              - generic [ref=e47]: Light
+            - tab "Dark" [ref=e48]:
+              - img [ref=e49]
+              - generic [ref=e51]: Dark
+        - generic [ref=e52]:
+          - paragraph [ref=e53]: Language
+          - button "Show popup" [ref=e54]:
+            - generic [ref=e56]: 🇺🇸
+            - generic: English
+            - img [ref=e58]
+    - generic [ref=e63]:
+      - generic [ref=e64]:
+        - heading "Sign in to your workspace" [level=2] [ref=e65]
+        - paragraph [ref=e66]: Use your corporate account to open the operator dashboard and internal laboratory modules.
+      - generic [ref=e67]:
+        - generic [ref=e68]:
+          - generic [ref=e71]: Username
+          - generic [ref=e73]:
+            - textbox "Username" [ref=e74]:
+              - /placeholder: operator
+            - img [ref=e76]
+        - generic [ref=e80]:
+          - generic [ref=e83]: Password
+          - generic [ref=e85]:
+            - textbox "Password" [ref=e86]:
+              - /placeholder: Enter your password
+            - img [ref=e88]
+        - generic [ref=e94]:
+          - checkbox "Remember me" [ref=e96]:
+            - checkbox [ref=e97]
+          - generic [ref=e98]:
+            - generic [ref=e99]: Remember me
+            - paragraph [ref=e100]: You will be logged in for 30 days.
+        - generic [ref=e101]:
+          - button "Sign in" [ref=e102]:
+            - generic [ref=e103]: Sign in
+          - button "Sign in as role" [ref=e104]:
+            - img [ref=e105]
+  - generic [ref=e3]:
+    - generic "Toggle devtools panel" [ref=e4] [cursor=pointer]:
+      - img [ref=e5]
+    - generic "Toggle Component Inspector" [ref=e108] [cursor=pointer]:
+      - img [ref=e109]
+  - generic:
+    - generic:
+      - generic: Режим аннотирования · UI заморожен, клик отмечает элемент
+      - generic [ref=e9]:
+        - button "Аннотирование" [ref=e10] [cursor=pointer]:
+          - img [ref=e11]
+        - button "Показать список":
+          - img
+          - text: Показать список
+        - button "Отключить режим":
+          - img
+          - text: Отключить режим
+      - generic [ref=e13]:
+        - generic [ref=e14]:
+          - generic [ref=e15]:
+            - heading "Сохранённые замечания" [level=2] [ref=e16]
+            - generic [ref=e17]: Только просмотр
+          - button "✕" [ref=e18] [cursor=pointer]
+        - generic [ref=e20]: Аннотаций пока нет. Включите режим и кликните по элементу.
+        - generic [ref=e21]:
+          - generic [ref=e22]: Сервер не подключён
+          - generic [ref=e24] [cursor=pointer]: Очистить всё
+  - region "Notifications (F8)":
+    - list

@@ -1,3 +1,8 @@
+import { i18n } from '@/shared/i18n'
+
+const t = (key: string, params?: Record<string, unknown>) =>
+  i18n.global.t(key, params ?? {}).toString()
+
 export type DateRangeValue = [string | null, string | null]
 
 export interface DateRangePreset {
@@ -8,12 +13,12 @@ export interface DateRangePreset {
 }
 
 export const DATE_RANGE_PRESETS: DateRangePreset[] = [
-  { label: 'За последние 7 дней', days: 7 },
-  { label: 'За последние 14 дней', days: 14 },
-  { label: 'За последние 30 дней', days: 30 },
-  { label: 'За последние 3 месяца', months: 3 },
-  { label: 'За последние 6 месяцев', months: 6 },
-  { label: 'За последний год', years: 1 }
+  { label: t('crud.dateRangePresets.last7Days'), days: 7 },
+  { label: t('crud.dateRangePresets.last14Days'), days: 14 },
+  { label: t('crud.dateRangePresets.last30Days'), days: 30 },
+  { label: t('crud.dateRangePresets.last3Months'), months: 3 },
+  { label: t('crud.dateRangePresets.last6Months'), months: 6 },
+  { label: t('crud.dateRangePresets.lastYear'), years: 1 }
 ]
 
 const pad = (value: number) => String(value).padStart(2, '0')

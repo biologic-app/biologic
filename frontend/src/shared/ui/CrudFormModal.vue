@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { FormField } from '@/shared/types/form'
 import { getFormFieldLayoutClass } from '@/shared/ui/form-layout'
 import { fromDateTimeLocalValue, toDateTimeLocalValue } from '@/shared/utils/format'
@@ -129,6 +130,8 @@ const onFileChange = (key: string, event: Event) => {
   const input = event.target as HTMLInputElement
   form[key] = input.files?.[0] || null
 }
+
+const { t } = useI18n()
 </script>
 
 <template>
@@ -190,7 +193,7 @@ const onFileChange = (key: string, event: Event) => {
             :items="field.options || []"
             value-key="value"
             label-key="label"
-            :search-input="{ placeholder: 'Поиск' }"
+            :search-input="{ placeholder: t('common.search') }"
             :required="field.required"
             :disabled="readOnly"
             clear
@@ -238,7 +241,7 @@ const onFileChange = (key: string, event: Event) => {
         <UButton
           color="neutral"
           variant="ghost"
-          label="Закрыть"
+          :label="t('crud.close')"
           :disabled="loading"
           @click="close"
         />
@@ -246,7 +249,7 @@ const onFileChange = (key: string, event: Event) => {
           v-if="!readOnly"
           color="primary"
           :loading="loading"
-          label="Сохранить"
+          :label="t('common.save')"
           icon="i-lucide-save"
           @click="submit"
         />

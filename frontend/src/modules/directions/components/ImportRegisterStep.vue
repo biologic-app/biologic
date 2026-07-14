@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { DirectionWizardContext } from '@/modules/directions/composables/useDirectionWizard'
 import type { DirectionRow } from '@/modules/directions/directions.api'
 
 const props = defineProps<{ ctx: DirectionWizardContext }>()
+const { t } = useI18n()
 
 const directionLabel = (direction: DirectionRow) =>
   direction.year_no && direction.base_no
@@ -44,13 +46,13 @@ const rowState = (direction: DirectionRow) => {
   const result = props.ctx.registerResults[direction.id]
   if (result) {
     return result.ok
-      ? { color: 'success' as const, label: 'Зарегистрировано', detail: '' }
-      : { color: 'error' as const, label: 'Ошибка', detail: result.message }
+      ? { color: 'success' as const, label: t('statusLabels.direction.registered'), detail: '' }
+      : { color: 'error' as const, label: t('directionWizard.errorLabel'), detail: result.message }
   }
   // До нажатия «Зарегистрировать» направление остаётся черновиком.
   return isLikelyReady(direction)
-    ? { color: 'neutral' as const, label: 'Черновик — готово к регистрации', detail: '' }
-    : { color: 'warning' as const, label: 'Черновик — требует внимания', detail: 'Заполните название и тип образцов.' }
+    ? { color: 'neutral' as const, label: t('directionWizard.draftReady'), detail: '' }
+    : { color: 'warning' as const, label: t('directionWizard.draftNeedsAttention'), detail: t('directionWizard.fillNameAndType') }
 }
 </script>
 
@@ -61,19 +63,19 @@ const rowState = (direction: DirectionRow) => {
         <thead class="bg-elevated text-left text-xs font-medium uppercase text-muted">
           <tr>
             <th class="border-b border-default px-3 py-2">
-              Направление
+              {{ t('directionWizard.tableDirection') }}
             </th>
             <th class="border-b border-default px-3 py-2">
-              Объект
+              {{ t('directionWizard.tableObject') }}
             </th>
             <th class="border-b border-default px-3 py-2">
-              Образцов
+              {{ t('directionWizard.tableSamplesCount') }}
             </th>
             <th class="border-b border-default px-3 py-2">
-              Статус
+              {{ t('common.status') }}
             </th>
             <th class="border-b border-default px-3 py-2">
-              Причина
+              {{ t('directionWizard.tableReason') }}
             </th>
           </tr>
         </thead>
@@ -120,25 +122,25 @@ const rowState = (direction: DirectionRow) => {
           class="size-4 text-muted"
         />
         <UIcon name="i-lucide-triangle-alert" class="size-4 text-warning" />
-        <span>{{ directionLabel(direction) }} не может быть зарегистрировано ({{ samples.length }})</span>
+        <span>{{ t('directionWizard.cannotBeRegistered', { label: directionLabel(direction), count: samples.length }) }}</span>
       </button>
       <UAlert
         v-if="expandedWarnings[direction.id]"
         color="warning"
         variant="subtle"
         icon="i-lucide-triangle-alert"
-        :title="`${directionLabel(direction)} не может быть зарегистрировано`"
+        :title="t('directionWizard.cannotBeRegisteredTitle', { label: directionLabel(direction) })"
         data-testid="direction-register-warning"
       >
         <template #description>
           <p class="mb-1">
-            Заполните название и тип у образцов:
+            {{ t('directionWizard.fillNameAndTypeForSamples') }}
           </p>
           <ul class="list-inside list-disc">
             <li v-for="{ sample, index } in samples" :key="sample.id">
-              Образец {{ index + 1 }}: {{ sample.name || 'без названия' }}
+              {{ t('directionWizard.sampleLabel', { index: index + 1 }) }}: {{ sample.name || t('directionWizard.withoutName') }}
               <template v-if="!sample.sample_type_id">
-                — не указан тип
+                {{ t('directionWizard.typeNotSpecified') }}
               </template>
             </li>
           </ul>

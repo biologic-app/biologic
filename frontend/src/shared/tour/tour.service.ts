@@ -1,8 +1,9 @@
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import type { TourStep } from '@nuxt/ui/composables'
 import { router } from '@/app/router'
 import { tourRegistry } from '@/shared/tour/tour.registry'
 import { hasSeenTour, markTourSeen } from '@/shared/tour/tour.storage'
+import { runTourAction } from '@/shared/tour/tour.actions'
 import type {
   AppTourStep,
   ResolvedTour,
@@ -18,6 +19,40 @@ const activeTour = ref<ResolvedTour | null>(null)
 const activeContext = ref<TourContext | null>(null)
 
 const engine = useTour(activeSteps, { scrollIntoView: true })
+
+// A step's `action` (e.g. opening a modal) mounts a Reka UI dialog/popover
+// layer *after* our own tour popover — Reka's DismissableLayer stack then
+// disables pointer-events on every layer below the most recently opened one,
+// making the tour popover unclickable (and hidden from a11y via aria-hidden).
+// Detect that lockout and transparently remount our popover so it re-registers
+// as the topmost layer — reclaims click-through, visual stacking, and a11y
+// visibility all at once, since all three are decided by DOM/registration order.
+let suppressPersist = false
+let reclaiming = false
+
+async function reclaimTopLayer() {
+  if (reclaiming || !engine.open.value) {
+    return
+  }
+
+  reclaiming = true
+  const index = engine.index.value
+  suppressPersist = true
+  engine.finish()
+  await nextTick()
+  engine.goTo(index)
+  suppressPersist = false
+  reclaiming = false
+}
+
+if (typeof document !== 'undefined' && typeof MutationObserver !== 'undefined') {
+  const overlayObserver = new MutationObserver(() => {
+    if (engine.open.value && document.body.style.pointerEvents === 'none') {
+      void reclaimTopLayer()
+    }
+  })
+  overlayObserver.observe(document.body, { attributes: true, attributeFilter: ['style'] })
+}
 
 function resolveTourKey(tour: TourDefinition, context: TourContext) {
   const completionScope = tour.completionScope || 'user'
@@ -61,6 +96,13 @@ function resolveTargetElement(step: AppTourStep) {
 
 function resolveElement(step: AppTourStep) {
   if (!step.target) {
+    return true
+  }
+
+  // Steps whose target only appears after their `action` runs (e.g. opening a
+  // modal) can't be checked up front — assume present, `waitForStepTarget`
+  // handles the actual wait once the step is reached.
+  if (step.action) {
     return true
   }
 
@@ -118,6 +160,10 @@ async function goToStep(index: number) {
   }
 
   await ensureRoute(step)
+  if (step.action) {
+    await runTourAction(step.action)
+    await waitForFrame()
+  }
   await waitForStepTarget(step)
   engine.goTo(index)
 }
@@ -138,7 +184,7 @@ async function stepPrev() {
 }
 
 watch(engine.open, (isOpen, wasOpen) => {
-  if (!wasOpen || isOpen) {
+  if (!wasOpen || isOpen || suppressPersist) {
     return
   }
 

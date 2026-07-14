@@ -1,10 +1,13 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+
 const props = defineProps<{
   canImport?: boolean
   canCreate?: boolean
   loading?: boolean
 }>()
 const emit = defineEmits<{ (e: 'choose', mode: 'import' | 'manual'): void }>()
+const { t } = useI18n()
 
 const choose = (mode: 'import' | 'manual', enabled: boolean | undefined) => {
   if (!enabled || props.loading) {
@@ -15,10 +18,9 @@ const choose = (mode: 'import' | 'manual', enabled: boolean | undefined) => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-5">
+  <div data-tour="directions-wizard-intro" class="flex flex-col gap-5">
     <p class="text-sm text-muted">
-      Выберите способ создания направлений: загрузить файл Excel с несколькими
-      направлениями или создать одно направление вручную и наполнить его образцами.
+      {{ t('directionWizard.modeSelectDescription') }}
     </p>
 
     <div class="grid gap-4 sm:grid-cols-2">
@@ -36,11 +38,11 @@ const choose = (mode: 'import' | 'manual', enabled: boolean | undefined) => {
         <div class="flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
           <UIcon name="i-lucide-file-up" class="size-7" />
         </div>
-        <span class="text-base font-semibold text-highlighted">Импорт из файла</span>
+        <span class="text-base font-semibold text-highlighted">{{ t('directionWizard.importFromFile') }}</span>
         <span class="text-sm text-muted">
-          Загрузите Excel (.xlsx / .xls) — направления и образцы создаются массово.
+          {{ t('directionWizard.importFromFileDescription') }}
         </span>
-        <span v-if="!canImport" class="text-xs text-warning">Нет прав на импорт</span>
+        <span v-if="!canImport" class="text-xs text-warning">{{ t('directionWizard.noImportPermission') }}</span>
       </button>
 
       <button
@@ -61,11 +63,11 @@ const choose = (mode: 'import' | 'manual', enabled: boolean | undefined) => {
             :class="loading ? 'animate-spin' : ''"
           />
         </div>
-        <span class="text-base font-semibold text-highlighted">Создать вручную</span>
+        <span class="text-base font-semibold text-highlighted">{{ t('directionWizard.createManually') }}</span>
         <span class="text-sm text-muted">
-          Одно направление с авто-номером — добавляйте и заполняйте образцы вручную.
+          {{ t('directionWizard.createManuallyDescription') }}
         </span>
-        <span v-if="!canCreate" class="text-xs text-warning">Нет прав на создание</span>
+        <span v-if="!canCreate" class="text-xs text-warning">{{ t('dictionaries.noCreatePermission') }}</span>
       </button>
     </div>
   </div>
