@@ -74,6 +74,26 @@ const typeColors: Record<string, string> = {
   logic: 'pink', not: 'pink', math: 'teal', if: 'purple',
 }
 
+// Палитра цветов групп → семантические цвета Nuxt UI (UButton color).
+type UiColor = 'info' | 'success' | 'warning' | 'error' | 'primary' | 'secondary'
+const paletteColor: Record<string, UiColor> = {
+  blue: 'info', green: 'success', amber: 'warning', pink: 'error', teal: 'primary', purple: 'secondary',
+}
+
+// Тип блока для оператора палитры.
+function blockTypeFor(op: string): BlockType {
+  if (op === 'and' || op === 'or') return 'logic'
+  if (op === '!!' || op === '!') return 'not'
+  if (op === 'if') return 'if'
+  if (['+', '-', '*', '/'].includes(op)) return 'math'
+  return 'operator'
+}
+
+// Секции аккордеона правил (палитра сворачивается, дерево всегда видно).
+const paletteAccordion = [
+  { label: 'Палитра блоков', icon: 'i-lucide-shapes', slot: 'palette' as const, value: 'palette' },
+]
+
 // ─── Состояние ──────────────────────────────────────────────────────────────
 
 const blocks = ref<Map<string, RuleBlock>>(new Map())
@@ -394,175 +414,122 @@ const RuleBlockItem = defineComponent({
 </script>
 
 <template>
-  <div class="rule-builder">
-    <!-- Палитра -->
-    <div class="rule-builder__palette">
-      <h4 class="rule-builder__palette-title">
-        Блоки
-      </h4>
+  <div class="flex flex-col gap-3">
+    <!-- Палитра блоков в сворачиваемом аккордеоне -->
+    <UAccordion
+      :items="paletteAccordion"
+      type="single"
+      collapsible
+      default-value="palette"
+      :ui="{ item: 'border-b-0', trigger: 'py-2', body: 'pb-2' }"
+    >
+      <template #palette>
+        <div class="flex flex-col gap-3">
+          <p class="text-[11px] text-dimmed">
+            Нажмите блок, чтобы добавить, или перетащите его на контейнер в правиле ниже.
+          </p>
+          <div class="flex flex-wrap gap-1.5">
+            <UButton
+              size="xs"
+              color="info"
+              variant="soft"
+              icon="i-lucide-braces"
+              label="Переменная"
+              draggable="true"
+              @dragstart="onDragStartOp('var')"
+              @click="addBlock('var')"
+            />
+            <UButton
+              size="xs"
+              color="success"
+              variant="soft"
+              icon="i-lucide-type"
+              label="Константа"
+              draggable="true"
+              @dragstart="onDragStartOp('const')"
+              @click="addBlock('const')"
+            />
+          </div>
+          <div v-for="group in operatorGroups" :key="group.label" class="flex flex-col gap-1">
+            <span class="text-[10px] font-semibold uppercase tracking-wide text-dimmed">
+              {{ group.label }}
+            </span>
+            <div class="flex flex-wrap gap-1.5">
+              <UButton
+                v-for="op in group.ops"
+                :key="op.op"
+                size="xs"
+                :color="paletteColor[group.color]"
+                variant="soft"
+                :label="op.label"
+                draggable="true"
+                @dragstart="onDragStartOp(op.op)"
+                @click="addBlock(blockTypeFor(op.op), op.op)"
+              />
+            </div>
+          </div>
+        </div>
+      </template>
+    </UAccordion>
 
-      <button
-        class="rule-builder__palette-item rule-builder__palette-item--blue"
-        draggable="true"
-        @dragstart="onDragStartOp('var')"
-        @click="addBlock('var')"
-      >
-        <span class="rule-builder__icon">{ }</span>
-        Переменная
-      </button>
+    <USeparator />
 
-      <button
-        class="rule-builder__palette-item rule-builder__palette-item--green"
-        draggable="true"
-        @dragstart="onDragStartOp('const')"
-        @click="addBlock('const')"
-      >
-        <span class="rule-builder__icon">T</span>
-        Константа
-      </button>
-
-      <div v-for="group in operatorGroups" :key="group.label" class="rule-builder__group">
-        <span class="rule-builder__group-label">{{ group.label }}</span>
-        <button
-          v-for="op in group.ops"
-          :key="op.op"
-          class="rule-builder__palette-item"
-          :class="`rule-builder__palette-item--${group.color}`"
-          draggable="true"
-          @dragstart="onDragStartOp(op.op)"
-          @click="addBlock(
-            op.op === 'and' || op.op === 'or' ? 'logic' :
-            op.op === '!!' || op.op === '!' ? 'not' :
-            op.op === 'if' ? 'if' :
-            ['+', '-', '*', '/'].includes(op.op) ? 'math' : 'operator',
-            op.op
-          )"
-        >
-          {{ op.label }}
-        </button>
-      </div>
-    </div>
-
-    <!-- Канвас -->
+    <!-- Дерево правила -->
     <div
-      class="rule-builder__canvas"
+      class="rule-builder__tree"
       @dragover.prevent
       @drop.prevent="onDropOnCanvas"
     >
-      <div v-if="!rootId" class="rule-builder__empty">
-        <span class="text-2xl mb-2">🧩</span>
-        <p class="text-sm text-muted">
-          Нажмите блок из палитры или перетащите сюда
-        </p>
-      </div>
-
+      <UAlert
+        v-if="!rootId"
+        color="neutral"
+        variant="soft"
+        icon="i-lucide-shapes"
+        title="Правило пустое"
+        description="Добавьте блок из палитры выше или перетащите его сюда."
+      />
       <RuleBlockItem v-else :block-id="rootId" />
-
-      <!-- Предпросмотр JSON -->
-      <div class="rule-builder__preview">
-        <div class="rule-builder__preview-header">
-          <span class="text-xs font-medium text-muted">JSON</span>
-          <button class="rule-builder__copy-btn" @click="copyJson">
-            📋 Копировать
-          </button>
-        </div>
-        <pre class="rule-builder__preview-code">{{ JSON.stringify(modelValue, null, 2) }}</pre>
-      </div>
     </div>
+
+    <!-- JSON-предпросмотр в сворачиваемом блоке -->
+    <UCollapsible :ui="{ content: 'pt-2' }">
+      <UButton
+        color="neutral"
+        variant="subtle"
+        block
+        size="xs"
+        class="group"
+        icon="i-lucide-code-xml"
+        label="JSON-предпросмотр"
+        trailing-icon="i-lucide-chevron-down"
+        :ui="{ trailingIcon: 'ms-auto group-data-[state=open]:rotate-180 transition-transform' }"
+      />
+      <template #content>
+        <div class="rounded-md border border-default bg-muted">
+          <div class="flex items-center justify-between border-b border-default px-2.5 py-1.5">
+            <span class="text-[11px] font-medium text-muted">JSON</span>
+            <UButton
+              size="xs"
+              color="neutral"
+              variant="ghost"
+              icon="i-lucide-copy"
+              label="Копировать"
+              @click="copyJson"
+            />
+          </div>
+          <pre class="max-h-40 overflow-auto p-2.5 text-[11px] leading-relaxed text-muted">{{ JSON.stringify(modelValue, null, 2) }}</pre>
+        </div>
+      </template>
+    </UCollapsible>
   </div>
 </template>
 
 <style scoped>
-.rule-builder {
-  display: grid;
-  grid-template-columns: 160px 1fr;
-  gap: 10px;
-  min-height: 360px;
-}
-.rule-builder__palette {
-  background: var(--ui-bg-muted);
-  border-radius: 10px;
-  padding: 10px;
+.rule-builder__tree {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  overflow-y: auto;
-  max-height: 480px;
-}
-.rule-builder__palette-title {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--ui-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 2px;
-}
-.rule-builder__group {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  margin-top: 4px;
-}
-.rule-builder__group-label {
-  font-size: 9px;
-  color: var(--ui-text-muted);
-  font-weight: 600;
-  text-transform: uppercase;
-}
-.rule-builder__palette-item {
-  --rb: var(--ui-primary);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 7px;
-  border-radius: 6px;
-  border: 1px solid color-mix(in oklab, var(--rb) 45%, var(--ui-border));
-  color: var(--rb);
-  background: var(--ui-bg);
-  font-size: 11px;
-  cursor: pointer;
-  transition: all 0.15s;
-  text-align: left;
-  line-height: 1.3;
-}
-.rule-builder__palette-item:hover {
-  transform: translateY(-1px);
-  background: color-mix(in oklab, var(--rb) 12%, transparent);
-  box-shadow: 0 2px 4px rgb(0 0 0 / 0.08);
-}
-.rule-builder__icon {
-  font-size: 10px;
-  font-weight: 700;
-  font-family: ui-monospace, monospace;
-  opacity: 0.7;
-}
-/* Акцент типа блока — семантические токены Nuxt UI (адаптируются к теме). */
-.rule-builder__palette-item--blue { --rb: var(--ui-info); }
-.rule-builder__palette-item--green { --rb: var(--ui-success); }
-.rule-builder__palette-item--amber { --rb: var(--ui-warning); }
-.rule-builder__palette-item--pink { --rb: var(--ui-error); }
-.rule-builder__palette-item--teal { --rb: var(--ui-primary); }
-.rule-builder__palette-item--purple { --rb: var(--ui-secondary); }
-
-.rule-builder__canvas {
-  background: var(--ui-bg);
-  border: 1px dashed var(--ui-border);
-  border-radius: 10px;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  overflow-y: auto;
-  min-height: 300px;
-}
-.rule-builder__empty {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 160px;
-  color: var(--ui-text-muted);
+  gap: 8px;
+  min-height: 96px;
 }
 
 /* ─── Блоки ──────────────────────────────────────────────────────────────── */
@@ -696,46 +663,5 @@ const RuleBlockItem = defineComponent({
 .rule-block__add-slot:hover {
   border-color: var(--ui-primary);
   color: var(--ui-primary);
-}
-
-/* ─── Предпросмотр ─────────────────────────────────────────────────────── */
-
-.rule-builder__preview {
-  margin-top: auto;
-  border-radius: 8px;
-  border: 1px solid var(--ui-border);
-  overflow: hidden;
-}
-.rule-builder__preview-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 5px 9px;
-  background: var(--ui-bg-muted);
-  border-bottom: 1px solid var(--ui-border);
-}
-.rule-builder__copy-btn {
-  font-size: 10px;
-  color: var(--ui-primary);
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-.rule-builder__copy-btn:hover {
-  background: var(--ui-bg-elevated);
-}
-.rule-builder__preview-code {
-  padding: 8px;
-  font-size: 10px;
-  font-family: ui-monospace, monospace;
-  background: var(--ui-bg-elevated);
-  color: var(--ui-text);
-  overflow-x: auto;
-  white-space: pre-wrap;
-  max-height: 100px;
-  overflow-y: auto;
-  margin: 0;
 }
 </style>

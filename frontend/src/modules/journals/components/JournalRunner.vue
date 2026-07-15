@@ -3,6 +3,7 @@
 // UI для заполнения журнала с сохранением прогресса и управлением записями
 
 import { computed, ref } from 'vue';
+import type { TimelineItem } from '@nuxt/ui';
 import ConfirmDialog from '@/shared/ui/ConfirmDialog.vue';
 import { useJournalUser } from '@/modules/journals/composables/useJournalUser';
 import { useJournalEngine } from '@/modules/journals/composables/useJournalEngine';
@@ -130,6 +131,23 @@ const activityMeta: Record<JournalActivityType, { icon: string; color: string; v
 // История в обратном порядке (свежие сверху)
 const activityLog = computed(() => [...(activeEntry.value?.activity ?? [])].reverse())
 
+// Элементы UTimeline для истории записи.
+const historyItems = computed<TimelineItem[]>(() =>
+  activityLog.value.map((ev) => ({
+    value: ev.id,
+    icon: activityMeta[ev.type].icon,
+    title: `${ev.author} ${activityMeta[ev.type].verb}${ev.label ? ` «${ev.label}»` : ''}`,
+    date: formatDateTime(ev.at),
+  })),
+)
+
+function entryStatusColor(status?: string): 'success' | 'warning' {
+  return status === 'completed' ? 'success' : 'warning'
+}
+function entryStatusLabel(status?: string): string {
+  return status === 'completed' ? 'Завершено' : 'Черновик'
+}
+
 function openNewEntryModal() {
   newEntryTitle.value = props.defaultTitle ?? ''
   showNewEntryModal.value = true
@@ -206,9 +224,9 @@ function exportCurrentEntry() {
 </script>
 
 <template>
-  <div class="journal-runner-wrapper">
+  <div class="mx-auto w-full max-w-4xl">
     <!-- Выбор или создание записи -->
-    <div v-if="!selectedEntryId || showEntriesList" class="mb-6">
+    <div v-if="!selectedEntryId || showEntriesList" class="mx-auto max-w-xl">
       <div class="flex items-center justify-between mb-4">
         <h3 class="font-semibold">
           Записи журнала
@@ -257,8 +275,11 @@ function exportCurrentEntry() {
     </div>
 
     <!-- Активная запись: форма + боковая панель истории -->
-    <div v-if="selectedEntryId && !showEntriesList" class="journal-entry">
-      <UCard class="journal-entry__main">
+    <div
+      v-if="selectedEntryId && !showEntriesList"
+      class="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]"
+    >
+      <UCard>
         <template #header>
           <div class="flex items-center justify-between gap-2">
             <div class="min-w-0">
@@ -283,17 +304,12 @@ function exportCurrentEntry() {
               </UButton>
             </div>
           </div>
-          <!-- Прогресс-бар -->
+          <!-- Прогресс -->
           <div v-if="!engine.isFinished.value" class="mt-3">
-            <div class="h-1.5 bg-muted rounded-full overflow-hidden">
-              <div
-                class="h-full bg-primary transition-all duration-300 rounded-full"
-                :style="{ width: `${engine.progress.value}%` }"
-              />
-            </div>
-            <div class="text-xs text-muted mt-1">
+            <UProgress :model-value="engine.progress.value" size="sm" />
+            <p class="mt-1 text-xs text-muted">
               {{ engine.progress.value }}% выполнено
-            </div>
+            </p>
           </div>
         </template>
 
@@ -338,16 +354,28 @@ function exportCurrentEntry() {
 
           <!-- Циклическая нода: врач добавляет произвольное число итераций
              (напр. доп. тесты) и сам решает, когда выйти -->
-          <div v-if="engine.currentLoop.value" class="journal-loop">
-            <div class="journal-loop__head">
+          <div
+            v-if="engine.currentLoop.value"
+            class="mt-5 rounded-lg border border-dashed border-success/40 bg-success/5 p-3.5"
+          >
+            <div class="mb-2.5 flex items-center gap-1.5 text-xs font-semibold text-muted">
               <UIcon name="i-lucide-repeat" class="size-4 text-success" />
               <span>Добавлено: {{ engine.loopItems.value.length }}</span>
             </div>
 
-            <div v-if="engine.loopItems.value.length" class="journal-loop__list">
-              <div v-for="(item, i) in engine.loopItems.value" :key="i" class="journal-loop__item">
-                <span class="journal-loop__badge">{{ i + 1 }}</span>
-                <span class="journal-loop__item-text">{{ loopItemSummary(item) }}</span>
+            <div v-if="engine.loopItems.value.length" class="flex flex-col gap-1.5">
+              <div
+                v-for="(item, i) in engine.loopItems.value"
+                :key="i"
+                class="flex items-center gap-2 rounded-md border border-default bg-default px-2 py-1.5"
+              >
+                <UBadge
+                  :label="String(i + 1)"
+                  color="success"
+                  variant="soft"
+                  size="sm"
+                />
+                <span class="min-w-0 flex-1 truncate text-xs">{{ loopItemSummary(item) }}</span>
                 <UButton
                   size="xs"
                   color="error"
@@ -367,37 +395,40 @@ function exportCurrentEntry() {
               variant="soft"
               color="success"
               icon="i-lucide-plus"
+              :label="`Добавить ${engine.currentLoop.value.itemNoun || 'запись'}`"
               :disabled="!engine.canAddLoopItem.value"
               @click="engine.addLoopItem()"
-            >
-              Добавить {{ engine.currentLoop.value.itemNoun || 'запись' }}
-            </UButton>
+            />
           </div>
 
           <!-- Комментарии к текущему шагу -->
-          <div class="journal-comments">
-            <div class="journal-comments__head">
+          <div class="mt-6 border-t border-default pt-4">
+            <div class="mb-2.5 flex items-center gap-1.5 text-sm font-semibold text-highlighted">
               <UIcon name="i-lucide-message-square" class="size-4" />
               <span>Комментарии к шагу</span>
               <UBadge v-if="currentNodeComments.length" size="xs" variant="subtle">
                 {{ currentNodeComments.length }}
               </UBadge>
             </div>
-            <div v-if="currentNodeComments.length" class="journal-comments__list">
-              <div v-for="c in currentNodeComments" :key="c.id" class="journal-comments__item">
-                <div class="journal-comments__meta">
-                  <span class="journal-comments__author">{{ c.author }}</span>
-                  <span class="journal-comments__time">{{ formatDateTime(c.createdAt) }}</span>
+            <div v-if="currentNodeComments.length" class="mb-3 flex flex-col gap-2">
+              <div
+                v-for="c in currentNodeComments"
+                :key="c.id"
+                class="rounded-lg border border-default bg-elevated/50 px-2.5 py-2"
+              >
+                <div class="mb-0.5 flex items-baseline gap-2">
+                  <span class="text-xs font-semibold text-highlighted">{{ c.author }}</span>
+                  <span class="text-[10.5px] text-dimmed">{{ formatDateTime(c.createdAt) }}</span>
                 </div>
-                <p class="journal-comments__text">
+                <p class="whitespace-pre-wrap break-words text-xs leading-relaxed">
                   {{ c.text }}
                 </p>
               </div>
             </div>
-            <p v-else class="text-xs text-muted mb-2">
+            <p v-else class="mb-2 text-xs text-muted">
               Комментариев к этому шагу пока нет.
             </p>
-            <div class="journal-comments__form">
+            <div class="flex items-start gap-2">
               <UTextarea
                 v-model="newComment"
                 :rows="2"
@@ -405,17 +436,20 @@ function exportCurrentEntry() {
                 class="flex-1"
                 @keydown.ctrl.enter="submitComment"
               />
-              <UButton icon="i-lucide-send" :disabled="!newComment.trim()" @click="submitComment">
-                Отправить
-              </UButton>
+              <UButton
+                icon="i-lucide-send"
+                label="Отправить"
+                :disabled="!newComment.trim()"
+                @click="submitComment"
+              />
             </div>
           </div>
         </template>
 
         <template v-else>
-          <div class="journal-runner__done">
-            <UIcon name="i-lucide-circle-check-big" class="size-10 text-success" />
-            <p class="font-medium mt-2">
+          <div class="py-8 text-center">
+            <UIcon name="i-lucide-circle-check-big" class="mx-auto size-10 text-success" />
+            <p class="mt-2 font-medium">
               Журнал заполнен
             </p>
             <p class="text-sm text-muted">
@@ -462,54 +496,70 @@ function exportCurrentEntry() {
       </UCard>
 
       <!-- Боковая панель: кто заполняет + история изменений -->
-      <aside class="journal-entry__side">
-        <UCard class="journal-side-card">
-          <div class="journal-meta">
-            <div class="journal-meta__row">
-              <span>Статус</span>
-              <UBadge :color="currentEntry?.status === 'completed' ? 'success' : 'warning'" variant="subtle" size="xs">
-                {{ currentEntry?.status === 'completed' ? 'Завершено' : 'Черновик' }}
-              </UBadge>
+      <aside class="flex flex-col gap-4 lg:sticky lg:top-3">
+        <UCard :ui="{ body: 'p-4 sm:p-4' }">
+          <dl class="flex flex-col gap-1.5 text-xs">
+            <div class="flex items-center justify-between gap-2">
+              <dt class="text-muted">
+                Статус
+              </dt>
+              <dd>
+                <UBadge
+                  :color="entryStatusColor(currentEntry?.status)"
+                  :label="entryStatusLabel(currentEntry?.status)"
+                  variant="subtle"
+                  size="sm"
+                />
+              </dd>
             </div>
-            <div class="journal-meta__row">
-              <span>Создал(а)</span><strong>{{ currentEntry?.createdBy || '—' }}</strong>
+            <div class="flex items-center justify-between gap-2">
+              <dt class="text-muted">
+                Создал(а)
+              </dt>
+              <dd class="font-medium text-highlighted">
+                {{ currentEntry?.createdBy || '—' }}
+              </dd>
             </div>
-            <div class="journal-meta__row">
-              <span>Создано</span><span>{{ formatDateTime(currentEntry?.startedAt) }}</span>
+            <div class="flex items-center justify-between gap-2">
+              <dt class="text-muted">
+                Создано
+              </dt>
+              <dd>{{ formatDateTime(currentEntry?.startedAt) }}</dd>
             </div>
-            <div class="journal-meta__row">
-              <span>Последнее изм.</span><strong>{{ currentEntry?.updatedBy || '—' }}</strong>
+            <div class="flex items-center justify-between gap-2">
+              <dt class="text-muted">
+                Последнее изм.
+              </dt>
+              <dd class="font-medium text-highlighted">
+                {{ currentEntry?.updatedBy || '—' }}
+              </dd>
             </div>
-            <div class="journal-meta__row">
-              <span>Обновлено</span><span>{{ formatDateTime(currentEntry?.updatedAt) }}</span>
+            <div class="flex items-center justify-between gap-2">
+              <dt class="text-muted">
+                Обновлено
+              </dt>
+              <dd>{{ formatDateTime(currentEntry?.updatedAt) }}</dd>
             </div>
-          </div>
-          <div class="journal-meta__you">
+          </dl>
+          <USeparator class="my-3" />
+          <div class="flex items-center gap-1.5 text-xs text-muted">
             <UIcon name="i-lucide-user" class="size-3.5" />
-            Вы: <strong>{{ currentUser || 'не указано' }}</strong>
+            <span>Вы: <strong class="text-highlighted">{{ currentUser || 'не указано' }}</strong></span>
           </div>
         </UCard>
 
-        <UCard class="journal-side-card">
-          <div class="journal-history__head">
+        <UCard :ui="{ body: 'p-4 sm:p-4' }">
+          <div class="mb-3 flex items-center gap-1.5 text-sm font-semibold text-highlighted">
             <UIcon name="i-lucide-history" class="size-4" />
             <span>История</span>
           </div>
-          <div v-if="activityLog.length" class="journal-history">
-            <div v-for="ev in activityLog" :key="ev.id" class="journal-history__item">
-              <span class="journal-history__icon" :class="activityMeta[ev.type].color">
-                <UIcon :name="activityMeta[ev.type].icon" class="size-3.5" />
-              </span>
-              <div class="journal-history__body">
-                <p class="journal-history__text">
-                  <strong>{{ ev.author }}</strong> {{ activityMeta[ev.type].verb }}<template v-if="ev.label">
-                    «{{ ev.label }}»
-                  </template>
-                </p>
-                <span class="journal-history__time">{{ formatDateTime(ev.at) }}</span>
-              </div>
-            </div>
-          </div>
+          <UTimeline
+            v-if="historyItems.length"
+            :items="historyItems"
+            size="xs"
+            color="neutral"
+            :ui="{ date: 'text-dimmed', title: 'text-xs font-normal text-default' }"
+          />
           <p v-else class="text-xs text-muted">
             Событий пока нет.
           </p>
@@ -547,230 +597,3 @@ function exportCurrentEntry() {
     />
   </div>
 </template>
-
-<style scoped>
-.journal-runner-wrapper {
-  max-width: 62rem;
-  margin: 0 auto;
-}
-/* Список записей держим узким и по центру */
-.journal-runner-wrapper > .mb-6 {
-  max-width: 34rem;
-  margin-left: auto;
-  margin-right: auto;
-}
-/* Активная запись: форма + боковая панель */
-.journal-entry {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
-  gap: 16px;
-  align-items: start;
-}
-.journal-entry__side {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  position: sticky;
-  top: 12px;
-}
-@media (max-width: 860px) {
-  .journal-entry {
-    grid-template-columns: 1fr;
-  }
-  .journal-entry__side {
-    position: static;
-  }
-}
-.journal-runner__done {
-  text-align: center;
-  padding: 2rem 0;
-}
-
-/* ─── Циклическая нода ─────────────────────────────────────────────── */
-.journal-loop {
-  margin-top: 20px;
-  padding: 14px;
-  border: 1px dashed color-mix(in oklab, var(--ui-success) 45%, var(--ui-border));
-  border-radius: 12px;
-  background: color-mix(in oklab, var(--ui-success) 5%, transparent);
-}
-.journal-loop__head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ui-text-muted);
-  margin-bottom: 10px;
-}
-.journal-loop__list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.journal-loop__item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: 8px;
-  background: var(--ui-bg);
-  border: 1px solid var(--ui-border);
-}
-.journal-loop__badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--ui-success);
-  background: color-mix(in oklab, var(--ui-success) 15%, transparent);
-}
-.journal-loop__item-text {
-  flex: 1;
-  min-width: 0;
-  font-size: 12.5px;
-  color: var(--ui-text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* ─── Комментарии к шагу ───────────────────────────────────────────── */
-.journal-comments {
-  margin-top: 22px;
-  padding-top: 16px;
-  border-top: 1px solid var(--ui-border);
-}
-.journal-comments__head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ui-text-highlighted);
-  margin-bottom: 10px;
-}
-.journal-comments__list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-.journal-comments__item {
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: var(--ui-bg-muted);
-  border: 1px solid var(--ui-border);
-}
-.journal-comments__meta {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 2px;
-}
-.journal-comments__author {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ui-text-highlighted);
-}
-.journal-comments__time {
-  font-size: 10.5px;
-  color: var(--ui-text-dimmed);
-}
-.journal-comments__text {
-  font-size: 12.5px;
-  line-height: 1.4;
-  color: var(--ui-text);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.journal-comments__form {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-}
-
-/* ─── Мета записи ──────────────────────────────────────────────────── */
-.journal-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-.journal-meta__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 12.5px;
-  color: var(--ui-text-muted);
-}
-.journal-meta__row strong {
-  color: var(--ui-text-highlighted);
-  font-weight: 600;
-}
-.journal-meta__you {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--ui-border);
-  font-size: 12px;
-  color: var(--ui-text-muted);
-}
-
-/* ─── История изменений ────────────────────────────────────────────── */
-.journal-history__head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ui-text-highlighted);
-  margin-bottom: 12px;
-}
-.journal-history {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-height: 340px;
-  overflow-y: auto;
-}
-.journal-history__item {
-  display: flex;
-  gap: 9px;
-  align-items: flex-start;
-}
-.journal-history__icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  flex-shrink: 0;
-  border-radius: 7px;
-  background: var(--ui-bg-muted);
-  border: 1px solid var(--ui-border);
-}
-.journal-history__body {
-  min-width: 0;
-}
-.journal-history__text {
-  font-size: 12px;
-  line-height: 1.35;
-  color: var(--ui-text);
-}
-.journal-history__text strong {
-  color: var(--ui-text-highlighted);
-  font-weight: 600;
-}
-.journal-history__time {
-  font-size: 10.5px;
-  color: var(--ui-text-dimmed);
-}
-</style>
