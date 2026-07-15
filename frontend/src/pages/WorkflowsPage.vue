@@ -1,8 +1,10 @@
 <script setup lang="ts">
 // Страница «Рабочие процессы» — реестр шаблонов журналов (рабочих процессов)
 // в таблице + конструктор процесса в полноэкранной модалке (как в направлениях).
-import { computed, onMounted, ref } from 'vue'
-import type { TableColumn, TableRow } from '@nuxt/ui'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import type { TableColumn } from '@nuxt/ui'
+import CrudDataTable from '@/shared/ui/CrudDataTable.vue'
+import CrudTableEmptyState from '@/shared/ui/CrudTableEmptyState.vue'
 import JournalBuilder from '@/modules/journals/components/JournalBuilder.vue'
 import {
   createTemplate,
@@ -30,6 +32,24 @@ interface WorkflowRow {
 const templates = ref<JournalTemplate[]>([])
 const search = ref('')
 
+// Кратковременная подсветка недавно затронутой строки — как в «Направлениях».
+const highlightId = ref<string | null>(null)
+let highlightTimer: ReturnType<typeof setTimeout> | null = null
+function highlightRow(id: string | null) {
+  if (highlightTimer) {
+    clearTimeout(highlightTimer)
+    highlightTimer = null
+  }
+  highlightId.value = id
+  if (!id) {
+    return
+  }
+  highlightTimer = setTimeout(() => {
+    highlightId.value = null
+    highlightTimer = null
+  }, 3500)
+}
+
 function refresh() {
   templates.value = getTemplates()
 }
@@ -37,6 +57,12 @@ function refresh() {
 onMounted(() => {
   initDemoData([patientIntake, microbiologyStudy])
   refresh()
+})
+
+onBeforeUnmount(() => {
+  if (highlightTimer) {
+    clearTimeout(highlightTimer)
+  }
 })
 
 const rows = computed<WorkflowRow[]>(() => {
@@ -59,7 +85,11 @@ const columns: TableColumn<WorkflowRow>[] = [
   { accessorKey: 'currentVersion', header: 'Текущая' },
   { accessorKey: 'entries', header: 'Записей' },
   { accessorKey: 'updatedAt', header: 'Обновлён' },
-  { id: 'actions' },
+  {
+    id: 'actions',
+    header: 'Действия',
+    meta: { class: { td: 'w-auto min-w-[56px] text-right' } },
+  },
 ]
 
 function formatDate(iso: string): string {
@@ -104,9 +134,11 @@ function onVersionSaved(version: number) {
 function onBuilderClose(open: boolean) {
   builderOpen.value = open
   if (!open) {
+    const edited = selectedId.value
     selectedId.value = null
     builderSchema.value = null
     refresh()
+    highlightRow(edited)
   }
 }
 
@@ -215,46 +247,47 @@ function rowActions(row: WorkflowRow) {
 
     <template #body>
       <div class="flex h-full min-h-0 w-full flex-col">
-        <UTable
+        <CrudDataTable
           :data="rows"
           :columns="columns"
-          class="flex-1"
-          :ui="{ tr: 'cursor-pointer' }"
-          @select="(_e: Event, row: TableRow<WorkflowRow>) => openBuilder(row.original.id)"
+          :total="rows.length"
+          :highlight-id="highlightId"
+          @row-select="(_e: Event, row: { original: WorkflowRow }) => openBuilder(row.original.id)"
         >
           <template #title-cell="{ row }">
-            <div class="flex items-center gap-2 font-medium">
-              <UIcon name="i-lucide-file-text" class="size-4 text-muted" />
+            <div class="flex items-center gap-2 font-medium text-highlighted">
+              <UIcon name="i-lucide-file-text" class="size-4 text-dimmed" />
               {{ row.original.title }}
             </div>
           </template>
           <template #currentVersion-cell="{ row }">
-            <UBadge color="neutral" variant="subtle" size="sm">
-              v{{ row.original.currentVersion }}
-            </UBadge>
+            <UBadge
+              color="neutral"
+              variant="subtle"
+              size="sm"
+              :label="`v${row.original.currentVersion}`"
+            />
           </template>
           <template #updatedAt-cell="{ row }">
-            <span class="text-muted">{{ formatDate(row.original.updatedAt) }}</span>
+            {{ formatDate(row.original.updatedAt) }}
           </template>
           <template #actions-cell="{ row }">
-            <div class="text-right">
-              <UDropdownMenu :items="rowActions(row.original)" :content="{ align: 'end' }">
-                <UButton
-                  icon="i-lucide-ellipsis-vertical"
-                  color="neutral"
-                  variant="ghost"
-                  @click.stop
-                />
-              </UDropdownMenu>
-            </div>
+            <UDropdownMenu :items="rowActions(row.original)" :content="{ align: 'end' }">
+              <UButton
+                icon="i-lucide-ellipsis-vertical"
+                color="neutral"
+                variant="ghost"
+                size="sm"
+              />
+            </UDropdownMenu>
           </template>
           <template #empty>
-            <div class="py-12 text-center text-muted">
-              <UIcon name="i-lucide-workflow" class="mx-auto mb-3 size-10 opacity-50" />
-              <p>Пока нет ни одного рабочего процесса.</p>
-            </div>
+            <CrudTableEmptyState
+              title="Нет рабочих процессов"
+              description="Создайте первый рабочий процесс, чтобы задать журнал исследования."
+            />
           </template>
-        </UTable>
+        </CrudDataTable>
       </div>
     </template>
   </UDashboardPanel>
