@@ -510,12 +510,14 @@ const RuleBlockItem = defineComponent({
   text-transform: uppercase;
 }
 .rule-builder__palette-item {
+  --rb: var(--ui-primary);
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 5px 7px;
   border-radius: 6px;
-  border: 1px solid transparent;
+  border: 1px solid color-mix(in oklab, var(--rb) 45%, var(--ui-border));
+  color: var(--rb);
   background: var(--ui-bg);
   font-size: 11px;
   cursor: pointer;
@@ -525,7 +527,8 @@ const RuleBlockItem = defineComponent({
 }
 .rule-builder__palette-item:hover {
   transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+  background: color-mix(in oklab, var(--rb) 12%, transparent);
+  box-shadow: 0 2px 4px rgb(0 0 0 / 0.08);
 }
 .rule-builder__icon {
   font-size: 10px;
@@ -533,18 +536,13 @@ const RuleBlockItem = defineComponent({
   font-family: ui-monospace, monospace;
   opacity: 0.7;
 }
-.rule-builder__palette-item--blue { border-color: #93c5fd; color: #1e40af; }
-.rule-builder__palette-item--blue:hover { background: #dbeafe; }
-.rule-builder__palette-item--green { border-color: #86efac; color: #166534; }
-.rule-builder__palette-item--green:hover { background: #dcfce7; }
-.rule-builder__palette-item--amber { border-color: #fcd34d; color: #92400e; }
-.rule-builder__palette-item--amber:hover { background: #fef3c7; }
-.rule-builder__palette-item--pink { border-color: #f9a8d4; color: #9d174d; }
-.rule-builder__palette-item--pink:hover { background: #fce7f3; }
-.rule-builder__palette-item--teal { border-color: #5eead4; color: #115e59; }
-.rule-builder__palette-item--teal:hover { background: #ccfbf1; }
-.rule-builder__palette-item--purple { border-color: #d8b4fe; color: #6b21a8; }
-.rule-builder__palette-item--purple:hover { background: #f3e8ff; }
+/* Акцент типа блока — семантические токены Nuxt UI (адаптируются к теме). */
+.rule-builder__palette-item--blue { --rb: var(--ui-info); }
+.rule-builder__palette-item--green { --rb: var(--ui-success); }
+.rule-builder__palette-item--amber { --rb: var(--ui-warning); }
+.rule-builder__palette-item--pink { --rb: var(--ui-error); }
+.rule-builder__palette-item--teal { --rb: var(--ui-primary); }
+.rule-builder__palette-item--purple { --rb: var(--ui-secondary); }
 
 .rule-builder__canvas {
   background: var(--ui-bg);
@@ -580,12 +578,12 @@ const RuleBlockItem = defineComponent({
 .rule-block:hover {
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
 }
-.rule-block--blue { border-color: #93c5fd; }
-.rule-block--green { border-color: #86efac; }
-.rule-block--amber { border-color: #fcd34d; }
-.rule-block--pink { border-color: #f9a8d4; }
-.rule-block--teal { border-color: #5eead4; }
-.rule-block--purple { border-color: #d8b4fe; }
+.rule-block--blue { border-color: color-mix(in oklab, var(--ui-info) 55%, var(--ui-border)); }
+.rule-block--green { border-color: color-mix(in oklab, var(--ui-success) 55%, var(--ui-border)); }
+.rule-block--amber { border-color: color-mix(in oklab, var(--ui-warning) 55%, var(--ui-border)); }
+.rule-block--pink { border-color: color-mix(in oklab, var(--ui-error) 55%, var(--ui-border)); }
+.rule-block--teal { border-color: color-mix(in oklab, var(--ui-primary) 55%, var(--ui-border)); }
+.rule-block--purple { border-color: color-mix(in oklab, var(--ui-secondary) 55%, var(--ui-border)); }
 
 .rule-block--container {
   background: var(--ui-bg-muted);

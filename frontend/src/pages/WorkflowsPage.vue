@@ -3,6 +3,7 @@
 // в таблице + конструктор процесса в полноэкранной модалке (как в направлениях).
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { TableColumn } from '@nuxt/ui'
+import ConfirmDialog from '@/shared/ui/ConfirmDialog.vue'
 import CrudDataTable from '@/shared/ui/CrudDataTable.vue'
 import CrudTableEmptyState from '@/shared/ui/CrudTableEmptyState.vue'
 import JournalBuilder from '@/modules/journals/components/JournalBuilder.vue'
@@ -167,7 +168,50 @@ function createWorkflow() {
   newModalOpen.value = false
   newTitle.value = ''
   refresh()
+  toast.add({ title: 'Процесс создан', color: 'success', icon: 'i-lucide-check' })
   openBuilder(template.id)
+}
+
+// ─── Переименование ───────────────────────────────────────────────────────
+const renameOpen = ref(false)
+const renameId = ref<string | null>(null)
+const renameTitle = ref('')
+
+function openRename(row: WorkflowRow) {
+  renameId.value = row.id
+  renameTitle.value = row.title
+  renameOpen.value = true
+}
+
+function confirmRename() {
+  const title = renameTitle.value.trim()
+  if (!renameId.value || !title) {
+    return
+  }
+  renameTemplate(renameId.value, title)
+  renameOpen.value = false
+  refresh()
+  toast.add({ title: 'Процесс переименован', color: 'success', icon: 'i-lucide-check' })
+}
+
+// ─── Удаление ─────────────────────────────────────────────────────────────
+const deleteOpen = ref(false)
+const deleteRow = ref<WorkflowRow | null>(null)
+
+function openDelete(row: WorkflowRow) {
+  deleteRow.value = row
+  deleteOpen.value = true
+}
+
+function confirmDelete() {
+  if (!deleteRow.value) {
+    return
+  }
+  deleteTemplate(deleteRow.value.id)
+  deleteOpen.value = false
+  deleteRow.value = null
+  refresh()
+  toast.add({ title: 'Процесс удалён', color: 'success', icon: 'i-lucide-check' })
 }
 
 // ─── Действия строки ──────────────────────────────────────────────────────
@@ -182,13 +226,7 @@ function rowActions(row: WorkflowRow) {
       {
         label: 'Переименовать',
         icon: 'i-lucide-pencil',
-        onSelect: () => {
-          const next = window.prompt('Новое название процесса:', row.title)
-          if (next && next.trim()) {
-            renameTemplate(row.id, next.trim())
-            refresh()
-          }
-        },
+        onSelect: () => openRename(row),
       },
     ],
     [
@@ -196,12 +234,7 @@ function rowActions(row: WorkflowRow) {
         label: 'Удалить',
         icon: 'i-lucide-trash-2',
         color: 'error' as const,
-        onSelect: () => {
-          if (window.confirm('Удалить процесс и все связанные записи?')) {
-            deleteTemplate(row.id)
-            refresh()
-          }
-        },
+        onSelect: () => openDelete(row),
       },
     ],
   ]
@@ -338,4 +371,39 @@ function rowActions(row: WorkflowRow) {
       </div>
     </template>
   </UModal>
+
+  <!-- Переименование процесса -->
+  <UModal v-model:open="renameOpen" title="Переименовать процесс">
+    <template #body>
+      <UFormField label="Название" required>
+        <UInput
+          v-model="renameTitle"
+          autofocus
+          @keyup.enter="confirmRename"
+        />
+      </UFormField>
+    </template>
+    <template #footer>
+      <div class="flex w-full justify-end gap-2">
+        <UButton
+          color="neutral"
+          variant="ghost"
+          label="Отмена"
+          @click="renameOpen = false"
+        />
+        <UButton label="Сохранить" :disabled="!renameTitle.trim()" @click="confirmRename" />
+      </div>
+    </template>
+  </UModal>
+
+  <!-- Удаление процесса -->
+  <ConfirmDialog
+    v-model:open="deleteOpen"
+    title="Удалить процесс"
+    :description="`Удалить процесс «${deleteRow?.title ?? ''}» и все связанные записи? Действие необратимо.`"
+    confirm-label="Удалить"
+    confirm-color="error"
+    confirm-icon="i-lucide-trash-2"
+    @confirm="confirmDelete"
+  />
 </template>

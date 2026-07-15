@@ -3,6 +3,7 @@
 // UI для заполнения журнала с сохранением прогресса и управлением записями
 
 import { computed, ref } from 'vue';
+import ConfirmDialog from '@/shared/ui/ConfirmDialog.vue';
 import { useJournalUser } from '@/modules/journals/composables/useJournalUser';
 import { useJournalEngine } from '@/modules/journals/composables/useJournalEngine';
 import { addComment, createEntry, deleteEntry, getEntriesForSchema, getEntry, logActivity, saveEntryProgress } from '@/modules/journals/composables/useJournalStorage';
@@ -93,14 +94,6 @@ function onNext() {
 
 const stepData = computed(() => engine.currentStep.value.data as JournalStepData)
 
-// Итоговый JSON записи: плоские ответы + итерации циклов (если были)
-const resultJson = computed(() => {
-  const loops = engine.loops.value || {}
-  const hasLoops = Object.values(loops).some((arr) => arr && arr.length)
-  const obj = hasLoops ? { ...engine.answers.value, loops } : engine.answers.value
-  return JSON.stringify(obj, null, 2)
-})
-
 // Краткая сводка одной итерации цикла для списка добавленных
 function loopItemSummary(item: Record<string, unknown>): string {
   const fields = engine.currentLoop.value?.fields ?? []
@@ -172,7 +165,20 @@ function closeEntry() {
   showEntriesList.value = false
 }
 
-function deleteEntryAndReset(entryId: string) {
+// Подтверждение удаления записи (окно приподнято над карточкой исследования).
+const deleteEntryTarget = ref<JournalEntry | null>(null)
+const deleteEntryOpen = ref(false)
+
+function askDeleteEntry(entry: JournalEntry) {
+  deleteEntryTarget.value = entry
+  deleteEntryOpen.value = true
+}
+
+function confirmDeleteEntry() {
+  const entryId = deleteEntryTarget.value?.id
+  if (!entryId) {
+    return
+  }
   deleteEntry(entryId)
   if (selectedEntryId.value === entryId) {
     selectedEntryId.value = null
@@ -180,6 +186,8 @@ function deleteEntryAndReset(entryId: string) {
     engine.reset()
   }
   listTick.value++
+  deleteEntryOpen.value = false
+  deleteEntryTarget.value = null
 }
 
 function exportCurrentEntry() {
@@ -238,7 +246,7 @@ function exportCurrentEntry() {
               color="error"
               variant="ghost"
               icon="i-lucide-trash-2"
-              @click.stop="deleteEntryAndReset(entry.id)"
+              @click.stop="askDeleteEntry(entry)"
             />
           </div>
         </UCard>
@@ -406,14 +414,13 @@ function exportCurrentEntry() {
 
         <template v-else>
           <div class="journal-runner__done">
-            <UIcon name="i-lucide-check-circle-2" class="size-10 text-success" />
+            <UIcon name="i-lucide-circle-check-big" class="size-10 text-success" />
             <p class="font-medium mt-2">
               Журнал заполнен
             </p>
             <p class="text-sm text-muted">
-              Все данные сохранены автоматически
+              Все данные сохранены автоматически. Выгрузить результат можно кнопкой «Экспорт JSON».
             </p>
-            <pre class="journal-runner__answers">{{ resultJson }}</pre>
           </div>
         </template>
 
@@ -526,6 +533,18 @@ function exportCurrentEntry() {
         </UButton>
       </template>
     </UModal>
+
+    <!-- Подтверждение удаления записи -->
+    <ConfirmDialog
+      v-model:open="deleteEntryOpen"
+      elevated
+      title="Удалить запись"
+      :description="`Удалить запись «${deleteEntryTarget?.title ?? ''}»? Действие необратимо.`"
+      confirm-label="Удалить"
+      confirm-color="error"
+      confirm-icon="i-lucide-trash-2"
+      @confirm="confirmDeleteEntry"
+    />
   </div>
 </template>
 
@@ -565,15 +584,6 @@ function exportCurrentEntry() {
 .journal-runner__done {
   text-align: center;
   padding: 2rem 0;
-}
-.journal-runner__answers {
-  text-align: left;
-  font-size: 12px;
-  background: var(--ui-bg-muted);
-  border-radius: 8px;
-  padding: 12px;
-  margin-top: 16px;
-  overflow-x: auto;
 }
 
 /* ─── Циклическая нода ─────────────────────────────────────────────── */

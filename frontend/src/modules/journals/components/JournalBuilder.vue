@@ -31,6 +31,8 @@ const emit = defineEmits<{
   'version-saved': [number]
 }>()
 
+const toast = useToast()
+
 const nodeTypes = {
   start: markRaw(JournalStartNode),
   step: markRaw(JournalStepNode),
@@ -196,9 +198,19 @@ function importTemplateFile(event: Event) {
   reader.onload = () => {
     try {
       const result = importData(reader.result as string)
-      alert(`Импортировано: ${result.templates} шаблонов, ${result.entries} записей`)
+      toast.add({
+        title: 'Импорт завершён',
+        description: `Шаблонов: ${result.templates}, записей: ${result.entries}`,
+        color: 'success',
+        icon: 'i-lucide-check',
+      })
     } catch (e) {
-      alert('Ошибка импорта: ' + (e as Error).message)
+      toast.add({
+        title: 'Ошибка импорта',
+        description: (e as Error).message,
+        color: 'error',
+        icon: 'i-lucide-circle-alert',
+      })
     }
   }
   reader.readAsText(file)
