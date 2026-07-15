@@ -125,10 +125,11 @@ export function getEntries(): JournalEntry[] {
   return loadStorage().entries
 }
 
-export function getEntriesForSchema(templateId: string, version?: number): JournalEntry[] {
+export function getEntriesForSchema(templateId: string, version?: number, scope?: string): JournalEntry[] {
   const storage = loadStorage()
   return storage.entries.filter((e) => {
     if (e.schemaId !== templateId) return false
+    if (scope !== undefined && e.scope !== scope) return false
     if (version !== undefined) return e.schemaVersion === version
     return true
   })
@@ -138,13 +139,14 @@ export function getEntry(entryId: string): JournalEntry | undefined {
   return loadStorage().entries.find((e) => e.id === entryId)
 }
 
-export function createEntry(templateId: string, version: number, title: string, author = ''): JournalEntry {
+export function createEntry(templateId: string, version: number, title: string, author = '', scope?: string): JournalEntry {
   const storage = loadStorage()
   const now = new Date().toISOString()
   const entry: JournalEntry = {
     id: generateId(),
     schemaId: templateId,
     schemaVersion: version,
+    ...(scope !== undefined ? { scope } : {}),
     title,
     status: 'draft',
     answers: {},

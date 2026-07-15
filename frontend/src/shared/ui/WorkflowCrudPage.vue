@@ -18,12 +18,14 @@ withDefaults(
     showSidebarCollapse?: boolean;
     extraRowActions?: (row: CrudRow) => DropdownMenuItem[];
     highlightId?: string | null;
+    researchWorkflow?: boolean;
   }>(),
   {
     searchPlaceholder: undefined,
     showSidebarCollapse: true,
     extraRowActions: undefined,
     highlightId: null,
+    researchWorkflow: false,
   },
 );
 
@@ -104,6 +106,7 @@ const refresh = () => {
           :reset-token="resetToken"
           :extra-row-actions="extraRowActions"
           :highlight-id="highlightId"
+          :research-workflow="researchWorkflow"
         />
       </div>
     </template>

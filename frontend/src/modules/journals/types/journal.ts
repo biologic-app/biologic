@@ -111,6 +111,9 @@ export interface JournalEntry {
   id: string
   schemaId: string
   schemaVersion: number
+  // Область записи: id внешней сущности (например, исследования), к которой
+  // привязано прохождение журнала. Пусто — глобальная запись шаблона.
+  scope?: string
   title: string
   status: 'draft' | 'completed' | 'archived'
   answers: JournalAnswers

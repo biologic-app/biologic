@@ -20,6 +20,7 @@ defineProps<{
   breadcrumbs?: Array<{ label: string }>;
   headerActions?: DropdownMenuItem[];
   reloadToken?: number;
+  researchWorkflow?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -45,6 +46,7 @@ const emit = defineEmits<{
     :breadcrumbs="breadcrumbs"
     :header-actions="headerActions"
     :reload-token="reloadToken"
+    :research-workflow="researchWorkflow"
     :list-items="listItems"
     :list-label="listLabel"
     :selected-id="item?.id ?? null"

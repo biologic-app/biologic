@@ -11,6 +11,11 @@ import type { JournalActivityType, JournalEntry, JournalSchema, JournalStepData 
 const props = defineProps<{
   schema: JournalSchema
   templateId: string
+  // Привязка записей к внешней сущности (например, id исследования): список и
+  // создание записей ограничиваются этой областью.
+  scope?: string
+  // Предзаполнение названия новой записи (например, номер исследования).
+  defaultTitle?: string
 }>()
 
 const emit = defineEmits<{
@@ -31,7 +36,7 @@ const newComment = ref('')
 const listTick = ref(0)
 const entries = computed(() => {
   void listTick.value // зависимость для ручного обновления
-  return getEntriesForSchema(props.templateId, props.schema.version)
+  return getEntriesForSchema(props.templateId, props.schema.version, props.scope)
 })
 
 // Актуальный снимок открытой записи (мета/комментарии/история) —
@@ -132,9 +137,14 @@ const activityMeta: Record<JournalActivityType, { icon: string; color: string; v
 // История в обратном порядке (свежие сверху)
 const activityLog = computed(() => [...(activeEntry.value?.activity ?? [])].reverse())
 
+function openNewEntryModal() {
+  newEntryTitle.value = props.defaultTitle ?? ''
+  showNewEntryModal.value = true
+}
+
 function startNewEntry() {
   if (!newEntryTitle.value.trim()) return
-  const entry = createEntry(props.templateId, props.schema.version, newEntryTitle.value.trim(), authorName())
+  const entry = createEntry(props.templateId, props.schema.version, newEntryTitle.value.trim(), authorName(), props.scope)
   selectedEntryId.value = entry.id
   showNewEntryModal.value = false
   newEntryTitle.value = ''
@@ -195,7 +205,7 @@ function exportCurrentEntry() {
         <h3 class="font-semibold">
           Записи журнала
         </h3>
-        <UButton size="sm" icon="i-lucide-plus" @click="showNewEntryModal = true">
+        <UButton size="sm" icon="i-lucide-plus" @click="openNewEntryModal">
           Новая запись
         </UButton>
       </div>
