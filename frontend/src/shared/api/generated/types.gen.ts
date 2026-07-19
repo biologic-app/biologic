@@ -834,6 +834,100 @@ export type RejectTestRequest = {
 };
 
 /**
+ * ReleasedDirectionGroup
+ */
+export type ReleasedDirectionGroup = {
+    direction: ReleasedDirectionInfo;
+    /**
+     * Samples
+     */
+    samples: Array<ReleasedSampleItem>;
+    /**
+     * Released Count
+     */
+    released_count: number;
+    /**
+     * Total Count
+     */
+    total_count: number;
+    /**
+     * All Released
+     */
+    all_released: boolean;
+};
+
+/**
+ * ReleasedDirectionInfo
+ */
+export type ReleasedDirectionInfo = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Year No
+     */
+    year_no?: number | null;
+    /**
+     * Base No
+     */
+    base_no?: number | null;
+    /**
+     * Doctor
+     */
+    doctor?: string | null;
+    object: ReleasedObjectInfo;
+};
+
+/**
+ * ReleasedObjectInfo
+ */
+export type ReleasedObjectInfo = {
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Code
+     */
+    code?: string | null;
+};
+
+/**
+ * ReleasedSampleItem
+ */
+export type ReleasedSampleItem = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Status Code
+     */
+    status_code?: string | null;
+    /**
+     * Status Name
+     */
+    status_name?: string | null;
+    /**
+     * Sample Type Name
+     */
+    sample_type_name?: string | null;
+    /**
+     * Protocol Id
+     */
+    protocol_id?: string | null;
+    /**
+     * Completed At
+     */
+    completed_at?: string | null;
+};
+
+/**
  * ResearchGoalCreateRequest
  */
 export type ResearchGoalCreateRequest = {
@@ -1356,6 +1450,17 @@ export type SingleResponseDictStrObject = {
 };
 
 /**
+ * SingleResponse[list[ReleasedDirectionGroup]]
+ */
+export type SingleResponseListReleasedDirectionGroup = {
+    /**
+     * Data
+     */
+    data: Array<ReleasedDirectionGroup>;
+    meta: ResponseMeta;
+};
+
+/**
  * StatusUpdateRequest
  */
 export type StatusUpdateRequest = {
@@ -1662,6 +1767,22 @@ export type HealthApiV1HealthGetResponses = {
 };
 
 export type HealthApiV1HealthGetResponse = HealthApiV1HealthGetResponses[keyof HealthApiV1HealthGetResponses];
+
+export type DirectionsReleasedSamplesApiV1DirectionsReleasedSamplesGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/directions/released-samples';
+};
+
+export type DirectionsReleasedSamplesApiV1DirectionsReleasedSamplesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: SingleResponseListReleasedDirectionGroup;
+};
+
+export type DirectionsReleasedSamplesApiV1DirectionsReleasedSamplesGetResponse = DirectionsReleasedSamplesApiV1DirectionsReleasedSamplesGetResponses[keyof DirectionsReleasedSamplesApiV1DirectionsReleasedSamplesGetResponses];
 
 export type ListDirectionsApiV1DirectionsGetData = {
     body?: never;

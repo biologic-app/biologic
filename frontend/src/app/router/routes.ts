@@ -58,6 +58,12 @@ export const routes: RouteRecordRaw[] = [
         component: () => import("@/pages/ProtocolsPage.vue"),
       },
       {
+        path: "/released-samples",
+        name: "released-samples",
+        meta: { requiresAuth: true },
+        component: () => import("@/pages/SamplesReleasedByDirectionPage.vue"),
+      },
+      {
         path: "/dictionaries/:module?",
         name: "dictionaries",
         meta: { requiresAuth: true },
