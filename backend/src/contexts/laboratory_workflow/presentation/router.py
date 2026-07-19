@@ -33,7 +33,6 @@ from src.contexts.laboratory_workflow.infrastructure.protocol_report_repository 
     ProtocolReportRepository,
 )
 from src.contexts.laboratory_workflow.presentation.schemas import (
-    ActorRequest,
     AssignResearchRequest,
     CloseSampleRequest,
     CompleteTestRequest,
@@ -514,18 +513,6 @@ async def close_sample(
     return SingleResponse(data=result, meta=ResponseMeta(operation="samples.close"))
 
 
-@router.post("/research/{research_id}/confirm")
-async def confirm_research(
-    research_id: UUID,
-    request: ActorRequest,
-    service: Annotated[WorkflowCommandService, Depends(get_workflow_command_service)],
-) -> SingleResponse[CommandResult]:
-    result = await service.confirm_research(
-        ResearchCommandInput(research_id=research_id, actor_id=request.actor_id),
-    )
-    return SingleResponse(data=result, meta=ResponseMeta(operation="research.confirm"))
-
-
 @router.post("/research/{research_id}/reject")
 async def reject_research(
     research_id: UUID,
@@ -540,28 +527,6 @@ async def reject_research(
         ),
     )
     return SingleResponse(data=result, meta=ResponseMeta(operation="research.reject"))
-
-
-@router.post("/research/{research_id}/start")
-async def start_research(
-    research_id: UUID,
-    request: ActorRequest,
-    service: Annotated[WorkflowCommandService, Depends(get_workflow_command_service)],
-) -> SingleResponse[CommandResult]:
-    result = await service.start_research(
-        ResearchCommandInput(research_id=research_id, actor_id=request.actor_id),
-    )
-    return SingleResponse(data=result, meta=ResponseMeta(operation="research.start"))
-
-
-@router.post("/tests/{test_id}/start")
-async def start_test(
-    test_id: UUID,
-    request: ActorRequest,
-    service: Annotated[WorkflowCommandService, Depends(get_workflow_command_service)],
-) -> SingleResponse[CommandResult]:
-    result = await service.start_test(TestCommandInput(test_id=test_id, actor_id=request.actor_id))
-    return SingleResponse(data=result, meta=ResponseMeta(operation="tests.start"))
 
 
 @router.post("/tests/{test_id}/complete")
@@ -581,18 +546,6 @@ async def complete_test(
         ),
     )
     return SingleResponse(data=result, meta=ResponseMeta(operation="tests.complete"))
-
-
-@router.post("/tests/{test_id}/requeue")
-async def requeue_test(
-    test_id: UUID,
-    request: ActorRequest,
-    service: Annotated[WorkflowCommandService, Depends(get_workflow_command_service)],
-) -> SingleResponse[CommandResult]:
-    result = await service.requeue_test(
-        TestCommandInput(test_id=test_id, actor_id=request.actor_id),
-    )
-    return SingleResponse(data=result, meta=ResponseMeta(operation="tests.requeue"))
 
 
 @router.post("/tests/{test_id}/reject")

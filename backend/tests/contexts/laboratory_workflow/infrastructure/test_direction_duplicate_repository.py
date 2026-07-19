@@ -113,7 +113,7 @@ async def test_create_succeeds_when_year_base_no_pair_is_free() -> None:
     # Направление + запись change_log о «переходе» в начальный статус draft
     # (таймлайн статусов в UI показывает дату и автора для точки «Черновик»).
     assert len(session.added) == 2
-    change_log = session.added[1]
+    change_log = cast(Any, session.added[1])
     assert change_log.action == "direction_created"
     assert change_log.diff == {"status_code": {"from": None, "to": "draft"}}
 

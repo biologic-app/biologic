@@ -22,9 +22,7 @@ from src.core.status_codes import (
     DIRECTION_PARTIALLY_COMPLETED,
     DIRECTION_REGISTERED,
     RESEARCH_COMPLETED,
-    RESEARCH_DRAFT,
     RESEARCH_IN_PROGRESS,
-    RESEARCH_ORDERED,
     RESEARCH_REJECTED,
     SAMPLE_ANALYZED,
     SAMPLE_COMPLETED,
@@ -33,7 +31,6 @@ from src.core.status_codes import (
     SAMPLE_REJECTED,
     TEST_COMPLETED,
     TEST_IN_PROGRESS,
-    TEST_QUEUED,
     TEST_REJECTED,
 )
 from src.infrastructure.db.models import (
@@ -118,6 +115,9 @@ class SqlAlchemyWorkflowRepository:
             received_at=direction.received_at or now,
             now=now,
         )
+        # Part D: registered samples get their research goals auto-assigned by
+        # sample type (goals whose indicators cover the sample's sample_type).
+        await self._auto_assign_research_for_direction(direction_id, actor_id)
         self.events.append(
             StatusChanged(
                 entity_type="directions",
@@ -222,6 +222,58 @@ class SqlAlchemyWorkflowRepository:
                 ),
             )
 
+    async def _auto_assign_research_for_direction(
+        self, direction_id: UUID, actor_id: UUID
+    ) -> None:
+        """Auto-assign research goals to each freshly-registered sample (Part D).
+
+        For every sample of the direction that has no active research, derive the
+        research goals from the sample's type — goals that have at least one
+        indicator whose ``sample_type_id`` matches the sample — and create a
+        research (in_progress) with its tests via ``assign_research``. Samples
+        whose type maps to no goals are skipped silently.
+        """
+        samples = (
+            await self.session.execute(
+                select(Sample.id, Sample.sample_type_id).where(
+                    Sample.direction_id == direction_id,
+                    Sample.deleted_at.is_(None),
+                ),
+            )
+        ).all()
+        for sample_id, sample_type_id in samples:
+            if sample_type_id is None:
+                continue
+            existing_research = (
+                await self.session.execute(
+                    select(Research.id).where(
+                        Research.sample_id == sample_id,
+                        Research.deleted_at.is_(None),
+                    ),
+                )
+            ).first()
+            if existing_research is not None:
+                continue
+            goal_ids = (
+                await self.session.execute(
+                    select(Indicator.research_goal_id)
+                    .where(
+                        Indicator.sample_type_id == sample_type_id,
+                        Indicator.deleted_at.is_(None),
+                    )
+                    .distinct(),
+                )
+            ).scalars().all()
+            for goal_id in goal_ids:
+                if goal_id is None:
+                    continue
+                await self.assign_research(
+                    sample_id=sample_id,
+                    actor_id=actor_id,
+                    research_goal_id=goal_id,
+                    comment=None,
+                )
+
     async def _direction_status_code(self, status_id: UUID | None) -> str:
         if status_id is None:
             raise DomainConflictError(
@@ -273,7 +325,6 @@ class SqlAlchemyWorkflowRepository:
                 detail="Direction must contain at least one sample before registration.",
             )
 
-        sample_ids = {sample_id for sample_id, _name, _sample_type_id in samples}
         missing_sample_data = [
             str(sample_id)
             for sample_id, name, sample_type_id in samples
@@ -283,19 +334,6 @@ class SqlAlchemyWorkflowRepository:
             raise DomainConflictError(
                 code="direction_missing_sample_data",
                 detail="Direction contains samples without required data.",
-            )
-
-        research_result = await self.session.execute(
-            select(Research.sample_id).where(
-                Research.sample_id.in_(sample_ids),
-                Research.deleted_at.is_(None),
-            ),
-        )
-        assigned_sample_ids = set(research_result.scalars().all())
-        if sample_ids - assigned_sample_ids:
-            raise DomainConflictError(
-                code="direction_missing_research_assignments",
-                detail="Direction contains samples without research assignments.",
             )
 
     async def _direction_status_id(self, code: str) -> UUID:
@@ -512,7 +550,7 @@ class SqlAlchemyWorkflowRepository:
                 detail="Research cannot be assigned to completed or rejected samples.",
             )
         goal = await self._get_research_goal(research_goal_id)
-        research_status_id = await self._research_status_id(RESEARCH_DRAFT)
+        research_status_id = await self._research_status_id(RESEARCH_IN_PROGRESS)
         research = Research(
             id=uuid4(),
             sample_id=sample_id,
@@ -520,13 +558,14 @@ class SqlAlchemyWorkflowRepository:
             lab_id=goal.lab_id,
             comment=comment,
             status_id=research_status_id,
+            received_at=now,
             created_by=actor_id,
             updated_by=actor_id,
             created_at=now,
             updated_at=now,
         )
         self.session.add(research)
-        test_status_id = await self._test_status_id(TEST_QUEUED)
+        test_status_id = await self._test_status_id(TEST_IN_PROGRESS)
         indicators = (
             await self.session.execute(
                 select(Indicator.id).where(
@@ -568,6 +607,7 @@ class SqlAlchemyWorkflowRepository:
         verdict: bool | None,
     ) -> CommandResult:
         test = await self._get_test_for_update(test_id)
+        await self._ensure_sample_started_for_test(test, actor_id)
         test.value = value
         test.norm = norm
         test.comment = comment
@@ -578,19 +618,11 @@ class SqlAlchemyWorkflowRepository:
             to_code=TEST_COMPLETED,
             action="test_completed",
             reason=comment,
+            commit=False,
         )
         await self._complete_parents_when_terminal(test.research_id, actor_id)
         await self.session.flush()
         return result
-
-    async def confirm_research(self, research_id: UUID, actor_id: UUID) -> CommandResult:
-        research = await self._get_research_for_update(research_id)
-        return await self._transition_research(
-            research=research,
-            actor_id=actor_id,
-            to_code=RESEARCH_ORDERED,
-            action="research_confirmed",
-        )
 
     async def reject_research(
         self, research_id: UUID, actor_id: UUID, reason: str
@@ -605,16 +637,35 @@ class SqlAlchemyWorkflowRepository:
             reason=reason,
         )
 
-    async def start_research(self, research_id: UUID, actor_id: UUID) -> CommandResult:
-        research = await self._get_research_for_update(research_id)
-        result = await self._transition_research(
-            research=research,
+    async def reject_test(self, test_id: UUID, actor_id: UUID, reason: str) -> CommandResult:
+        test = await self._get_test_for_update(test_id)
+        await self._ensure_sample_started_for_test(test, actor_id)
+        test.comment = reason
+        result = await self._transition_test(
+            test=test,
             actor_id=actor_id,
-            to_code=RESEARCH_IN_PROGRESS,
-            action="research_started",
+            to_code=TEST_REJECTED,
+            action="test_rejected",
+            reason=reason,
             commit=False,
         )
+        await self._complete_parents_when_terminal(test.research_id, actor_id)
+        await self.session.flush()
+        return result
+
+    async def _ensure_sample_started_for_test(self, test: Test, actor_id: UUID) -> None:
+        """Move the test's sample (and its direction) into work if still registered.
+
+        The removed ``start_research`` command used to perform this side effect.
+        Completing/rejecting the first test is now what starts the sample, which
+        preserves the cascade precondition that ``in_progress → analyzed`` is only
+        valid once the sample has actually entered work.
+        """
+        research = await self._get_research_for_update(test.research_id)
         sample = await self._get_sample_for_update(research.sample_id)
+        await self._ensure_sample_started(sample, actor_id)
+
+    async def _ensure_sample_started(self, sample: Sample, actor_id: UUID) -> None:
         if await self._sample_status_code(sample.status_id) == SAMPLE_REGISTERED:
             await self._transition_sample(
                 sample=sample,
@@ -633,41 +684,6 @@ class SqlAlchemyWorkflowRepository:
                     action="direction_started",
                     commit=False,
                 )
-        await self.session.flush()
-        return result
-
-    async def start_test(self, test_id: UUID, actor_id: UUID) -> CommandResult:
-        test = await self._get_test_for_update(test_id)
-        return await self._transition_test(
-            test=test,
-            actor_id=actor_id,
-            to_code=TEST_IN_PROGRESS,
-            action="test_started",
-        )
-
-    async def requeue_test(self, test_id: UUID, actor_id: UUID) -> CommandResult:
-        test = await self._get_test_for_update(test_id)
-        return await self._transition_test(
-            test=test,
-            actor_id=actor_id,
-            to_code=TEST_QUEUED,
-            action="test_requeued",
-        )
-
-    async def reject_test(self, test_id: UUID, actor_id: UUID, reason: str) -> CommandResult:
-        test = await self._get_test_for_update(test_id)
-        test.comment = reason
-        result = await self._transition_test(
-            test=test,
-            actor_id=actor_id,
-            to_code=TEST_REJECTED,
-            action="test_rejected",
-            reason=reason,
-            commit=False,
-        )
-        await self._complete_parents_when_terminal(test.research_id, actor_id)
-        await self.session.flush()
-        return result
 
     async def close_sample(
         self,
