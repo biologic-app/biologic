@@ -1,11 +1,10 @@
 import type { APIRequestContext } from '@playwright/test'
 import { test, expect } from './support/fixtures'
 import { loginAsLabDoctor } from './support/auth'
-import { goToDashboard, goToResearch, goToSamples, goToTests } from './support/nav'
+import { closeEntityModal, goToDashboard, goToResearch, goToSamples, goToTests } from './support/nav'
 import {
   assignResearch,
   cleanupDirectionsByBaseNo,
-  confirmResearch,
   createDirection,
   createIndicator,
   createResearchGoal,
@@ -14,19 +13,20 @@ import {
   deleteIndicator,
   deleteResearchGoal,
   firstReferenceItem,
-  registerSample,
-  startResearch
+  registerSample
 } from './support/api'
 
 // Full lifecycle for the lab doctor (ВЛ, role_key=lab_doctor, account
-// doctor/doctor123) per docs/flows/lab-doctor.flow.md: research
-// confirm/start, tests start/complete (with research auto-completing once
-// every test is terminal), tests requeue/reject, sample reject (with the
-// SSE notification it fires) and research reject, plus the shared
-// dashboard. Base_no ranges are unique per test for isolation, matching the
-// convention in direction-lifecycle.spec.ts / sample-lifecycle.spec.ts.
+// doctor/doctor123) per docs/flows/lab-doctor.flow.md under the SIMPLIFIED
+// status model: research and tests are created directly in `in_progress`
+// (no confirm/start/queue commands). The lab doctor enters a test result
+// (tests.complete) which — as the last terminal test — cascades the research
+// to `completed` and the sample to `analyzed`; plus tests.reject,
+// research.reject, samples.reject (with the SSE notification it fires) and
+// the shared dashboard. Base_no ranges are unique per test for isolation,
+// matching direction-lifecycle.spec.ts / sample-lifecycle.spec.ts.
 const RESEARCH_TESTS_BASE_NO = 930101
-const TEST_REQUEUE_REJECT_BASE_NO = 930102
+const TEST_REJECT_BASE_NO = 930102
 const SAMPLE_REJECT_BASE_NO = 930103
 const RESEARCH_REJECT_BASE_NO = 930104
 
@@ -59,7 +59,7 @@ test.describe('lab doctor (ВЛ) lifecycle (docs/flows/lab-doctor.flow.md)', () 
   test.beforeEach(async ({ request }) => {
     for (const baseNo of [
       RESEARCH_TESTS_BASE_NO,
-      TEST_REQUEUE_REJECT_BASE_NO,
+      TEST_REJECT_BASE_NO,
       SAMPLE_REJECT_BASE_NO,
       RESEARCH_REJECT_BASE_NO
     ]) {
@@ -67,7 +67,7 @@ test.describe('lab doctor (ВЛ) lifecycle (docs/flows/lab-doctor.flow.md)', () 
     }
   })
 
-  test('research: confirm and start reflect in UI and technical audit; tests: start/complete auto-completes the research', async ({
+  test('research starts in_progress; entering a test result completes the test and auto-completes the research', async ({
     page
   }) => {
     await loginAsLabDoctor(page)
@@ -86,6 +86,9 @@ test.describe('lab doctor (ВЛ) lifecycle (docs/flows/lab-doctor.flow.md)', () 
       sample_type_id: sampleType.id
     })
     const comment = `E2E lab doctor research ${Date.now()}`
+    // assign-research creates the research (and its single test) directly in
+    // `in_progress` — there is no longer a draft/ordered stage nor a
+    // confirm/start command.
     const assignResponse = await assignResearch(page.request, {
       sample_id: sample.id,
       actor_id: me.id,
@@ -94,52 +97,30 @@ test.describe('lab doctor (ВЛ) lifecycle (docs/flows/lab-doctor.flow.md)', () 
     })
     expect(assignResponse.ok()).toBeTruthy()
     const research = (await assignResponse.json()).data as { id: string }
-    // Register the sample (pending -> registered) so research.start moves it to
-    // in_progress; otherwise completing the last test cascades the sample
-    // pending -> analyzed, which is an invalid transition and rolls the whole
-    // `complete` command back (409) — a pending sample can't be "analyzed".
+    // Register the sample (pending -> registered) so completing the test moves
+    // it to in_progress (the "work started" side effect, formerly on
+    // research.start, now on the first test complete/reject); the last test
+    // then cascades the sample in_progress -> analyzed. Completing a test on a
+    // still-pending sample would attempt pending -> analyzed and 409.
     await registerSample(page.request, sample.id, me.id, new Date().toISOString())
 
-    // --- Research: подтвердить (draft -> ordered) ---
+    // --- Research is already in_progress ("В работе") — no confirm/start ---
     await goToResearch(page)
     await page.getByTestId('crud-search-input').fill(comment)
-    const draftRow = page.locator('tbody tr').filter({ hasText: comment })
-    await expect(draftRow.first()).toBeVisible()
-    await expect(draftRow.first().getByText('Черновик')).toBeVisible()
+    const researchRow = page.locator('tbody tr').filter({ hasText: comment })
+    await expect(researchRow.first()).toBeVisible()
+    await expect(researchRow.first().getByText('В работе')).toBeVisible()
 
-    await draftRow.first().click({ button: 'right' })
-    await page.getByRole('menuitem', { name: /CNF · Подтвердить исследование/ }).click()
-    await expect(page.getByText('Исследования подтверждены').last()).toBeVisible()
-
-    await page.getByTestId('crud-search-input').fill(comment)
-    const orderedRow = page.locator('tbody tr').filter({ hasText: comment })
-    await expect(orderedRow.first().getByText('Запланировано')).toBeVisible()
-
-    await orderedRow.first().click({ button: 'right' })
+    await researchRow.first().click({ button: 'right' })
     await page.getByRole('menuitem', { name: 'Просмотр' }).click()
-    await expect(page.getByText('Запланировано').first()).toBeVisible()
-    await page.getByRole('tab', { name: 'Технический аудит' }).click()
-    await expect(page.getByText('research confirmed').last()).toBeVisible()
-    await page.getByRole('button', { name: 'Закрыть' }).click()
+    await expect(page.getByText('В работе').first()).toBeVisible()
+    await page.getByTestId('entity-detail-technical-tab').click()
+    // research_assigned has a dedicated Russian label (see
+    // src/shared/ui/technical-audit.ts::actionLabel).
+    await expect(page.getByText('Исследование назначено').last()).toBeVisible()
+    await closeEntityModal(page)
 
-    // --- Research: взять в работу (ordered -> in_progress) ---
-    await page.getByTestId('crud-search-input').fill(comment)
-    const orderedRowAgain = page.locator('tbody tr').filter({ hasText: comment })
-    await orderedRowAgain.first().click({ button: 'right' })
-    await page.getByRole('menuitem', { name: /STR · Взять исследование в работу/ }).click()
-    await expect(page.getByText('Исследования взяты в работу').last()).toBeVisible()
-
-    await page.getByTestId('crud-search-input').fill(comment)
-    const inProgressRow = page.locator('tbody tr').filter({ hasText: comment })
-    await expect(inProgressRow.first().getByText('В работе')).toBeVisible()
-
-    await inProgressRow.first().click({ button: 'right' })
-    await page.getByRole('menuitem', { name: 'Просмотр' }).click()
-    await page.getByRole('tab', { name: 'Технический аудит' }).click()
-    await expect(page.getByText('research started').last()).toBeVisible()
-    await page.getByRole('button', { name: 'Закрыть' }).click()
-
-    // --- Tests: взять в работу (queued -> in_progress) ---
+    // --- Tests: the single test is already in_progress ("Выполняется") ---
     // Tests has no `sample`/`research`-visible identifying text column (Research
     // has no `name`), so narrow the list by searching the research id (the
     // tests.research_id UUID column is part of the global search, cast to text
@@ -149,14 +130,6 @@ test.describe('lab doctor (ВЛ) lifecycle (docs/flows/lab-doctor.flow.md)', () 
     await goToTests(page)
     await page.getByTestId('crud-search-input').fill(research.id)
     let testRow = page.locator('tbody tr').filter({ hasText: indicatorName })
-    await expect(testRow.first().getByText('Запланировано')).toBeVisible()
-
-    await testRow.first().click({ button: 'right' })
-    await page.getByRole('menuitem', { name: /STR · Взять тест в работу/ }).click()
-    await expect(page.getByText('Тесты взяты в работу').last()).toBeVisible()
-
-    await page.getByTestId('crud-search-input').fill(research.id)
-    testRow = page.locator('tbody tr').filter({ hasText: indicatorName })
     await expect(testRow.first().getByText('Выполняется')).toBeVisible()
 
     // --- Tests: внести результат (in_progress -> completed) ---
@@ -179,20 +152,17 @@ test.describe('lab doctor (ВЛ) lifecycle (docs/flows/lab-doctor.flow.md)', () 
 
     await completedRow.first().click({ button: 'right' })
     await page.getByRole('menuitem', { name: 'Просмотр' }).click()
-    await page.getByRole('tab', { name: 'Технический аудит' }).click()
+    await page.getByTestId('entity-detail-technical-tab').click()
     // research_completed has a dedicated Russian label (see
-    // src/shared/ui/technical-audit.ts::actionLabel) instead of the generic
-    // "action.replace(/[._-]/g, ' ')" fallback used for the other actions above.
+    // src/shared/ui/technical-audit.ts::actionLabel).
     await expect(page.getByText('Исследование завершено').last()).toBeVisible()
-    await page.getByRole('button', { name: 'Закрыть' }).click()
+    await closeEntityModal(page)
 
     await deleteIndicator(page.request, indicator.id)
     await deleteResearchGoal(page.request, goal.id)
   })
 
-  test('tests: requeue returns an in-progress test to the queue, reject marks it rejected', async ({
-    page
-  }) => {
+  test('tests: reject marks an in-progress test rejected', async ({ page }) => {
     await loginAsLabDoctor(page)
     const me = await currentUser(page.request)
     const sampleType = await firstReferenceItem(page.request, 'sample_types')
@@ -201,10 +171,10 @@ test.describe('lab doctor (ВЛ) lifecycle (docs/flows/lab-doctor.flow.md)', () 
 
     const direction = await createDirection(page.request, {
       year_no: 2026,
-      base_no: TEST_REQUEUE_REJECT_BASE_NO
+      base_no: TEST_REJECT_BASE_NO
     })
     const sample = await createSample(page.request, {
-      name: 'LabDoctor requeue/reject sample',
+      name: 'LabDoctor reject-test sample',
       direction_id: direction.id,
       sample_type_id: sampleType.id
     })
@@ -214,16 +184,10 @@ test.describe('lab doctor (ВЛ) lifecycle (docs/flows/lab-doctor.flow.md)', () 
       research_goal_id: goal.id
     })
     const research = (await assignResponse.json()).data as { id: string }
-    // Setup only — register the sample and confirm/start research through the
-    // API since this test's focus is the tests.requeue / tests.reject commands
-    // (research.confirm/start are exercised through the UI in the previous
-    // test). Registration is required so research.start moves the sample to
-    // in_progress: rejecting the last test cascades the sample to `analyzed`
-    // (reject_test also calls _complete_parents_when_terminal), which is only
-    // valid from in_progress — from pending it 409s and rolls the reject back.
+    // Register the sample so rejecting the (only) test can start it and then
+    // cascade in_progress -> analyzed (reject_test also runs the
+    // "complete parents when terminal" cascade); from pending it would 409.
     await registerSample(page.request, sample.id, me.id, new Date().toISOString())
-    await confirmResearch(page.request, research.id, me.id)
-    await startResearch(page.request, research.id, me.id)
 
     await goToTests(page)
     // Narrow by research id, pin the row by its unique indicator name (see the
@@ -231,27 +195,10 @@ test.describe('lab doctor (ВЛ) lifecycle (docs/flows/lab-doctor.flow.md)', () 
     // <tr>, so a raw row count is unreliable).
     await page.getByTestId('crud-search-input').fill(research.id)
     let testRow = page.locator('tbody tr').filter({ hasText: indicatorName })
-    await expect(testRow.first().getByText('Запланировано')).toBeVisible()
-
-    // --- взять в работу (queued -> in_progress) ---
-    await testRow.first().click({ button: 'right' })
-    await page.getByRole('menuitem', { name: /STR · Взять тест в работу/ }).click()
-    await expect(page.getByText('Тесты взяты в работу').last()).toBeVisible()
-
-    await page.getByTestId('crud-search-input').fill(research.id)
-    testRow = page.locator('tbody tr').filter({ hasText: indicatorName })
+    // The test is created directly in_progress ("Выполняется") — no queue/start.
     await expect(testRow.first().getByText('Выполняется')).toBeVisible()
 
-    // --- вернуть в очередь (in_progress -> queued) ---
-    await testRow.first().click({ button: 'right' })
-    await page.getByRole('menuitem', { name: /REQ · Вернуть тест в очередь/ }).click()
-    await expect(page.getByText('Тесты возвращены в очередь').last()).toBeVisible()
-
-    await page.getByTestId('crud-search-input').fill(research.id)
-    testRow = page.locator('tbody tr').filter({ hasText: indicatorName })
-    await expect(testRow.first().getByText('Запланировано')).toBeVisible()
-
-    // --- отклонить (queued -> rejected) ---
+    // --- отклонить (in_progress -> rejected) ---
     await testRow.first().click({ button: 'right' })
     await page.getByRole('menuitem', { name: /REJ · Отклонить тест/ }).click()
     await page.getByLabel('Причина').fill('Показатель вне диапазона прибора')
@@ -323,11 +270,13 @@ test.describe('lab doctor (ВЛ) lifecycle (docs/flows/lab-doctor.flow.md)', () 
     const auditRow = page.locator('tbody tr').filter({ hasText: sample.name })
     await auditRow.first().click({ button: 'right' })
     await page.getByRole('menuitem', { name: /Просмотр/ }).click()
-    await page.getByRole('tab', { name: 'Технический аудит' }).click()
+    await page.getByTestId('entity-detail-technical-tab').click()
     await expect(page.getByText('sample rejected').last()).toBeVisible()
   })
 
-  test('research: reject (draft -> rejected) reflects in UI and technical audit', async ({ page }) => {
+  test('research: reject (in_progress -> rejected) reflects in UI and technical audit', async ({
+    page
+  }) => {
     await loginAsLabDoctor(page)
     const me = await currentUser(page.request)
     const researchGoal = await firstReferenceItem(page.request, 'research_goals')
@@ -354,7 +303,8 @@ test.describe('lab doctor (ВЛ) lifecycle (docs/flows/lab-doctor.flow.md)', () 
     await page.getByTestId('crud-search-input').fill(comment)
     const row = page.locator('tbody tr').filter({ hasText: comment })
     await expect(row.first()).toBeVisible()
-    await expect(row.first().getByText('Черновик')).toBeVisible()
+    // Research is created directly in_progress ("В работе") — no draft stage.
+    await expect(row.first().getByText('В работе')).toBeVisible()
 
     await row.first().click({ button: 'right' })
     await page.getByRole('menuitem', { name: /REJ · Отклонить исследование/ }).click()
@@ -373,7 +323,7 @@ test.describe('lab doctor (ВЛ) lifecycle (docs/flows/lab-doctor.flow.md)', () 
 
     await rejectedRow.first().click({ button: 'right' })
     await page.getByRole('menuitem', { name: 'Просмотр' }).click()
-    await page.getByRole('tab', { name: 'Технический аудит' }).click()
+    await page.getByTestId('entity-detail-technical-tab').click()
     await expect(page.getByText('research rejected').last()).toBeVisible()
   })
 

@@ -131,24 +131,12 @@ export async function registerSample(
   })
 }
 
-export async function confirmResearch(request: APIRequestContext, researchId: string, actorId: string) {
-  return request.post(`${API_BASE}/research/${researchId}/confirm`, { data: { actor_id: actorId } })
-}
-
-export async function startResearch(request: APIRequestContext, researchId: string, actorId: string) {
-  return request.post(`${API_BASE}/research/${researchId}/start`, { data: { actor_id: actorId } })
-}
-
 export async function findTestsByResearch(request: APIRequestContext, researchId: string) {
   const response = await request.get(`${API_BASE}/tests`, {
     params: { filters: JSON.stringify({ research_id: researchId }), limit: 200 }
   })
   const body = await response.json()
   return body.items as Array<{ id: string }>
-}
-
-export async function startTest(request: APIRequestContext, testId: string, actorId: string) {
-  return request.post(`${API_BASE}/tests/${testId}/start`, { data: { actor_id: actorId } })
 }
 
 export async function completeTest(
@@ -182,10 +170,6 @@ export async function rejectResearch(
   return request.post(`${API_BASE}/research/${researchId}/reject`, {
     data: { actor_id: actorId, reason }
   })
-}
-
-export async function requeueTest(request: APIRequestContext, testId: string, actorId: string) {
-  return request.post(`${API_BASE}/tests/${testId}/requeue`, { data: { actor_id: actorId } })
 }
 
 export async function rejectTest(
@@ -226,7 +210,14 @@ export async function deleteIndicator(request: APIRequestContext, indicatorId: s
 
 /** Drives a freshly-created sample all the way to `completed`, via the same
  * command sequence a lab technician would run — used to set up protocol
- * e2e fixtures without re-testing the research/tests workflow itself. */
+ * e2e fixtures without re-testing the research/tests workflow itself.
+ *
+ * New (simplified) status model: `assign-research` creates the research and
+ * its tests directly in `in_progress` (no confirm/start/queue steps). The
+ * sample is registered so the "work started" side effect on the first test
+ * complete (`registered -> in_progress`) has a valid source status; once every
+ * test is terminal the server cascades the research to `completed` and the
+ * sample to `analyzed`, from where `close_sample` moves it to `completed`. */
 export async function advanceSampleToCompleted(
   request: APIRequestContext,
   params: { sampleId: string; actorId: string; researchGoalId: string }
@@ -238,13 +229,15 @@ export async function advanceSampleToCompleted(
   })
   const research = (await assignResponse.json()).data as { id: string }
 
+  // Register the sample first: completing the first test starts the sample
+  // (registered -> in_progress), and finishing the last test then cascades
+  // it in_progress -> analyzed. Completing a test on a still-pending sample
+  // would try pending -> analyzed and 409 (invalid transition), rolling the
+  // whole command back.
   await registerSample(request, params.sampleId, params.actorId, new Date().toISOString())
-  await confirmResearch(request, research.id, params.actorId)
-  await startResearch(request, research.id, params.actorId)
 
   const tests = await findTestsByResearch(request, research.id)
   for (const test of tests) {
-    await startTest(request, test.id, params.actorId)
     await completeTest(request, test.id, params.actorId, 'OK')
   }
 
