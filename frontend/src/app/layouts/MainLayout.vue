@@ -25,9 +25,6 @@ const canViewDirections = computed(() => auth.can("directions", "view"));
 const canViewSamples = computed(() => auth.can("samples", "view"));
 const canViewTests = computed(() => auth.can("tests", "view"));
 const canViewProtocols = computed(() => auth.can("protocols", "view"));
-const canViewReleasedSamples = computed(
-  () => auth.can("protocols", "create") || auth.can("samples", "view"),
-);
 const canViewDictionaries = computed(() =>
   dictionaryItems.some((item) => auth.can(item.key as Resource, "view")),
 );
@@ -99,16 +96,6 @@ const links = computed<NavigationMenuItem[][]>(() => [
       icon: canViewProtocols.value ? "i-lucide-file-check-2" : "i-lucide-lock",
       to: { name: "protocols" },
       disabled: !canViewProtocols.value,
-      onSelect: () => {
-        open.value = false;
-      },
-    },
-    {
-      label: t("nav.releasedSamples"),
-      resource: "samples" as Resource,
-      icon: canViewReleasedSamples.value ? "i-lucide-package-check" : "i-lucide-lock",
-      to: { name: "released-samples" },
-      disabled: !canViewReleasedSamples.value,
       onSelect: () => {
         open.value = false;
       },

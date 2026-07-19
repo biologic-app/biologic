@@ -157,6 +157,7 @@ export const messages = {
       },
     },
     releasedSamples: {
+      subtitle: "Завершённые образцы, сгруппированные по направлениям",
       refresh: "Обновить",
       empty: "Нет выпущенных образцов",
       loadError: "Не удалось загрузить выпущенные образцы",
@@ -573,6 +574,7 @@ export const messages = {
       },
     },
     releasedSamples: {
+      subtitle: "Completed samples grouped by direction",
       refresh: "Refresh",
       empty: "No released samples",
       loadError: "Failed to load released samples",

@@ -1,9 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useToast } from "@nuxt/ui/composables";
 import { useAuth } from "@/modules/auth";
 import { apiRequest } from "@/shared/api/client.api";
+
+// Модалка «Выпущенные образцы по направлениям» — открывается со страниц
+// «Образцы» и «Направления». Показывает завершённые (выпущенные) образцы,
+// сгруппированные по направлениям; если все образцы направления выпущены,
+// карточка подсвечивается жёлтым. По группе — «Создать протокол».
+const open = defineModel<boolean>("open", { default: false });
 
 interface ReleasedSampleItem {
   id: string;
@@ -144,18 +150,24 @@ const createProtocol = async (group: ReleasedDirectionGroup) => {
   }
 };
 
-onMounted(load);
+// Загружаем данные каждый раз при открытии модалки.
+watch(open, (isOpen) => {
+  if (isOpen) {
+    load();
+  }
+});
 </script>
 
 <template>
-  <UDashboardPanel id="released-samples">
-    <template #header>
-      <UDashboardNavbar :title="t('nav.releasedSamples')">
-        <template #leading>
-          <UDashboardSidebarCollapse />
-        </template>
-
-        <template #right>
+  <UModal
+    v-model:open="open"
+    :title="t('nav.releasedSamples')"
+    :description="t('releasedSamples.subtitle')"
+    :ui="{ content: 'max-w-3xl' }"
+  >
+    <template #body>
+      <div class="space-y-4">
+        <div class="flex items-center justify-end">
           <UButton
             color="neutral"
             variant="ghost"
@@ -164,12 +176,8 @@ onMounted(load);
             :label="t('releasedSamples.refresh')"
             @click="load"
           />
-        </template>
-      </UDashboardNavbar>
-    </template>
+        </div>
 
-    <template #body>
-      <div class="space-y-4">
         <UAlert
           v-if="errorMessage"
           color="error"
@@ -181,7 +189,7 @@ onMounted(load);
 
         <div
           v-if="!isLoading && groups.length === 0 && !errorMessage"
-          class="py-16 text-center text-sm text-muted"
+          class="py-12 text-center text-sm text-muted"
         >
           {{ t("releasedSamples.empty") }}
         </div>
@@ -191,9 +199,7 @@ onMounted(load);
           :key="group.direction.id"
           :class="[
             'transition-colors',
-            group.all_released
-              ? 'bg-warning/10 ring-2 ring-warning'
-              : '',
+            group.all_released ? 'bg-warning/10 ring-2 ring-warning' : '',
           ]"
           data-telemetry="released-samples-direction-group"
         >
@@ -201,13 +207,8 @@ onMounted(load);
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div class="min-w-0 space-y-1">
                 <div class="flex items-center gap-2">
-                  <UIcon
-                    name="i-lucide-book-copy"
-                    class="size-4 shrink-0 text-muted"
-                  />
-                  <span class="font-semibold">
-                    № {{ directionNumber(group) }}
-                  </span>
+                  <UIcon name="i-lucide-book-copy" class="size-4 shrink-0 text-muted" />
+                  <span class="font-semibold">№ {{ directionNumber(group) }}</span>
                   <UBadge
                     :color="group.all_released ? 'warning' : 'neutral'"
                     variant="subtle"
@@ -222,9 +223,7 @@ onMounted(load);
                   />
                 </div>
                 <div class="text-sm text-muted">
-                  <span v-if="group.direction.doctor">
-                    {{ group.direction.doctor }}
-                  </span>
+                  <span v-if="group.direction.doctor">{{ group.direction.doctor }}</span>
                   <span v-if="group.direction.object?.name">
                     · {{ group.direction.object.name }}
                     <span v-if="group.direction.object?.code">
@@ -255,10 +254,7 @@ onMounted(load);
             >
               <div class="min-w-0">
                 <span class="font-medium">{{ sample.name || "—" }}</span>
-                <span
-                  v-if="sample.sample_type_name"
-                  class="ml-2 text-sm text-muted"
-                >
+                <span v-if="sample.sample_type_name" class="ml-2 text-sm text-muted">
                   {{ sample.sample_type_name }}
                 </span>
               </div>
@@ -281,5 +277,5 @@ onMounted(load);
         </UCard>
       </div>
     </template>
-  </UDashboardPanel>
+  </UModal>
 </template>
