@@ -121,6 +121,17 @@ const researchColumns: TableColumn<RelatedRow>[] = [
   { id: "actions", header: "" },
 ];
 
+// Заполнение тестов (карточка исследования): редактируемая таблица показателей
+// в общем стиле UTable — как дерево образцов и список исследований выше.
+const testsColumns: TableColumn<RelatedRow>[] = [
+  { accessorKey: "title", header: "Показатель" },
+  { id: "status", header: "Статус" },
+  { id: "value", header: "Значение" },
+  { id: "norm", header: "Норма" },
+  { id: "verdict", header: "Вердикт врача" },
+  { id: "comment", header: "Комментарий" },
+];
+
 // Вердикт врача по тесту: соответствует / не соответствует / не указано (null).
 const verdictOptions = [
   { label: "Соответствует", value: true },
@@ -187,75 +198,52 @@ function verdictModel(row: RelatedRow): boolean | undefined {
       class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-default"
     >
       <div class="min-h-0 flex-1 overflow-auto">
-        <table class="w-full min-w-[1040px] border-collapse text-sm">
-          <thead class="sticky top-0 z-10 bg-elevated text-left text-xs font-medium uppercase text-muted">
-            <tr>
-              <th class="border-b border-default px-3 py-2">
-                Показатель
-              </th>
-              <th class="border-b border-default px-3 py-2">
-                Статус
-              </th>
-              <th class="border-b border-default px-3 py-2">
-                Значение
-              </th>
-              <th class="border-b border-default px-3 py-2">
-                Норма
-              </th>
-              <th class="border-b border-default px-3 py-2">
-                Вердикт врача
-              </th>
-              <th class="border-b border-default px-3 py-2">
-                Комментарий
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="row in rows"
-              :key="row.id"
-              class="border-b border-default last:border-b-0"
-            >
-              <td class="px-3 py-2 align-top">
-                <p class="font-medium text-highlighted">
-                  {{ row.title }}
-                </p>
-              </td>
-              <td class="px-3 py-2 align-top">
-                <UBadge :color="getStatusBadgeColor(row.statusCode)" variant="subtle" :label="row.statusText" />
-              </td>
-              <td class="px-3 py-2 align-top">
-                <UInput
-                  :model-value="relatedString(row, 'value')"
-                  @update:model-value="setRelatedValue(row, 'value', $event)"
-                />
-              </td>
-              <td class="px-3 py-2 align-top">
-                <UInput
-                  :model-value="relatedString(row, 'norm')"
-                  @update:model-value="setRelatedValue(row, 'norm', $event)"
-                />
-              </td>
-              <td class="px-3 py-2 align-top">
-                <USelect
-                  :model-value="verdictModel(row)"
-                  :items="verdictOptions"
-                  placeholder="Не указано"
-                  class="w-full min-w-44"
-                  @update:model-value="setRelatedValue(row, 'verdict', $event)"
-                />
-              </td>
-              <td class="px-3 py-2 align-top">
-                <UTextarea
-                  :model-value="relatedString(row, 'comment')"
-                  autoresize
-                  :rows="1"
-                  @update:model-value="setRelatedValue(row, 'comment', $event)"
-                />
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <UTable
+          :data="rows"
+          :columns="testsColumns"
+          :loading="loading"
+          :ui="{ base: 'min-w-[1040px]', thead: 'sticky top-0 z-10 bg-elevated', th: 'px-4 py-2 text-left text-sm font-semibold text-highlighted', td: 'px-4 py-2 align-top text-sm text-muted' }"
+        >
+          <template #title-cell="{ row }">
+            <span class="font-medium text-highlighted">{{ row.original.title }}</span>
+          </template>
+          <template #status-cell="{ row }">
+            <UBadge
+              :color="getStatusBadgeColor(row.original.statusCode)"
+              variant="subtle"
+              :label="row.original.statusText"
+            />
+          </template>
+          <template #value-cell="{ row }">
+            <UInput
+              :model-value="relatedString(row.original, 'value')"
+              @update:model-value="setRelatedValue(row.original, 'value', $event)"
+            />
+          </template>
+          <template #norm-cell="{ row }">
+            <UInput
+              :model-value="relatedString(row.original, 'norm')"
+              @update:model-value="setRelatedValue(row.original, 'norm', $event)"
+            />
+          </template>
+          <template #verdict-cell="{ row }">
+            <USelect
+              :model-value="verdictModel(row.original)"
+              :items="verdictOptions"
+              placeholder="Не указано"
+              class="w-full min-w-44"
+              @update:model-value="setRelatedValue(row.original, 'verdict', $event)"
+            />
+          </template>
+          <template #comment-cell="{ row }">
+            <UTextarea
+              :model-value="relatedString(row.original, 'comment')"
+              autoresize
+              :rows="1"
+              @update:model-value="setRelatedValue(row.original, 'comment', $event)"
+            />
+          </template>
+        </UTable>
         <div v-if="!loading && !rows.length" class="px-4 py-8 text-center text-sm text-muted">
           Связанные элементы не найдены.
         </div>
