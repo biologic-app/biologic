@@ -18,4 +18,10 @@ export const accessItems: AccessItem[] = [
     icon: "i-lucide-shield-check",
     to: "/access/roles",
   },
+  {
+    key: "subscriptions",
+    label: "Подписки по ролям",
+    icon: "i-lucide-bell-plus",
+    to: "/access/subscriptions",
+  },
 ];

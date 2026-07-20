@@ -56,6 +56,11 @@ const refresh = () => {
         </template>
       </UDashboardNavbar>
 
+      <!-- Доп. тулбары (nav-меню категорий/статусов, вкладки доступа) — над
+           основным тулбаром поиска. Пусто по умолчанию: страницы рабочих
+           процессов (Направления/Образцы) не используют слот. -->
+      <slot name="toolbar-extra" />
+
       <UDashboardToolbar>
         <template #left>
           <div class="flex w-full flex-col gap-3 lg:flex-row lg:items-center">

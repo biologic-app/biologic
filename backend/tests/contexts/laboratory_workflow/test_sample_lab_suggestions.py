@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from src.contexts.laboratory_workflow.application.crud import WorkflowCrudUseCase
@@ -76,13 +76,13 @@ def _use_case(
     subscriptions: FakeSubscriptionRepository | None = None,
 ) -> WorkflowCrudUseCase:
     return WorkflowCrudUseCase(
-        directions=None,
-        samples=None,
-        research=None,
-        tests=None,
-        protocols=None,
-        sample_labs=repo,
-        subscriptions=subscriptions,
+        directions=cast(Any, None),
+        samples=cast(Any, None),
+        research=cast(Any, None),
+        tests=cast(Any, None),
+        protocols=cast(Any, None),
+        sample_labs=cast(Any, repo),
+        subscriptions=cast(Any, subscriptions),
     )
 
 
@@ -157,7 +157,7 @@ async def test_subscribe_and_unsubscribe_round_trip() -> None:
 
 
 def test_sample_lab_has_live_row_partial_unique_pair() -> None:
-    indexes = {index.name: index for index in SampleLab.__table__.indexes}
+    indexes = {index.name: index for index in cast(Any, SampleLab.__table__).indexes}
     unique_pair = indexes["sample_labs_unique_pair"]
 
     assert unique_pair.unique is True

@@ -64,9 +64,6 @@ class WorkflowRepositoryFake(WorkflowRepository):
     ) -> CommandResult:
         raise AssertionError("complete_test should not be called")
 
-    async def confirm_research(self, research_id: UUID, actor_id: UUID) -> CommandResult:
-        raise AssertionError("confirm_research should not be called")
-
     async def reject_research(
         self,
         research_id: UUID,
@@ -74,15 +71,6 @@ class WorkflowRepositoryFake(WorkflowRepository):
         reason: str,
     ) -> CommandResult:
         raise AssertionError("reject_research should not be called")
-
-    async def start_research(self, research_id: UUID, actor_id: UUID) -> CommandResult:
-        raise AssertionError("start_research should not be called")
-
-    async def start_test(self, test_id: UUID, actor_id: UUID) -> CommandResult:
-        raise AssertionError("start_test should not be called")
-
-    async def requeue_test(self, test_id: UUID, actor_id: UUID) -> CommandResult:
-        raise AssertionError("requeue_test should not be called")
 
     async def reject_test(
         self,

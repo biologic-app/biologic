@@ -261,11 +261,10 @@ flow-док и видео.
 ## Быстрая справка: статус-коды
 
 ```
-RESEARCH:  draft → ordered → in_progress → completed
-           draft/ordered → rejected
-TEST:      queued → in_progress → completed
-           queued/in_progress → rejected
-           in_progress → queued (requeue)
+RESEARCH:  in_progress → completed        (создаётся сразу in_progress)
+           in_progress → rejected
+TEST:      in_progress → completed        (создаётся сразу in_progress)
+           in_progress → rejected
 SAMPLE:    pending/registered/in_progress → rejected
            (in_progress → analyzed — авто, при завершении всех исследований)
 ```

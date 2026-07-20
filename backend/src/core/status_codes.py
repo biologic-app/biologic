@@ -11,13 +11,10 @@ SAMPLE_ANALYZED = "analyzed"
 SAMPLE_COMPLETED = "completed"
 SAMPLE_REJECTED = "rejected"
 
-RESEARCH_DRAFT = "draft"
-RESEARCH_ORDERED = "ordered"
 RESEARCH_IN_PROGRESS = "in_progress"
 RESEARCH_COMPLETED = "completed"
 RESEARCH_REJECTED = "rejected"
 
-TEST_QUEUED = "queued"
 TEST_IN_PROGRESS = "in_progress"
 TEST_COMPLETED = "completed"
 TEST_REJECTED = "rejected"

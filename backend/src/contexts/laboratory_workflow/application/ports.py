@@ -46,35 +46,11 @@ class WorkflowRepository(Protocol):
         verdict: bool | None,
     ) -> CommandResult: ...
 
-    async def confirm_research(
-        self,
-        research_id: UUID,
-        actor_id: UUID,
-    ) -> CommandResult: ...
-
     async def reject_research(
         self,
         research_id: UUID,
         actor_id: UUID,
         reason: str,
-    ) -> CommandResult: ...
-
-    async def start_research(
-        self,
-        research_id: UUID,
-        actor_id: UUID,
-    ) -> CommandResult: ...
-
-    async def start_test(
-        self,
-        test_id: UUID,
-        actor_id: UUID,
-    ) -> CommandResult: ...
-
-    async def requeue_test(
-        self,
-        test_id: UUID,
-        actor_id: UUID,
     ) -> CommandResult: ...
 
     async def reject_test(

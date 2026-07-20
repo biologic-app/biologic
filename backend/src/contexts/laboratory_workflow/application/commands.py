@@ -76,15 +76,6 @@ class WorkflowCommandService:
             await uow.commit()
             return result
 
-    async def confirm_research(self, command: ResearchCommandInput) -> CommandResult:
-        async with self._uow_factory() as uow:
-            result = await uow.workflow.confirm_research(
-                research_id=command.research_id,
-                actor_id=command.actor_id,
-            )
-            await uow.commit()
-            return result
-
     async def reject_research(self, command: ResearchCommandInput) -> CommandResult:
         async with self._uow_factory() as uow:
             result = await uow.workflow.reject_research(
@@ -96,23 +87,6 @@ class WorkflowCommandService:
             await uow.commit()
         return result
 
-    async def start_research(self, command: ResearchCommandInput) -> CommandResult:
-        async with self._uow_factory() as uow:
-            result = await uow.workflow.start_research(
-                research_id=command.research_id,
-                actor_id=command.actor_id,
-            )
-            await uow.commit()
-            return result
-
-    async def start_test(self, command: TestCommandInput) -> CommandResult:
-        async with self._uow_factory() as uow:
-            result = await uow.workflow.start_test(
-                test_id=command.test_id, actor_id=command.actor_id
-            )
-            await uow.commit()
-            return result
-
     async def complete_test(self, command: CompleteTestInput) -> CommandResult:
         async with self._uow_factory() as uow:
             result = await uow.workflow.complete_test(
@@ -122,15 +96,6 @@ class WorkflowCommandService:
                 norm=command.norm,
                 comment=command.comment,
                 verdict=command.verdict,
-            )
-            await uow.commit()
-            return result
-
-    async def requeue_test(self, command: TestCommandInput) -> CommandResult:
-        async with self._uow_factory() as uow:
-            result = await uow.workflow.requeue_test(
-                test_id=command.test_id,
-                actor_id=command.actor_id,
             )
             await uow.commit()
             return result

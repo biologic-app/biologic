@@ -39,3 +39,19 @@ export async function goToResearch(page: Page) {
 export async function goToTests(page: Page) {
   await clickNavLink(page, 'Tests')
 }
+
+/**
+ * Closes the reworked entity-detail modal (EntityDetailModalShell). The shell
+ * is `dismissible: false` (Escape / click-outside do nothing) and its close
+ * control is an unlabelled `i-lucide-x` icon button in the dialog header — the
+ * old "Закрыть" text button is gone. Target it by the lucide "x" glyph's SVG
+ * path so the click doesn't depend on button order or an accessible name.
+ */
+export async function closeEntityModal(page: Page) {
+  const dialog = page.getByRole('dialog')
+  await dialog.locator('header button:has(svg path[d*="M18 6"])').first().click()
+  // Wait for the dialog to actually detach before returning — otherwise a
+  // follow-up row click can race the close animation and be intercepted by the
+  // still-fading modal overlay.
+  await dialog.first().waitFor({ state: 'hidden' })
+}

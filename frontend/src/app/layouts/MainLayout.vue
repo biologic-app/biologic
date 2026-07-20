@@ -35,6 +35,8 @@ const canViewAccess = computed(
 const accessKeyToResource: Record<string, Resource> = {
   users: "users",
   roles: "user-types",
+  // Правила подписки по ролям управляются тем же правом, что и роли/права.
+  subscriptions: "user-types",
 };
 
 const links = computed<NavigationMenuItem[][]>(() => [

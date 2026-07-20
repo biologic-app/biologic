@@ -81,11 +81,11 @@ test.describe('sanitary inspector — read-only access (docs/flows/sanitary-doct
     await expect(page.getByRole('button', { name: 'Сохранить' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Отменить' })).toHaveCount(0)
 
-    await page.getByRole('tab', { name: 'Технический аудит' }).click()
-    await expect(page.getByRole('tab', { name: 'Технический аудит' })).toHaveAttribute(
-      'aria-selected',
-      'true'
-    )
+    // The technical audit is now a trailing icon button (entity modal rework),
+    // not a tab — clicking it switches the modal body to the audit timeline,
+    // which renders a "Технический аудит" heading.
+    await page.getByTestId('entity-detail-technical-tab').click()
+    await expect(page.getByRole('heading', { name: 'Технический аудит' })).toBeVisible()
   })
 
   test('samples: no create button, row actions locked', async ({ page, request }) => {

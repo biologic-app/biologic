@@ -91,6 +91,12 @@ export const routes: RouteRecordRaw[] = [
         meta: { requiresAuth: true },
         component: () => import("@/modules/user-types/pages/UserTypesPage.vue"),
       },
+      {
+        path: "/access/subscriptions",
+        name: "access-subscriptions",
+        meta: { requiresAuth: true },
+        component: () => import("@/modules/access/pages/AccessSubscriptionsPage.vue"),
+      },
     ],
   },
   {

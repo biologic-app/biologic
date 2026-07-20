@@ -3,8 +3,6 @@ type BadgeColor = "neutral" | "primary" | "info" | "success" | "warning" | "erro
 const STATUS_COLORS: Record<string, BadgeColor> = {
   draft: "neutral",
   pending: "warning",
-  queued: "warning",
-  ordered: "warning",
   registered: "info",
   in_progress: "info",
   analyzed: "info",
@@ -16,8 +14,6 @@ const STATUS_COLORS: Record<string, BadgeColor> = {
 const LABEL_PATTERNS: Array<[RegExp, string]> = [
   [/draft|чернов/i, "draft"],
   [/pending|регистрац/i, "pending"],
-  [/queued|очеред/i, "queued"],
-  [/ordered|назнач/i, "ordered"],
   [/registered|зарегистр/i, "registered"],
   [/in_progress|работ|исслед/i, "in_progress"],
   [/rejected|отклон|брак/i, "rejected"],

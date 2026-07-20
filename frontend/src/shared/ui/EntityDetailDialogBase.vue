@@ -855,11 +855,11 @@ async function saveInline() {
   }
 }
 
-// Сохранение одной строки теста «по-умному»: пустой тест (queued) при первом
-// заполнении переводим queued → in_progress → completed двумя командами
-// (прямой queued → completed запрещён status_policy), заполненный — командой
-// complete, иначе — обычным PATCH черновика. verdict === false — валидное
-// заполненное значение, поэтому проверяем строго через `!== null`.
+// Сохранение одной строки теста «по-умному»: тесты создаются сразу в статусе
+// in_progress, поэтому заполненную строку завершаем командой complete
+// (in_progress → completed), а частично заполненную — обычным PATCH.
+// verdict === false — валидное заполненное значение, поэтому проверяем строго
+// через `!== null`.
 async function saveOneTestRow(row: RelatedRow) {
   const actorId = auth.user?.id;
   const value = (row.value ?? null) as string | null;
@@ -868,18 +868,8 @@ async function saveOneTestRow(row: RelatedRow) {
   const verdict = (row.verdict ?? null) as boolean | null;
   const isFilled =
     value != null && value !== "" && norm != null && norm !== "" && verdict !== null;
-  const touched =
-    value != null || norm != null || comment != null || verdict !== null;
-  let statusCode = row.statusCode;
 
-  if (statusCode === "queued" && (touched || isFilled)) {
-    await apiCommandRequest(`/tests/${row.id}/start`, {
-      method: "POST",
-      body: { actor_id: actorId },
-    });
-    statusCode = "in_progress";
-  }
-  if (isFilled && statusCode === "in_progress") {
+  if (isFilled && row.statusCode === "in_progress") {
     await apiCommandRequest(`/tests/${row.id}/complete`, {
       method: "POST",
       body: { actor_id: actorId, value, norm, comment, verdict },

@@ -8,6 +8,7 @@ from src.presentation.http.access_control.router import router as access_control
 from src.presentation.http.audit import router as audit_router
 from src.presentation.http.catalogs.router import router as catalogs_router
 from src.presentation.http.dashboard import router as dashboard_router
+from src.presentation.http.released_samples import router as released_samples_router
 
 router = APIRouter()
 
@@ -17,6 +18,9 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+# Registered before the workflow router so the literal `/directions/released-samples`
+# path is matched ahead of `/directions/{direction_id}` (typed as UUID).
+router.include_router(released_samples_router)
 router.include_router(workflow_router)
 router.include_router(dashboard_router)
 router.include_router(notifications_router)

@@ -9,61 +9,74 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const EXCEL_BASE_NO_MULTI = 900101 // 2 samples
 const EXCEL_BASE_NO_SINGLE = 900102 // 1 sample
-const JSON_BASE_NO_MULTI = 900201
-const JSON_BASE_NO_SINGLE = 900202
 // Baked into the real document's header cell ("№ 000000460") — the legacy
 // .xls parser reads it verbatim as base_no, it isn't test-controlled.
 const LEGACY_XLS_BASE_NO = 460
 
 const fixturesDir = path.join(__dirname, 'fixtures')
 
+/**
+ * Drives the direction-creation wizard through its import branch: opens it from
+ * the "Создать направление" button, picks the "Импорт из файла" mode, uploads
+ * the given Excel/.xls file (the hidden <input> takes the file directly), and
+ * runs the import. Leaves the wizard on the "Предпросмотр" (review) step, where
+ * the freshly-created draft directions are shown — the caller closes it with
+ * Escape (the directions are already persisted as draft) or continues.
+ *
+ * The old single import menu (data-testid="direction-import-menu-trigger") and
+ * the separate Excel/JSON/legacy menu items are gone: import is now a stepper
+ * wizard (DirectionWizard.vue) that only accepts Excel (.xlsx/.xls) — the
+ * backend routes a .xls to the legacy parser by extension. JSON import stays a
+ * machine-to-machine endpoint and is no longer offered in the UI.
+ */
+async function importFileViaWizard(page: import('@playwright/test').Page, file: string) {
+  await page.getByTestId('direction-create-open').click()
+  await page.getByTestId('direction-mode-import').click()
+  await page.getByTestId('import-excel-input').setInputFiles(file)
+  // The dropzone flips to "Файл готов к импорту" and enables "Далее".
+  await expect(page.getByText('Файл готов к импорту')).toBeVisible()
+  await page.getByTestId('direction-import-submit').click()
+  // runImport POSTs to /directions/import-excel (draft directions + samples)
+  // and advances to the review step, which renders a card per created
+  // direction.
+  await expect(page.getByTestId('direction-review-card').first()).toBeVisible({ timeout: 30_000 })
+}
+
+async function closeWizard(page: import('@playwright/test').Page) {
+  // The wizard UModal is dismissible once the import has finished; Escape closes
+  // it, leaving the imported directions in place (draft).
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('direction-review-card')).toHaveCount(0)
+}
+
 test.describe('direction import (flow #2, #3)', () => {
   test.beforeEach(async ({ request }) => {
-    for (const baseNo of [
-      EXCEL_BASE_NO_MULTI,
-      EXCEL_BASE_NO_SINGLE,
-      JSON_BASE_NO_MULTI,
-      JSON_BASE_NO_SINGLE,
-      LEGACY_XLS_BASE_NO
-    ]) {
+    for (const baseNo of [EXCEL_BASE_NO_MULTI, EXCEL_BASE_NO_SINGLE, LEGACY_XLS_BASE_NO]) {
       await cleanupDirectionsByBaseNo(request, baseNo)
     }
   })
 
-  test('imports directions and samples from an Excel file', async ({ page }) => {
+  test('imports directions and samples from an Excel file via the creation wizard', async ({
+    page
+  }) => {
     await loginAsRegistrar(page)
     await goToDirections(page)
 
-    await page.getByTestId('direction-import-menu-trigger').click()
-    const fileChooserPromise = page.waitForEvent('filechooser')
-    await page.getByRole('menuitem', { name: 'Импортировать Excel' }).click()
-    const fileChooser = await fileChooserPromise
-    await fileChooser.setFiles(path.join(fixturesDir, 'directions-import.xlsx'))
+    await importFileViaWizard(page, path.join(fixturesDir, 'directions-import.xlsx'))
 
-    await expect(page.getByText('Импорт направлений завершён').last()).toBeVisible()
-    await expect(page.getByText(/Направлений: 2, образцов: 3/).last()).toBeVisible()
+    // The review step lists the created draft directions with their sample
+    // names — the 2-sample direction (900101) shows both "Проба A"/"Проба Б"
+    // and an "Образцов: 2" badge.
+    await expect(page.getByText(`№ 2026-${EXCEL_BASE_NO_MULTI}`)).toBeVisible()
+    await expect(page.getByText('Проба A')).toBeVisible()
+    await expect(page.getByText('Проба Б')).toBeVisible()
+    await expect(page.getByText('Образцов: 2')).toBeVisible()
 
+    await closeWizard(page)
+
+    // The imported direction is in the table in draft status.
     await page.getByTestId('crud-search-input').fill(String(EXCEL_BASE_NO_MULTI))
     const row = page.locator('tbody tr').filter({ hasText: String(EXCEL_BASE_NO_MULTI) })
-    await expect(row.first()).toBeVisible()
-    await expect(row.first().getByText('Черновик')).toBeVisible()
-  })
-
-  test('imports directions and samples from a JSON file (fallback path)', async ({ page }) => {
-    await loginAsRegistrar(page)
-    await goToDirections(page)
-
-    await page.getByTestId('direction-import-menu-trigger').click()
-    const fileChooserPromise = page.waitForEvent('filechooser')
-    await page.getByRole('menuitem', { name: /Импортировать JSON/ }).click()
-    const fileChooser = await fileChooserPromise
-    await fileChooser.setFiles(path.join(fixturesDir, 'directions-import.json'))
-
-    await expect(page.getByText('Импорт направлений завершён').last()).toBeVisible()
-    await expect(page.getByText(/Направлений: 2, образцов: 3/).last()).toBeVisible()
-
-    await page.getByTestId('crud-search-input').fill(String(JSON_BASE_NO_MULTI))
-    const row = page.locator('tbody tr').filter({ hasText: String(JSON_BASE_NO_MULTI) })
     await expect(row.first()).toBeVisible()
     await expect(row.first().getByText('Черновик')).toBeVisible()
   })
@@ -74,12 +87,8 @@ test.describe('direction import (flow #2, #3)', () => {
     await loginAsRegistrar(page)
     await goToDirections(page)
 
-    await page.getByTestId('direction-import-menu-trigger').click()
-    const fileChooserPromise = page.waitForEvent('filechooser')
-    await page.getByRole('menuitem', { name: 'Импортировать Excel' }).click()
-    const fileChooser = await fileChooserPromise
-    await fileChooser.setFiles(path.join(fixturesDir, 'directions-import.xlsx'))
-    await expect(page.getByText('Импорт направлений завершён').last()).toBeVisible()
+    await importFileViaWizard(page, path.join(fixturesDir, 'directions-import.xlsx'))
+    await closeWizard(page)
 
     await page.getByTestId('crud-search-input').fill(String(EXCEL_BASE_NO_MULTI))
     const row = page.locator('tbody tr').filter({ hasText: String(EXCEL_BASE_NO_MULTI) })
@@ -88,15 +97,22 @@ test.describe('direction import (flow #2, #3)', () => {
     await page.getByRole('menuitem', { name: 'Просмотр' }).click()
 
     await expect(page.getByRole('tab', { name: 'Карточка' })).toBeVisible()
-    await page.getByRole('tab', { name: 'Связанные' }).click()
-    await expect(page.getByText('2 записей')).toBeVisible()
+    // The direction's related tab is labelled "Образцы" (entity modal rework);
+    // its body is a table of the sample rows.
+    await page.getByRole('tab', { name: /Образцы/ }).click()
+    await expect(page.getByText('Проба A')).toBeVisible()
+    await expect(page.getByText('Проба Б')).toBeVisible()
 
     await page.getByRole('tab', { name: 'Карточка' }).click()
     await page.getByRole('button', { name: 'Редактировать' }).click()
+    // "Год" is a select (USelectMenu, rendered as a "Show popup" button), not a
+    // free-text input, after the field-config change — pick a different year
+    // from the dropdown to prove the draft is editable.
     const yearFieldRow = page.locator('dl > div').filter({ hasText: 'Год' }).first()
-    await yearFieldRow.locator('input').fill('2027')
+    await yearFieldRow.getByRole('button').click()
+    await page.getByRole('option', { name: '2025', exact: true }).click()
     await page.getByRole('button', { name: 'Сохранить' }).click()
-    await expect(yearFieldRow).toContainText('2027')
+    await expect(yearFieldRow).toContainText('2025')
   })
 
   test('imports a real institutional .xls direction document (legacy scanned-form layout)', async ({
@@ -105,17 +121,17 @@ test.describe('direction import (flow #2, #3)', () => {
     await loginAsRegistrar(page)
     await goToDirections(page)
 
-    await page.getByTestId('direction-import-menu-trigger').click()
-    const fileChooserPromise = page.waitForEvent('filechooser')
-    // The legacy .xls now goes through the single "Импортировать Excel" entry —
-    // the backend routes a .xls file to the legacy parser (type=xlsx, dispatched
-    // by extension), so there is no longer a separate legacy menu item.
-    await page.getByRole('menuitem', { name: 'Импортировать Excel' }).click()
-    const fileChooser = await fileChooserPromise
-    await fileChooser.setFiles(path.join(fixturesDir, 'legacy-direction.xls'))
+    // The legacy .xls goes through the same "Импорт из файла" wizard branch —
+    // the backend routes a .xls file to the legacy parser by extension.
+    await importFileViaWizard(page, path.join(fixturesDir, 'legacy-direction.xls'))
 
-    await expect(page.getByText('Импорт направлений завершён').last()).toBeVisible()
-    await expect(page.getByText(/образцов: 94/).last()).toBeVisible()
+    // The review card title is "№ <year>-460"; the year comes from the parsed
+    // document header, so match on the base_no suffix rather than a fixed year.
+    await expect(page.getByTestId('direction-review-card').first()).toContainText(
+      String(LEGACY_XLS_BASE_NO)
+    )
+
+    await closeWizard(page)
 
     await page.getByTestId('crud-search-input').fill(String(LEGACY_XLS_BASE_NO))
     const row = page.locator('tbody tr').filter({ hasText: String(LEGACY_XLS_BASE_NO) })
@@ -124,10 +140,9 @@ test.describe('direction import (flow #2, #3)', () => {
 
     await row.first().click({ button: 'right' })
     await page.getByRole('menuitem', { name: 'Просмотр' }).click()
-    await page.getByRole('tab', { name: 'Связанные' }).click()
-    // Related tab paginates 20 rows at a time (see RELATED_PAGE_SIZE);
-    // 94 imported samples means the first page is full and "Load more" shows.
-    await expect(page.getByText('20 записей')).toBeVisible()
+    await page.getByRole('tab', { name: /Образцы/ }).click()
+    // Related tab paginates 20 rows at a time (see RELATED_PAGE_SIZE); 94
+    // imported samples means the first page is full and "Load more" shows.
     await expect(page.getByText('Грецкий орех 130 гр')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Загрузить ещё' })).toBeVisible()
   })
