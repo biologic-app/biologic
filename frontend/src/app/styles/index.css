@@ -1,7 +1,10 @@
 @import "tailwindcss" theme(static);
 @import "@nuxt/ui";
 @import "driver.js/dist/driver.css";
+@import "@vue-flow/core/dist/style.css";
+@import "@vue-flow/core/dist/theme-default.css";
 @import "./tour.css";
+@import "./workflow-nodes.css";
 @import "@fontsource-variable/onest/wght.css";
 @import "@fontsource/public-sans/400.css";
 @import "@fontsource/public-sans/500.css";

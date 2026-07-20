@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, resolveComponent, watch } from "vue";
+import { computed, defineAsyncComponent, ref, resolveComponent, watch } from "vue";
 import type { DropdownMenuItem, TabsItem, TimelineItem } from "@nuxt/ui";
 import type { CrudModuleConfig } from '@/shared/types/crud';
 import {
@@ -17,6 +17,11 @@ import { useEntityForm } from "@/shared/composables/useEntityForm";
 import ProtocolPreviewModal from "@/shared/ui/ProtocolPreviewModal.vue";
 import TechnicalAuditTimeline from "@/shared/ui/TechnicalAuditTimeline.vue";
 import EntityRelatedTab from "@/shared/ui/EntityRelatedTab.vue";
+// Ленивая загрузка: вкладка с воркфлоу-журналом нужна только в Исследованиях V2,
+// не тянем модуль journals в чанк карточки для остальных сущностей.
+const ResearchWorkflowTab = defineAsyncComponent(
+  () => import("@/modules/journals/components/ResearchWorkflowTab.vue"),
+);
 import EntityDetailModalShell from "@/shared/ui/EntityDetailModalShell.vue";
 import type { DetailListItem } from "@/shared/ui/EntityDetailMasterList.vue";
 import EntityFieldGrid, { type GridField } from "@/shared/ui/EntityFieldGrid.vue";
@@ -96,6 +101,9 @@ const props = withDefaults(
     // Инкремент этого счётчика заставляет карточку перечитать запись с бэкенда
     // (после команды воркфлоу из шапки статус меняется — нужно обновить данные).
     reloadToken?: number;
+    // Исследования V2: вместо таба «Тесты» показывать вкладку «Рабочий процесс»
+    // (пошаговый воркфлоу-журнал, привязанный к исследованию).
+    researchWorkflow?: boolean;
   }>(),
   {
     businessKind: null,
@@ -110,6 +118,7 @@ const props = withDefaults(
     breadcrumbs: () => [],
     headerActions: () => [],
     reloadToken: 0,
+    researchWorkflow: false,
   },
 );
 
@@ -245,6 +254,13 @@ const tabs = computed<TabsItem[]>(() => {
     samples: { label: "Исследования", icon: "i-lucide-flask-conical" },
     research: { label: "Тесты", icon: "i-lucide-list-checks" },
   };
+  // Исследования V2: заменяем таб «Тесты» на вкладку «Рабочий процесс».
+  if (props.researchWorkflow && props.businessKind === "research") {
+    return [
+      cardTab,
+      { label: "Рабочий процесс", icon: "i-lucide-workflow", value: "workflow" as const },
+    ];
+  }
   const related = (props.businessKind && relatedLabels[props.businessKind])
     || { label: "Связанные", icon: "i-lucide-link" };
   return [
@@ -1037,6 +1053,8 @@ function close() {
     </div>
 
     <TechnicalAuditTimeline v-else-if="activeTab === 'technical'" :events="technicalAudit" />
+
+    <ResearchWorkflowTab v-else-if="activeTab === 'workflow'" :research="currentItem" />
 
     <EntityRelatedTab v-else-if="activeTab === 'related'" :business-kind="businessKind" :rows="relatedRows"
       :loading="relatedLoading" :loading-more="relatedLoadingMore" :has-more="relatedHasMore"

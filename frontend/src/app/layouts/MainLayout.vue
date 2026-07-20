@@ -60,6 +60,22 @@ const links = computed<NavigationMenuItem[][]>(() => [
       },
     },
     {
+      label: t("nav.researchV2"),
+      icon: "i-lucide-microscope",
+      to: { name: "research-v2" },
+      onSelect: () => {
+        open.value = false;
+      },
+    },
+    {
+      label: t("nav.workflows"),
+      icon: "i-lucide-workflow",
+      to: { name: "workflows" },
+      onSelect: () => {
+        open.value = false;
+      },
+    },
+    {
       label: t("nav.directions"),
       resource: "directions" as Resource,
       icon: canViewDirections.value ? "i-lucide-book-copy" : "i-lucide-lock",
