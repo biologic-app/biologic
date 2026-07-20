@@ -36,14 +36,11 @@ def test_per_status_colors_match_the_specification() -> None:
         "rejected": "red",
     }
     assert RESEARCH_STATUS_COLORS == {
-        "draft": "gray",
-        "ordered": "amber",
         "in_progress": "blue",
         "completed": "green",
         "rejected": "red",
     }
     assert TEST_STATUS_COLORS == {
-        "queued": "amber",
         "in_progress": "blue",
         "completed": "green",
         "rejected": "red",

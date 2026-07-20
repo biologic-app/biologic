@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, resolveComponent, watch } from "vue";
+import { computed, defineAsyncComponent, ref, resolveComponent, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { DropdownMenuItem, TabsItem, TimelineItem } from "@nuxt/ui";
 import type { CrudModuleConfig } from '@/shared/types/crud';
@@ -18,6 +18,11 @@ import { useEntityForm } from "@/shared/composables/useEntityForm";
 import ProtocolPreviewModal from "@/shared/ui/ProtocolPreviewModal.vue";
 import TechnicalAuditTimeline from "@/shared/ui/TechnicalAuditTimeline.vue";
 import EntityRelatedTab from "@/shared/ui/EntityRelatedTab.vue";
+// Ленивая загрузка: вкладка с воркфлоу-журналом нужна только в Исследованиях V2,
+// не тянем модуль journals в чанк карточки для остальных сущностей.
+const ResearchWorkflowTab = defineAsyncComponent(
+  () => import("@/modules/journals/components/ResearchWorkflowTab.vue"),
+);
 import EntityDetailModalShell from "@/shared/ui/EntityDetailModalShell.vue";
 import type { DetailListItem } from "@/shared/ui/EntityDetailMasterList.vue";
 import EntityFieldGrid, { type GridField } from "@/shared/ui/EntityFieldGrid.vue";
@@ -101,6 +106,9 @@ const props = withDefaults(
     // Инкремент этого счётчика заставляет карточку перечитать запись с бэкенда
     // (после команды воркфлоу из шапки статус меняется — нужно обновить данные).
     reloadToken?: number;
+    // Исследования V2: вместо таба «Тесты» показывать вкладку «Рабочий процесс»
+    // (пошаговый воркфлоу-журнал, привязанный к исследованию).
+    researchWorkflow?: boolean;
   }>(),
   {
     businessKind: null,
@@ -115,6 +123,7 @@ const props = withDefaults(
     breadcrumbs: () => [],
     headerActions: () => [],
     reloadToken: 0,
+    researchWorkflow: false,
   },
 );
 
@@ -251,6 +260,13 @@ const tabs = computed<TabsItem[]>(() => {
     samples: { label: t("nav.research"), icon: "i-lucide-flask-conical" },
     research: { label: t("nav.tests"), icon: "i-lucide-list-checks" },
   };
+  // Исследования V2: заменяем таб «Тесты» на вкладку «Рабочий процесс».
+  if (props.researchWorkflow && props.businessKind === "research") {
+    return [
+      cardTab,
+      { label: "Рабочий процесс", icon: "i-lucide-workflow", value: "workflow" as const },
+    ];
+  }
   const related = (props.businessKind && relatedLabels[props.businessKind])
     || { label: t("entityDetail.relatedTab"), icon: "i-lucide-link" };
   const items: TabsItem[] = [
@@ -857,11 +873,11 @@ async function saveInline() {
   }
 }
 
-// Сохранение одной строки теста «по-умному»: пустой тест (queued) при первом
-// заполнении переводим queued → in_progress → completed двумя командами
-// (прямой queued → completed запрещён status_policy), заполненный — командой
-// complete, иначе — обычным PATCH черновика. verdict === false — валидное
-// заполненное значение, поэтому проверяем строго через `!== null`.
+// Сохранение одной строки теста «по-умному»: тесты создаются сразу в статусе
+// in_progress, поэтому заполненную строку завершаем командой complete
+// (in_progress → completed), а частично заполненную — обычным PATCH.
+// verdict === false — валидное заполненное значение, поэтому проверяем строго
+// через `!== null`.
 async function saveOneTestRow(row: RelatedRow) {
   const actorId = auth.user?.id;
   const value = (row.value ?? null) as string | null;
@@ -870,18 +886,8 @@ async function saveOneTestRow(row: RelatedRow) {
   const verdict = (row.verdict ?? null) as boolean | null;
   const isFilled =
     value != null && value !== "" && norm != null && norm !== "" && verdict !== null;
-  const touched =
-    value != null || norm != null || comment != null || verdict !== null;
-  let statusCode = row.statusCode;
 
-  if (statusCode === "queued" && (touched || isFilled)) {
-    await apiCommandRequest(`/tests/${row.id}/start`, {
-      method: "POST",
-      body: { actor_id: actorId },
-    });
-    statusCode = "in_progress";
-  }
-  if (isFilled && statusCode === "in_progress") {
+  if (isFilled && row.statusCode === "in_progress") {
     await apiCommandRequest(`/tests/${row.id}/complete`, {
       method: "POST",
       body: { actor_id: actorId, value, norm, comment, verdict },
@@ -1058,6 +1064,8 @@ function close() {
     <StatusFsmGraph v-else-if="activeTab === 'flow' && fsmKind" :kind="fsmKind" />
 
     <TechnicalAuditTimeline v-else-if="activeTab === 'technical'" :events="technicalAudit" />
+
+    <ResearchWorkflowTab v-else-if="activeTab === 'workflow'" :research="currentItem" />
 
     <EntityRelatedTab v-else-if="activeTab === 'related'" :business-kind="businessKind" :rows="relatedRows"
       :loading="relatedLoading" :loading-more="relatedLoadingMore" :has-more="relatedHasMore"

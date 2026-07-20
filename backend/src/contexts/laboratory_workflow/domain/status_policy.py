@@ -33,18 +33,11 @@ ALLOWED_TRANSITIONS: dict[str, set[tuple[str, str]]] = {
         ("analyzed", "completed"),
     },
     "research": {
-        ("draft", "ordered"),
-        ("draft", "rejected"),
-        ("ordered", "in_progress"),
-        ("ordered", "rejected"),
         ("in_progress", "completed"),
-        ("completed", "in_progress"),
+        ("in_progress", "rejected"),
     },
     "tests": {
-        ("queued", "in_progress"),
-        ("queued", "rejected"),
         ("in_progress", "completed"),
-        ("in_progress", "queued"),
         ("in_progress", "rejected"),
     },
 }

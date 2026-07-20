@@ -350,15 +350,12 @@ SAMPLE_STATUSES: tuple[tuple[str, str], ...] = (
 )
 
 RESEARCH_STATUSES: tuple[tuple[str, str], ...] = (
-    ("draft", "gray"),
-    ("ordered", "amber"),
     ("in_progress", "blue"),
     ("completed", "green"),
     ("rejected", "red"),
 )
 
 TEST_STATUSES: tuple[tuple[str, str], ...] = (
-    ("queued", "amber"),
     ("in_progress", "blue"),
     ("completed", "green"),
     ("rejected", "red"),
@@ -1105,7 +1102,7 @@ async def _seed_workflow_rows(connection: AsyncConnection) -> None:
                 SELECT id, lab_id FROM research_goals WHERE code = :research_goal_code LIMIT 1
             ),
             status_row AS (
-                SELECT id FROM research_statuses WHERE code = 'draft' LIMIT 1
+                SELECT id FROM research_statuses WHERE code = 'in_progress' LIMIT 1
             ),
             actor AS (
                 SELECT id FROM users WHERE username = 'admin' LIMIT 1
@@ -1143,7 +1140,7 @@ async def _seed_workflow_rows(connection: AsyncConnection) -> None:
                 SELECT id FROM indicators WHERE name = :indicator_name LIMIT 1
             ),
             status_row AS (
-                SELECT id FROM test_statuses WHERE code = 'queued' LIMIT 1
+                SELECT id FROM test_statuses WHERE code = 'in_progress' LIMIT 1
             ),
             actor AS (
                 SELECT id FROM users WHERE username = 'admin' LIMIT 1
@@ -1211,13 +1208,13 @@ async def _seed_generated_workflow_rows(
                     LIMIT 1
                 ),
                 research_status AS (
-                    SELECT id FROM research_statuses WHERE code = 'draft' LIMIT 1
+                    SELECT id FROM research_statuses WHERE code = 'in_progress' LIMIT 1
                 ),
                 indicator AS (
                     SELECT id FROM indicators WHERE name = :indicator_name LIMIT 1
                 ),
                 test_status AS (
-                    SELECT id FROM test_statuses WHERE code = 'queued' LIMIT 1
+                    SELECT id FROM test_statuses WHERE code = 'in_progress' LIMIT 1
                 ),
                 inserted_directions AS (
                     INSERT INTO directions (

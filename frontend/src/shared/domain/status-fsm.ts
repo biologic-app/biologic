@@ -54,8 +54,6 @@ export const FSM_ICON_BODIES: Record<string, string> = {
   pending: '<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11"/></g>',
   analyzed: '<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18h8M3 22h18m-7 0a7 7 0 1 0 0-14h-1m-4 6h2m-2-2a2 2 0 0 1-2-2V6h6v4a2 2 0 0 1-2 2Zm3-6V3a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v3"/>',
   rejected: '<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m15 9l-6 6m0-6l6 6"/></g>',
-  ordered: '<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2m4 7h4m-4 5h4m-8-5h.01M8 16h.01"/></g>',
-  queued: '<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M13 5h8m-8 7h8m-8 7h8M3 17l2 2l4-4"/><rect width="6" height="6" x="3" y="4" rx="1"/></g>',
 }
 
 // Каталог узлов хранит i18n-ключ имени (nameKey), а не готовый текст — резолвится
@@ -81,17 +79,11 @@ const FSM_NODES: Record<FsmEntityKind, FsmNodeDef[]> = {
     { code: 'rejected', nameKey: 'statusLabels.sample.rejected', icon: 'i-lucide-circle-x', color: 'red' },
   ],
   research: [
-    { code: 'draft', nameKey: 'statusLabels.research.draft', icon: 'i-lucide-file-pen-line', color: 'gray' },
-    // Название узла в диаграмме исторически отличается от общего статус-лейбла
-    // (statusLabels.research.ordered = «Запланировано») — сохраняем как есть.
-    { code: 'ordered', nameKey: 'statusFsm.researchOrdered', icon: 'i-lucide-clipboard-list', color: 'amber' },
     { code: 'in_progress', nameKey: 'statusLabels.research.in_progress', icon: 'i-lucide-flask-conical', color: 'blue' },
     { code: 'completed', nameKey: 'statusLabels.research.completed', icon: 'i-lucide-circle-check', color: 'green' },
     { code: 'rejected', nameKey: 'statusLabels.research.rejected', icon: 'i-lucide-circle-x', color: 'red' },
   ],
   tests: [
-    // См. комментарий выше — узел «queued» диаграммы отличается от statusLabels.test.queued.
-    { code: 'queued', nameKey: 'statusFsm.testsQueued', icon: 'i-lucide-list-todo', color: 'amber' },
     { code: 'in_progress', nameKey: 'statusLabels.test.in_progress', icon: 'i-lucide-flask-conical', color: 'blue' },
     { code: 'completed', nameKey: 'statusLabels.test.completed', icon: 'i-lucide-circle-check', color: 'green' },
     { code: 'rejected', nameKey: 'statusLabels.test.rejected', icon: 'i-lucide-circle-x', color: 'red' },
@@ -119,18 +111,11 @@ const FSM_LINK_LABELS: Record<FsmEntityKind, Record<string, string>> = {
     'analyzed->completed': 'statusFsm.linkLabels.closing',
   },
   research: {
-    'draft->ordered': 'statusFsm.linkLabels.confirmation',
-    'draft->rejected': 'statusFsm.linkLabels.rejection',
-    'ordered->in_progress': 'statusFsm.linkLabels.toWork',
-    'ordered->rejected': 'statusFsm.linkLabels.rejection',
     'in_progress->completed': 'statusFsm.linkLabels.completion',
-    'completed->in_progress': 'statusFsm.linkLabels.revert',
+    'in_progress->rejected': 'statusFsm.linkLabels.rejection',
   },
   tests: {
-    'queued->in_progress': 'statusFsm.linkLabels.toWork',
-    'queued->rejected': 'statusFsm.linkLabels.rejection',
     'in_progress->completed': 'statusFsm.linkLabels.result',
-    'in_progress->queued': 'statusFsm.linkLabels.toQueue',
     'in_progress->rejected': 'statusFsm.linkLabels.rejection',
   },
 }
@@ -155,18 +140,11 @@ export const STATIC_TRANSITIONS: Record<FsmEntityKind, Array<[string, string]>> 
     ['analyzed', 'completed'],
   ],
   research: [
-    ['draft', 'ordered'],
-    ['draft', 'rejected'],
-    ['ordered', 'in_progress'],
-    ['ordered', 'rejected'],
     ['in_progress', 'completed'],
-    ['completed', 'in_progress'],
+    ['in_progress', 'rejected'],
   ],
   tests: [
-    ['queued', 'in_progress'],
-    ['queued', 'rejected'],
     ['in_progress', 'completed'],
-    ['in_progress', 'queued'],
     ['in_progress', 'rejected'],
   ],
 }

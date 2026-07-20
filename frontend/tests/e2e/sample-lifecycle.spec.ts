@@ -1,6 +1,6 @@
 import { test, expect } from './support/fixtures'
 import { loginAsRegistrar } from './support/auth'
-import { goToSamples } from './support/nav'
+import { closeEntityModal, goToSamples } from './support/nav'
 import { cleanupDirectionsByBaseNo, createDirection, createSample } from './support/api'
 
 const CARD_REJECT_BASE_NO = 900401
@@ -46,9 +46,14 @@ test.describe('sample list and lifecycle (flow #5, #11, #12, #13, #14)', () => {
     await row.first().click({ button: 'right' })
     await page.getByRole('menuitem', { name: /Просмотр/ }).click()
     await expect(page.getByRole('tab', { name: 'Карточка' })).toBeVisible()
-    await page.getByRole('button', { name: 'Закрыть' }).click()
+    await closeEntityModal(page)
 
-    await row.first().click({ button: 'right' })
+    // The table's shared Reka context-menu leaves a 1px, fixed-position anchor at
+    // the previous right-click point (row centre) after the first menu closes,
+    // and it intercepts a second right-click at that same point. Open the menu
+    // again by right-clicking a different spot on the row (near its left edge) so
+    // the click doesn't land on that stale 1px anchor.
+    await row.first().click({ button: 'right', position: { x: 24, y: 6 } })
     await page.getByRole('menuitem', { name: /REJ · Забраковать образец/ }).click()
     await page.getByLabel('Причина').fill('Повреждена упаковка')
     await page.getByRole('button', { name: 'Сохранить' }).click()
@@ -61,7 +66,7 @@ test.describe('sample list and lifecycle (flow #5, #11, #12, #13, #14)', () => {
     await rejectedRow.first().click({ button: 'right' })
     await page.getByRole('menuitem', { name: /Просмотр/ }).click()
     await expect(page.getByText('Брак').first()).toBeVisible()
-    await page.getByRole('tab', { name: 'Технический аудит' }).click()
+    await page.getByTestId('entity-detail-technical-tab').click()
     await expect(page.getByText('sample rejected').last()).toBeVisible()
   })
 

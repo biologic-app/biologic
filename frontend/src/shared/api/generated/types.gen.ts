@@ -10,16 +10,6 @@ export type ClientOptions = {
 export type AccessScopeType = 'own' | 'own_lab' | 'all_labs' | 'own_branch' | 'all_branches' | 'all';
 
 /**
- * ActorRequest
- */
-export type ActorRequest = {
-    /**
-     * Actor Id
-     */
-    actor_id: string;
-};
-
-/**
  * AlertCommandRequest
  */
 export type AlertCommandRequest = {
@@ -975,6 +965,100 @@ export type RejectTestRequest = {
 };
 
 /**
+ * ReleasedDirectionGroup
+ */
+export type ReleasedDirectionGroup = {
+    direction: ReleasedDirectionInfo;
+    /**
+     * Samples
+     */
+    samples: Array<ReleasedSampleItem>;
+    /**
+     * Released Count
+     */
+    released_count: number;
+    /**
+     * Total Count
+     */
+    total_count: number;
+    /**
+     * All Released
+     */
+    all_released: boolean;
+};
+
+/**
+ * ReleasedDirectionInfo
+ */
+export type ReleasedDirectionInfo = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Year No
+     */
+    year_no?: number | null;
+    /**
+     * Base No
+     */
+    base_no?: number | null;
+    /**
+     * Doctor
+     */
+    doctor?: string | null;
+    object: ReleasedObjectInfo;
+};
+
+/**
+ * ReleasedObjectInfo
+ */
+export type ReleasedObjectInfo = {
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Code
+     */
+    code?: string | null;
+};
+
+/**
+ * ReleasedSampleItem
+ */
+export type ReleasedSampleItem = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Status Code
+     */
+    status_code?: string | null;
+    /**
+     * Status Name
+     */
+    status_name?: string | null;
+    /**
+     * Sample Type Name
+     */
+    sample_type_name?: string | null;
+    /**
+     * Protocol Id
+     */
+    protocol_id?: string | null;
+    /**
+     * Completed At
+     */
+    completed_at?: string | null;
+};
+
+/**
  * ResearchGoalCreateRequest
  */
 export type ResearchGoalCreateRequest = {
@@ -1505,6 +1589,17 @@ export type SingleResponseDictStrObject = {
 };
 
 /**
+ * SingleResponse[list[ReleasedDirectionGroup]]
+ */
+export type SingleResponseListReleasedDirectionGroup = {
+    /**
+     * Data
+     */
+    data: Array<ReleasedDirectionGroup>;
+    meta: ResponseMeta;
+};
+
+/**
  * StatusCount
  *
  * One row of a lifecycle-status breakdown (e.g. directions in `draft`).
@@ -1885,6 +1980,22 @@ export type HealthApiV1HealthGetResponses = {
 };
 
 export type HealthApiV1HealthGetResponse = HealthApiV1HealthGetResponses[keyof HealthApiV1HealthGetResponses];
+
+export type DirectionsReleasedSamplesApiV1DirectionsReleasedSamplesGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/directions/released-samples';
+};
+
+export type DirectionsReleasedSamplesApiV1DirectionsReleasedSamplesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: SingleResponseListReleasedDirectionGroup;
+};
+
+export type DirectionsReleasedSamplesApiV1DirectionsReleasedSamplesGetResponse = DirectionsReleasedSamplesApiV1DirectionsReleasedSamplesGetResponses[keyof DirectionsReleasedSamplesApiV1DirectionsReleasedSamplesGetResponses];
 
 export type GetStatusTransitionsApiV1StatusTransitionsGetData = {
     body?: never;
@@ -3240,36 +3351,6 @@ export type CloseSampleApiV1SamplesSampleIdClosePostResponses = {
 
 export type CloseSampleApiV1SamplesSampleIdClosePostResponse = CloseSampleApiV1SamplesSampleIdClosePostResponses[keyof CloseSampleApiV1SamplesSampleIdClosePostResponses];
 
-export type ConfirmResearchApiV1ResearchResearchIdConfirmPostData = {
-    body: ActorRequest;
-    path: {
-        /**
-         * Research Id
-         */
-        research_id: string;
-    };
-    query?: never;
-    url: '/api/v1/research/{research_id}/confirm';
-};
-
-export type ConfirmResearchApiV1ResearchResearchIdConfirmPostErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ConfirmResearchApiV1ResearchResearchIdConfirmPostError = ConfirmResearchApiV1ResearchResearchIdConfirmPostErrors[keyof ConfirmResearchApiV1ResearchResearchIdConfirmPostErrors];
-
-export type ConfirmResearchApiV1ResearchResearchIdConfirmPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: SingleResponseCommandResult;
-};
-
-export type ConfirmResearchApiV1ResearchResearchIdConfirmPostResponse = ConfirmResearchApiV1ResearchResearchIdConfirmPostResponses[keyof ConfirmResearchApiV1ResearchResearchIdConfirmPostResponses];
-
 export type RejectResearchApiV1ResearchResearchIdRejectPostData = {
     body: RejectResearchRequest;
     path: {
@@ -3300,66 +3381,6 @@ export type RejectResearchApiV1ResearchResearchIdRejectPostResponses = {
 
 export type RejectResearchApiV1ResearchResearchIdRejectPostResponse = RejectResearchApiV1ResearchResearchIdRejectPostResponses[keyof RejectResearchApiV1ResearchResearchIdRejectPostResponses];
 
-export type StartResearchApiV1ResearchResearchIdStartPostData = {
-    body: ActorRequest;
-    path: {
-        /**
-         * Research Id
-         */
-        research_id: string;
-    };
-    query?: never;
-    url: '/api/v1/research/{research_id}/start';
-};
-
-export type StartResearchApiV1ResearchResearchIdStartPostErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type StartResearchApiV1ResearchResearchIdStartPostError = StartResearchApiV1ResearchResearchIdStartPostErrors[keyof StartResearchApiV1ResearchResearchIdStartPostErrors];
-
-export type StartResearchApiV1ResearchResearchIdStartPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: SingleResponseCommandResult;
-};
-
-export type StartResearchApiV1ResearchResearchIdStartPostResponse = StartResearchApiV1ResearchResearchIdStartPostResponses[keyof StartResearchApiV1ResearchResearchIdStartPostResponses];
-
-export type StartTestApiV1TestsTestIdStartPostData = {
-    body: ActorRequest;
-    path: {
-        /**
-         * Test Id
-         */
-        test_id: string;
-    };
-    query?: never;
-    url: '/api/v1/tests/{test_id}/start';
-};
-
-export type StartTestApiV1TestsTestIdStartPostErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type StartTestApiV1TestsTestIdStartPostError = StartTestApiV1TestsTestIdStartPostErrors[keyof StartTestApiV1TestsTestIdStartPostErrors];
-
-export type StartTestApiV1TestsTestIdStartPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: SingleResponseCommandResult;
-};
-
-export type StartTestApiV1TestsTestIdStartPostResponse = StartTestApiV1TestsTestIdStartPostResponses[keyof StartTestApiV1TestsTestIdStartPostResponses];
-
 export type CompleteTestApiV1TestsTestIdCompletePostData = {
     body: CompleteTestRequest;
     path: {
@@ -3389,36 +3410,6 @@ export type CompleteTestApiV1TestsTestIdCompletePostResponses = {
 };
 
 export type CompleteTestApiV1TestsTestIdCompletePostResponse = CompleteTestApiV1TestsTestIdCompletePostResponses[keyof CompleteTestApiV1TestsTestIdCompletePostResponses];
-
-export type RequeueTestApiV1TestsTestIdRequeuePostData = {
-    body: ActorRequest;
-    path: {
-        /**
-         * Test Id
-         */
-        test_id: string;
-    };
-    query?: never;
-    url: '/api/v1/tests/{test_id}/requeue';
-};
-
-export type RequeueTestApiV1TestsTestIdRequeuePostErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type RequeueTestApiV1TestsTestIdRequeuePostError = RequeueTestApiV1TestsTestIdRequeuePostErrors[keyof RequeueTestApiV1TestsTestIdRequeuePostErrors];
-
-export type RequeueTestApiV1TestsTestIdRequeuePostResponses = {
-    /**
-     * Successful Response
-     */
-    200: SingleResponseCommandResult;
-};
-
-export type RequeueTestApiV1TestsTestIdRequeuePostResponse = RequeueTestApiV1TestsTestIdRequeuePostResponses[keyof RequeueTestApiV1TestsTestIdRequeuePostResponses];
 
 export type RejectTestApiV1TestsTestIdRejectPostData = {
     body: RejectTestRequest;

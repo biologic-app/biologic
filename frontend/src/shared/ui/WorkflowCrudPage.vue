@@ -22,6 +22,7 @@ withDefaults(
     extraRowActions?: (row: CrudRow) => DropdownMenuItem[];
     highlightId?: string | null;
     tourScope?: string;
+    researchWorkflow?: boolean;
   }>(),
   {
     searchPlaceholder: undefined,
@@ -29,6 +30,7 @@ withDefaults(
     extraRowActions: undefined,
     highlightId: null,
     tourScope: undefined,
+    researchWorkflow: false,
   },
 );
 
@@ -71,6 +73,11 @@ defineExpose({
           />
         </template>
       </UDashboardNavbar>
+
+      <!-- Доп. тулбары (nav-меню категорий/статусов, вкладки доступа) — над
+           основным тулбаром поиска. Пусто по умолчанию: страницы рабочих
+           процессов (Направления/Образцы) не используют слот. -->
+      <slot name="toolbar-extra" />
 
       <UDashboardToolbar>
         <template #left>
@@ -124,6 +131,7 @@ defineExpose({
           :reset-token="resetToken"
           :extra-row-actions="extraRowActions"
           :highlight-id="highlightId"
+          :research-workflow="researchWorkflow"
         />
       </div>
     </template>

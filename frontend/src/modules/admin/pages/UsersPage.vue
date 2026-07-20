@@ -23,6 +23,7 @@ import AccessEntityDetailModal from "@/shared/ui/AccessEntityDetailModal.vue";
 import NotificationsBellButton from "@/shared/ui/NotificationsBellButton.vue";
 import CrudDataTable from "@/shared/ui/CrudDataTable.vue";
 import CrudTableEmptyState from "@/shared/ui/CrudTableEmptyState.vue";
+import CrudFilterControls from "@/shared/ui/CrudFilterControls.vue";
 import CrudFilterModal from "@/shared/ui/CrudFilterModal.vue";
 import CrudSearchControl from "@/shared/ui/CrudSearchControl.vue";
 import ConfirmDialog from "@/shared/ui/ConfirmDialog.vue";
@@ -537,8 +538,6 @@ const selectedRows = computed(() => {
   return table.data.value.filter((row) => ids.has(String(row.id)));
 });
 
-const selectedCount = computed(() => selectedRows.value.length);
-
 const deleteSelected = async () => {
   if (!selectedRows.value.length) {
     return;
@@ -769,22 +768,15 @@ onMounted(async () => {
               :placeholder="t('access.searchUser')"
               @update:model-value="applyFilters(true)"
             />
+            <CrudFilterControls
+              :active-count="activeFilterCount"
+              @open="filterModalOpen = true"
+              @clear="resetFilters()"
+            />
           </div>
         </template>
         <template #right>
           <div class="flex flex-wrap items-center gap-2">
-            <UButton
-              v-show="selectedCount"
-              color="error"
-              variant="subtle"
-              icon="i-lucide-trash"
-              :label="t('common.delete')"
-              @click="deleteSelected"
-            >
-              <template #trailing>
-                <UKbd>{{ selectedCount }}</UKbd>
-              </template>
-            </UButton>
             <UTooltip :text="t('access.refreshData')">
               <UButton
                 color="neutral"

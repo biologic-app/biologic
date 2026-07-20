@@ -10,12 +10,8 @@ export type WorkflowCommandKey =
   | "samples.register"
   | "samples.reject"
   | "samples.close"
-  | "research.confirm"
-  | "research.start"
   | "research.reject"
-  | "tests.start"
   | "tests.complete"
-  | "tests.requeue"
   | "tests.reject";
 
 export type WorkflowSelectionColor =
@@ -35,7 +31,7 @@ export type WorkflowCommand = {
   // Лейбл/цвет могут отличаться от title/color (короче, иной акцент).
   selection: { label: string; color: WorkflowSelectionColor };
   resource: "directions" | "samples" | "research" | "tests";
-  action: "register" | "reject" | "close" | "confirm" | "start" | "complete" | "requeue";
+  action: "register" | "reject" | "close" | "complete";
   statuses: string[];
   endpoint: (row: CrudRow) => string;
   fields: FormField[];
@@ -124,38 +120,6 @@ export const workflowCommands: WorkflowCommand[] = [
     }),
   },
   {
-    key: "research.confirm",
-    label: "CNF",
-    title: t("workflowCommands.confirmResearch"),
-    icon: "i-lucide-check-check",
-    color: "primary",
-    selection: { label: t("workflowCommands.confirmResearch_selection"), color: "primary" },
-    resource: "research",
-    action: "confirm",
-    statuses: ["draft"],
-    endpoint: (row) => `/research/${row.id}/confirm`,
-    fields: [],
-    successTitle: t("workflowCommands.researchConfirmed"),
-    errorTitle: t("workflowCommands.failedToConfirmResearch"),
-    body: (actorId) => ({ actor_id: actorId }),
-  },
-  {
-    key: "research.start",
-    label: "STR",
-    title: t("workflowCommands.startResearch"),
-    icon: "i-lucide-play",
-    color: "primary",
-    selection: { label: t("workflowCommands.startResearch_selection"), color: "primary" },
-    resource: "research",
-    action: "start",
-    statuses: ["ordered"],
-    endpoint: (row) => `/research/${row.id}/start`,
-    fields: [],
-    successTitle: t("workflowCommands.researchStarted"),
-    errorTitle: t("workflowCommands.failedToStartResearch"),
-    body: (actorId) => ({ actor_id: actorId }),
-  },
-  {
     key: "research.reject",
     label: "REJ",
     title: t("workflowCommands.rejectResearch"),
@@ -164,28 +128,12 @@ export const workflowCommands: WorkflowCommand[] = [
     selection: { label: t("workflowCommands.rejectResearch_selection"), color: "error" },
     resource: "research",
     action: "reject",
-    statuses: ["draft", "ordered"],
+    statuses: ["in_progress"],
     endpoint: (row) => `/research/${row.id}/reject`,
     fields: [{ key: "reason", label: t("workflowCommands.formFields.reason"), type: "textarea", required: true }],
     successTitle: t("workflowCommands.researchRejected"),
     errorTitle: t("workflowCommands.failedToRejectResearch"),
     body: (actorId, payload) => ({ actor_id: actorId, reason: payload.reason }),
-  },
-  {
-    key: "tests.start",
-    label: "STR",
-    title: t("workflowCommands.startTest"),
-    icon: "i-lucide-play",
-    color: "primary",
-    selection: { label: t("workflowCommands.startTest_selection"), color: "primary" },
-    resource: "tests",
-    action: "start",
-    statuses: ["queued"],
-    endpoint: (row) => `/tests/${row.id}/start`,
-    fields: [],
-    successTitle: t("workflowCommands.testsStarted"),
-    errorTitle: t("workflowCommands.failedToStartTests"),
-    body: (actorId) => ({ actor_id: actorId }),
   },
   {
     key: "tests.complete",
@@ -213,22 +161,6 @@ export const workflowCommands: WorkflowCommand[] = [
     }),
   },
   {
-    key: "tests.requeue",
-    label: "REQ",
-    title: t("workflowCommands.requeueTest"),
-    icon: "i-lucide-rotate-ccw",
-    color: "warning",
-    selection: { label: t("workflowCommands.requeueTest_selection"), color: "warning" },
-    resource: "tests",
-    action: "requeue",
-    statuses: ["in_progress"],
-    endpoint: (row) => `/tests/${row.id}/requeue`,
-    fields: [],
-    successTitle: t("workflowCommands.testsRequeued"),
-    errorTitle: t("workflowCommands.failedToRequeueTests"),
-    body: (actorId) => ({ actor_id: actorId }),
-  },
-  {
     key: "tests.reject",
     label: "REJ",
     title: t("workflowCommands.rejectTest"),
@@ -237,7 +169,7 @@ export const workflowCommands: WorkflowCommand[] = [
     selection: { label: t("workflowCommands.rejectTest_selection"), color: "error" },
     resource: "tests",
     action: "reject",
-    statuses: ["queued", "in_progress"],
+    statuses: ["in_progress"],
     endpoint: (row) => `/tests/${row.id}/reject`,
     fields: [{ key: "reason", label: t("workflowCommands.formFields.reason"), type: "textarea", required: true }],
     successTitle: t("workflowCommands.testsRejected"),

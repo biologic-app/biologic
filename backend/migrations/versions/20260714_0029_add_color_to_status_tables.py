@@ -1,7 +1,7 @@
 """add color to status tables
 
 Revision ID: 20260714_0029
-Revises: 20260714_0028
+Revises: 20260719_0029
 Create Date: 2026-07-14 00:00:00.000000
 """
 
@@ -10,7 +10,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "20260714_0029"
-down_revision = "20260714_0028"
+down_revision = "20260719_0029"
 branch_labels = None
 depends_on = None
 
@@ -41,8 +41,6 @@ _STATUS_COLORS: tuple[tuple[str, dict[str, str]], ...] = (
     (
         "research_statuses",
         {
-            "draft": "gray",
-            "ordered": "amber",
             "in_progress": "blue",
             "completed": "green",
             "rejected": "red",
@@ -51,7 +49,6 @@ _STATUS_COLORS: tuple[tuple[str, dict[str, str]], ...] = (
     (
         "test_statuses",
         {
-            "queued": "amber",
             "in_progress": "blue",
             "completed": "green",
             "rejected": "red",

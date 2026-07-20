@@ -16,9 +16,7 @@ from src.core.status_codes import (
     DIRECTION_PARTIALLY_COMPLETED,
     DIRECTION_REGISTERED,
     RESEARCH_COMPLETED,
-    RESEARCH_DRAFT,
     RESEARCH_IN_PROGRESS,
-    RESEARCH_ORDERED,
     RESEARCH_REJECTED,
     SAMPLE_ANALYZED,
     SAMPLE_COMPLETED,
@@ -28,7 +26,6 @@ from src.core.status_codes import (
     SAMPLE_REJECTED,
     TEST_COMPLETED,
     TEST_IN_PROGRESS,
-    TEST_QUEUED,
     TEST_REJECTED,
 )
 
@@ -50,15 +47,12 @@ SAMPLE_STATUS_COLORS: dict[str, str] = {
 }
 
 RESEARCH_STATUS_COLORS: dict[str, str] = {
-    RESEARCH_DRAFT: "gray",
-    RESEARCH_ORDERED: "amber",
     RESEARCH_IN_PROGRESS: "blue",
     RESEARCH_COMPLETED: "green",
     RESEARCH_REJECTED: "red",
 }
 
 TEST_STATUS_COLORS: dict[str, str] = {
-    TEST_QUEUED: "amber",
     TEST_IN_PROGRESS: "blue",
     TEST_COMPLETED: "green",
     TEST_REJECTED: "red",

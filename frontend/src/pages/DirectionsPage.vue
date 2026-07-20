@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import type { DropdownMenuItem } from '@nuxt/ui'
 import WorkflowCrudPage from '@/shared/ui/WorkflowCrudPage.vue'
 import DirectionWizard from '@/modules/directions/components/DirectionWizard.vue'
+import ReleasedSamplesByDirectionModal from '@/shared/ui/ReleasedSamplesByDirectionModal.vue'
 import { usePermission } from '@/shared/composables/usePermission'
 import { crudModules } from '@/shared/config/crud-modules'
 import { registerTourAction } from '@/shared/tour/tour.actions'
@@ -16,6 +17,11 @@ const selectedConfig = crudModules.directions
 const createDisabled = computed(() => !can(selectedConfig.resource, 'create'))
 const importDisabled = computed(() => !can(selectedConfig.resource, 'import'))
 const createMenuDisabled = computed(() => createDisabled.value && importDisabled.value)
+
+// Модалка «Выпущенные образцы по направлениям» — доступна регистратору
+// (право protocols:create) или всем, кто видит образцы.
+const releasedOpen = ref(false)
+const canViewReleased = computed(() => can('protocols', 'create') || can('samples', 'view'))
 
 const importWizardOpen = ref(false)
 // Направление, для которого мастер открыт в режиме «существующий черновик»
@@ -113,6 +119,16 @@ const onWizardOpenChange = (value: boolean, refresh: () => void) => {
   >
     <template #navbar-right="{ refresh }">
       <div class="flex items-center gap-2">
+        <UButton
+          v-if="canViewReleased"
+          :label="t('directionWizard.releasedSamples')"
+          icon="i-lucide-package-check"
+          color="neutral"
+          variant="subtle"
+          data-testid="open-released-samples"
+          data-telemetry="directions-open-released-samples"
+          @click="releasedOpen = true"
+        />
         <UTooltip :text="createMenuDisabled ? t('dictionaries.noCreatePermission') : t('directionWizard.createDirectionTooltip')">
           <UButton
             data-tour="directions-create"
@@ -125,6 +141,8 @@ const onWizardOpenChange = (value: boolean, refresh: () => void) => {
           />
         </UTooltip>
       </div>
+
+      <ReleasedSamplesByDirectionModal v-model:open="releasedOpen" />
 
       <DirectionWizard
         :open="importWizardOpen"

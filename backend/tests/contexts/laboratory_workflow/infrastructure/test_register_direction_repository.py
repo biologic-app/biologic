@@ -40,106 +40,104 @@ DOCTOR_ID = UUID("00000000-0000-0000-0000-00000000000b")
 OBJECT_ID = UUID("00000000-0000-0000-0000-00000000000c")
 
 
-class RowResult:
-    def __init__(self, row: Direction | None) -> None:
-        self.row = row
+class FakeResult:
+    """Flexible result double dispatched by the fake session's SQL matcher."""
 
-    def scalar_one_or_none(self) -> Direction | None:
-        return self.row
+    def __init__(
+        self,
+        *,
+        scalar: Any = None,
+        rows: list[Any] | None = None,
+        scalar_list: list[Any] | None = None,
+        first: Any = None,
+    ) -> None:
+        self._scalar = scalar
+        self._rows = rows or []
+        self._scalar_list = scalar_list or []
+        self._first = first
 
+    def scalar_one_or_none(self) -> Any:
+        return self._scalar
 
-class ScalarResult:
-    def __init__(self, value: UUID | str | None) -> None:
-        self.value = value
+    def all(self) -> list[Any]:
+        return self._rows
 
-    def scalar_one_or_none(self) -> UUID | str | None:
-        return self.value
+    def first(self) -> Any:
+        return self._first
 
-
-class ScalarList:
-    def __init__(self, values: list[UUID]) -> None:
-        self.values = values
-
-    def all(self) -> list[UUID]:
-        return self.values
-
-
-class ListResult:
-    def __init__(self, rows: list[tuple[UUID, str, UUID | None]]) -> None:
-        self.rows = rows
-
-    def all(self) -> list[tuple[UUID, str, UUID | None]]:
-        return self.rows
-
-    def scalars(self) -> ScalarList:
-        return ScalarList([row[0] for row in self.rows])
+    def scalars(self) -> "FakeResult":
+        return FakeResult(rows=self._scalar_list)
 
 
-class SampleScalars:
-    def __init__(self, values: list[Sample]) -> None:
-        self.values = values
-
-    def all(self) -> list[Sample]:
-        return self.values
-
-
-class SampleListResult:
-    def __init__(self, values: list[Sample]) -> None:
-        self.values = values
-
-    def scalars(self) -> SampleScalars:
-        return SampleScalars(self.values)
+def _compiled(statement: Select[tuple[Any, ...]]) -> str:
+    return str(
+        statement.compile(
+            dialect=postgresql.dialect(),  # type: ignore[no-untyped-call]
+            compile_kwargs={"literal_binds": True},
+        )
+    )
 
 
 class FakeAsyncSession:
+    """Dispatch-based fake session that keys results off the compiled SQL.
+
+    Order-independent so it tolerates the auto-assign queries added after sample
+    registration without brittle positional counting.
+    """
+
     def __init__(
         self,
         *,
         direction: Direction | None,
         current_status_code: str | None = "draft",
         samples: list[tuple[UUID, str, UUID | None]] | None = None,
-        research_sample_ids: list[UUID] | None = None,
         sample_objects: list[Sample] | None = None,
+        indicator_goal_ids: list[UUID] | None = None,
     ) -> None:
         self.direction = direction
         self.current_status_code = current_status_code
         self.samples: list[tuple[UUID, str, UUID | None]] = (
             samples if samples is not None else [(SAMPLE_ID, "Sample", SAMPLE_TYPE_ID)]
         )
-        self.research_sample_ids = (
-            research_sample_ids if research_sample_ids is not None else [SAMPLE_ID]
-        )
         # Каскадная регистрация образцов подгружает Sample-объекты; по умолчанию
-        # оставляем пустым, чтобы позиционные проверки других тестов не менялись.
+        # пусто, чтобы тесты, не проверяющие каскад, оставались лаконичными.
         self.sample_objects: list[Sample] = sample_objects if sample_objects is not None else []
+        # Цели авто-назначения по типу образца: по умолчанию пусто — авто-назначение
+        # ничего не создаёт, а assign_research тестируется отдельно / на реальной БД.
+        self.indicator_goal_ids = indicator_goal_ids or []
         self.statements: list[Select[tuple[Any, ...]]] = []
         self.added: list[object] = []
         self.flushed = False
 
-    async def execute(
-        self,
-        statement: Select[tuple[Any, ...]],
-    ) -> RowResult | ScalarResult | ListResult | SampleListResult:
+    async def execute(self, statement: Select[tuple[Any, ...]]) -> FakeResult:
         self.statements.append(statement)
-        if len(self.statements) == 1:
-            return RowResult(self.direction)
-        if len(self.statements) == 2:
-            return ScalarResult(self.current_status_code)
-        if len(self.statements) == 3:
-            return ListResult(self.samples)
-        if len(self.statements) == 4:
-            return ListResult([(sample_id, "", None) for sample_id in self.research_sample_ids])
-        if len(self.statements) == 5:
-            # _direction_status_id(registered)
-            return ScalarResult(REGISTERED_STATUS_ID)
-        if len(self.statements) == 6:
-            # Каскад: подгрузка Sample-объектов направления.
-            return SampleListResult(self.sample_objects)
-        if len(self.statements) == 7:
-            # _sample_status_id(registered)
-            return ScalarResult(SAMPLE_REGISTERED_STATUS_ID)
-        # _sample_status_code для каждого образца.
-        return ScalarResult("pending")
+        sql = _compiled(statement)
+        if "FROM directions" in sql:
+            return FakeResult(scalar=self.direction)
+        # Disambiguate by the projected column (SELECT <table>.<col>), since both
+        # the id-by-code and code-by-id lookups mention id and code (WHERE vs SELECT).
+        if "SELECT direction_statuses.code" in sql:
+            return FakeResult(scalar=self.current_status_code)
+        if "SELECT direction_statuses.id" in sql:
+            return FakeResult(scalar=REGISTERED_STATUS_ID)
+        if "SELECT sample_statuses.id" in sql:
+            return FakeResult(scalar=SAMPLE_REGISTERED_STATUS_ID)
+        if "SELECT sample_statuses.code" in sql:
+            return FakeResult(scalar="pending")
+        if "FROM research" in sql:
+            return FakeResult(first=None, scalar_list=[])
+        if "FROM indicators" in sql:
+            return FakeResult(scalar_list=list(self.indicator_goal_ids))
+        if "FROM samples" in sql:
+            if "FOR UPDATE" in sql:
+                # _register_direction_samples: Sample-объекты направления.
+                return FakeResult(scalar_list=self.sample_objects)
+            if "samples.name" in sql:
+                # _ensure_direction_ready_for_registration: (id, name, type).
+                return FakeResult(rows=self.samples)
+            # _auto_assign_research_for_direction: (id, sample_type_id).
+            return FakeResult(rows=[(row[0], row[2]) for row in self.samples])
+        raise AssertionError(f"Unexpected statement: {sql}")
 
     def add(self, instance: object) -> None:
         self.added.append(instance)
@@ -226,6 +224,7 @@ async def test_register_direction_cascades_samples_to_registered() -> None:
         if isinstance(item, ChangeLog) and item.entity_type == "samples"
     )
     assert sample_audit.action == "sample_registered"
+    assert sample_audit.diff is not None
     assert sample_audit.diff["status_code"] == {"from": "pending", "to": "registered"}
     sample_events = [e for e in repository.events if e.entity_type == "samples"]
     assert len(sample_events) == 1
@@ -251,17 +250,15 @@ async def test_register_direction_rejects_invalid_initial_status() -> None:
 
 
 @pytest.mark.parametrize(
-    ("samples", "research_sample_ids", "error_code"),
+    ("samples", "error_code"),
     [
-        ([], [], "direction_missing_samples"),
-        ([(SAMPLE_ID, "Sample", None)], [SAMPLE_ID], "direction_missing_sample_data"),
-        ([(SAMPLE_ID, "Sample", SAMPLE_TYPE_ID)], [], "direction_missing_research_assignments"),
+        ([], "direction_missing_samples"),
+        ([(SAMPLE_ID, "Sample", None)], "direction_missing_sample_data"),
     ],
 )
 @pytest.mark.asyncio
-async def test_register_direction_validates_required_samples_and_research(
+async def test_register_direction_validates_required_samples(
     samples: list[tuple[UUID, str, UUID | None]],
-    research_sample_ids: list[UUID],
     error_code: str,
 ) -> None:
     direction = Direction(
@@ -274,7 +271,6 @@ async def test_register_direction_validates_required_samples_and_research(
     fake_session = FakeAsyncSession(
         direction=direction,
         samples=samples,
-        research_sample_ids=research_sample_ids,
     )
     repository = SqlAlchemyWorkflowRepository(session=cast(AsyncSession, fake_session))
 
@@ -375,20 +371,18 @@ async def test_register_direction_status_lookup_uses_stable_code() -> None:
         comment=None,
     )
 
-    compiled_lookup = str(
-        fake_session.statements[4].compile(
-            dialect=postgresql.dialect(),  # type: ignore[no-untyped-call]
-            compile_kwargs={"literal_binds": True},
-        ),
+    compiled_statements = [_compiled(statement) for statement in fake_session.statements]
+    compiled_lookup = next(
+        sql
+        for sql in compiled_statements
+        if "direction_statuses.id" in sql and "direction_statuses.code = 'registered'" in sql
     )
-    assert "direction_statuses.code = 'registered'" in compiled_lookup
     assert "direction_statuses.name" not in compiled_lookup
 
-    compiled_current_status_lookup = str(
-        fake_session.statements[1].compile(
-            dialect=postgresql.dialect(),  # type: ignore[no-untyped-call]
-            compile_kwargs={"literal_binds": True},
-        ),
+    compiled_current_status_lookup = next(
+        sql
+        for sql in compiled_statements
+        if "direction_statuses.code" in sql and "WHERE direction_statuses.id" in sql
     )
     assert "direction_statuses.deleted_at IS NULL" in compiled_current_status_lookup
 

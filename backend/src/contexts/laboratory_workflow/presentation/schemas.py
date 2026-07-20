@@ -157,10 +157,6 @@ class RejectResearchRequest(BaseModel):
     reason: str
 
 
-class ActorRequest(BaseModel):
-    actor_id: UUID
-
-
 class AssignResearchRequest(BaseModel):
     actor_id: UUID
     research_goal_id: UUID

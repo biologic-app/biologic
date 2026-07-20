@@ -124,6 +124,17 @@ const researchColumns = computed<TableColumn<RelatedRow>[]>(() => [
   { id: "actions", header: "" },
 ]);
 
+// Заполнение тестов (карточка исследования): редактируемая таблица показателей
+// в общем стиле UTable — как дерево образцов и список исследований выше.
+const testsColumns = computed<TableColumn<RelatedRow>[]>(() => [
+  { accessorKey: "title", header: t("crudFields.indicator") },
+  { id: "status", header: t("common.status") },
+  { id: "value", header: t("workflowCommands.formFields.value") },
+  { id: "norm", header: t("workflowCommands.formFields.norm") },
+  { id: "verdict", header: t("entityRelated.doctorVerdict") },
+  { id: "comment", header: t("workflowCommands.formFields.comment") },
+]);
+
 // Вердикт врача по тесту: соответствует / не соответствует / не указано (null).
 const verdictOptions = computed(() => [
   { label: t("entityRelated.verdictMatches"), value: true },
@@ -190,75 +201,51 @@ function verdictModel(row: RelatedRow): boolean | undefined {
       class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-default"
     >
       <div class="min-h-0 flex-1 overflow-auto">
-        <table class="w-full min-w-[1040px] border-collapse text-sm">
-          <thead class="sticky top-0 z-10 bg-elevated text-left text-xs font-medium uppercase text-muted">
-            <tr>
-              <th class="border-b border-default px-3 py-2">
-                {{ t('crudFields.indicator') }}
-              </th>
-              <th class="border-b border-default px-3 py-2">
-                {{ t('common.status') }}
-              </th>
-              <th class="border-b border-default px-3 py-2">
-                {{ t('workflowCommands.formFields.value') }}
-              </th>
-              <th class="border-b border-default px-3 py-2">
-                {{ t('workflowCommands.formFields.norm') }}
-              </th>
-              <th class="border-b border-default px-3 py-2">
-                {{ t('entityRelated.doctorVerdict') }}
-              </th>
-              <th class="border-b border-default px-3 py-2">
-                {{ t('workflowCommands.formFields.comment') }}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="row in rows"
-              :key="row.id"
-              class="border-b border-default last:border-b-0"
-            >
-              <td class="px-3 py-2 align-top">
-                <p class="font-medium text-highlighted">
-                  {{ row.title }}
-                </p>
-              </td>
-              <td class="px-3 py-2 align-top">
-                <StatusBadge :color="row.statusColor" :label="row.statusText" />
-              </td>
-              <td class="px-3 py-2 align-top">
-                <UInput
-                  :model-value="relatedString(row, 'value')"
-                  @update:model-value="setRelatedValue(row, 'value', $event)"
-                />
-              </td>
-              <td class="px-3 py-2 align-top">
-                <UInput
-                  :model-value="relatedString(row, 'norm')"
-                  @update:model-value="setRelatedValue(row, 'norm', $event)"
-                />
-              </td>
-              <td class="px-3 py-2 align-top">
-                <USelect
-                  :model-value="verdictModel(row)"
-                  :items="verdictOptions"
-                  :placeholder="t('entityRelated.notSpecified')"
-                  class="w-full min-w-44"
-                  @update:model-value="setRelatedValue(row, 'verdict', $event)"
-                />
-              </td>
-              <td class="px-3 py-2 align-top">
-                <UTextarea
-                  :model-value="relatedString(row, 'comment')"
-                  autoresize
-                  :rows="1"
-                  @update:model-value="setRelatedValue(row, 'comment', $event)"
-                />
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <UTable
+          :data="rows"
+          :columns="testsColumns"
+          :loading="loading"
+          :ui="{ base: 'min-w-[1040px]', thead: 'sticky top-0 z-10 bg-elevated', th: 'px-4 py-2 text-left text-sm font-semibold text-highlighted', td: 'px-4 py-2 align-top text-sm text-muted' }"
+        >
+          <template #title-cell="{ row }">
+            <span class="font-medium text-highlighted">{{ row.original.title }}</span>
+          </template>
+          <template #status-cell="{ row }">
+            <StatusBadge
+              :color="row.original.statusColor"
+              :label="row.original.statusText"
+            />
+          </template>
+          <template #value-cell="{ row }">
+            <UInput
+              :model-value="relatedString(row.original, 'value')"
+              @update:model-value="setRelatedValue(row.original, 'value', $event)"
+            />
+          </template>
+          <template #norm-cell="{ row }">
+            <UInput
+              :model-value="relatedString(row.original, 'norm')"
+              @update:model-value="setRelatedValue(row.original, 'norm', $event)"
+            />
+          </template>
+          <template #verdict-cell="{ row }">
+            <USelect
+              :model-value="verdictModel(row.original)"
+              :items="verdictOptions"
+              :placeholder="t('entityRelated.notSpecified')"
+              class="w-full min-w-44"
+              @update:model-value="setRelatedValue(row.original, 'verdict', $event)"
+            />
+          </template>
+          <template #comment-cell="{ row }">
+            <UTextarea
+              :model-value="relatedString(row.original, 'comment')"
+              autoresize
+              :rows="1"
+              @update:model-value="setRelatedValue(row.original, 'comment', $event)"
+            />
+          </template>
+        </UTable>
         <div v-if="!loading && !rows.length" class="px-4 py-8 text-center text-sm text-muted">
           {{ t('entityRelated.noRelatedItems') }}
         </div>

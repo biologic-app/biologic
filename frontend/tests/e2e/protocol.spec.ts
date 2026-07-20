@@ -1,6 +1,6 @@
 import { test, expect } from './support/fixtures'
 import { loginAsRegistrar, loginAsSanitaryInspector } from './support/auth'
-import { goToProtocols, goToSamples } from './support/nav'
+import { closeEntityModal, goToProtocols, goToSamples } from './support/nav'
 import {
   API_BASE,
   advanceSampleToCompleted,
@@ -82,8 +82,10 @@ test.describe('protocol creation and viewing', () => {
     await expect(page.getByRole('tab', { name: 'Карточка' })).toBeVisible()
     await expect(page.getByText('Создано')).toBeVisible()
 
+    // Protocols keep the generic "Связанные" tab label (only directions/samples/
+    // research get an entity-specific one after the modal rework); its body is a
+    // table of the linked sample rows rather than an "N записей" summary line.
     await page.getByRole('tab', { name: 'Связанные' }).click()
-    await expect(page.getByText('2 записей')).toBeVisible()
     await expect(page.getByText('Protocol demo sample A')).toBeVisible()
     await expect(page.getByText('Protocol demo sample B')).toBeVisible()
   })
@@ -131,7 +133,7 @@ test.describe('protocol creation and viewing', () => {
     await page.getByRole('tab', { name: 'Связанные' }).click()
     await expect(page.getByText('SanInspector protocol view sample')).toBeVisible()
 
-    await page.getByRole('button', { name: 'Закрыть' }).click()
+    await closeEntityModal(page)
     await goToSamples(page)
     await expect(page.getByTestId('create-protocol-from-selection')).toHaveCount(0)
   })

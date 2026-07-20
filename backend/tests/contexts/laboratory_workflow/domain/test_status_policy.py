@@ -24,12 +24,10 @@ def test_direction_patch_status_transition_is_not_allowed() -> None:
         ("samples", "registered", "rejected"),
         ("samples", "in_progress", "rejected"),
         ("samples", "analyzed", "completed"),
-        ("research", "draft", "ordered"),
-        ("research", "ordered", "in_progress"),
         ("research", "in_progress", "completed"),
-        ("tests", "queued", "in_progress"),
+        ("research", "in_progress", "rejected"),
         ("tests", "in_progress", "completed"),
-        ("tests", "in_progress", "queued"),
+        ("tests", "in_progress", "rejected"),
     ],
 )
 def test_allowed_mvp_transitions(resource: str, from_code: str, to_code: str) -> None:
@@ -47,5 +45,19 @@ def test_allowed_mvp_transitions(resource: str, from_code: str, to_code: str) ->
     ],
 )
 def test_disallowed_transitions(resource: str, from_code: str, to_code: str) -> None:
+    with pytest.raises(InvalidStatusTransition):
+        ensure_allowed_transition(resource, from_code, to_code)
+
+
+@pytest.mark.parametrize(
+    ("resource", "from_code", "to_code"),
+    [
+        ("research", "draft", "ordered"),
+        ("research", "ordered", "in_progress"),
+        ("tests", "queued", "in_progress"),
+        ("tests", "in_progress", "queued"),
+    ],
+)
+def test_removed_transitions_are_rejected(resource: str, from_code: str, to_code: str) -> None:
     with pytest.raises(InvalidStatusTransition):
         ensure_allowed_transition(resource, from_code, to_code)

@@ -3,8 +3,6 @@
 const KNOWN_STATUS_CODES = new Set<string>([
   "draft",
   "pending",
-  "queued",
-  "ordered",
   "registered",
   "in_progress",
   "analyzed",
@@ -16,8 +14,6 @@ const KNOWN_STATUS_CODES = new Set<string>([
 const LABEL_PATTERNS: Array<[RegExp, string]> = [
   [/draft|чернов/i, "draft"],
   [/pending|регистрац/i, "pending"],
-  [/queued|очеред/i, "queued"],
-  [/ordered|назнач/i, "ordered"],
   [/registered|зарегистр/i, "registered"],
   [/in_progress|работ|исслед/i, "in_progress"],
   [/rejected|отклон|брак/i, "rejected"],

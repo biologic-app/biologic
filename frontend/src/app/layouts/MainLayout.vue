@@ -35,6 +35,8 @@ const canViewAccess = computed(
 const accessKeyToResource: Record<string, Resource> = {
   users: "users",
   roles: "user-types",
+  // Правила подписки по ролям управляются тем же правом, что и роли/права.
+  subscriptions: "user-types",
 };
 
 const links = computed<NavigationMenuItem[][]>(() => [
@@ -55,6 +57,22 @@ const links = computed<NavigationMenuItem[][]>(() => [
       icon: canViewResearch.value ? "i-lucide-flask-conical" : "i-lucide-lock",
       to: { name: "research" },
       disabled: !canViewResearch.value,
+      onSelect: () => {
+        open.value = false;
+      },
+    },
+    {
+      label: t("nav.researchV2"),
+      icon: "i-lucide-microscope",
+      to: { name: "research-v2" },
+      onSelect: () => {
+        open.value = false;
+      },
+    },
+    {
+      label: t("nav.workflows"),
+      icon: "i-lucide-workflow",
+      to: { name: "workflows" },
       onSelect: () => {
         open.value = false;
       },

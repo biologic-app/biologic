@@ -102,6 +102,8 @@ const props = withDefaults(
     extraRowActions?: (row: CrudRow) => DropdownMenuItem[];
     // Id недавно затронутой строки — временно подсвечивается в таблице.
     highlightId?: string | null;
+    // Исследования V2: в карточке вместо таба «Тесты» — вкладка «Рабочий процесс».
+    researchWorkflow?: boolean;
   }>(),
   {
     requestParams: undefined,
@@ -111,6 +113,7 @@ const props = withDefaults(
     selectable: true,
     extraRowActions: undefined,
     highlightId: null,
+    researchWorkflow: false,
   },
 );
 
@@ -2055,6 +2058,7 @@ defineExpose({
     :config="detailConfig"
     :item="detailItem"
     :business-kind="detailKind"
+    :research-workflow="researchWorkflow"
     :mode="detailMode"
     :start-in-edit="detailStartInEdit"
     :initial-values="detailInitialValues"
