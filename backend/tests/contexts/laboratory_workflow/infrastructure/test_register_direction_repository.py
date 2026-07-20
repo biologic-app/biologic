@@ -1,4 +1,4 @@
-from datetime import UTC
+from datetime import UTC, datetime, timedelta
 from os import environ
 from typing import Any, cast
 from uuid import UUID
@@ -229,6 +229,79 @@ async def test_register_direction_cascades_samples_to_registered() -> None:
     sample_events = [e for e in repository.events if e.entity_type == "samples"]
     assert len(sample_events) == 1
     assert sample_events[0].to_code == "registered"
+
+
+@pytest.mark.asyncio
+async def test_register_direction_keeps_deadline_set_at_import() -> None:
+    """Дедлайн, проставленный импортом из "даты выхода образца", не должен
+    затираться политикой +2 дня от даты получения направления при регистрации."""
+    direction = Direction(
+        id=DIRECTION_ID,
+        year_no=2026,
+        status_id=DRAFT_STATUS_ID,
+        doctor_id=DOCTOR_ID,
+        object_id=OBJECT_ID,
+        received_at=datetime(2026, 5, 27, 20, 15, tzinfo=UTC),
+    )
+    import_deadline = datetime(2026, 7, 30, 10, 0, tzinfo=UTC)
+    sample_with_import_deadline = Sample(
+        id=SAMPLE_ID,
+        name="Sample with import deadline",
+        direction_id=DIRECTION_ID,
+        sample_type_id=SAMPLE_TYPE_ID,
+        status_id=SAMPLE_PENDING_STATUS_ID,
+        deadline=import_deadline,
+    )
+    fake_session = FakeAsyncSession(
+        direction=direction,
+        current_status_code="draft",
+        sample_objects=[sample_with_import_deadline],
+    )
+    repository = SqlAlchemyWorkflowRepository(session=cast(AsyncSession, fake_session))
+
+    await repository.register_direction(
+        direction_id=DIRECTION_ID,
+        actor_id=ACTOR_ID,
+        comment=None,
+    )
+
+    assert sample_with_import_deadline.deadline == import_deadline
+
+
+@pytest.mark.asyncio
+async def test_register_direction_falls_back_to_deadline_policy_without_import_deadline() -> None:
+    """Образцы без дедлайна из импорта по-прежнему получают +2 дня от даты
+    получения направления."""
+    received_at = datetime(2026, 5, 27, 20, 15, tzinfo=UTC)
+    direction = Direction(
+        id=DIRECTION_ID,
+        year_no=2026,
+        status_id=DRAFT_STATUS_ID,
+        doctor_id=DOCTOR_ID,
+        object_id=OBJECT_ID,
+        received_at=received_at,
+    )
+    sample_without_deadline = Sample(
+        id=SAMPLE_ID,
+        name="Sample without deadline",
+        direction_id=DIRECTION_ID,
+        sample_type_id=SAMPLE_TYPE_ID,
+        status_id=SAMPLE_PENDING_STATUS_ID,
+    )
+    fake_session = FakeAsyncSession(
+        direction=direction,
+        current_status_code="draft",
+        sample_objects=[sample_without_deadline],
+    )
+    repository = SqlAlchemyWorkflowRepository(session=cast(AsyncSession, fake_session))
+
+    await repository.register_direction(
+        direction_id=DIRECTION_ID,
+        actor_id=ACTOR_ID,
+        comment=None,
+    )
+
+    assert sample_without_deadline.deadline == received_at + timedelta(days=2)
 
 
 @pytest.mark.asyncio

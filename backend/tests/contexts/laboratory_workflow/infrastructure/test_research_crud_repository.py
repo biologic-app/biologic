@@ -60,7 +60,7 @@ class FakeAsyncSession:
         if "count" in sql:
             return FakeResult(scalar=1)
         if "FROM samples" in sql:
-            return FakeRowsResult([(SAMPLE_ID, "Sample")])
+            return FakeRowsResult([(SAMPLE_ID, "Sample", "00013560", 5)])
         if "FROM research_goals" in sql:
             return FakeRowsResult([(RESEARCH_GOAL_ID, "goal", "Goal")])
         if "FROM labs" in sql:
@@ -129,7 +129,12 @@ async def test_research_list_populates_requested_includes() -> None:
     )
 
     item = page.items[0]
-    assert item.sample == {"id": SAMPLE_ID, "name": "Sample"}
+    assert item.sample == {
+        "id": SAMPLE_ID,
+        "name": "Sample",
+        "nomenclature_code": "00013560",
+        "month_no": 5,
+    }
     assert item.research_goal == {
         "id": RESEARCH_GOAL_ID,
         "code": "goal",

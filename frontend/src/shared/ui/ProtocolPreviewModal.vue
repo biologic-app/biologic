@@ -2,6 +2,7 @@
 import { computed, ref, watch } from "vue";
 import type { CrudRow } from "@/shared/types/crud";
 import { apiReadRequest } from "@/shared/api/client.api";
+import { sampleRecordCode } from "@/shared/ui/entity-detail.helpers";
 
 const props = defineProps<{
   open: boolean;
@@ -135,7 +136,7 @@ function formatShortDate(value: unknown) {
 }
 
 function registrationNumber(sample: CrudRow, index: number) {
-  return (sample.nomenclature_code as string | null) || String(index + 1);
+  return sampleRecordCode(sample) ?? String(index + 1);
 }
 
 const issuedDateLine = computed(

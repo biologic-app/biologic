@@ -5,6 +5,7 @@ import {
   SAMPLE_STATUS_FLOW,
   SAMPLE_STATUS_REJECTED
 } from '@/shared/domain/status-timeline'
+import { sampleRecordCode } from '@/shared/ui/entity-detail.helpers'
 
 const textFilter = () => ({ value: '', matchMode: 'contains' })
 const dateFilter = () => ({ value: [null, null], matchMode: 'between' })
@@ -267,9 +268,16 @@ export const crudModules: Record<string, CrudModuleConfig> = {
     ],
     columns: [
       { field: 'id', header: 'ID', sortable: true },
+      {
+        field: 'nomenclature_code',
+        header: 'Номер',
+        width: '120px',
+        filter: { type: 'text', placeholder: 'Номер' },
+        body: (row) => sampleRecordCode(row) ?? '-'
+      },
       { field: 'name', header: 'Название', sortable: true, width: '220px', wrap: true, filter: { type: 'text', placeholder: 'Название' } },
-      { field: 'alternate_name', header: 'Альтернативное имя', sortable: true, width: '220px', wrap: true, filter: { type: 'text', placeholder: 'Альтернативное имя' } },
       { field: 'sample_type.name', header: 'Тип образца', filter: { type: 'text', placeholder: 'Тип образца' } },
+      { field: 'alternate_name', header: 'Альтернативное имя', sortable: true, width: '220px', wrap: true, filter: { type: 'text', placeholder: 'Альтернативное имя' } },
       { field: 'direction.name', header: 'Направление', filter: { type: 'text', placeholder: 'Направление' } },
       { field: 'status.name', header: 'Статус', width: '150px', filter: { type: 'text', placeholder: 'Статус' } },
       {
@@ -814,7 +822,14 @@ export const crudModules: Record<string, CrudModuleConfig> = {
     ],
     columns: [
       { field: 'id', header: 'ID', sortable: true },
-      { field: 'sample.name', header: 'Образец', sortable: true, filter: { type: 'text', placeholder: 'Образец' } },
+      {
+        field: 'sample.name',
+        header: 'Образец',
+        filter: { type: 'text', placeholder: 'Образец' },
+        // Номер образца (месяц + код номенклатуры), а не название пробы —
+        // компактнее и однозначно идентифицирует образец, как в таблице «Образцы».
+        body: (row) => sampleRecordCode((row.sample as Record<string, unknown>) ?? {}) ?? '-'
+      },
       { field: 'research_goal.name', header: 'Цель исследования', sortable: true, filter: { type: 'text', placeholder: 'Цель исследования' } },
       { field: 'lab.name', header: 'Лаборатория', sortable: true, filter: { type: 'text', placeholder: 'Лаборатория' } },
       { field: 'status.name', header: 'Статус', sortable: true, filter: { type: 'text', placeholder: 'Статус' } },

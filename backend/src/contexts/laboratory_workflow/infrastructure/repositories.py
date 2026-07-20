@@ -165,7 +165,7 @@ class SqlAlchemyWorkflowRepository:
             return
 
         target_status_id = await self._sample_status_id(SAMPLE_REGISTERED)
-        deadline = SampleDeadlinePolicy().calculate(received_at)
+        default_deadline = SampleDeadlinePolicy().calculate(received_at)
         for sample in samples:
             current_status_code = await self._sample_status_code(sample.status_id)
             # Регистрируем только образцы в статусе pending; уже
@@ -179,6 +179,10 @@ class SqlAlchemyWorkflowRepository:
 
             previous_received_at = sample.received_at
             previous_deadline = sample.deadline
+            # Дедлайн, проставленный при импорте направления (из даты выхода
+            # образца), — авторитетный; политика +2 дня от received_at — только
+            # запасной вариант для образцов, заведённых без даты выхода.
+            deadline = sample.deadline or default_deadline
             sample.status_id = target_status_id
             sample.received_at = received_at
             sample.deadline = deadline

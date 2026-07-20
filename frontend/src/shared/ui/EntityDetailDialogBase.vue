@@ -49,6 +49,7 @@ import {
   namedValue,
   pickText,
   recordCode,
+  sampleRecordCode,
   type DetailTimelineEvent,
   type EntityKind,
   type RelatedRow,
@@ -328,6 +329,7 @@ const subtitle = computed(() => {
 
   if (props.businessKind === "samples") {
     return compact([
+      sampleRecordCode(row),
       namedValue(row.sample_type),
       namedValue(row.direction),
       row.mass ? String(row.mass) : null,
@@ -908,8 +910,6 @@ function close() {
     @update:open="emit('update:open', $event)" @select="emit('select', $event)" @list-load-more="emit('list-load-more')"
     @go-to-level="emit('go-to-level', $event)">
     <template #header-actions>
-      <SubscribeButton v-if="subscriptionEntity && !isCreate && currentItem?.id" :entity="subscriptionEntity"
-        :entity-id="String(currentItem?.id)" />
       <UButton v-if="!editing && businessKind === 'protocols'" label="Предпросмотр" icon="i-lucide-file-search"
         color="neutral" variant="outline" size="sm" @click="openPreview" />
       <UButton v-if="!editing && businessKind === 'protocols'" label="Скачать документ" icon="i-lucide-file-down"
@@ -942,11 +942,16 @@ function close() {
             {{ subtitle }}
           </p>
         </div>
-        <div v-if="!editing && headerActions.length" class="flex shrink-0 flex-wrap items-center justify-end gap-2">
+        <div
+          v-if="!editing && (headerActions.length || (subscriptionEntity && !isCreate && currentItem?.id))"
+          class="flex shrink-0 flex-wrap items-center justify-end gap-2"
+        >
           <UButton v-for="(action, index) in headerActions" :key="index"
             :label="typeof action.label === 'string' ? action.label : ''" :icon="action.icon"
             :color="action.color ?? 'neutral'" variant="subtle" size="sm" :disabled="action.disabled"
             @click="action.onSelect?.($event)" />
+          <SubscribeButton v-if="subscriptionEntity && !isCreate && currentItem?.id" :entity="subscriptionEntity"
+            :entity-id="String(currentItem?.id)" />
         </div>
       </div>
     </template>
