@@ -1,3 +1,8 @@
+import { i18n } from "@/shared/i18n";
+
+const t = (key: string, params?: Record<string, unknown>) =>
+  i18n.global.t(key, params ?? {}).toString();
+
 // Правила сущностей, вынесенные из per-preset веток god-компонента
 // (Open/Closed): удаление по статусу, тип карточки, запрет ручного создания.
 // Добавление сущности = строка здесь, а не новый `if (presetKey === …)`.
@@ -14,15 +19,21 @@ export type EntityRule = {
   createDisabled?: boolean;
 };
 
-export const entityRules: Record<string, EntityRule> = {
+type EntityRuleDefinition = Omit<EntityRule, "deleteRestriction"> & {
+  // i18n-ключ (не готовый текст) — резолвится в getEntityRule() через t(),
+  // чтобы переключение языка применялось сразу.
+  deleteRestrictionKey?: string;
+};
+
+const entityRuleDefinitions: Record<string, EntityRuleDefinition> = {
   directions: {
     deletableStatuses: ["draft"],
-    deleteRestriction: "Удалять можно только направления в статусе «Черновик».",
+    deleteRestrictionKey: "entityRules.directionsDeleteRestriction",
     detailKind: "directions",
   },
   samples: {
     deletableStatuses: ["pending"],
-    deleteRestriction: "Удалять можно только образцы в статусе «На регистрации».",
+    deleteRestrictionKey: "entityRules.samplesDeleteRestriction",
     detailKind: "samples",
     // Образцы создаются только импортом направления или вручную внутри карточки
     // направления — не со страницы «Образцы» (см. docs/flows/registrator.flow.md).
@@ -30,7 +41,7 @@ export const entityRules: Record<string, EntityRule> = {
   },
   research: {
     deletableStatuses: ["draft"],
-    deleteRestriction: "Удалять можно только исследования в статусе «Черновик».",
+    deleteRestrictionKey: "entityRules.researchDeleteRestriction",
     detailKind: "research",
     // Исследования создаются только через POST /samples/{id}/assign-research —
     // standalone POST /research backend больше не поддерживает.
@@ -48,5 +59,10 @@ export const entityRules: Record<string, EntityRule> = {
   },
 };
 
-export const getEntityRule = (presetKey: string): EntityRule =>
-  entityRules[presetKey] ?? {};
+export const getEntityRule = (presetKey: string): EntityRule => {
+  const { deleteRestrictionKey, ...rest } = entityRuleDefinitions[presetKey] ?? {};
+  return {
+    ...rest,
+    ...(deleteRestrictionKey ? { deleteRestriction: t(deleteRestrictionKey) } : {}),
+  };
+};

@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { DirectionWizardContext } from '@/modules/directions/composables/useDirectionWizard'
 
 const props = defineProps<{ ctx: DirectionWizardContext }>()
 const toast = useToast()
+const { t } = useI18n()
 
 const direction = computed(() => props.ctx.directions[props.ctx.currentIndex] ?? null)
 const samples = computed(() => (direction.value ? props.ctx.samplesByDirection[direction.value.id] ?? [] : []))
@@ -13,7 +15,7 @@ const directionHeading = computed(() => {
   if (current?.year_no && current?.base_no) {
     return `№ ${current.year_no}-${current.base_no}`
   }
-  return 'Направление'
+  return t('directionWizard.directionFallbackHeading')
 })
 
 // Оригинальные данные из legacy-файла (import_warnings.document) — врач и отдел отбора.
@@ -94,7 +96,7 @@ const setSampleLabIds = async (sampleId: string, next: unknown) => {
   const ok = await props.ctx.setSampleLabs(sampleId, ids)
   if (!ok) {
     toast.add({
-      title: 'Не удалось обновить лаборатории образца',
+      title: t('directionWizard.failedToUpdateSampleLabs'),
       color: 'error',
       icon: 'i-lucide-circle-alert'
     })
@@ -141,7 +143,7 @@ const autoSaveSample = async (sample: (typeof samples.value)[number]) => {
     is_urgent: sample.is_urgent
   })
   if (!ok) {
-    toast.add({ title: 'Не удалось сохранить образец', color: 'error', icon: 'i-lucide-circle-alert' })
+    toast.add({ title: t('directionWizard.failedToSaveSample'), color: 'error', icon: 'i-lucide-circle-alert' })
   }
 }
 
@@ -151,7 +153,7 @@ const onSampleTypeChange = (sampleId: string, typeId: unknown) => {
   const sample = samples.value.find((row) => row.id === sampleId)
   void props.ctx.applySampleTypeDefaults(sampleId, value).catch(() => {
     toast.add({
-      title: 'Не удалось подтянуть цели по типу образца',
+      title: t('directionWizard.failedToApplyGoalDefaults'),
       color: 'error',
       icon: 'i-lucide-circle-alert'
     })
@@ -182,8 +184,8 @@ const saveRequisites = async () => {
   })
   if (!ok) {
     toast.add({
-      title: 'Не удалось сохранить номер направления',
-      description: 'Возможно, направление с таким годом и номером уже есть.',
+      title: t('directionWizard.failedToSaveDirectionNumber'),
+      description: t('directionWizard.directionNumberConflictHint'),
       color: 'error',
       icon: 'i-lucide-circle-alert'
     })
@@ -202,7 +204,7 @@ const addSample = async () => {
     if (id) {
       openSampleId.value = id
     } else {
-      toast.add({ title: 'Не удалось добавить образец', color: 'error', icon: 'i-lucide-circle-alert' })
+      toast.add({ title: t('directionWizard.failedToAddSample'), color: 'error', icon: 'i-lucide-circle-alert' })
     }
   } finally {
     adding.value = false
@@ -213,7 +215,7 @@ const addSample = async () => {
 const pendingDelete = ref<{ id: string; label: string } | null>(null)
 const deleting = ref(false)
 const requestDelete = (sample: (typeof samples.value)[number]) => {
-  pendingDelete.value = { id: sample.id, label: sample.name || 'Без названия' }
+  pendingDelete.value = { id: sample.id, label: sample.name || t('directionWizard.withoutNameCapitalized') }
 }
 const confirmDelete = async () => {
   if (!direction.value || !pendingDelete.value) {
@@ -224,7 +226,7 @@ const confirmDelete = async () => {
   try {
     const ok = await props.ctx.removeSample(direction.value.id, id)
     if (!ok) {
-      toast.add({ title: 'Не удалось удалить образец', color: 'error', icon: 'i-lucide-circle-alert' })
+      toast.add({ title: t('directionWizard.failedToRemoveSample'), color: 'error', icon: 'i-lucide-circle-alert' })
       return
     }
     if (openSampleId.value === id) {
@@ -250,9 +252,9 @@ const createDoctor = async () => {
     newDoctor.first_name = ''
     newDoctor.last_name = ''
     newDoctor.patronymic = ''
-    toast.add({ title: 'Санитарный врач создан', color: 'success', icon: 'i-lucide-user-check' })
+    toast.add({ title: t('directionWizard.doctorCreated'), color: 'success', icon: 'i-lucide-user-check' })
   } catch {
-    toast.add({ title: 'Не удалось создать врача', color: 'error', icon: 'i-lucide-circle-alert' })
+    toast.add({ title: t('directionWizard.failedToCreateDoctor'), color: 'error', icon: 'i-lucide-circle-alert' })
   } finally {
     creatingDoctor.value = false
   }
@@ -273,9 +275,9 @@ const createObject = async () => {
     newObject.name = ''
     newObject.full_name = ''
     newObject.address = ''
-    toast.add({ title: 'Объект создан', color: 'success', icon: 'i-lucide-building-2' })
+    toast.add({ title: t('directionWizard.objectCreated'), color: 'success', icon: 'i-lucide-building-2' })
   } catch {
-    toast.add({ title: 'Не удалось создать объект', color: 'error', icon: 'i-lucide-circle-alert' })
+    toast.add({ title: t('directionWizard.failedToCreateObject'), color: 'error', icon: 'i-lucide-circle-alert' })
   } finally {
     creatingObject.value = false
   }
@@ -293,26 +295,26 @@ const createObject = async () => {
 
     <section class="rounded-lg border border-default p-4">
       <h3 class="mb-3 text-sm font-semibold text-highlighted">
-        Данные направления
+        {{ t('directionWizard.directionData') }}
       </h3>
       <div class="mb-4 grid gap-4 sm:grid-cols-2">
         <div class="flex flex-col gap-2">
-          <label class="text-sm font-medium text-toned">Год <span class="text-error">*</span></label>
+          <label class="text-sm font-medium text-toned">{{ t('directionWizard.yearLabel') }} <span class="text-error">*</span></label>
           <UInput
             v-model.number="direction.year_no"
             type="number"
-            placeholder="Год"
+            :placeholder="t('directionWizard.yearLabel')"
             :class="missingClass(direction.year_no)"
             data-testid="direction-fill-year"
             @blur="saveRequisites"
           />
         </div>
         <div class="flex flex-col gap-2">
-          <label class="text-sm font-medium text-toned">Номер</label>
+          <label class="text-sm font-medium text-toned">{{ t('directionWizard.numberLabel') }}</label>
           <UInput
             v-model.number="direction.base_no"
             type="number"
-            placeholder="Номер"
+            :placeholder="t('directionWizard.numberLabel')"
             data-testid="direction-fill-base-no"
             @blur="saveRequisites"
           />
@@ -321,9 +323,9 @@ const createObject = async () => {
       <div class="grid gap-4 md:grid-cols-2">
         <div class="flex flex-col gap-2">
           <div class="flex items-center justify-between">
-            <label class="text-sm font-medium text-toned">Санитарный врач</label>
+            <label class="text-sm font-medium text-toned">{{ t('modes.sanitary_inspector.label') }}</label>
             <UButton
-              :label="showNewDoctor ? 'Отмена' : 'Создать нового'"
+              :label="showNewDoctor ? t('common.cancel') : t('directionWizard.createNewDoctor')"
               :icon="showNewDoctor ? 'i-lucide-x' : 'i-lucide-plus'"
               color="neutral"
               variant="ghost"
@@ -337,21 +339,21 @@ const createObject = async () => {
             :items="ctx.doctorOptions"
             value-key="value"
             label-key="label"
-            :search-input="{ placeholder: 'Поиск врача' }"
-            placeholder="Выберите врача"
+            :search-input="{ placeholder: t('directionWizard.searchDoctor') }"
+            :placeholder="t('directionWizard.chooseDoctor')"
             :class="missingClass(direction.doctor_id)"
             data-testid="direction-fill-doctor"
             clear
           />
           <p v-if="importSigner" class="text-xs text-muted">
-            В направлении указан врач: <span class="font-medium text-toned">{{ importSigner }}</span>
+            {{ t('directionWizard.directionListsDoctor') }} <span class="font-medium text-toned">{{ importSigner }}</span>
           </p>
           <div v-if="showNewDoctor" class="flex flex-col gap-2 rounded-md border border-default p-3">
-            <UInput v-model="newDoctor.last_name" placeholder="Фамилия" size="sm" />
-            <UInput v-model="newDoctor.first_name" placeholder="Имя (обязательно)" size="sm" />
-            <UInput v-model="newDoctor.patronymic" placeholder="Отчество" size="sm" />
+            <UInput v-model="newDoctor.last_name" :placeholder="t('directionWizard.lastName')" size="sm" />
+            <UInput v-model="newDoctor.first_name" :placeholder="t('directionWizard.firstNameRequired')" size="sm" />
+            <UInput v-model="newDoctor.patronymic" :placeholder="t('directionWizard.patronymic')" size="sm" />
             <UButton
-              label="Сохранить врача"
+              :label="t('directionWizard.saveDoctor')"
               icon="i-lucide-save"
               color="primary"
               size="sm"
@@ -364,9 +366,9 @@ const createObject = async () => {
 
         <div class="flex flex-col gap-2">
           <div class="flex items-center justify-between">
-            <label class="text-sm font-medium text-toned">Объект</label>
+            <label class="text-sm font-medium text-toned">{{ t('directionWizard.tableObject') }}</label>
             <UButton
-              :label="showNewObject ? 'Отмена' : 'Создать новый'"
+              :label="showNewObject ? t('common.cancel') : t('directionWizard.createNewObjectBtn')"
               :icon="showNewObject ? 'i-lucide-x' : 'i-lucide-plus'"
               color="neutral"
               variant="ghost"
@@ -380,22 +382,22 @@ const createObject = async () => {
             :items="ctx.objectOptions"
             value-key="value"
             label-key="label"
-            :search-input="{ placeholder: 'Поиск объекта' }"
-            placeholder="Выберите объект"
+            :search-input="{ placeholder: t('directionWizard.searchObject') }"
+            :placeholder="t('directionWizard.chooseObject')"
             :class="missingClass(direction.object_id)"
             data-testid="direction-fill-object"
             clear
           />
           <p v-if="importSamplingDepartment" class="text-xs text-muted">
-            Отдел отбора / объект: <span class="font-medium text-toned">{{ importSamplingDepartment }}</span>
+            {{ t('directionWizard.samplingDeptLabel') }} <span class="font-medium text-toned">{{ importSamplingDepartment }}</span>
           </p>
           <div v-if="showNewObject" class="flex flex-col gap-2 rounded-md border border-default p-3">
-            <UInput v-model="newObject.code" placeholder="Код (обязательно)" size="sm" />
-            <UInput v-model="newObject.name" placeholder="Название (обязательно)" size="sm" />
-            <UInput v-model="newObject.full_name" placeholder="Полное название" size="sm" />
-            <UInput v-model="newObject.address" placeholder="Адрес" size="sm" />
+            <UInput v-model="newObject.code" :placeholder="t('directionWizard.codeRequired')" size="sm" />
+            <UInput v-model="newObject.name" :placeholder="t('directionWizard.nameRequired')" size="sm" />
+            <UInput v-model="newObject.full_name" :placeholder="t('directionWizard.fullName')" size="sm" />
+            <UInput v-model="newObject.address" :placeholder="t('directionWizard.address')" size="sm" />
             <UButton
-              label="Сохранить объект"
+              :label="t('directionWizard.saveObject')"
               icon="i-lucide-save"
               color="primary"
               size="sm"
@@ -412,7 +414,7 @@ const createObject = async () => {
       <div class="flex flex-wrap items-center gap-2">
         <UIcon name="i-lucide-test-tube-2" class="size-4 text-muted" />
         <h3 class="text-sm font-semibold text-highlighted">
-          Образцы направления
+          {{ t('directionWizard.directionSamples') }}
         </h3>
         <UBadge
           color="neutral"
@@ -424,7 +426,7 @@ const createObject = async () => {
           class="ml-auto"
           size="xs"
           icon="i-lucide-plus"
-          label="Добавить образец"
+          :label="t('directionWizard.addSample')"
           :loading="adding"
           data-testid="direction-fill-add-sample"
           data-telemetry="direction-fill-add-sample"
@@ -433,7 +435,7 @@ const createObject = async () => {
       </div>
 
       <p v-if="!samples.length" class="text-sm text-muted">
-        У направления нет образцов — добавьте первый кнопкой выше.
+        {{ t('directionWizard.noSamplesYet') }}
       </p>
 
       <UAccordion
@@ -446,7 +448,7 @@ const createObject = async () => {
           <span
             class="truncate text-sm text-toned"
             data-testid="direction-fill-sample-toggle"
-          >{{ item.sample.name || 'Без названия' }}</span>
+          >{{ item.sample.name || t('directionWizard.withoutNameCapitalized') }}</span>
           <UIcon
             v-if="!item.sample.name || !item.sample.sample_type_id"
             name="i-lucide-triangle-alert"
@@ -457,7 +459,7 @@ const createObject = async () => {
             variant="outline"
             size="md"
             class="ml-auto"
-            :label="`${item.index + 1} из ${samples.length}`"
+            :label="t('directionWizard.indexOfTotal', { index: item.index + 1, total: samples.length })"
           />
           <UIcon
             name="i-lucide-trash-2"
@@ -471,24 +473,24 @@ const createObject = async () => {
         <template #body="{ item }">
           <div class="grid gap-4 md:grid-cols-2">
             <div class="flex flex-col gap-2">
-              <label class="text-sm font-medium text-toned">Название</label>
+              <label class="text-sm font-medium text-toned">{{ t('directionWizard.nameLabel') }}</label>
               <UInput
                 v-model="item.sample.name"
-                placeholder="Название образца"
+                :placeholder="t('directionWizard.sampleNamePlaceholder')"
                 :class="missingClass(item.sample.name)"
                 data-testid="direction-fill-sample-name"
                 @blur="autoSaveSample(item.sample)"
               />
             </div>
             <div class="flex flex-col gap-2">
-              <label class="text-sm font-medium text-toned">Тип образца</label>
+              <label class="text-sm font-medium text-toned">{{ t('directionWizard.sampleTypeLabel') }}</label>
               <USelectMenu
                 v-model="item.sample.sample_type_id"
                 :items="ctx.sampleTypeOptions"
                 value-key="value"
                 label-key="label"
-                :search-input="{ placeholder: 'Поиск типа' }"
-                placeholder="Выберите тип"
+                :search-input="{ placeholder: t('directionWizard.searchType') }"
+                :placeholder="t('directionWizard.chooseType')"
                 :class="missingClass(item.sample.sample_type_id)"
                 data-testid="direction-fill-sample-type"
                 clear
@@ -496,40 +498,40 @@ const createObject = async () => {
               />
             </div>
             <div class="flex flex-col gap-2">
-              <label class="text-sm font-medium text-toned">Альтернативное имя</label>
+              <label class="text-sm font-medium text-toned">{{ t('directionWizard.alternateName') }}</label>
               <UInput
                 v-model="item.sample.alternate_name"
-                placeholder="Альтернативное имя"
+                :placeholder="t('directionWizard.alternateName')"
                 @blur="autoSaveSample(item.sample)"
               />
             </div>
             <div class="flex flex-col gap-2">
-              <label class="text-sm font-medium text-toned">Масса</label>
+              <label class="text-sm font-medium text-toned">{{ t('directionWizard.mass') }}</label>
               <UInput
                 v-model="item.sample.mass"
-                placeholder="Масса"
+                :placeholder="t('directionWizard.mass')"
                 @blur="autoSaveSample(item.sample)"
               />
             </div>
             <div class="flex flex-col gap-2 md:col-span-2">
-              <label class="text-sm font-medium text-toned">Комментарий</label>
+              <label class="text-sm font-medium text-toned">{{ t('workflowCommands.formFields.comment') }}</label>
               <UTextarea
                 v-model="item.sample.comment"
                 autoresize
                 :rows="2"
-                placeholder="Комментарий"
+                :placeholder="t('workflowCommands.formFields.comment')"
                 @blur="autoSaveSample(item.sample)"
               />
             </div>
             <div class="flex flex-col gap-2 md:col-span-2">
-              <label class="text-sm font-medium text-toned">Лаборатории образца</label>
+              <label class="text-sm font-medium text-toned">{{ t('directionWizard.sampleLabs') }}</label>
               <USelectMenu
                 :model-value="sampleLabIds(item.sample.id)"
                 :items="labItems"
                 value-key="value"
                 label-key="label"
                 multiple
-                :search-input="{ placeholder: 'Поиск лаборатории' }"
+                :search-input="{ placeholder: t('directionWizard.searchLab') }"
                 data-testid="direction-fill-lab-select"
                 data-telemetry="direction-fill-lab-select"
                 @update:model-value="(value) => setSampleLabIds(item.sample.id, value)"
@@ -554,17 +556,17 @@ const createObject = async () => {
                     />
                   </UBadge>
                 </div>
-                <span v-else class="text-dimmed">Выберите лаборатории</span>
+                <span v-else class="text-dimmed">{{ t('directionWizard.chooseLabs') }}</span>
               </USelectMenu>
               <p v-if="!sampleLabs(item.sample.id).length" class="text-xs text-muted">
-                Лаборатории не проставлены — добавьте вручную, иначе цели по типу подобрать нельзя.
+                {{ t('directionWizard.noLabsHint') }}
               </p>
             </div>
             <div
               class="flex flex-col gap-2 md:col-span-2"
               data-testid="direction-fill-goals"
             >
-              <label class="text-sm font-medium text-toned">Цели исследования</label>
+              <label class="text-sm font-medium text-toned">{{ t('directionWizard.sampleResearchGoals') }}</label>
               <USelectMenu
                 :model-value="sampleGoals(item.sample.id)"
                 :items="researchGoalItems"
@@ -572,7 +574,7 @@ const createObject = async () => {
                 label-key="label"
                 multiple
                 :disabled="!item.sample.sample_type_id"
-                :search-input="{ placeholder: 'Поиск цели' }"
+                :search-input="{ placeholder: t('directionWizard.searchGoal') }"
                 data-testid="direction-fill-goal-add"
                 data-telemetry="direction-fill-goal-add"
                 @update:model-value="(value) => setSampleGoals(item.sample.id, value)"
@@ -597,7 +599,7 @@ const createObject = async () => {
                   </UBadge>
                 </div>
                 <span v-else class="text-dimmed">
-                  {{ item.sample.sample_type_id ? 'Добавьте цель вручную' : 'Сначала выберите тип образца' }}
+                  {{ item.sample.sample_type_id ? t('directionWizard.addGoalManually') : t('directionWizard.chooseTypeFirst') }}
                 </span>
               </USelectMenu>
             </div>
@@ -608,31 +610,31 @@ const createObject = async () => {
   </div>
 
   <p v-else class="text-sm text-muted">
-    Нет направлений для дозаполнения.
+    {{ t('directionWizard.noDirectionsToFill') }}
   </p>
 
   <UModal
     :open="!!pendingDelete"
-    title="Удалить образец?"
+    :title="t('directionWizard.deleteSampleTitle')"
     :dismissible="!deleting"
     @update:open="(value) => { if (!value) pendingDelete = null }"
   >
     <template #body>
       <p class="text-sm text-toned">
-        Образец «{{ pendingDelete?.label }}» будет удалён без возможности восстановления.
+        {{ t('directionWizard.deleteSampleConfirm', { label: pendingDelete?.label }) }}
       </p>
     </template>
     <template #footer>
       <div class="flex w-full justify-end gap-2">
         <UButton
-          label="Отмена"
+          :label="t('common.cancel')"
           color="neutral"
           variant="ghost"
           :disabled="deleting"
           @click="pendingDelete = null"
         />
         <UButton
-          label="Удалить"
+          :label="t('common.delete')"
           color="error"
           icon="i-lucide-trash-2"
           :loading="deleting"

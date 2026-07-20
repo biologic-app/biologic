@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import type { TabsItem } from "@nuxt/ui";
 import type { CrudModuleConfig, CrudRow } from '@/shared/types/crud';
 import { apiUpdateRequest, loadReferenceOptions } from "@/shared/api/client.api";
@@ -31,6 +32,7 @@ const emit = defineEmits<{
   (event: "go-to-level", index: number): void;
 }>();
 
+const { t } = useI18n();
 const activeTab = ref("fields");
 const editing = ref(false);
 const saving = ref(false);
@@ -38,8 +40,8 @@ const { formState, sync, setValue, buildPayload } = useEntityForm();
 const referenceOptions = ref<Record<string, FieldOption[]>>({});
 
 const tabs = computed<TabsItem[]>(() => [
-  { label: "Поля", icon: "i-lucide-list", value: "fields" },
-  { label: "Технический аудит", icon: "i-lucide-history", value: "technical" },
+  { label: t("accessDetail.fieldsTab"), icon: "i-lucide-list", value: "fields" },
+  { label: t("entityDetail.technicalAuditTab"), icon: "i-lucide-history", value: "technical" },
 ]);
 
 const title = computed(() => {
@@ -85,7 +87,7 @@ const technicalEvents = computed(() => {
 
   return buildFallbackAuditEvents(row, {
     stateLabel: currentStateLabel(row),
-    savedDescription: "Изменения сохранены через API.",
+    savedDescription: t("entityDetail.changesSavedViaApi"),
   });
 });
 
@@ -145,25 +147,30 @@ function isEditableField(field: GridField) {
 }
 
 function currentStateLabel(row: CrudRow) {
+  // TODO(status-i18n): this is the generic (non-business) dictionary modal — it
+  // has no reliable (StatusEntity, status code) pair, and this label feeds the
+  // technical-audit fallback as a generic record-state descriptor rather than a
+  // lifecycle status badge. Business entities with a real lifecycle status go
+  // through EntityDetailDialogBase, which already translates via statusLabel.
   const status = pickText(row, ["status.name", "state.name", "status", "state"]);
   if (status) return status;
 
   if (typeof row.is_active === "boolean") {
-    return row.is_active ? "Активна" : "Неактивна";
+    return row.is_active ? t("accessDetail.active") : t("accessDetail.inactive");
   }
 
   if (row.deleted_at) {
-    return "Удалена";
+    return t("accessDetail.deleted");
   }
 
-  return "Актуальная запись";
+  return t("accessDetail.currentRecord");
 }
 
 function labelForKey(key: string) {
   const labels: Record<string, string> = {
     id: "ID",
-    created_at: "Создано",
-    updated_at: "Обновлено",
+    created_at: t("entityDetail.timeline.created"),
+    updated_at: t("crudFields.updated"),
   };
 
   if (labels[key]) return labels[key];
@@ -203,12 +210,12 @@ function inferFieldType(value: unknown): GridField["type"] {
     <section v-if="activeTab === 'fields'" class="space-y-3">
       <div class="flex items-center justify-between gap-3">
         <h3 class="text-sm font-semibold text-highlighted">
-          Поля записи
+          {{ t('accessDetail.recordFields') }}
         </h3>
         <div class="flex gap-2">
           <UButton
             v-if="!editing"
-            label="Редактировать"
+            :label="t('access.actions.edit')"
             icon="i-lucide-pencil"
             color="neutral"
             variant="outline"
@@ -217,7 +224,7 @@ function inferFieldType(value: unknown): GridField["type"] {
           />
           <template v-else>
             <UButton
-              label="Отменить"
+              :label="t('entityDetail.cancelEdit')"
               color="neutral"
               variant="outline"
               size="sm"
@@ -225,7 +232,7 @@ function inferFieldType(value: unknown): GridField["type"] {
               @click="editing = false; sync(config.fields, item)"
             />
             <UButton
-              label="Сохранить"
+              :label="t('common.save')"
               icon="i-lucide-save"
               size="sm"
               :loading="saving"
@@ -252,7 +259,7 @@ function inferFieldType(value: unknown): GridField["type"] {
 
     <template #footer>
       <UButton
-        label="Закрыть"
+        :label="t('crud.close')"
         color="neutral"
         variant="outline"
         @click="close"

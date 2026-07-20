@@ -1,3 +1,8 @@
+import { i18n } from "@/shared/i18n";
+
+const t = (key: string, params?: Record<string, unknown>) =>
+  i18n.global.t(key, params ?? {}).toString();
+
 export interface AccessItem {
   key: string;
   label: string;
@@ -8,13 +13,13 @@ export interface AccessItem {
 export const accessItems: AccessItem[] = [
   {
     key: "users",
-    label: "Пользователи",
+    label: t("access.users"),
     icon: "i-lucide-users",
     to: "/access/users",
   },
   {
     key: "roles",
-    label: "Роли и права",
+    label: t("access.roles"),
     icon: "i-lucide-shield-check",
     to: "/access/roles",
   },

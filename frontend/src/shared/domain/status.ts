@@ -1,15 +1,15 @@
-type BadgeColor = "neutral" | "primary" | "info" | "success" | "warning" | "error";
-
-const STATUS_COLORS: Record<string, BadgeColor> = {
-  draft: "neutral",
-  pending: "warning",
-  registered: "info",
-  in_progress: "info",
-  analyzed: "info",
-  completed: "success",
-  partially_completed: "success",
-  rejected: "error",
-};
+// Canonical lifecycle status codes across entities. Used to decide whether an
+// incoming value is already a code or a human label that needs resolving.
+const KNOWN_STATUS_CODES = new Set<string>([
+  "draft",
+  "pending",
+  "registered",
+  "in_progress",
+  "analyzed",
+  "completed",
+  "partially_completed",
+  "rejected",
+]);
 
 const LABEL_PATTERNS: Array<[RegExp, string]> = [
   [/draft|чернов/i, "draft"],
@@ -22,11 +22,12 @@ const LABEL_PATTERNS: Array<[RegExp, string]> = [
   [/analyzed|анализ/i, "analyzed"],
 ];
 
+// Normalize a status value (code or human label) to its canonical code, used
+// for status-based workflow logic (command availability, delete rules). Colors
+// no longer flow through here — those come from the backend `color` field via
+// `shared/domain/status-color.ts`.
 export const resolveStatusCode = (code: string): string => {
-  if (STATUS_COLORS[code] !== undefined) return code;
+  if (KNOWN_STATUS_CODES.has(code)) return code;
   const match = LABEL_PATTERNS.find(([re]) => re.test(code));
   return match ? match[1] : code;
 };
-
-export const getStatusBadgeColor = (code: string): BadgeColor =>
-  STATUS_COLORS[resolveStatusCode(code)] ?? "primary";

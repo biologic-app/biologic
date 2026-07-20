@@ -9,6 +9,7 @@ import {
   resolveComponent,
   watch,
 } from "vue";
+import { useI18n } from "vue-i18n";
 import type { DropdownMenuItem, TableColumn as NuxtTableColumn } from "@nuxt/ui";
 import {
   apiCreateRequest,
@@ -19,6 +20,7 @@ import {
   loadReferenceOptions,
 } from "@/shared/api/client.api";
 import AccessEntityDetailModal from "@/shared/ui/AccessEntityDetailModal.vue";
+import NotificationsBellButton from "@/shared/ui/NotificationsBellButton.vue";
 import CrudDataTable from "@/shared/ui/CrudDataTable.vue";
 import CrudTableEmptyState from "@/shared/ui/CrudTableEmptyState.vue";
 import CrudFilterControls from "@/shared/ui/CrudFilterControls.vue";
@@ -44,6 +46,7 @@ import type { DetailListItem } from "@/shared/ui/EntityDetailMasterList.vue";
 const toast = useToast();
 const auth = useAuth();
 const { can } = usePermission();
+const { t } = useI18n();
 
 const confirmDialog = ref<{ open: boolean; title: string; description: string; onConfirm: () => void }>({
   open: false,
@@ -65,7 +68,7 @@ function undoDelete(undoEntry: { item: UserRow; timeout: ReturnType<typeof setTi
   }).catch(() => {
     table.data.value = table.data.value.filter((row) => row.id !== undoEntry.item.id);
     toast.add({
-      title: "Не удалось восстановить пользователя",
+      title: t("access.failedToRestoreUser"),
       color: "error",
     });
   });
@@ -89,7 +92,7 @@ type UserRow = {
 };
 
 const errorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : "Попробуйте ещё раз";
+  error instanceof Error ? error.message : t("access.tryAgain");
 
 type AccessRow = { id: string | number; [key: string]: unknown };
 type DrillEntry = { item: AccessRow };
@@ -234,7 +237,7 @@ watch(
       overrides.value = overridesResponse.data.overrides;
     } catch (error: unknown) {
       toast.add({
-        title: "Не удалось загрузить права пользователя",
+        title: t("access.failedToLoadPermissions"),
         description: errorMessage(error),
         color: "error",
       });
@@ -262,7 +265,7 @@ const uiColumns = computed<NuxtTableColumn<UserRow>[]>(() => {
         h(UButton, {
           color: "neutral",
           variant: "ghost",
-          label: "Логин",
+          label: t("access.columns.username"),
           icon:
             table.sorting.value.field !== "username"
               ? "i-lucide-arrow-up-down"
@@ -276,13 +279,13 @@ const uiColumns = computed<NuxtTableColumn<UserRow>[]>(() => {
     },
     {
       accessorKey: "first_name",
-      header: "Имя",
+      header: t("access.columns.firstName"),
       cell: ({ row }) =>
         isSkeletonRow(row.original) ? renderSkeletonCell("first_name", 2) : row.original.first_name || "-",
     },
     {
       accessorKey: "last_name",
-      header: "Фамилия / Отчество",
+      header: t("access.columns.lastName"),
       cell: ({ row }) =>
         isSkeletonRow(row.original)
           ? renderSkeletonCell("last_name", 3)
@@ -293,19 +296,19 @@ const uiColumns = computed<NuxtTableColumn<UserRow>[]>(() => {
     },
     {
       accessorKey: "role.name",
-      header: "Роль",
+      header: t("access.columns.role"),
       cell: ({ row }) =>
         isSkeletonRow(row.original) ? renderSkeletonCell("role.name", 4) : row.original.role?.name || "-",
     },
     {
       accessorKey: "lab.name",
-      header: "Лаборатория",
+      header: t("access.columns.laboratory"),
       cell: ({ row }) =>
         isSkeletonRow(row.original) ? renderSkeletonCell("lab.name", 5) : row.original.lab?.name || "-",
     },
     {
       accessorKey: "is_registrar",
-      header: "Регистратор",
+      header: t("access.columns.registrar"),
       cell: ({ row }) =>
         isSkeletonRow(row.original)
           ? renderSkeletonCell("is_registrar", 6)
@@ -316,10 +319,10 @@ const uiColumns = computed<NuxtTableColumn<UserRow>[]>(() => {
               color: "neutral",
               variant: "subtle",
             },
-            () => (row.original.is_registrar ? "Да" : "Нет"),
+            () => (row.original.is_registrar ? t("access.yes") : t("access.no")),
           ),
     },
-    { id: "actions", header: "Действия", meta: { class: { td: "w-auto min-w-[56px] text-right" } } },
+    { id: "actions", header: t("access.columns.actions"), meta: { class: { td: "w-auto min-w-[56px] text-right" } } },
   ];
 });
 
@@ -371,10 +374,10 @@ const ensureOverrideAssignments = async (selected: PermissionOverride[]) => {
 
 const accessDialogTitle = computed(() =>
   dialog.mode.value === "create"
-    ? "Создать пользователя"
+    ? t("access.createUser")
     : dialog.mode.value === "edit"
-      ? "Редактировать пользователя"
-      : "Просмотр пользователя",
+      ? t("access.editUser")
+      : t("access.viewUser"),
 );
 
 const accessFieldOptions = computed(() => ({
@@ -392,17 +395,17 @@ const modalMode = computed(() => (isDrilled.value ? "view" : dialog.mode.value))
 const modalReadOnly = computed(() => (isDrilled.value ? true : dialog.readOnly.value));
 const modalTitle = computed(() =>
   isDrilled.value
-    ? String(topDrillItem.value?.name ?? topDrillItem.value?.key ?? "Роль")
+    ? String(topDrillItem.value?.name ?? topDrillItem.value?.key ?? t("access.columns.role"))
     : accessDialogTitle.value,
 );
 const accessBreadcrumbs = computed(() => {
   if (!isDrilled.value) return [];
   const user = dialog.selected.value;
-  const userLabel = `Пользователь · ${String(user?.username ?? user?.code ?? "")}`.trim();
+  const userLabel = t("access.breadcrumbs.user", { username: String(user?.username ?? user?.code ?? "") }).trim();
   return [
     { label: userLabel },
     ...roleDrillStack.value.map((entry) => ({
-      label: `Роль · ${String(entry.item.name ?? entry.item.key ?? "")}`,
+      label: t("access.breadcrumbs.role", { name: String(entry.item.name ?? entry.item.key ?? "") }),
     })),
   ];
 });
@@ -438,8 +441,8 @@ const activeFilterCount = computed(() =>
 const removeItem = async (row: UserRow) => {
   confirmDialog.value = {
     open: true,
-    title: "Удалить пользователя",
-    description: `Вы уверены, что хотите удалить пользователя ${row.username}? Это действие нельзя отменить.`,
+    title: t("access.deleteUser"),
+    description: t("access.deleteConfirmation", { name: row.username }),
     async onConfirm() {
       deleting.value = true;
       const deletedRow = { ...table.data.value.find((r) => r.id === row.id) || row };
@@ -452,12 +455,12 @@ const removeItem = async (row: UserRow) => {
         const undoEntry = { item: deletedRow, timeout };
         pendingUndo.value.push(undoEntry);
         toast.add({
-          title: "Пользователь удалён",
-          description: "Пользователь будет удалён безвозвратно через 8 секунд.",
+          title: t("access.userDeleted"),
+          description: t("access.userDeletedPending"),
           color: "success",
           icon: "i-lucide-circle-check",
           actions: [{
-            label: "Отменить",
+            label: t("access.undo"),
             icon: "i-lucide-undo-2",
             onClick: () => undoDelete(undoEntry),
           }],
@@ -466,7 +469,7 @@ const removeItem = async (row: UserRow) => {
       } catch (error: unknown) {
         rollback();
         toast.add({
-          title: "Не удалось удалить пользователя",
+          title: t("access.failedToDeleteUser"),
           description: errorMessage(error),
           color: "error",
         });
@@ -509,7 +512,7 @@ const openRelatedRole = async (payload: { id: string | number; label: string }) 
     roleDrillStack.value = [...roleDrillStack.value, { item: roleResponse.data }];
     drilledRolePermissions.value = permsResponse.data.permissions;
   } catch (error: unknown) {
-    toast.add({ title: "Не удалось открыть роль", description: errorMessage(error), color: "error" });
+    toast.add({ title: t("access.failedToOpenRole"), description: errorMessage(error), color: "error" });
   } finally {
     permissionsLoading.value = false;
   }
@@ -542,8 +545,8 @@ const deleteSelected = async () => {
 
   confirmDialog.value = {
     open: true,
-    title: "Удалить пользователей",
-    description: `Вы уверены, что хотите удалить ${selectedRows.value.length} пользователей? Это действие нельзя отменить.`,
+    title: t("access.deleteUsers"),
+    description: t("access.deleteMultipleConfirmation", { count: selectedRows.value.length }),
     async onConfirm() {
       deleting.value = true;
 
@@ -556,14 +559,14 @@ const deleteSelected = async () => {
         await Promise.all(rows.map((row) => apiRequest(`/users/${row.id}`, { method: "DELETE" })));
         rowSelection.value = {};
         toast.add({
-          title: "Пользователи удалены",
+          title: t("access.usersDeleted"),
           color: "success",
           icon: "i-lucide-circle-check",
         });
       } catch (error: unknown) {
         table.data.value = previous;
         toast.add({
-          title: "Не удалось удалить пользователей",
+          title: t("access.failedToDeleteUsers"),
           description: errorMessage(error),
           color: "error",
         });
@@ -576,15 +579,15 @@ const deleteSelected = async () => {
 };
 
 const getRowActionItems = (row: UserRow): DropdownMenuItem[] => [
-  { label: "Просмотр", icon: "i-lucide-eye", onSelect: () => dialog.openView(row) },
+  { label: t("access.actions.view"), icon: "i-lucide-eye", onSelect: () => dialog.openView(row) },
   {
-    label: "Редактировать",
+    label: t("access.actions.edit"),
     icon: can("users", "edit") ? "i-lucide-pencil" : "i-lucide-lock",
     disabled: !can("users", "edit"),
     onSelect: () => dialog.openEdit(row),
   },
   {
-    label: "Удалить",
+    label: t("access.actions.delete"),
     icon: can("users", "delete") ? "i-lucide-trash-2" : "i-lucide-lock",
     color: "error",
     disabled: !can("users", "delete"),
@@ -620,13 +623,13 @@ const handleRowContextmenu = async (event: Event, row: { original: UserRow }) =>
 
 const columnLabels: Record<string, string> = {
   id: "ID",
-  username: "Логин",
-  first_name: "Имя",
-  last_name: "Фамилия / Отчество",
-  "role.name": "Роль",
-  "lab.name": "Лаборатория",
-  is_registrar: "Регистратор",
-  actions: "Действия",
+  username: t("access.columns.username"),
+  first_name: t("access.columns.firstName"),
+  last_name: t("access.columns.lastName"),
+  "role.name": t("access.columns.role"),
+  "lab.name": t("access.columns.laboratory"),
+  is_registrar: t("access.columns.registrar"),
+  actions: t("access.columns.actions"),
 };
 
 const columnMenuItems = computed(() =>
@@ -713,7 +716,7 @@ const onSave = async (formPayload?: Record<string, unknown>) => {
     dialog.close();
   } catch (error: unknown) {
     toast.add({
-      title: "Не удалось сохранить пользователя",
+      title: t("access.failedToSaveUser"),
       description: errorMessage(error),
       color: "error",
     });
@@ -737,17 +740,19 @@ onMounted(async () => {
 <template>
   <UDashboardPanel id="users">
     <template #header>
-      <UDashboardNavbar title="Доступ">
+      <UDashboardNavbar :title="t('access.title')">
         <template #leading>
           <UDashboardSidebarCollapse />
         </template>
         <template #right>
           <UButton
-            label="Создать пользователя"
+            :label="t('access.createUser')"
             :icon="can('users', 'create') ? 'i-lucide-plus' : 'i-lucide-lock'"
             :disabled="!can('users', 'create')"
             @click="dialog.openCreate()"
           />
+
+          <NotificationsBellButton />
         </template>
       </UDashboardNavbar>
 
@@ -760,7 +765,7 @@ onMounted(async () => {
           <div class="flex w-full flex-col gap-3 lg:flex-row lg:items-center">
             <CrudSearchControl
               v-model="filters.global.value"
-              placeholder="Поиск пользователя"
+              :placeholder="t('access.searchUser')"
               @update:model-value="applyFilters(true)"
             />
             <CrudFilterControls
@@ -772,7 +777,7 @@ onMounted(async () => {
         </template>
         <template #right>
           <div class="flex flex-wrap items-center gap-2">
-            <UTooltip text="Обновить данные">
+            <UTooltip :text="t('access.refreshData')">
               <UButton
                 color="neutral"
                 variant="subtle"
@@ -782,7 +787,7 @@ onMounted(async () => {
             </UTooltip>
 
             <UDropdownMenu :items="columnMenuItems" :content="{ align: 'end' }">
-              <UTooltip text="Столбцы таблицы">
+              <UTooltip :text="t('access.tableColumns')">
                 <UButton color="neutral" variant="subtle" trailing-icon="i-lucide-settings-2" />
               </UTooltip>
             </UDropdownMenu>
@@ -799,10 +804,10 @@ onMounted(async () => {
         @reset="resetFilters()"
       >
         <div class="grid gap-3 md:grid-cols-2">
-          <UInput v-model="filters.username.value" placeholder="Логин" />
-          <UInput v-model="filters.code.value" placeholder="Код" />
-          <UInput v-model="filters['role.name'].value" placeholder="Роль" />
-          <UInput v-model="filters['lab.name'].value" placeholder="Лаборатория" />
+          <UInput v-model="filters.username.value" :placeholder="t('access.columns.username')" />
+          <UInput v-model="filters.code.value" :placeholder="t('access.columns.code')" />
+          <UInput v-model="filters['role.name'].value" :placeholder="t('access.columns.role')" />
+          <UInput v-model="filters['lab.name'].value" :placeholder="t('access.columns.laboratory')" />
         </div>
       </CrudFilterModal>
 
@@ -843,13 +848,13 @@ onMounted(async () => {
         </template>
         <template #empty>
           <CrudTableEmptyState
-            :title="activeFilterCount ? 'Ничего не найдено' : 'Пользователи не найдены'"
+            :title="activeFilterCount ? t('access.notFound') : t('access.noUsers')"
             :description="activeFilterCount
-              ? 'Нет пользователей, соответствующих фильтрам. Измените условия поиска.'
-              : 'Измените фильтры или создайте нового пользователя.'"
+              ? t('access.noUsersMatching')
+              : t('access.changeFiltersOrCreate')"
             :filtered="activeFilterCount > 0"
             :error="table.error.value"
-            error-description="Не удалось загрузить пользователей. Проверьте подключение или повторите попытку позже."
+            :error-description="t('access.failedToLoadUsers')"
             @clear-filters="resetFilters"
             @retry="table.refresh()"
           />
@@ -893,7 +898,7 @@ onMounted(async () => {
     :description="confirmDialog.description"
     :loading="deleting"
     confirm-color="error"
-    confirm-label="Удалить"
+    :confirm-label="t('common.delete')"
     confirm-icon="i-lucide-trash-2"
     @confirm="confirmDialog.onConfirm"
   />

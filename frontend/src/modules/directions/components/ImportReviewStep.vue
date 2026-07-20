@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { DirectionWizardContext } from '@/modules/directions/composables/useDirectionWizard'
 import type { ImportIssue } from '@/modules/directions/directions.api'
 
 const props = defineProps<{ ctx: DirectionWizardContext }>()
+const { t } = useI18n()
 
 const formatIssue = (issue: ImportIssue): string => {
   const parts: string[] = []
   if (typeof issue.row === 'number') {
-    parts.push(`строка ${issue.row}`)
+    parts.push(t('directionWizard.issueRow', { row: issue.row }))
   }
   if (issue.field) {
     parts.push(String(issue.field))
@@ -54,7 +56,7 @@ const directionTitle = (directionId: string, index: number) => {
   if (direction?.year_no && direction?.base_no) {
     return `№ ${direction.year_no}-${direction.base_no}`
   }
-  return `Направление ${directionId.slice(0, 8).toUpperCase()}`
+  return t('directionWizard.directionFallbackTitle', { id: directionId.slice(0, 8).toUpperCase() })
 }
 
 // У врача из include нет поля `name` — ФИО собирается из отдельных полей.
@@ -96,7 +98,7 @@ const samplePreview = (directionId: string) => {
   const samples = props.ctx.samplesByDirection[directionId] ?? []
   return {
     total: samples.length,
-    names: samples.slice(0, SAMPLE_PREVIEW_LIMIT).map((sample) => sample.name || 'Без названия'),
+    names: samples.slice(0, SAMPLE_PREVIEW_LIMIT).map((sample) => sample.name || t('directionWizard.withoutNameCapitalized')),
     rest: Math.max(0, samples.length - SAMPLE_PREVIEW_LIMIT)
   }
 }
@@ -108,17 +110,17 @@ const samplePreview = (directionId: string) => {
       <div class="flex items-center gap-2">
         <UIcon name="i-lucide-clipboard-list" class="size-4 text-muted" />
         <h3 class="text-sm font-semibold text-highlighted">
-          Созданное направление
+          {{ t('directionWizard.createdDirection') }}
         </h3>
       </div>
 
       <div v-if="ctx.loadingResults" class="flex items-center gap-2 text-sm text-muted">
         <UIcon name="i-lucide-loader-circle" class="size-4 animate-spin" />
-        Загрузка созданных направлений…
+        {{ t('directionWizard.loadingCreatedDirections') }}
       </div>
 
       <p v-else-if="!ctx.directions.length" class="text-sm text-muted">
-        Импорт не создал новых направлений. Проверьте ошибки ниже.
+        {{ t('directionWizard.noNewDirections') }}
       </p>
 
       <div
@@ -135,43 +137,43 @@ const samplePreview = (directionId: string) => {
             color="error"
             variant="subtle"
             size="md"
-            label="Срочное"
+            :label="t('directionWizard.urgentBadge')"
           />
           <UBadge
             color="neutral"
             variant="subtle"
             size="md"
             class="ml-auto"
-            :label="`Образцов: ${samplePreview(direction.id).total}`"
+            :label="t('directionWizard.samplesCountBadge', { count: samplePreview(direction.id).total })"
           />
         </div>
 
         <dl class="grid gap-x-6 gap-y-3 px-4 py-3 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <dt class="text-xs text-muted">
-              Объект
+              {{ t('directionWizard.tableObject') }}
             </dt>
             <dd v-if="direction.object?.name" class="text-sm text-toned">
               {{ direction.object.name }}
             </dd>
             <dd v-else class="text-sm text-warning">
-              Не указан
+              {{ t('directionWizard.notSpecified') }}
             </dd>
           </div>
           <div>
             <dt class="text-xs text-muted">
-              Санитарный врач
+              {{ t('modes.sanitary_inspector.label') }}
             </dt>
             <dd v-if="personName(direction.doctor)" class="text-sm text-toned">
               {{ personName(direction.doctor) }}
             </dd>
             <dd v-else class="text-sm text-warning">
-              Не указан
+              {{ t('directionWizard.notSpecified') }}
             </dd>
           </div>
           <div>
             <dt class="text-xs text-muted">
-              Дата отбора
+              {{ t('directionWizard.sampledDate') }}
             </dt>
             <dd class="text-sm" :class="formatDate(direction.sampled_at) ? 'text-toned' : 'text-muted'">
               {{ formatDate(direction.sampled_at) || '—' }}
@@ -179,7 +181,7 @@ const samplePreview = (directionId: string) => {
           </div>
           <div>
             <dt class="text-xs text-muted">
-              Дата поступления
+              {{ t('directionWizard.receivedDate') }}
             </dt>
             <dd class="text-sm" :class="formatDate(direction.received_at) ? 'text-toned' : 'text-muted'">
               {{ formatDate(direction.received_at) || '—' }}
@@ -200,7 +202,7 @@ const samplePreview = (directionId: string) => {
             :label="name"
           />
           <span v-if="samplePreview(direction.id).rest" class="text-xs text-muted">
-            +{{ samplePreview(direction.id).rest }} ещё
+            {{ t('directionWizard.moreCount', { count: samplePreview(direction.id).rest }) }}
           </span>
         </div>
       </div>
@@ -221,7 +223,7 @@ const samplePreview = (directionId: string) => {
           :class="item.kind === 'errors' ? 'text-error' : 'text-warning'"
         />
         <span :data-testid="`direction-import-${item.kind}-toggle`">
-          {{ item.kind === 'errors' ? 'Ошибки' : 'Предупреждения' }} ({{ item.count }})
+          {{ item.kind === 'errors' ? t('directionWizard.errorsLabel') : t('directionWizard.warningsLabel') }} ({{ item.count }})
         </span>
       </template>
 

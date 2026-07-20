@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { useI18n } from "vue-i18n";
 import type { NavigationMenuItem } from "@nuxt/ui";
 import {
   defaultDictionaryKey,
@@ -16,6 +17,7 @@ import { usePermission } from "@/shared/composables/usePermission";
 const route = useRoute();
 const router = useRouter();
 const { can } = usePermission();
+const { t } = useI18n();
 
 const moduleKey = computed(() => {
   const rawModule = route.params.module;
@@ -85,13 +87,13 @@ watch(
     :key="moduleKey"
     :config="selectedConfig"
     panel-id="dictionaries"
-    title="Справочники"
-    search-placeholder="Поиск по справочнику"
+    :title="t('dictionaries.title')"
+    :search-placeholder="t('dictionaries.searchPlaceholder')"
   >
     <template #navbar-right="{ openCreate }">
-      <UTooltip :text="createDisabled ? 'Нет прав на создание' : 'Создать запись'">
+      <UTooltip :text="createDisabled ? t('dictionaries.noCreatePermission') : t('dictionaries.createRecord')">
         <UButton
-          label="Создать"
+          :label="t('common.create')"
           :icon="createDisabled ? 'i-lucide-lock' : 'i-lucide-plus'"
           :disabled="createDisabled"
           @click="openCreate()"

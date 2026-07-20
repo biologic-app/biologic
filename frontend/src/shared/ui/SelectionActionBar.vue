@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from "vue-i18n"
+
 withDefaults(
   defineProps<{
     count: number
@@ -13,6 +15,8 @@ const emit = defineEmits<{
   clear: []
   delete: []
 }>()
+
+const { t } = useI18n()
 
 // Extra (slot) actions inherit the pill surface and keep their own semantic
 // colors, so no forced text color is needed.
@@ -32,7 +36,7 @@ const actionClass = ""
     >
       <div class="flex items-center gap-0.5 rounded-2xl bg-elevated px-2 py-2 text-default shadow-2xl ring-1 ring-accented">
         <UBadge
-          :label="`${count} выбрано`"
+          :label="t('crud.selectedCount', { count })"
           color="primary"
           variant="subtle"
           size="md"
@@ -44,7 +48,7 @@ const actionClass = ""
         <slot :action-class="actionClass" :clear="() => emit('clear')" />
 
         <UButton
-          label="Удалить"
+          :label="t('common.delete')"
           icon="i-lucide-trash"
           color="error"
           variant="ghost"
@@ -60,7 +64,7 @@ const actionClass = ""
           variant="ghost"
           size="sm"
           icon="i-lucide-x"
-          aria-label="Снять выделение"
+          :aria-label="t('crud.clearSelection')"
           @click="emit('clear')"
         />
       </div>

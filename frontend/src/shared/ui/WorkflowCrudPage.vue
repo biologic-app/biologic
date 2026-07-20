@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import type { DropdownMenuItem } from "@nuxt/ui";
 import DictionaryCrudContent from "@/modules/dictionaries/pages/DictionaryCrudContent.vue";
 import CrudFilterControls from "@/shared/ui/CrudFilterControls.vue";
 import CrudSearchControl from "@/shared/ui/CrudSearchControl.vue";
+import NotificationsBellButton from "@/shared/ui/NotificationsBellButton.vue";
+import TourMenu from "@/shared/ui/TourMenu.vue";
 import type { CrudModuleConfig, CrudRow } from "@/shared/types/crud";
 
 // Декларативный хост страницы рабочих процессов: панель + тулбар (поиск,
@@ -18,6 +21,7 @@ withDefaults(
     showSidebarCollapse?: boolean;
     extraRowActions?: (row: CrudRow) => DropdownMenuItem[];
     highlightId?: string | null;
+    tourScope?: string;
     researchWorkflow?: boolean;
   }>(),
   {
@@ -25,10 +29,12 @@ withDefaults(
     showSidebarCollapse: true,
     extraRowActions: undefined,
     highlightId: null,
+    tourScope: undefined,
     researchWorkflow: false,
   },
 );
 
+const { t } = useI18n();
 const crudContent = ref<InstanceType<typeof DictionaryCrudContent> | null>(null);
 const tableSearch = ref("");
 const filterModalOpen = ref(false);
@@ -42,6 +48,11 @@ const openCreate = () => crudContent.value?.openCreate();
 const refresh = () => {
   refreshToken.value += 1;
 };
+const openFirstRowDetail = () => crudContent.value?.openFirstRowDetail() ?? false;
+
+defineExpose({
+  openFirstRowDetail,
+});
 </script>
 
 <template>
@@ -53,6 +64,13 @@ const refresh = () => {
         </template>
         <template #right>
           <slot name="navbar-right" :open-create="openCreate" :refresh="refresh" />
+
+          <NotificationsBellButton data-tour="crud-notifications" />
+
+          <TourMenu
+            v-if="tourScope"
+            :scope="tourScope"
+          />
         </template>
       </UDashboardNavbar>
 
@@ -77,9 +95,10 @@ const refresh = () => {
         </template>
         <template #right>
           <div class="flex items-center gap-2">
-            <UTooltip text="Обновить данные">
+            <UTooltip :text="t('access.refreshData')">
               <UButton
-                label="Обновить"
+                data-tour="crud-refresh"
+                :label="t('common.update')"
                 color="neutral"
                 variant="subtle"
                 icon="i-lucide-refresh-cw"
@@ -87,8 +106,9 @@ const refresh = () => {
               />
             </UTooltip>
             <UDropdownMenu :items="columnMenuItems" :content="{ align: 'end' }">
-              <UTooltip text="Столбцы таблицы">
+              <UTooltip :text="t('access.tableColumns')">
                 <UButton
+                  data-tour="crud-columns"
                   color="neutral"
                   variant="subtle"
                   trailing-icon="i-lucide-settings-2"

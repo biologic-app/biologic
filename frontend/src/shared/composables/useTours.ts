@@ -1,62 +1,59 @@
-import { computed } from "vue";
-import { useAuth } from "@/modules/auth";
+import { computed } from 'vue'
+import { useAuth } from '@/modules/auth'
 import {
   getPrimaryTour,
   startAutostartTour,
   startPrimaryTour,
-} from "@/shared/tour/tour.service";
-import type { TourContext, TourScope } from "@/shared/tour/types";
+  tourEngine
+} from '@/shared/tour/tour.service'
+import type { TourContext, TourScope } from '@/shared/tour/types'
 
 export function useTours(scope: TourScope) {
-  const auth = useAuth();
+  const auth = useAuth()
 
   const context = computed<TourContext | null>(() => {
     if (!auth.user) {
-      return null;
+      return null
     }
 
     return {
       user: auth.user,
       permissions: auth.permissions,
-      can: (resource, action) => auth.can(resource, action),
-    };
-  });
+      can: (resource, action) => auth.can(resource, action)
+    }
+  })
 
   const tour = computed(() => {
     if (!context.value) {
-      return null;
+      return null
     }
 
-    return getPrimaryTour(scope, context.value);
-  });
+    return getPrimaryTour(scope, context.value)
+  })
 
-  const hasUnseenTour = computed(() => Boolean(tour.value && !tour.value.seen));
+  const hasUnseenTour = computed(() => Boolean(tour.value && !tour.value.seen))
 
   async function startBaseTour() {
     if (!context.value) {
-      return false;
+      return false
     }
 
-    return startPrimaryTour(scope, context.value);
-  }
-
-  async function startWhatsNew() {
-    return startBaseTour();
+    return startPrimaryTour(scope, context.value)
   }
 
   async function startAutostart() {
     if (!context.value) {
-      return false;
+      return false
     }
 
-    return startAutostartTour(scope, context.value);
+    return startAutostartTour(scope, context.value)
   }
 
   return {
     tour,
     hasUnseenTour,
     startBaseTour,
-    startWhatsNew,
     startAutostart,
-  };
+    engine: tourEngine
+  }
 }

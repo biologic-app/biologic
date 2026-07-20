@@ -1,3 +1,8 @@
+import { i18n } from "@/shared/i18n";
+
+const t = (key: string, params?: Record<string, unknown>) =>
+  i18n.global.t(key, params ?? {}).toString();
+
 type PlainObject = Record<string, unknown>;
 
 const compact = (items: Array<string | number | null | undefined | false>) =>
@@ -15,7 +20,7 @@ const toOptionValue = (value: unknown) =>
 
 const formatShortId = (value: unknown) => {
   if (typeof value !== "string" && typeof value !== "number") {
-    return "запись";
+    return t("referenceOptions.recordFallback");
   }
 
   const text = String(value);
@@ -61,14 +66,14 @@ const formatReferenceLabel = (row: PlainObject, path: string) => {
   }
 
   const researchParts = compact([
-    row.sample_id ? `образец ${formatShortId(row.sample_id)}` : null,
-    row.research_goal_id ? `цель ${formatShortId(row.research_goal_id)}` : null,
+    row.sample_id ? t("referenceOptions.sample", { code: formatShortId(row.sample_id) }) : null,
+    row.research_goal_id ? t("referenceOptions.goal", { code: formatShortId(row.research_goal_id) }) : null,
   ]);
   if (researchParts.length) {
-    return `Исследование: ${researchParts.join(", ")}`;
+    return t("referenceOptions.researchLabel", { parts: researchParts.join(", ") });
   }
 
-  return `Запись ${formatShortId(row.id)}`;
+  return t("crud.recordCode", { code: formatShortId(row.id) });
 };
 
 export const formatReferenceOption = (row: PlainObject, path: string) => ({

@@ -28,7 +28,7 @@ class SampleStatus(Base):
         server_default=text("uuidv7()"),
     )
     code: Mapped[str | None] = mapped_column(Text)
-    name: Mapped[str] = mapped_column(Text, nullable=False)
+    color: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

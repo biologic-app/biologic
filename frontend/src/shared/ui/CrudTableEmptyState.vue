@@ -1,5 +1,10 @@
 <script setup lang="ts">
-withDefaults(
+import { computed } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
+
+const props = withDefaults(
   defineProps<{
     title?: string;
     description?: string;
@@ -8,13 +13,14 @@ withDefaults(
     errorDescription?: string;
   }>(),
   {
-    title: "Нет данных",
-    description: "Измените фильтры или создайте новую запись.",
     filtered: false,
     error: false,
-    errorDescription: "Попробуйте обновить страницу или повторите попытку позже.",
   },
 );
+
+const resolvedTitle = computed(() => props.title ?? t("crud.noData"));
+const resolvedDescription = computed(() => props.description ?? t("crud.changeFiltersOrCreateRecord"));
+const resolvedErrorDescription = computed(() => props.errorDescription ?? t("crud.tryRefreshOrRetryLater"));
 
 const emit = defineEmits<{
   (e: "clearFilters"): void;
@@ -29,8 +35,8 @@ const emit = defineEmits<{
       variant="naked"
       size="xl"
       icon="i-lucide-cloud-off"
-      title="Не удалось загрузить данные"
-      :description="errorDescription"
+      :title="t('crud.failedToLoadDataTitle')"
+      :description="resolvedErrorDescription"
       class="max-w-xl"
     >
       <template #actions>
@@ -39,7 +45,7 @@ const emit = defineEmits<{
           variant="outline"
           size="sm"
           icon="i-lucide-refresh-cw"
-          label="Повторить"
+          :label="t('crud.retry')"
           @click="emit('retry')"
         />
       </template>
@@ -50,8 +56,8 @@ const emit = defineEmits<{
       variant="naked"
       size="xl"
       :icon="filtered ? 'i-lucide-search-x' : 'i-lucide-inbox'"
-      :title="title"
-      :description="description"
+      :title="resolvedTitle"
+      :description="resolvedDescription"
       class="max-w-xl"
     >
       <template
@@ -63,7 +69,7 @@ const emit = defineEmits<{
           variant="outline"
           size="sm"
           icon="i-lucide-filter-x"
-          label="Сбросить фильтры"
+          :label="t('crud.resetFiltersTooltip')"
           @click="emit('clearFilters')"
         />
       </template>

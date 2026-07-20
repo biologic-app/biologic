@@ -21,6 +21,17 @@ export default defineConfig(({ mode }) => ({
           primary: 'green',
           neutral: 'zinc'
         }
+      },
+      theme: {
+        colors: [
+          'primary',
+          'secondary',
+          'success',
+          'info',
+          'warning',
+          'error',
+          'neutral'
+        ]
       }
     }),
     VitePWA({

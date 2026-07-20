@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from "vue-i18n";
+
 defineProps<{
   open: boolean;
   title?: string;
@@ -27,12 +29,14 @@ function onCancel() {
 function onConfirm() {
   emit("confirm");
 }
+
+const { t } = useI18n();
 </script>
 
 <template>
   <UModal
     :open="open"
-    :title="title || 'Подтверждение'"
+    :title="title || t('permissions.actionLabels.confirm')"
     :dismissible="!loading"
     :ui="{
       content: `w-[calc(100vw-2rem)] max-w-[420px]${elevated ? ' z-[60]' : ''}`,
@@ -56,7 +60,7 @@ function onConfirm() {
         </div>
         <div class="min-w-0 pt-0.5">
           <p class="text-sm leading-5 text-muted">
-            {{ description || "Вы уверены?" }}
+            {{ description || t('crud.areYouSure') }}
           </p>
         </div>
       </div>
@@ -67,14 +71,14 @@ function onConfirm() {
         <UButton
           color="neutral"
           variant="ghost"
-          label="Отмена"
+          :label="t('common.cancel')"
           :disabled="loading"
           @click="onCancel"
         />
         <UButton
           :color="confirmColor || 'primary'"
           :loading="loading"
-          :label="confirmLabel || 'Подтвердить'"
+          :label="confirmLabel || t('workflowCommands.confirmResearch_selection')"
           :icon="confirmIcon || 'i-lucide-check'"
           @click="onConfirm"
         />

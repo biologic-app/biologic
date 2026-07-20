@@ -493,7 +493,7 @@ class SqlAlchemyWorkflowRepository:
             raise DomainConflictError(
                 code=exc.code,
                 detail=(
-                    "Sample can be rejected only from pending status. "
+                    "Sample can be rejected only from registered or in-progress status. "
                     f"Current status is {current_status_code}."
                 ),
             ) from exc

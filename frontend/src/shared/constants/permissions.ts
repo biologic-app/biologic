@@ -1,4 +1,8 @@
+import { i18n } from '@/shared/i18n'
 import type { Action, CommandAction, CrudAction, Resource } from '@/shared/types/permissions'
+
+const t = (key: string, params?: Record<string, unknown>) =>
+  i18n.global.t(key, params ?? {}).toString();
 
 export const resources: Resource[] = [
   'dashboard',
@@ -91,42 +95,42 @@ export const resourceCommands: ResourceCommand[] = [
 ]
 
 export const resourceLabels: Record<Resource, string> = {
-  dashboard: 'Главная',
-  directions: 'Направления',
-  research: 'Исследования',
-  samples: 'Образцы',
-  'sample-targets': 'Цели образцов',
-  protocols: 'Протоколы',
-  results: 'Результаты',
-  conclusions: 'Заключения',
-  tests: 'Тесты',
-  doctors: 'Врачи',
-  branches: 'Филиалы',
-  labs: 'Лаборатории',
-  users: 'Пользователи',
-  'research-goals': 'Цели исследований',
-  'sample-types': 'Типы образцов',
-  indicators: 'Показатели',
-  'protocol-types': 'Типы протоколов',
-  statuses: 'Статусы',
-  'user-types': 'Роли',
-  objects: 'Объекты'
+  dashboard: t('permissions.resourceLabels.dashboard'),
+  directions: t('permissions.resourceLabels.directions'),
+  research: t('permissions.resourceLabels.research'),
+  samples: t('permissions.resourceLabels.samples'),
+  'sample-targets': t('permissions.resourceLabels.sample-targets'),
+  protocols: t('permissions.resourceLabels.protocols'),
+  results: t('permissions.resourceLabels.results'),
+  conclusions: t('permissions.resourceLabels.conclusions'),
+  tests: t('permissions.resourceLabels.tests'),
+  doctors: t('permissions.resourceLabels.doctors'),
+  branches: t('permissions.resourceLabels.branches'),
+  labs: t('permissions.resourceLabels.labs'),
+  users: t('permissions.resourceLabels.users'),
+  'research-goals': t('permissions.resourceLabels.research-goals'),
+  'sample-types': t('permissions.resourceLabels.sample-types'),
+  indicators: t('permissions.resourceLabels.indicators'),
+  'protocol-types': t('permissions.resourceLabels.protocol-types'),
+  statuses: t('permissions.resourceLabels.statuses'),
+  'user-types': t('permissions.resourceLabels.user-types'),
+  objects: t('permissions.resourceLabels.objects')
 }
 
 export const actionLabels: Record<Action, string> = {
-  view: 'Просмотр',
-  create: 'Создание',
-  edit: 'Редактирование',
-  delete: 'Удаление',
-  import: 'Импорт',
-  export: 'Экспорт',
-  register: 'Регистрация',
-  confirm: 'Подтверждение',
-  start: 'Запуск',
-  complete: 'Завершение',
-  close: 'Закрытие',
-  release: 'Выпуск',
-  reject: 'Отклонение',
-  requeue: 'Повторная очередь',
-  approve: 'Подтверждение'
+  view: t('permissions.actionLabels.view'),
+  create: t('permissions.actionLabels.create'),
+  edit: t('permissions.actionLabels.edit'),
+  delete: t('permissions.actionLabels.delete'),
+  import: t('permissions.actionLabels.import'),
+  export: t('permissions.actionLabels.export'),
+  register: t('permissions.actionLabels.register'),
+  confirm: t('permissions.actionLabels.confirm'),
+  start: t('permissions.actionLabels.start'),
+  complete: t('permissions.actionLabels.complete'),
+  close: t('permissions.actionLabels.close'),
+  release: t('permissions.actionLabels.release'),
+  reject: t('permissions.actionLabels.reject'),
+  requeue: t('permissions.actionLabels.requeue'),
+  approve: t('permissions.actionLabels.approve')
 }

@@ -1158,14 +1158,18 @@ async def _direction_status_includes(
     if not status_ids:
         return {}
     result = await session.execute(
-        select(DirectionStatus.id, DirectionStatus.code, DirectionStatus.name).where(
+        select(
+            DirectionStatus.id,
+            DirectionStatus.code,
+            DirectionStatus.color,
+        ).where(
             DirectionStatus.id.in_(status_ids),
             *_base_filters(DirectionStatus),
         ),
     )
     return {
-        row_id: {"id": row_id, "code": code, "name": name}
-        for row_id, code, name in result.all()
+        row_id: {"id": row_id, "code": code, "color": color}
+        for row_id, code, color in result.all()
     }
 
 
@@ -1237,14 +1241,18 @@ async def _sample_status_includes(
     if not status_ids:
         return {}
     result = await session.execute(
-        select(SampleStatus.id, SampleStatus.code, SampleStatus.name).where(
+        select(
+            SampleStatus.id,
+            SampleStatus.code,
+            SampleStatus.color,
+        ).where(
             SampleStatus.id.in_(status_ids),
             *_base_filters(SampleStatus),
         ),
     )
     return {
-        row_id: {"id": row_id, "code": code, "name": name}
-        for row_id, code, name in result.all()
+        row_id: {"id": row_id, "code": code, "color": color}
+        for row_id, code, color in result.all()
     }
 
 
@@ -1300,14 +1308,18 @@ async def _test_status_includes(
     if not status_ids:
         return {}
     result = await session.execute(
-        select(TestStatus.id, TestStatus.code, TestStatus.name).where(
+        select(
+            TestStatus.id,
+            TestStatus.code,
+            TestStatus.color,
+        ).where(
             TestStatus.id.in_(status_ids),
             *_base_filters(TestStatus),
         ),
     )
     return {
-        row_id: {"id": row_id, "code": code, "name": name}
-        for row_id, code, name in result.all()
+        row_id: {"id": row_id, "code": code, "color": color}
+        for row_id, code, color in result.all()
     }
 
 
@@ -1367,14 +1379,18 @@ async def _research_status_includes(
     if not status_ids:
         return {}
     result = await session.execute(
-        select(ResearchStatus.id, ResearchStatus.code, ResearchStatus.name).where(
+        select(
+            ResearchStatus.id,
+            ResearchStatus.code,
+            ResearchStatus.color,
+        ).where(
             ResearchStatus.id.in_(status_ids),
             *_base_filters(ResearchStatus),
         ),
     )
     return {
-        row_id: {"id": row_id, "code": code, "name": name}
-        for row_id, code, name in result.all()
+        row_id: {"id": row_id, "code": code, "color": color}
+        for row_id, code, color in result.all()
     }
 
 
@@ -1390,7 +1406,7 @@ def _related_fields(model: type[Any]) -> dict[str, RelatedField]:
         return {
             "doctor.name": RelatedField(Doctor.last_name, (doctor,)),
             "object.name": RelatedField(Object.name, (object_,)),
-            "status.name": RelatedField(DirectionStatus.name, (status,)),
+            "status.name": RelatedField(DirectionStatus.code, (status,)),
         }
 
     if model is Sample:
@@ -1404,7 +1420,7 @@ def _related_fields(model: type[Any]) -> dict[str, RelatedField]:
         return {
             "sample_type.name": RelatedField(SampleType.name, (sample_type,)),
             "direction.name": RelatedField(Direction.id, (direction,)),
-            "status.name": RelatedField(SampleStatus.name, (status,)),
+            "status.name": RelatedField(SampleStatus.code, (status,)),
         }
 
     if model is Research:
@@ -1424,7 +1440,7 @@ def _related_fields(model: type[Any]) -> dict[str, RelatedField]:
             "sample.name": RelatedField(Sample.name, (sample,)),
             "research_goal.name": RelatedField(ResearchGoal.name, (research_goal,)),
             "lab.name": RelatedField(Lab.name, (lab,)),
-            "status.name": RelatedField(ResearchStatus.name, (status,)),
+            "status.name": RelatedField(ResearchStatus.code, (status,)),
         }
 
     if model is Test:
@@ -1434,7 +1450,7 @@ def _related_fields(model: type[Any]) -> dict[str, RelatedField]:
         return {
             "research.name": RelatedField(Research.id, (research,)),
             "indicator.name": RelatedField(Indicator.name, (indicator,)),
-            "status.name": RelatedField(TestStatus.name, (status,)),
+            "status.name": RelatedField(TestStatus.code, (status,)),
         }
 
     if model is Protocol:

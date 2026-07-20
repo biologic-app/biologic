@@ -3,6 +3,10 @@ import {
   makeEvent,
   type DetailTimelineEvent,
 } from "@/shared/ui/entity-detail.helpers";
+import { i18n } from "@/shared/i18n";
+
+const t = (key: string, params?: Record<string, unknown>) =>
+  i18n.global.t(key, params ?? {}).toString();
 
 // Резервные события технического аудита, когда backend /history пуст.
 // Три опорные точки: запись создана → последнее сохранение → текущее состояние.
@@ -25,23 +29,23 @@ export function buildFallbackAuditEvents(
   return [
     makeEvent(
       "entity",
-      "Запись создана",
-      `Код записи: ${entityDisplayCode(row.id)}`,
+      t("technicalAudit.recordCreated"),
+      t("technicalAudit.recordCode", { code: entityDisplayCode(row.id) }),
       "system",
       created,
     ),
     makeEvent(
       "update",
-      "Последнее сохранение",
-      options.savedDescription ?? "Изменения сохранены через API.",
+      t("technicalAudit.lastSave"),
+      options.savedDescription ?? t("entityDetail.changesSavedViaApi"),
       "api",
       updated,
     ),
     ...((options.extra?.filter(Boolean) as DetailTimelineEvent[] | undefined) ?? []),
     makeEvent(
       "status",
-      "Текущее состояние",
-      options.stateLabel || "Статус не указан",
+      t("technicalAudit.currentState"),
+      options.stateLabel || t("technicalAudit.statusNotSpecified"),
       "process",
       updated ?? created,
     ),

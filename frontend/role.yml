@@ -1,0 +1,125 @@
+- generic:
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - generic: Biologic LIMS
+              - generic:
+                - heading [level=1]: Laboratory operations in one interface.
+                - paragraph: A Nuxt UI sign-in screen for internal users with fast access to notifications, patients, and process journals.
+            - generic:
+              - generic:
+                - generic:
+                  - paragraph: Theme
+                  - generic:
+                    - tablist:
+                      - tab [selected]:
+                        - img
+                        - generic: Light
+                      - tab:
+                        - img
+                        - generic: Dark
+                - generic:
+                  - paragraph: Language
+                  - button:
+                    - generic:
+                      - generic: 🇺🇸
+                    - generic: English
+                    - generic:
+                      - img
+          - generic:
+            - generic:
+              - generic:
+                - generic:
+                  - generic:
+                    - heading [level=2]: Sign in to your workspace
+                    - paragraph: Use your corporate account to open the operator dashboard and internal laboratory modules.
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic: Username
+                      - generic:
+                        - generic:
+                          - textbox:
+                            - /placeholder: operator
+                          - generic:
+                            - img
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic: Password
+                      - generic:
+                        - generic:
+                          - textbox:
+                            - /placeholder: Enter your password
+                          - generic:
+                            - img
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - checkbox:
+                              - checkbox
+                          - generic:
+                            - generic: Remember me
+                            - paragraph: You will be logged in for 30 days.
+                    - generic:
+                      - button:
+                        - generic: Sign in
+                      - button [expanded]:
+                        - img
+  - generic: Режим аннотирования · UI заморожен, клик отмечает элемент
+  - generic [ref=e3]:
+    - button [ref=e113] [cursor=pointer]:
+      - img [ref=e5]
+    - button:
+      - img
+      - text: Показать список
+    - button:
+      - img
+      - text: Отключить режим
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - heading [level=2] [ref=e114]: Сохранённые замечания
+        - generic [ref=e11]: Только просмотр
+      - button [ref=e115] [cursor=pointer]: ✕
+    - generic [ref=e14]: Аннотаций пока нет. Включите режим и кликните по элементу.
+    - generic [ref=e15]:
+      - generic [ref=e16]: Сервер не подключён
+      - generic [ref=e18] [cursor=pointer]: Очистить всё
+  - generic:
+    - generic:
+      - img
+    - generic:
+      - img
+  - menu "Sign in as role" [active] [ref=e116]:
+    - group [ref=e117]:
+      - menuitem "Developer" [ref=e118]:
+        - img [ref=e119]
+        - generic [ref=e122]: Developer
+      - menuitem "User administrator" [ref=e123]:
+        - img [ref=e124]
+        - generic [ref=e129]: User administrator
+      - menuitem "Registrar" [ref=e130]:
+        - img [ref=e131]
+        - generic [ref=e136]: Registrar
+      - menuitem "Sanitary inspector" [ref=e137]:
+        - img [ref=e138]
+        - generic [ref=e144]: Sanitary inspector
+      - menuitem "Lab doctor" [ref=e145]:
+        - img [ref=e146]
+        - generic [ref=e149]: Lab doctor
+      - menuitem "Lab assistant" [ref=e150]:
+        - img [ref=e151]
+        - generic [ref=e156]: Lab assistant
+      - menuitem "Lab chief" [ref=e157]:
+        - img [ref=e158]
+        - generic [ref=e163]: Lab chief
+      - menuitem "Branch chief" [ref=e164]:
+        - img [ref=e165]
+        - generic [ref=e171]: Branch chief

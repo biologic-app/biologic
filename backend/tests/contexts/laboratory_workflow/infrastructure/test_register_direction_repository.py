@@ -400,12 +400,10 @@ async def test_register_direction_persists_with_real_postgres_when_configured() 
             await _cleanup_register_direction_rows(session)
             session.add_all(
                 [
-                    DirectionStatus(id=DRAFT_STATUS_ID, code="draft", name="Draft"),
-                    DirectionStatus(id=REGISTERED_STATUS_ID, code="registered", name="Registered"),
-                    SampleStatus(id=SAMPLE_PENDING_STATUS_ID, code="pending", name="Pending"),
-                    SampleStatus(
-                        id=SAMPLE_REGISTERED_STATUS_ID, code="registered", name="Registered"
-                    ),
+                    DirectionStatus(id=DRAFT_STATUS_ID, code="draft"),
+                    DirectionStatus(id=REGISTERED_STATUS_ID, code="registered"),
+                    SampleStatus(id=SAMPLE_PENDING_STATUS_ID, code="pending"),
+                    SampleStatus(id=SAMPLE_REGISTERED_STATUS_ID, code="registered"),
                     SampleType(id=SAMPLE_TYPE_ID, code="sample", name="Sample"),
                     ResearchGoal(id=RESEARCH_GOAL_ID, code="goal", name="Goal"),
                     Doctor(id=DOCTOR_ID, first_name="Test"),
