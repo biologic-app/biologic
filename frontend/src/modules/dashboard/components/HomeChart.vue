@@ -5,6 +5,9 @@ import { VisXYContainer, VisLine, VisAxis, VisArea, VisCrosshair, VisTooltip } f
 import { useElementSize } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { useLocale } from '@/shared/composables/useLocale'
+import { statusColorAccentVar } from '@/shared/domain/status-color'
+import StatusBadge from '@/shared/ui/StatusBadge.vue'
+import { statusLabel } from '@/shared/i18n/status-label'
 import type {
   DashboardLabItem,
   DashboardSampleTypeItem,
@@ -81,13 +84,6 @@ const template = (d: DataRecord) =>
 
 function maxCount(items: Array<DashboardStatusItem | DashboardSampleTypeItem>) {
   return Math.max(...items.map(item => item.count), 1)
-}
-
-function statusColor(item: DashboardStatusItem) {
-  if (item.status_code === 'completed') return 'success'
-  if (item.status_code === 'rejected') return 'error'
-  if (item.status_code === 'in_progress' || item.status_code === 'analyzed') return 'primary'
-  return 'neutral'
 }
 
 function labTotal(item: DashboardLabItem) {
@@ -198,14 +194,20 @@ function labTotal(item: DashboardLabItem) {
         </template>
 
         <div class="space-y-4">
-          <div v-for="item in statusItems" :key="item.status_code || item.status_name" class="space-y-1.5">
+          <div v-for="item in statusItems" :key="item.status_code ?? '—'" class="space-y-1.5">
             <div class="flex items-center justify-between gap-3">
-              <UBadge :color="statusColor(item)" variant="subtle">
-                {{ item.status_name }}
-              </UBadge>
+              <StatusBadge
+                :color="item.status_color"
+                :label="statusLabel('sample', item.status_code)"
+              />
               <span class="text-sm font-medium text-highlighted">{{ formatNum(item.count) }}</span>
             </div>
-            <UProgress :model-value="item.count" :max="maxStatus" :color="statusColor(item)" />
+            <UProgress
+              :model-value="item.count"
+              :max="maxStatus"
+              color="primary"
+              :style="{ '--ui-primary': statusColorAccentVar(item.status_color) }"
+            />
           </div>
           <p v-if="!statusItems.length" class="text-sm text-muted">
             {{ t('dashboard.empty') }}

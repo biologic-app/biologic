@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import type { TabsItem } from "@nuxt/ui";
 import EntityDetailBreadcrumb from "@/shared/ui/EntityDetailBreadcrumb.vue";
 import EntityDetailMasterList, {
@@ -80,6 +81,8 @@ const modalUi = computed(() => {
 function close() {
   emit("update:open", false);
 }
+
+const { t } = useI18n();
 </script>
 
 <template>
@@ -128,7 +131,7 @@ function close() {
               </div>
               <div class="flex shrink-0 items-center gap-1">
                 <slot name="header-actions" />
-                <UTooltip :text="fullscreen ? 'Обычный размер' : 'На весь экран'">
+                <UTooltip :text="fullscreen ? t('crud.normalSize') : t('crud.fullscreen')">
                   <UButton
                     :icon="fullscreen ? 'i-lucide-minimize-2' : 'i-lucide-maximize-2'"
                     color="neutral"

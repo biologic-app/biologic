@@ -1,5 +1,10 @@
 <script setup lang="ts">
-withDefaults(
+import { computed } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
+
+const props = withDefaults(
   defineProps<{
     activeCount?: number;
     label?: string;
@@ -7,10 +12,11 @@ withDefaults(
   }>(),
   {
     activeCount: 0,
-    label: "Фильтр",
-    clearTooltip: "Сбросить фильтры",
   },
 );
+
+const resolvedLabel = computed(() => props.label ?? t("common.filter"));
+const resolvedClearTooltip = computed(() => props.clearTooltip ?? t("crud.resetFiltersTooltip"));
 
 const emit = defineEmits<{
   (event: "open"): void;
@@ -21,7 +27,8 @@ const emit = defineEmits<{
 <template>
   <UFieldGroup>
     <UButton
-      :label="label"
+      data-tour="crud-filter"
+      :label="resolvedLabel"
       color="neutral"
       variant="subtle"
       icon="i-lucide-filter"
@@ -32,7 +39,7 @@ const emit = defineEmits<{
       </template>
     </UButton>
 
-    <UTooltip :text="clearTooltip">
+    <UTooltip :text="resolvedClearTooltip">
       <UButton
         color="neutral"
         variant="subtle"

@@ -1,0 +1,94 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - generic [ref=e9]: Biologic LIMS
+        - generic [ref=e10]:
+          - heading "Laboratory operations in one interface." [level=1] [ref=e11]
+          - paragraph [ref=e12]: A Nuxt UI sign-in screen for internal users with fast access to notifications, patients, and process journals.
+      - generic [ref=e14]:
+        - generic [ref=e15]:
+          - paragraph [ref=e16]: Theme
+          - tablist [ref=e18]:
+            - tab "Light" [selected] [ref=e20]:
+              - img [ref=e21]
+              - generic [ref=e25]: Light
+            - tab "Dark" [ref=e26]:
+              - img [ref=e27]
+              - generic [ref=e29]: Dark
+        - generic [ref=e30]:
+          - paragraph [ref=e31]: Language
+          - button "Show popup" [ref=e32]:
+            - generic [ref=e34]: 🇺🇸
+            - generic: English
+            - img [ref=e36]
+    - generic [ref=e41]:
+      - generic [ref=e42]:
+        - heading "Sign in to your workspace" [level=2] [ref=e43]
+        - paragraph [ref=e44]: Use your corporate account to open the operator dashboard and internal laboratory modules.
+      - generic [ref=e45]:
+        - generic [ref=e46]:
+          - generic [ref=e49]: Username
+          - generic [ref=e51]:
+            - textbox "Username" [ref=e52]:
+              - /placeholder: operator
+            - img [ref=e54]
+        - generic [ref=e58]:
+          - generic [ref=e61]: Password
+          - generic [ref=e63]:
+            - textbox "Password" [ref=e64]:
+              - /placeholder: Enter your password
+            - img [ref=e66]
+        - generic [ref=e72]:
+          - checkbox "Remember me" [ref=e74]:
+            - checkbox [ref=e75]
+          - generic [ref=e76]:
+            - generic [ref=e77]: Remember me
+            - paragraph [ref=e78]: You will be logged in for 30 days.
+        - generic [ref=e79]:
+          - button "Sign in" [ref=e80]:
+            - generic [ref=e81]: Sign in
+          - button "Sign in as role" [ref=e82]:
+            - img [ref=e83]
+  - generic:
+    - generic:
+      - generic: Режим аннотирования · UI заморожен, клик отмечает элемент
+      - generic [ref=e85]:
+        - button "Аннотирование" [ref=e86] [cursor=pointer]:
+          - img [ref=e87]
+        - button "Показать список":
+          - img
+          - text: Показать список
+        - button "Отключить режим":
+          - img
+          - text: Отключить режим
+      - generic [ref=e89]:
+        - generic [ref=e90]:
+          - generic [ref=e91]:
+            - heading "Сохранённые замечания" [level=2] [ref=e92]
+            - generic [ref=e93]: Только просмотр
+          - button "✕" [ref=e94] [cursor=pointer]
+        - generic [ref=e96]: Аннотаций пока нет. Включите режим и кликните по элементу.
+        - generic [ref=e97]:
+          - generic [ref=e98]: Сервер не подключён
+          - generic [ref=e100] [cursor=pointer]: Очистить всё
+  - generic [ref=e101]:
+    - generic "Toggle devtools panel" [ref=e102] [cursor=pointer]:
+      - img [ref=e103]
+    - generic "Toggle Component Inspector" [ref=e108] [cursor=pointer]:
+      - img [ref=e109]
+  - region "Notifications (F8)":
+    - list
+  - generic [ref=e115]:
+    - generic [ref=e116]: "[plugin:vite:vue] [@vue/compiler-sfc] `defineProps()` in <script setup> cannot reference locally declared variables because it will be hoisted outside of the setup() function. If your component options require initialization in the module scope, use a separate normal <script> to export the options instead. /home/tminww/Projects/biologic/frontend/src/shared/ui/CrudFilterControls.vue 12 | { 13 | activeCount: 0, 14 | label: t(\"common.filter\"), | ^ 15 | clearTooltip: t(\"crud.resetFiltersTooltip\"), 16 | },"
+    - generic [ref=e117]: /home/tminww/Projects/biologic/frontend/src/shared/ui/CrudFilterControls.vue
+    - generic [ref=e118]: at ScriptCompileContext.error (/home/tminww/Projects/biologic/frontend/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:19785:11) at /home/tminww/Projects/biologic/frontend/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:24418:13 at Object.enter (/home/tminww/Projects/biologic/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1571:11) at SyncWalker.visit (/home/tminww/Projects/biologic/frontend/node_modules/estree-walker/dist/umd/estree-walker.js:116:17) at SyncWalker.visit (/home/tminww/Projects/biologic/frontend/node_modules/estree-walker/dist/umd/estree-walker.js:153:12) at SyncWalker.visit (/home/tminww/Projects/biologic/frontend/node_modules/estree-walker/dist/umd/estree-walker.js:153:12) at SyncWalker.visit (/home/tminww/Projects/biologic/frontend/node_modules/estree-walker/dist/umd/estree-walker.js:146:19) at Object.walk (/home/tminww/Projects/biologic/frontend/node_modules/estree-walker/dist/umd/estree-walker.js:322:19) at Object.walkIdentifiers (/home/tminww/Projects/biologic/frontend/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1561:16) at checkInvalidScopeReference (/home/tminww/Projects/biologic/frontend/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:24415:17)
+    - generic [ref=e119]:
+      - text: Click outside, press Esc key, or fix the code to dismiss.
+      - text: You can also disable this overlay by setting
+      - code [ref=e120]: server.hmr.overlay
+      - text: to
+      - code [ref=e121]: "false"
+      - text: in
+      - code [ref=e122]: vite.config.ts
+      - text: .

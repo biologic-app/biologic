@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 import { formatDateTime } from "@/shared/utils/format";
 import {
   getLastStepperIndex,
@@ -21,15 +22,16 @@ const props = defineProps<{
 
 const stepperItems = computed(() => timelineEventsToStepperItems(props.events, "i-lucide-history"));
 const activeStepIndex = computed(() => getLastStepperIndex(stepperItems.value));
+const { t } = useI18n();
 </script>
 
 <template>
   <section class="max-w-3xl">
     <div class="mb-3 flex items-center justify-between gap-3">
       <h3 class="text-sm font-semibold text-highlighted">
-        Технический аудит
+        {{ t('entityDetail.technicalAuditTab') }}
       </h3>
-      <UBadge color="neutral" variant="outline" :label="`${events.length} события`" />
+      <UBadge color="neutral" variant="outline" :label="t('entityDetail.timeline.eventsCount', { n: events.length }, events.length)" />
     </div>
 
     <UStepper
@@ -55,7 +57,7 @@ const activeStepIndex = computed(() => getLastStepperIndex(stepperItems.value));
               :label="stepperItem.actor"
             />
             <p class="font-mono text-xs text-muted">
-              {{ stepperItem.date ? formatDateTime(stepperItem.date) : 'Дата не указана' }}
+              {{ stepperItem.date ? formatDateTime(stepperItem.date) : t('entityDetail.timeline.noDate') }}
             </p>
           </div>
         </div>
@@ -63,7 +65,7 @@ const activeStepIndex = computed(() => getLastStepperIndex(stepperItems.value));
     </UStepper>
 
     <p v-else class="text-sm text-muted">
-      Событий нет.
+      {{ t('technicalAudit.noEvents') }}
     </p>
   </section>
 </template>

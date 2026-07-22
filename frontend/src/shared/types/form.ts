@@ -1,4 +1,4 @@
-export type FieldType = 'text' | 'textarea' | 'number' | 'boolean' | 'date' | 'select' | 'file'
+export type FieldType = 'text' | 'textarea' | 'number' | 'boolean' | 'date' | 'select' | 'file' | 'color'
 
 export interface FieldOption {
   label: string

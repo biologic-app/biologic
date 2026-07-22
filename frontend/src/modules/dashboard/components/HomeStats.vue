@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useLocale } from '@/shared/composables/useLocale'
 import type { DashboardKpi, DashboardSummary } from '@/modules/dashboard/types'
 
@@ -9,6 +10,7 @@ const props = defineProps<{
 }>()
 
 const { intlLocale } = useLocale()
+const { t } = useI18n()
 
 const skeletonItems = Array.from({ length: 6 }, (_, index) => index)
 
@@ -16,12 +18,14 @@ const kpis = computed<DashboardKpi[]>(() => props.summary?.kpis ?? [])
 
 const formatMinutes = (value: number) => {
   if (value < 60) {
-    return `${value} мин`
+    return t('common.minutesShort', { value })
   }
 
   const hours = Math.floor(value / 60)
   const minutes = value % 60
-  return minutes ? `${hours} ч ${minutes} мин` : `${hours} ч`
+  return minutes
+    ? t('common.hoursMinutesShort', { hours, minutes })
+    : t('common.hoursShort', { hours })
 }
 
 const formatValue = (item: DashboardKpi) => {

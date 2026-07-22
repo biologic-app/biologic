@@ -6,10 +6,16 @@ import {
   SAMPLE_STATUS_REJECTED
 } from '@/shared/domain/status-timeline'
 import { sampleRecordCode } from '@/shared/ui/entity-detail.helpers'
+import { i18n } from '@/shared/i18n'
+
+const t = (key: string, params?: Record<string, unknown>) =>
+  i18n.global.t(key, params ?? {}).toString()
 
 const textFilter = () => ({ value: '', matchMode: 'contains' })
 const dateFilter = () => ({ value: [null, null], matchMode: 'between' })
 const multiFilter = () => ({ value: '', matchMode: 'equals' })
+// Multi-select filter: value is an array of selected ids (IN-list on the API).
+const multiSelectFilter = () => ({ value: [] as string[], matchMode: 'in' })
 const currentYear = new Date().getFullYear()
 const directionYearOptions = Array.from(
   { length: currentYear - 2000 + 1 },
@@ -26,20 +32,20 @@ const directionEditYearOptions = Array.from(
     return { label: String(year), value: year }
   }
 )
-const yesNoOptions = [
-  { label: 'Да', value: true },
-  { label: 'Нет', value: false }
+const yesNoOptions = () => [
+  { label: t('access.yes'), value: true },
+  { label: t('access.no'), value: false }
 ]
-const subscriptionEntityTypeOptions = [
-  { label: 'Направления', value: 'directions' },
-  { label: 'Образцы', value: 'samples' }
+const subscriptionEntityTypeOptions = () => [
+  { label: t('nav.directions'), value: 'directions' },
+  { label: t('nav.samples'), value: 'samples' }
 ]
 // Статус для правила подписки — код должен соответствовать выбранному типу
 // сущности (проверяется на бэкенде); подписи с префиксом помогают не перепутать.
-const subscriptionStatusCodeOptions = [
-  ...DIRECTION_STATUS_FLOW.map((step) => ({ label: `Направления: ${step.name}`, value: step.code })),
-  ...SAMPLE_STATUS_FLOW.map((step) => ({ label: `Образцы: ${step.name}`, value: step.code })),
-  { label: `Образцы: ${SAMPLE_STATUS_REJECTED.name}`, value: SAMPLE_STATUS_REJECTED.code }
+const subscriptionStatusCodeOptions = () => [
+  ...DIRECTION_STATUS_FLOW().map((step) => ({ label: `${t('nav.directions')}: ${step.name}`, value: step.code })),
+  ...SAMPLE_STATUS_FLOW().map((step) => ({ label: `${t('nav.samples')}: ${step.name}`, value: step.code })),
+  { label: `${t('nav.samples')}: ${SAMPLE_STATUS_REJECTED().name}`, value: SAMPLE_STATUS_REJECTED().code }
 ]
 
 const textFilterField = (field: string, header: string, placeholder = header): TableFilterField => ({
@@ -57,7 +63,7 @@ const dateFilterField = (field: string, header: string): TableFilterField => ({
 const booleanFilterField = (field: string, header: string): TableFilterField => ({
   field,
   header,
-  filter: { type: 'select', options: yesNoOptions }
+  filter: { type: 'select', options: yesNoOptions() }
 })
 
 const selectFilterField = (
@@ -69,6 +75,17 @@ const selectFilterField = (
   field,
   header,
   filter: { type: 'select', placeholder, source }
+})
+
+const multiSelectFilterField = (
+  field: string,
+  header: string,
+  source: string,
+  placeholder = header
+): TableFilterField => ({
+  field,
+  header,
+  filter: { type: 'multiSelect', placeholder, source }
 })
 
 const auditFilterFields = new Set(['created_at', 'updated_at'])
@@ -109,8 +126,8 @@ export const getCrudModuleFilterFields = (config: CrudModuleConfig): TableFilter
 export const crudModules: Record<string, CrudModuleConfig> = {
   directions: {
     resource: 'directions',
-    title: 'Направления',
-    description: 'Журнал направлений, статусов и сроков исполнения.',
+    title: t('nav.directions'),
+    description: t('crudModules.directions.description'),
     endpoint: '/directions',
     include: 'doctor,object,status',
     presetKey: 'directions',
@@ -121,7 +138,7 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       base_no: textFilter(),
       doctor_id: textFilter(),
       object_id: textFilter(),
-      status_id: textFilter(),
+      status_id: multiSelectFilter(),
       sampled_at: dateFilter(),
       received_at: dateFilter(),
       completed_at: dateFilter(),
@@ -131,27 +148,27 @@ export const crudModules: Record<string, CrudModuleConfig> = {
     filterFields: [
       {
         field: 'year_no',
-        header: 'Год',
-        filter: { type: 'select', placeholder: 'Год', options: directionYearOptions }
+        header: t('crudFields.year'),
+        filter: { type: 'select', placeholder: t('crudFields.year'), options: directionYearOptions }
       },
-      textFilterField('base_no', 'Номер'),
-      selectFilterField('doctor_id', 'Врач', '/doctors'),
-      selectFilterField('object_id', 'Объект', '/objects'),
-      selectFilterField('status_id', 'Статус', '/direction_statuses'),
-      booleanFilterField('is_done', 'Завершено'),
-      booleanFilterField('is_urgent', 'Срочно'),
-      dateFilterField('sampled_at', 'Отбор'),
-      dateFilterField('received_at', 'Получение'),
-      dateFilterField('completed_at', 'Завершение')
+      textFilterField('base_no', t('crudFields.number')),
+      selectFilterField('doctor_id', t('crudFields.doctor'), '/doctors'),
+      selectFilterField('object_id', t('crudFields.object'), '/objects'),
+      multiSelectFilterField('status_id', t('common.status'), '/direction_statuses'),
+      booleanFilterField('is_done', t('crudFields.completed')),
+      booleanFilterField('is_urgent', t('crudFields.urgent')),
+      dateFilterField('sampled_at', t('crudFields.sampling')),
+      dateFilterField('received_at', t('crudFields.receiving')),
+      dateFilterField('completed_at', t('crudFields.completion'))
     ],
     columns: [
-      { field: 'id', header: 'ID', sortable: true },
-      { field: 'base_no', header: '№', sortable: true, filter: { type: 'text', placeholder: 'Номер' } },
+      { field: 'id', header: t('crudFields.id'), sortable: true },
+      { field: 'base_no', header: t('crudFields.numberShort'), sortable: true, filter: { type: 'text', placeholder: t('crudFields.number') } },
       {
         field: 'doctor.name',
-        header: 'Врач',
+        header: t('crudFields.doctor'),
         sortable: true,
-        filter: { type: 'text', placeholder: 'Врач' },
+        filter: { type: 'text', placeholder: t('crudFields.doctor') },
         body: (row: Record<string, unknown>) => {
           const doctor = row.doctor as
             | { first_name?: string | null, last_name?: string | null, patronymic?: string | null }
@@ -169,11 +186,11 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       },
       {
         field: 'object.name',
-        header: 'Объект',
+        header: t('crudFields.object'),
         sortable: true,
         width: '220px',
         wrap: true,
-        filter: { type: 'text', placeholder: 'Объект' },
+        filter: { type: 'text', placeholder: t('crudFields.object') },
         body: (row: Record<string, unknown>) => {
           const object = row.object as { code?: string | null, name?: string | null } | null | undefined
           if (!object) {
@@ -182,49 +199,49 @@ export const crudModules: Record<string, CrudModuleConfig> = {
           return object.name || object.code || '-'
         }
       },
-      { field: 'status.name', header: 'Статус', sortable: true, width: '150px', filter: { type: 'text', placeholder: 'Статус' } },
-      { field: 'sampled_at', header: 'Отбор', sortable: true, filter: { type: 'dateRange' } },
-      { field: 'received_at', header: 'Получение', sortable: true, filter: { type: 'dateRange' } },
-      { field: 'completed_at', header: 'Завершение', sortable: true, filter: { type: 'dateRange' } },
+      { field: 'status.name', header: t('common.status'), sortable: true, width: '150px', filter: { type: 'text', placeholder: t('common.status') } },
+      { field: 'sampled_at', header: t('crudFields.sampling'), sortable: true, filter: { type: 'dateRange' } },
+      { field: 'received_at', header: t('crudFields.receiving'), sortable: true, filter: { type: 'dateRange' } },
+      { field: 'completed_at', header: t('crudFields.completion'), sortable: true, filter: { type: 'dateRange' } },
       {
         field: 'is_done',
-        header: 'Завершено',
+        header: t('crudFields.completed'),
         sortable: true,
         filter: {
           type: 'select',
           options: [
-            ...yesNoOptions
+            ...yesNoOptions()
           ]
         }
       },
       {
         field: 'is_urgent',
-        header: 'Срочно',
+        header: t('crudFields.urgent'),
         sortable: true,
         filter: {
           type: 'select',
           options: [
-            ...yesNoOptions
+            ...yesNoOptions()
           ]
         }
       }
     ],
     defaultHiddenColumns: ['sampled_at', 'is_done'],
     fields: [
-      { key: 'year_no', label: 'Год', type: 'select', required: true, options: directionEditYearOptions, layout: { span: 4 } },
-      { key: 'base_no', label: 'Номер', type: 'number', layout: { span: 4 } },
-      { key: 'is_urgent', label: 'Срочно', type: 'boolean', layout: { span: 6 } },
-      { key: 'doctor_id', label: 'Врач', type: 'select', source: '/doctors', layout: { span: 4 } },
-      { key: 'object_id', label: 'Объект', type: 'select', source: '/objects', layout: { span: 4 } },
-      { key: 'sampled_at', label: 'Отбор', type: 'date', layout: { span: 4 } },
-      { key: 'received_at', label: 'Получение', type: 'date', layout: { span: 4 } },
-      { key: 'completed_at', label: 'Завершение', type: 'date', layout: { span: 4 }, editable: false }
+      { key: 'year_no', label: t('crudFields.year'), type: 'select', required: true, options: directionEditYearOptions, layout: { span: 4 } },
+      { key: 'base_no', label: t('crudFields.number'), type: 'number', layout: { span: 4 } },
+      { key: 'is_urgent', label: t('crudFields.urgent'), type: 'boolean', layout: { span: 6 } },
+      { key: 'doctor_id', label: t('crudFields.doctor'), type: 'select', source: '/doctors', layout: { span: 4 } },
+      { key: 'object_id', label: t('crudFields.object'), type: 'select', source: '/objects', layout: { span: 4 } },
+      { key: 'sampled_at', label: t('crudFields.sampling'), type: 'date', layout: { span: 4 } },
+      { key: 'received_at', label: t('crudFields.receiving'), type: 'date', layout: { span: 4 } },
+      { key: 'completed_at', label: t('crudFields.completion'), type: 'date', layout: { span: 4 }, editable: false }
     ]
   },
   samples: {
     resource: 'samples',
-    title: 'Образцы',
-    description: 'Журнал образцов с типами, статусами и периодами обработки.',
+    title: t('nav.samples'),
+    description: t('crudModules.samples.description'),
     endpoint: '/samples',
     include: 'sample_type,status,direction,protocol',
     presetKey: 'samples',
@@ -239,7 +256,7 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       supplier: textFilter(),
       sample_type_id: textFilter(),
       direction_id: textFilter(),
-      status_id: textFilter(),
+      status_id: multiSelectFilter(),
       protocol_id: textFilter(),
       is_urgent: multiFilter(),
       is_done: multiFilter(),
@@ -249,60 +266,60 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       deadline: dateFilter()
     },
     filterFields: [
-      textFilterField('month_no', 'Месяц'),
-      textFilterField('name', 'Название'),
-      textFilterField('alternate_name', 'Альтернативное имя'),
-      textFilterField('nomenclature_code', 'Код номенклатуры'),
-      textFilterField('batch_code', 'Код партии'),
-      textFilterField('supplier', 'Поставщик'),
-      selectFilterField('sample_type_id', 'Тип образца', '/sample_types'),
-      selectFilterField('direction_id', 'Направление', '/directions'),
-      selectFilterField('status_id', 'Статус', '/sample_statuses'),
-      selectFilterField('protocol_id', 'Протокол', '/protocols'),
-      booleanFilterField('is_urgent', 'Срочно'),
-      booleanFilterField('is_done', 'Готов'),
-      dateFilterField('sampled_at', 'Отобран'),
-      dateFilterField('received_at', 'Получен'),
-      dateFilterField('completed_at', 'Завершён'),
-      dateFilterField('deadline', 'Срок')
+      textFilterField('month_no', t('crudFields.month')),
+      textFilterField('name', t('access.columns.name')),
+      textFilterField('alternate_name', t('crudFields.alternateName')),
+      textFilterField('nomenclature_code', t('crudFields.nomenclatureCode')),
+      textFilterField('batch_code', t('crudFields.batchCode')),
+      textFilterField('supplier', t('crudFields.supplier')),
+      selectFilterField('sample_type_id', t('crudFields.sampleType'), '/sample_types'),
+      selectFilterField('direction_id', t('crudFields.direction'), '/directions'),
+      multiSelectFilterField('status_id', t('common.status'), '/sample_statuses'),
+      selectFilterField('protocol_id', t('crudFields.protocol'), '/protocols'),
+      booleanFilterField('is_urgent', t('crudFields.urgent')),
+      booleanFilterField('is_done', t('crudFields.ready')),
+      dateFilterField('sampled_at', t('crudFields.sampled')),
+      dateFilterField('received_at', t('crudFields.received')),
+      dateFilterField('completed_at', t('crudFields.completedM')),
+      dateFilterField('deadline', t('crudFields.deadline'))
     ],
     columns: [
-      { field: 'id', header: 'ID', sortable: true },
+      { field: 'id', header: t('crudFields.id'), sortable: true },
       {
         field: 'nomenclature_code',
-        header: 'Номер',
+        header: t('crudFields.number'),
         width: '120px',
-        filter: { type: 'text', placeholder: 'Номер' },
+        filter: { type: 'text', placeholder: t('crudFields.number') },
         body: (row) => sampleRecordCode(row) ?? '-'
       },
-      { field: 'name', header: 'Название', sortable: true, width: '220px', wrap: true, filter: { type: 'text', placeholder: 'Название' } },
-      { field: 'sample_type.name', header: 'Тип образца', filter: { type: 'text', placeholder: 'Тип образца' } },
-      { field: 'alternate_name', header: 'Альтернативное имя', sortable: true, width: '220px', wrap: true, filter: { type: 'text', placeholder: 'Альтернативное имя' } },
-      { field: 'direction.name', header: 'Направление', filter: { type: 'text', placeholder: 'Направление' } },
-      { field: 'status.name', header: 'Статус', width: '150px', filter: { type: 'text', placeholder: 'Статус' } },
+      { field: 'name', header: t('access.columns.name'), sortable: true, width: '220px', wrap: true, filter: { type: 'text', placeholder: t('access.columns.name') } },
+      { field: 'sample_type.name', header: t('crudFields.sampleType'), filter: { type: 'text', placeholder: t('crudFields.sampleType') } },
+      { field: 'alternate_name', header: t('crudFields.alternateName'), sortable: true, width: '220px', wrap: true, filter: { type: 'text', placeholder: t('crudFields.alternateName') } },
+      { field: 'direction.name', header: t('crudFields.direction'), filter: { type: 'text', placeholder: t('crudFields.direction') } },
+      { field: 'status.name', header: t('common.status'), width: '150px', filter: { type: 'text', placeholder: t('common.status') } },
       {
         field: 'is_urgent',
-        header: 'Срочно',
+        header: t('crudFields.urgent'),
         sortable: true,
         filter: {
           type: 'select',
           options: [
-            ...yesNoOptions
+            ...yesNoOptions()
           ]
         }
       },
       {
         field: 'is_done',
-        header: 'Готов',
+        header: t('crudFields.ready'),
         sortable: true,
         filter: {
           type: 'select',
           options: [
-            ...yesNoOptions
+            ...yesNoOptions()
           ]
         }
       },
-      { field: 'received_at', header: 'Получен', sortable: true, filter: { type: 'dateRange' } }
+      { field: 'received_at', header: t('crudFields.received'), sortable: true, filter: { type: 'dateRange' } }
     ],
     // Бэкенд не отдаёт sample_type/direction вложенными объектами в списке
     // образцов (в отличие от status) — колонки резолвят название через
@@ -311,31 +328,31 @@ export const crudModules: Record<string, CrudModuleConfig> = {
     displayReferenceFields: ['sample_type_id', 'direction_id'],
     defaultHiddenColumns: ['is_urgent', 'alternate_name', 'is_done'],
     fields: [
-      { key: 'month_no', label: 'Месяц', type: 'number', layout: { span: 4 } },
-      { key: 'name', label: 'Название', required: true, layout: { span: 4 } },
-      { key: 'alternate_name', label: 'Альтернативное имя', layout: { span: 4 } },
-      { key: 'mass', label: 'Масса' },
-      { key: 'target_description', label: 'Описание цели', type: 'textarea' },
-      { key: 'comment', label: 'Комментарий', type: 'textarea' },
-      { key: 'section', label: 'Раздел', layout: { span: 4 } },
-      { key: 'delivery', label: 'Доставка', layout: { span: 4 } },
-      { key: 'nomenclature_code', label: 'Код номенклатуры', layout: { span: 4 } },
-      { key: 'batch_code', label: 'Код партии', layout: { span: 4 } },
-      { key: 'supplier', label: 'Поставщик', layout: { span: 4 } },
-      { key: 'is_urgent', label: 'Срочно', type: 'boolean', layout: { span: 6 } },
-      { key: 'is_done', label: 'Готов', type: 'boolean', layout: { span: 6 } },
-      { key: 'sample_type_id', label: 'Тип образца', type: 'select', source: '/sample_types', layout: { span: 4 } },
-      { key: 'direction_id', label: 'Направление', type: 'select', source: '/directions', layout: { span: 4 } },
-      { key: 'protocol_id', label: 'Протокол', type: 'select', source: '/protocols', layout: { span: 4 } },
-      { key: 'sampled_at', label: 'Отобран', type: 'date', layout: { span: 4 } },
-      { key: 'received_at', label: 'Получен', type: 'date', layout: { span: 4 } },
-      { key: 'completed_at', label: 'Завершён', type: 'date', layout: { span: 4 }, editable: false }
+      { key: 'month_no', label: t('crudFields.month'), type: 'number', layout: { span: 4 } },
+      { key: 'name', label: t('access.columns.name'), required: true, layout: { span: 4 } },
+      { key: 'alternate_name', label: t('crudFields.alternateName'), layout: { span: 4 } },
+      { key: 'mass', label: t('directionWizard.mass') },
+      { key: 'target_description', label: t('crudFields.targetDescription'), type: 'textarea' },
+      { key: 'comment', label: t('workflowCommands.formFields.comment'), type: 'textarea' },
+      { key: 'section', label: t('crudFields.section'), layout: { span: 4 } },
+      { key: 'delivery', label: t('crudFields.delivery'), layout: { span: 4 } },
+      { key: 'nomenclature_code', label: t('crudFields.nomenclatureCode'), layout: { span: 4 } },
+      { key: 'batch_code', label: t('crudFields.batchCode'), layout: { span: 4 } },
+      { key: 'supplier', label: t('crudFields.supplier'), layout: { span: 4 } },
+      { key: 'is_urgent', label: t('crudFields.urgent'), type: 'boolean', layout: { span: 6 } },
+      { key: 'is_done', label: t('crudFields.ready'), type: 'boolean', layout: { span: 6 } },
+      { key: 'sample_type_id', label: t('crudFields.sampleType'), type: 'select', source: '/sample_types', layout: { span: 4 } },
+      { key: 'direction_id', label: t('crudFields.direction'), type: 'select', source: '/directions', layout: { span: 4 } },
+      { key: 'protocol_id', label: t('crudFields.protocol'), type: 'select', source: '/protocols', layout: { span: 4 } },
+      { key: 'sampled_at', label: t('crudFields.sampled'), type: 'date', layout: { span: 4 } },
+      { key: 'received_at', label: t('crudFields.received'), type: 'date', layout: { span: 4 } },
+      { key: 'completed_at', label: t('crudFields.completedM'), type: 'date', layout: { span: 4 }, editable: false }
     ]
   },
   objects: {
     resource: 'objects',
-    title: 'Объекты',
-    description: 'Справочник объектов исследований.',
+    title: t('crudModules.objects.title'),
+    description: t('crudModules.objects.description'),
     endpoint: '/objects',
     include: 'branch',
     presetKey: 'objects',
@@ -350,26 +367,26 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       updated_at: dateFilter()
     },
     columns: [
-      { field: 'id', header: 'ID', sortable: true },
-      { field: 'code', header: 'Код', sortable: true, filter: { type: 'text', placeholder: 'Код' } },
-      { field: 'name', header: 'Название', sortable: true, filter: { type: 'text', placeholder: 'Название' } },
-      { field: 'full_name', header: 'Полное название', sortable: true, filter: { type: 'text', placeholder: 'Полное название' } },
-      { field: 'address', header: 'Адрес', sortable: true, filter: { type: 'text', placeholder: 'Адрес' } },
-      { field: 'branch.name', header: 'Филиал', sortable: true, filter: { type: 'text', placeholder: 'Филиал' } },
-      { field: 'updated_at', header: 'Обновлено', sortable: true, filter: { type: 'dateRange' } }
+      { field: 'id', header: t('crudFields.id'), sortable: true },
+      { field: 'code', header: t('access.columns.code'), sortable: true, filter: { type: 'text', placeholder: t('access.columns.code') } },
+      { field: 'name', header: t('access.columns.name'), sortable: true, filter: { type: 'text', placeholder: t('access.columns.name') } },
+      { field: 'full_name', header: t('crudFields.fullName'), sortable: true, filter: { type: 'text', placeholder: t('crudFields.fullName') } },
+      { field: 'address', header: t('crudFields.address'), sortable: true, filter: { type: 'text', placeholder: t('crudFields.address') } },
+      { field: 'branch.name', header: t('crudFields.branch'), sortable: true, filter: { type: 'text', placeholder: t('crudFields.branch') } },
+      { field: 'updated_at', header: t('crudFields.updated'), sortable: true, filter: { type: 'dateRange' } }
     ],
     fields: [
-      { key: 'code', label: 'Код', required: true },
-      { key: 'name', label: 'Название', required: true },
-      { key: 'full_name', label: 'Полное название' },
-      { key: 'address', label: 'Адрес' },
-      { key: 'branch_id', label: 'Филиал', type: 'select', source: '/branches' }
+      { key: 'code', label: t('access.columns.code'), required: true },
+      { key: 'name', label: t('access.columns.name'), required: true },
+      { key: 'full_name', label: t('crudFields.fullName') },
+      { key: 'address', label: t('crudFields.address') },
+      { key: 'branch_id', label: t('crudFields.branch'), type: 'select', source: '/branches' }
     ]
   },
   branches: {
     resource: 'branches',
-    title: 'Филиалы',
-    description: 'Справочник филиалов и площадок.',
+    title: t('crudModules.branches.title'),
+    description: t('crudModules.branches.description'),
     endpoint: '/branches',
     presetKey: 'branches',
     pageId: 'branches',
@@ -379,111 +396,107 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       code: textFilter()
     },
     columns: [
-      { field: 'id', header: 'ID', sortable: true },
-      { field: 'name', header: 'Название', sortable: true, filter: { type: 'text', placeholder: 'Название' } },
-      { field: 'code', header: 'Код', sortable: true, filter: { type: 'text', placeholder: 'Код' } }
+      { field: 'id', header: t('crudFields.id'), sortable: true },
+      { field: 'name', header: t('access.columns.name'), sortable: true, filter: { type: 'text', placeholder: t('access.columns.name') } },
+      { field: 'code', header: t('access.columns.code'), sortable: true, filter: { type: 'text', placeholder: t('access.columns.code') } }
     ],
     fields: [
-      { key: 'name', label: 'Название', required: true },
-      { key: 'code', label: 'Код' }
+      { key: 'name', label: t('access.columns.name'), required: true },
+      { key: 'code', label: t('access.columns.code') }
     ]
   },
   'direction-statuses': {
     resource: 'statuses',
-    title: 'Статусы направлений',
-    description: 'Статусы жизненного цикла направлений.',
+    title: t('dictionaries.directionsStatusesTitle'),
+    description: t('dictionaries.directionsStatusesDescription'),
     endpoint: '/direction_statuses',
     presetKey: 'direction-statuses',
     pageId: 'direction-statuses',
     initialFilters: {
       global: textFilter(),
       code: textFilter(),
-      name: textFilter(),
       updated_at: dateFilter()
     },
     columns: [
-      { field: 'id', header: 'ID', sortable: true },
-      { field: 'code', header: 'Код', sortable: true, filter: { type: 'text', placeholder: 'Код' } },
-      { field: 'name', header: 'Название', sortable: true, filter: { type: 'text', placeholder: 'Название' } },
-      { field: 'updated_at', header: 'Обновлено', sortable: true, filter: { type: 'dateRange' } }
+      { field: 'id', header: t('crudFields.id'), sortable: true },
+      { field: 'code', header: t('access.columns.code'), sortable: true, filter: { type: 'text', placeholder: t('access.columns.code') } },
+      { field: 'label', header: t('access.columns.name'), sortable: false },
+      { field: 'updated_at', header: t('crudFields.updated'), sortable: true, filter: { type: 'dateRange' } }
     ],
     fields: [
-      { key: 'name', label: 'Название', required: true }
+      { key: 'color', label: t('crudFields.color'), type: 'color', required: true }
     ]
   },
   'sample-statuses': {
     resource: 'statuses',
-    title: 'Статусы образцов',
-    description: 'Статусы приёмки, работы и закрытия образцов.',
+    title: t('dictionaries.samplesStatusesTitle'),
+    description: t('dictionaries.samplesStatusesDescription'),
     endpoint: '/sample_statuses',
     presetKey: 'sample-statuses',
     pageId: 'sample-statuses',
     initialFilters: {
       global: textFilter(),
       code: textFilter(),
-      name: textFilter(),
       updated_at: dateFilter()
     },
     columns: [
-      { field: 'id', header: 'ID', sortable: true },
-      { field: 'code', header: 'Код', sortable: true, filter: { type: 'text', placeholder: 'Код' } },
-      { field: 'name', header: 'Название', sortable: true, filter: { type: 'text', placeholder: 'Название' } },
-      { field: 'updated_at', header: 'Обновлено', sortable: true, filter: { type: 'dateRange' } }
+      { field: 'id', header: t('crudFields.id'), sortable: true },
+      { field: 'code', header: t('access.columns.code'), sortable: true, filter: { type: 'text', placeholder: t('access.columns.code') } },
+      { field: 'label', header: t('access.columns.name'), sortable: false },
+      { field: 'updated_at', header: t('crudFields.updated'), sortable: true, filter: { type: 'dateRange' } }
     ],
     fields: [
-      { key: 'name', label: 'Название', required: true }
+      { key: 'color', label: t('crudFields.color'), type: 'color', required: true }
     ]
   },
   'research-statuses': {
     resource: 'statuses',
-    title: 'Статусы исследований',
-    description: 'Статусы лабораторных исследований.',
+    title: t('dictionaries.researchStatusesTitle'),
+    description: t('crudModules.researchStatuses.description'),
     endpoint: '/research_statuses',
     presetKey: 'research-statuses',
     pageId: 'research-statuses',
     initialFilters: {
       global: textFilter(),
       code: textFilter(),
-      name: textFilter(),
       updated_at: dateFilter()
     },
     columns: [
-      { field: 'id', header: 'ID', sortable: true },
-      { field: 'code', header: 'Код', sortable: true, filter: { type: 'text', placeholder: 'Код' } },
-      { field: 'name', header: 'Название', sortable: true, filter: { type: 'text', placeholder: 'Название' } },
-      { field: 'updated_at', header: 'Обновлено', sortable: true, filter: { type: 'dateRange' } }
+      { field: 'id', header: t('crudFields.id'), sortable: true },
+      { field: 'code', header: t('access.columns.code'), sortable: true, filter: { type: 'text', placeholder: t('access.columns.code') } },
+      { field: 'label', header: t('access.columns.name'), sortable: false },
+      { field: 'updated_at', header: t('crudFields.updated'), sortable: true, filter: { type: 'dateRange' } }
     ],
     fields: [
-      { key: 'name', label: 'Название', required: true }
+      { key: 'color', label: t('crudFields.color'), type: 'color', required: true }
     ]
   },
   'test-statuses': {
     resource: 'statuses',
-    title: 'Статусы тестов',
-    description: 'Статусы отдельных лабораторных тестов.',
+    title: t('dictionaries.testsStatusesTitle'),
+    description: t('dictionaries.testsStatusesDescription'),
     endpoint: '/test_statuses',
     presetKey: 'test-statuses',
     pageId: 'test-statuses',
     initialFilters: {
       global: textFilter(),
       code: textFilter(),
-      name: textFilter(),
       updated_at: dateFilter()
     },
     columns: [
-      { field: 'id', header: 'ID', sortable: true },
-      { field: 'code', header: 'Код', sortable: true, filter: { type: 'text', placeholder: 'Код' } },
-      { field: 'name', header: 'Название', sortable: true, filter: { type: 'text', placeholder: 'Название' } },
-      { field: 'updated_at', header: 'Обновлено', sortable: true, filter: { type: 'dateRange' } }
+      { field: 'id', header: t('crudFields.id'), sortable: true },
+      { field: 'code', header: t('access.columns.code'), sortable: true, filter: { type: 'text', placeholder: t('access.columns.code') } },
+      { field: 'label', header: t('access.columns.name'), sortable: false },
+      { field: 'updated_at', header: t('crudFields.updated'), sortable: true, filter: { type: 'dateRange' } }
     ],
     fields: [
-      { key: 'name', label: 'Название', required: true }
+      { key: 'color', label: t('crudFields.color'), type: 'color', required: true }
     ]
   },
   doctors: {
     resource: 'doctors',
-    title: 'Врачи',
-    description: 'Справочник врачей и направителей.',
+    title: t('crudModules.doctors.title'),
+    description: t('crudModules.doctors.description'),
     endpoint: '/doctors',
     presetKey: 'doctors',
     pageId: 'doctors',
@@ -495,30 +508,30 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       updated_at: dateFilter()
     },
     columns: [
-      { field: 'id', header: 'ID', sortable: true },
-      { field: 'first_name', header: 'Имя', sortable: true, filter: { type: 'text', placeholder: 'Имя' } },
+      { field: 'id', header: t('crudFields.id'), sortable: true },
+      { field: 'first_name', header: t('crudFields.firstName'), sortable: true, filter: { type: 'text', placeholder: t('crudFields.firstName') } },
       {
         field: 'last_name',
-        header: 'Фамилия / Отчество',
+        header: t('access.columns.lastName'),
         sortable: true,
-        filter: { type: 'text', placeholder: 'Фамилия / Отчество' },
+        filter: { type: 'text', placeholder: t('access.columns.lastName') },
         body: (row: Record<string, unknown>) => [row.last_name, row.patronymic].filter(Boolean).join(' ') || '-'
       },
-      { field: 'updated_at', header: 'Обновлено', sortable: true, filter: { type: 'dateRange' } }
+      { field: 'updated_at', header: t('crudFields.updated'), sortable: true, filter: { type: 'dateRange' } }
     ],
     fields: [
-      { key: 'first_name', label: 'Имя', required: true },
-      { key: 'last_name', label: 'Фамилия' },
-      { key: 'patronymic', label: 'Отчество' },
+      { key: 'first_name', label: t('crudFields.firstName'), required: true },
+      { key: 'last_name', label: t('directionWizard.lastName') },
+      { key: 'patronymic', label: t('directionWizard.patronymic') },
       // Привязка к учётной записи — на её основании врач автоматически
       // подписывается на направления/образцы, где он указан как санитарный врач.
-      { key: 'user_id', label: 'Учётная запись', type: 'select', source: '/users', layout: { span: 6 } }
+      { key: 'user_id', label: t('crudFields.account'), type: 'select', source: '/users', layout: { span: 6 } }
     ]
   },
   labs: {
     resource: 'labs',
-    title: 'Лаборатории',
-    description: 'Подразделения и лабораторные отделы.',
+    title: t('crudModules.labs.title'),
+    description: t('crudModules.labs.description'),
     endpoint: '/labs',
     include: 'branch',
     presetKey: 'labs',
@@ -531,25 +544,25 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       'branch.name': textFilter()
     },
     columns: [
-      { field: 'id', header: 'ID', sortable: true },
-      { field: 'code', header: 'Код', sortable: true, filter: { type: 'text', placeholder: 'Код' } },
-      { field: 'name', header: 'Название', sortable: true, filter: { type: 'text', placeholder: 'Название' } },
-      { field: 'full_name', header: 'Полное название', sortable: true, filter: { type: 'text', placeholder: 'Полное название' } },
-      { field: 'branch.name', header: 'Филиал', sortable: true, filter: { type: 'text', placeholder: 'Филиал' } }
+      { field: 'id', header: t('crudFields.id'), sortable: true },
+      { field: 'code', header: t('access.columns.code'), sortable: true, filter: { type: 'text', placeholder: t('access.columns.code') } },
+      { field: 'name', header: t('access.columns.name'), sortable: true, filter: { type: 'text', placeholder: t('access.columns.name') } },
+      { field: 'full_name', header: t('crudFields.fullName'), sortable: true, filter: { type: 'text', placeholder: t('crudFields.fullName') } },
+      { field: 'branch.name', header: t('crudFields.branch'), sortable: true, filter: { type: 'text', placeholder: t('crudFields.branch') } }
     ],
     fields: [
-      { key: 'code', label: 'Код' },
-      { key: 'name', label: 'Название' },
-      { key: 'full_name', label: 'Полное название' },
-      { key: 'branch_id', label: 'Филиал', type: 'select', source: '/branches' }
+      { key: 'code', label: t('access.columns.code') },
+      { key: 'name', label: t('access.columns.name') },
+      { key: 'full_name', label: t('crudFields.fullName') },
+      { key: 'branch_id', label: t('crudFields.branch'), type: 'select', source: '/branches' }
     ]
   },
   'role-subscription-rules': {
     // Права на управление правилами подписки проверяются в связке с
     // ролями/правами доступа — тот же ресурс, что у /role_permissions.
     resource: 'user-types',
-    title: 'Правила подписки по ролям',
-    description: 'Мандатные подписки: все пользователи роли отслеживают направления/образцы (опционально в разрезе филиала/лаборатории/статуса).',
+    title: t('crudModules.roleSubscriptionRules.title'),
+    description: t('crudModules.roleSubscriptionRules.description'),
     endpoint: '/role_subscription_rules',
     presetKey: 'role-subscription-rules',
     pageId: 'role-subscription-rules',
@@ -559,55 +572,55 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       entity_type: textFilter()
     },
     columns: [
-      { field: 'id', header: 'ID', sortable: true },
-      { field: 'role_name', header: 'Роль', sortable: true, filter: { type: 'text', placeholder: 'Роль' } },
+      { field: 'id', header: t('crudFields.id'), sortable: true },
+      { field: 'role_name', header: t('access.columns.role'), sortable: true, filter: { type: 'text', placeholder: t('access.columns.role') } },
       {
         field: 'entity_type',
-        header: 'Тип сущности',
+        header: t('crudFields.entityType'),
         sortable: true,
-        filter: { type: 'select', options: subscriptionEntityTypeOptions }
+        filter: { type: 'select', options: subscriptionEntityTypeOptions() }
       },
-      { field: 'branch_name', header: 'Филиал', filter: { type: 'text', placeholder: 'Филиал (пусто — все)' } },
-      { field: 'lab_name', header: 'Лаборатория', filter: { type: 'text', placeholder: 'Лаборатория (пусто — все)' } },
-      { field: 'status_code', header: 'Статус', filter: { type: 'select', options: subscriptionStatusCodeOptions } }
+      { field: 'branch_name', header: t('crudFields.branch'), filter: { type: 'text', placeholder: t('crudFields.branchEmptyAll') } },
+      { field: 'lab_name', header: t('access.columns.laboratory'), filter: { type: 'text', placeholder: t('crudFields.labEmptyAll') } },
+      { field: 'status_code', header: t('common.status'), filter: { type: 'select', options: subscriptionStatusCodeOptions() } }
     ],
     fields: [
-      { key: 'role_id', label: 'Роль', type: 'select', source: '/roles', required: true, layout: { span: 6 } },
+      { key: 'role_id', label: t('access.columns.role'), type: 'select', source: '/roles', required: true, layout: { span: 6 } },
       {
         key: 'entity_type',
-        label: 'Тип сущности',
+        label: t('crudFields.entityType'),
         type: 'select',
         required: true,
-        options: subscriptionEntityTypeOptions,
+        options: subscriptionEntityTypeOptions(),
         layout: { span: 6 }
       },
       {
         key: 'branch_id',
-        label: 'Филиал (пусто — все)',
+        label: t('crudFields.branchEmptyAll'),
         type: 'select',
         source: '/branches',
         layout: { span: 6 }
       },
       {
         key: 'lab_id',
-        label: 'Лаборатория (пусто — все, только для образцов)',
+        label: t('crudFields.labEmptyAllSamplesOnly'),
         type: 'select',
         source: '/labs',
         layout: { span: 6 }
       },
       {
         key: 'status_code',
-        label: 'Статус (пусто — любой; должен соответствовать типу сущности)',
+        label: t('crudFields.statusEmptyAny'),
         type: 'select',
-        options: subscriptionStatusCodeOptions,
+        options: subscriptionStatusCodeOptions(),
         layout: { span: 12 }
       }
     ]
   },
   'research-goals': {
     resource: 'research-goals',
-    title: 'Цели исследований',
-    description: 'Справочник целей и задач исследований.',
+    title: t('dictionaries.researchGoals'),
+    description: t('crudModules.researchGoals.description'),
     endpoint: '/research_goals',
     include: 'lab',
     presetKey: 'research-goals',
@@ -620,23 +633,23 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       'lab.name': textFilter()
     },
     columns: [
-      { field: 'id', header: 'ID', sortable: true },
-      { field: 'code', header: 'Код', sortable: true, filter: { type: 'text', placeholder: 'Код' } },
-      { field: 'name', header: 'Название', sortable: true, filter: { type: 'text', placeholder: 'Название' } },
-      { field: 'comment', header: 'Комментарий', sortable: true, filter: { type: 'text', placeholder: 'Комментарий' } },
-      { field: 'lab.name', header: 'Лаборатория', sortable: true, filter: { type: 'text', placeholder: 'Лаборатория' } }
+      { field: 'id', header: t('crudFields.id'), sortable: true },
+      { field: 'code', header: t('access.columns.code'), sortable: true, filter: { type: 'text', placeholder: t('access.columns.code') } },
+      { field: 'name', header: t('access.columns.name'), sortable: true, filter: { type: 'text', placeholder: t('access.columns.name') } },
+      { field: 'comment', header: t('workflowCommands.formFields.comment'), sortable: true, filter: { type: 'text', placeholder: t('workflowCommands.formFields.comment') } },
+      { field: 'lab.name', header: t('access.columns.laboratory'), sortable: true, filter: { type: 'text', placeholder: t('access.columns.laboratory') } }
     ],
     fields: [
-      { key: 'code', label: 'Код', required: true },
-      { key: 'name', label: 'Название', required: true },
-      { key: 'comment', label: 'Комментарий', type: 'textarea' },
-      { key: 'lab_id', label: 'Лаборатория', type: 'select', source: '/labs' }
+      { key: 'code', label: t('access.columns.code'), required: true },
+      { key: 'name', label: t('access.columns.name'), required: true },
+      { key: 'comment', label: t('workflowCommands.formFields.comment'), type: 'textarea' },
+      { key: 'lab_id', label: t('access.columns.laboratory'), type: 'select', source: '/labs' }
     ]
   },
   'sample-types': {
     resource: 'sample-types',
-    title: 'Типы образцов',
-    description: 'Справочник типов образцов.',
+    title: t('dictionaries.sampleTypes'),
+    description: t('crudModules.sampleTypes.description'),
     endpoint: '/sample_types',
     presetKey: 'sample-types',
     pageId: 'sample-types',
@@ -647,20 +660,20 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       updated_at: dateFilter()
     },
     columns: [
-      { field: 'id', header: 'ID', sortable: true },
-      { field: 'code', header: 'Код', sortable: true, filter: { type: 'text', placeholder: 'Код' } },
-      { field: 'name', header: 'Название', sortable: true, filter: { type: 'text', placeholder: 'Название' } },
-      { field: 'updated_at', header: 'Обновлено', sortable: true, filter: { type: 'dateRange' } }
+      { field: 'id', header: t('crudFields.id'), sortable: true },
+      { field: 'code', header: t('access.columns.code'), sortable: true, filter: { type: 'text', placeholder: t('access.columns.code') } },
+      { field: 'name', header: t('access.columns.name'), sortable: true, filter: { type: 'text', placeholder: t('access.columns.name') } },
+      { field: 'updated_at', header: t('crudFields.updated'), sortable: true, filter: { type: 'dateRange' } }
     ],
     fields: [
-      { key: 'code', label: 'Код' },
-      { key: 'name', label: 'Название', required: true }
+      { key: 'code', label: t('access.columns.code') },
+      { key: 'name', label: t('access.columns.name'), required: true }
     ]
   },
   indicators: {
     resource: 'indicators',
-    title: 'Показатели',
-    description: 'Лабораторные показатели и их нормы.',
+    title: t('dictionaries.indicators'),
+    description: t('crudModules.indicators.description'),
     endpoint: '/indicators',
     include: 'lab,sample_type',
     presetKey: 'indicators',
@@ -673,27 +686,27 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       'sample_type.name': textFilter()
     },
     columns: [
-      { field: 'id', header: 'ID', sortable: true },
-      { field: 'name', header: 'Название', sortable: true, filter: { type: 'text', placeholder: 'Название' } },
-      { field: 'unit', header: 'Единица', sortable: true, filter: { type: 'text', placeholder: 'Единица' } },
-      { field: 'lab.name', header: 'Лаборатория', sortable: true, filter: { type: 'text', placeholder: 'Лаборатория' } },
-      { field: 'sample_type.name', header: 'Тип образца', sortable: true, filter: { type: 'text', placeholder: 'Тип образца' } }
+      { field: 'id', header: t('crudFields.id'), sortable: true },
+      { field: 'name', header: t('access.columns.name'), sortable: true, filter: { type: 'text', placeholder: t('access.columns.name') } },
+      { field: 'unit', header: t('crudFields.unit'), sortable: true, filter: { type: 'text', placeholder: t('crudFields.unit') } },
+      { field: 'lab.name', header: t('access.columns.laboratory'), sortable: true, filter: { type: 'text', placeholder: t('access.columns.laboratory') } },
+      { field: 'sample_type.name', header: t('crudFields.sampleType'), sortable: true, filter: { type: 'text', placeholder: t('crudFields.sampleType') } }
     ],
     fields: [
-      { key: 'name', label: 'Название', required: true },
-      { key: 'unit', label: 'Единица измерения' },
-      { key: 'norm_text', label: 'Норма (текст)', type: 'textarea' },
-      { key: 'norm_value', label: 'Норма (значение)' },
-      { key: 'default_text', label: 'Текст по умолчанию', type: 'textarea' },
-      { key: 'comment', label: 'Комментарий', type: 'textarea' },
-      { key: 'lab_id', label: 'Лаборатория', type: 'select', source: '/labs' },
-      { key: 'sample_type_id', label: 'Тип образца', type: 'select', source: '/sample_types' }
+      { key: 'name', label: t('access.columns.name'), required: true },
+      { key: 'unit', label: t('crudFields.unitOfMeasure') },
+      { key: 'norm_text', label: t('crudFields.normText'), type: 'textarea' },
+      { key: 'norm_value', label: t('crudFields.normValue') },
+      { key: 'default_text', label: t('crudFields.defaultText'), type: 'textarea' },
+      { key: 'comment', label: t('workflowCommands.formFields.comment'), type: 'textarea' },
+      { key: 'lab_id', label: t('access.columns.laboratory'), type: 'select', source: '/labs' },
+      { key: 'sample_type_id', label: t('crudFields.sampleType'), type: 'select', source: '/sample_types' }
     ]
   },
   'protocol-types': {
     resource: 'protocol-types',
-    title: 'Типы протоколов',
-    description: 'Справочник типов протоколов.',
+    title: t('dictionaries.protocolTypes'),
+    description: t('crudModules.protocolTypes.description'),
     endpoint: '/protocol_types',
     presetKey: 'protocol-types',
     pageId: 'protocol-types',
@@ -704,20 +717,20 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       updated_at: dateFilter()
     },
     columns: [
-      { field: 'id', header: 'ID', sortable: true },
-      { field: 'code', header: 'Код', sortable: true, filter: { type: 'text', placeholder: 'Код' } },
-      { field: 'name', header: 'Название', sortable: true, filter: { type: 'text', placeholder: 'Название' } },
-      { field: 'updated_at', header: 'Обновлено', sortable: true, filter: { type: 'dateRange' } }
+      { field: 'id', header: t('crudFields.id'), sortable: true },
+      { field: 'code', header: t('access.columns.code'), sortable: true, filter: { type: 'text', placeholder: t('access.columns.code') } },
+      { field: 'name', header: t('access.columns.name'), sortable: true, filter: { type: 'text', placeholder: t('access.columns.name') } },
+      { field: 'updated_at', header: t('crudFields.updated'), sortable: true, filter: { type: 'dateRange' } }
     ],
     fields: [
-      { key: 'code', label: 'Код' },
-      { key: 'name', label: 'Название', required: true }
+      { key: 'code', label: t('access.columns.code') },
+      { key: 'name', label: t('access.columns.name'), required: true }
     ]
   },
   conclusions: {
     resource: 'conclusions',
-    title: 'Заключения',
-    description: 'Справочник предопределённых формулировок заключений.',
+    title: t('dictionaries.conclusions'),
+    description: t('crudModules.conclusions.description'),
     endpoint: '/conclusions',
     include: undefined,
     presetKey: 'conclusions',
@@ -729,25 +742,25 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       updated_at: dateFilter()
     },
     columns: [
-      { field: 'id', header: 'ID', sortable: true },
-      { field: 'code', header: 'Код', sortable: true, filter: { type: 'text', placeholder: 'Код' } },
-      { field: 'name', header: 'Название', sortable: true, filter: { type: 'text', placeholder: 'Название' } },
-      { field: 'text_singular', header: 'Ед. число', sortable: true, filter: { type: 'text', placeholder: 'Ед. число' } },
-      { field: 'text_plural', header: 'Мн. число', sortable: true, filter: { type: 'text', placeholder: 'Мн. число' } },
-      { field: 'updated_at', header: 'Обновлено', sortable: true, filter: { type: 'dateRange' } }
+      { field: 'id', header: t('crudFields.id'), sortable: true },
+      { field: 'code', header: t('access.columns.code'), sortable: true, filter: { type: 'text', placeholder: t('access.columns.code') } },
+      { field: 'name', header: t('access.columns.name'), sortable: true, filter: { type: 'text', placeholder: t('access.columns.name') } },
+      { field: 'text_singular', header: t('crudFields.singularHeader'), sortable: true, filter: { type: 'text', placeholder: t('crudFields.singularHeader') } },
+      { field: 'text_plural', header: t('crudFields.pluralHeader'), sortable: true, filter: { type: 'text', placeholder: t('crudFields.pluralHeader') } },
+      { field: 'updated_at', header: t('crudFields.updated'), sortable: true, filter: { type: 'dateRange' } }
     ],
     fields: [
-      { key: 'code', label: 'Код', required: true },
-      { key: 'name', label: 'Название', required: true },
-      { key: 'text_singular', label: 'Текст в единственном числе', type: 'textarea', required: true },
-      { key: 'text_plural', label: 'Текст во множественном числе', type: 'textarea', required: true },
-      { key: 'comment', label: 'Комментарий', type: 'textarea' }
+      { key: 'code', label: t('access.columns.code'), required: true },
+      { key: 'name', label: t('access.columns.name'), required: true },
+      { key: 'text_singular', label: t('crudFields.singularText'), type: 'textarea', required: true },
+      { key: 'text_plural', label: t('crudFields.pluralText'), type: 'textarea', required: true },
+      { key: 'comment', label: t('workflowCommands.formFields.comment'), type: 'textarea' }
     ]
   },
   protocols: {
     resource: 'protocols',
-    title: 'Протоколы',
-    description: 'Реестр лабораторных протоколов.',
+    title: t('nav.protocols'),
+    description: t('crudModules.protocols.description'),
     endpoint: '/protocols',
     include: 'protocol_type,conclusion',
     presetKey: 'protocols',
@@ -762,40 +775,40 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       issued_at: dateFilter()
     },
     columns: [
-      { field: 'id', header: 'ID', sortable: true },
-      { field: 'year_no', header: 'Год / номер', sortable: true, filter: { type: 'text', placeholder: 'Год / номер' } },
-      { field: 'copies', header: 'Копии', sortable: true, filter: { type: 'text', placeholder: 'Копии' } },
-      { field: 'protocol_type.name', header: 'Тип протокола', sortable: true, filter: { type: 'text', placeholder: 'Тип протокола' } },
-      { field: 'conclusion.name', header: 'Заключение', sortable: true, filter: { type: 'text', placeholder: 'Заключение' } },
+      { field: 'id', header: t('crudFields.id'), sortable: true },
+      { field: 'year_no', header: t('crudFields.yearNumber'), sortable: true, filter: { type: 'text', placeholder: t('crudFields.yearNumber') } },
+      { field: 'copies', header: t('crudFields.copies'), sortable: true, filter: { type: 'text', placeholder: t('crudFields.copies') } },
+      { field: 'protocol_type.name', header: t('crudFields.protocolType'), sortable: true, filter: { type: 'text', placeholder: t('crudFields.protocolType') } },
+      { field: 'conclusion.name', header: t('crudFields.conclusion'), sortable: true, filter: { type: 'text', placeholder: t('crudFields.conclusion') } },
       {
         field: 'is_signed',
-        header: 'Подписан',
+        header: t('crudFields.signed'),
         sortable: true,
         filter: {
           type: 'select',
           options: [
-            { label: 'Да', value: true },
-            { label: 'Нет', value: false }
+            { label: t('access.yes'), value: true },
+            { label: t('access.no'), value: false }
           ]
         }
       },
-      { field: 'issued_at', header: 'Дата выдачи', sortable: true, filter: { type: 'dateRange' } }
+      { field: 'issued_at', header: t('crudFields.issueDate'), sortable: true, filter: { type: 'dateRange' } }
     ],
     fields: [
-      { key: 'year_no', label: 'Год / номер', type: 'number', required: true, layout: { span: 4 } },
-      { key: 'copies', label: 'Копии', type: 'number', layout: { span: 4 } },
-      { key: 'is_signed', label: 'Подписан', type: 'boolean', layout: { span: 4 } },
-      { key: 'protocol_copy_name', label: 'Название копии протокола' },
-      { key: 'excerpt_copy_name', label: 'Название выписки' },
-      { key: 'protocol_type_id', label: 'Тип протокола', type: 'select', source: '/protocol_types', layout: { span: 4 } },
-      { key: 'conclusion_id', label: 'Заключение', type: 'select', source: '/conclusions', layout: { span: 4 } },
-      { key: 'issued_at', label: 'Дата выдачи', type: 'date', layout: { span: 4 } }
+      { key: 'year_no', label: t('crudFields.yearNumber'), type: 'number', required: true, layout: { span: 4 } },
+      { key: 'copies', label: t('crudFields.copies'), type: 'number', layout: { span: 4 } },
+      { key: 'is_signed', label: t('crudFields.signed'), type: 'boolean', layout: { span: 4 } },
+      { key: 'protocol_copy_name', label: t('crudFields.protocolCopyName') },
+      { key: 'excerpt_copy_name', label: t('crudFields.excerptName') },
+      { key: 'protocol_type_id', label: t('crudFields.protocolType'), type: 'select', source: '/protocol_types', layout: { span: 4 } },
+      { key: 'conclusion_id', label: t('crudFields.conclusion'), type: 'select', source: '/conclusions', layout: { span: 4 } },
+      { key: 'issued_at', label: t('crudFields.issueDate'), type: 'date', layout: { span: 4 } }
     ]
   },
   research: {
     resource: 'research',
-    title: 'Исследования',
-    description: 'Исследования по образцам с целями, лабораториями и статусами.',
+    title: t('nav.research'),
+    description: t('crudModules.research.description'),
     endpoint: '/research',
     include: 'sample,research_goal,lab,status',
     presetKey: 'research',
@@ -805,7 +818,7 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       sample_id: textFilter(),
       research_goal_id: textFilter(),
       lab_id: textFilter(),
-      status_id: textFilter(),
+      status_id: multiSelectFilter(),
       comment: textFilter(),
       recommendation: textFilter(),
       created_at: dateFilter(),
@@ -813,46 +826,46 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       completed_at: dateFilter()
     },
     filterFields: [
-      selectFilterField('sample_id', 'Образец', '/samples'),
-      selectFilterField('research_goal_id', 'Цель исследования', '/research_goals'),
-      selectFilterField('lab_id', 'Лаборатория', '/labs'),
-      selectFilterField('status_id', 'Статус', '/research_statuses'),
-      dateFilterField('received_at', 'Получен'),
-      dateFilterField('completed_at', 'Завершён')
+      selectFilterField('sample_id', t('entityHelpers.relationLabels.samples'), '/samples'),
+      selectFilterField('research_goal_id', t('crudFields.researchGoal'), '/research_goals'),
+      selectFilterField('lab_id', t('access.columns.laboratory'), '/labs'),
+      multiSelectFilterField('status_id', t('common.status'), '/research_statuses'),
+      dateFilterField('received_at', t('crudFields.received')),
+      dateFilterField('completed_at', t('crudFields.completedM'))
     ],
     columns: [
-      { field: 'id', header: 'ID', sortable: true },
+      { field: 'id', header: t('crudFields.id'), sortable: true },
       {
         field: 'sample.name',
-        header: 'Образец',
-        filter: { type: 'text', placeholder: 'Образец' },
+        header: t('entityHelpers.relationLabels.samples'),
+        filter: { type: 'text', placeholder: t('entityHelpers.relationLabels.samples') },
         // Номер образца (месяц + код номенклатуры), а не название пробы —
         // компактнее и однозначно идентифицирует образец, как в таблице «Образцы».
         body: (row) => sampleRecordCode((row.sample as Record<string, unknown>) ?? {}) ?? '-'
       },
-      { field: 'research_goal.name', header: 'Цель исследования', sortable: true, filter: { type: 'text', placeholder: 'Цель исследования' } },
-      { field: 'lab.name', header: 'Лаборатория', sortable: true, filter: { type: 'text', placeholder: 'Лаборатория' } },
-      { field: 'status.name', header: 'Статус', sortable: true, filter: { type: 'text', placeholder: 'Статус' } },
-      { field: 'comment', header: 'Комментарий', sortable: true, filter: { type: 'text', placeholder: 'Комментарий' } },
-      { field: 'recommendation', header: 'Рекомендация', sortable: true, filter: { type: 'text', placeholder: 'Рекомендация' } },
-      { field: 'created_at', header: 'Создано', sortable: true, filter: { type: 'dateRange' } },
-      { field: 'received_at', header: 'Получен', sortable: true, filter: { type: 'dateRange' } },
-      { field: 'completed_at', header: 'Завершён', sortable: true, filter: { type: 'dateRange' } }
+      { field: 'research_goal.name', header: t('crudFields.researchGoal'), sortable: true, filter: { type: 'text', placeholder: t('crudFields.researchGoal') } },
+      { field: 'lab.name', header: t('access.columns.laboratory'), sortable: true, filter: { type: 'text', placeholder: t('access.columns.laboratory') } },
+      { field: 'status.name', header: t('common.status'), sortable: true, filter: { type: 'text', placeholder: t('common.status') } },
+      { field: 'comment', header: t('workflowCommands.formFields.comment'), sortable: true, filter: { type: 'text', placeholder: t('workflowCommands.formFields.comment') } },
+      { field: 'recommendation', header: t('crudFields.recommendation'), sortable: true, filter: { type: 'text', placeholder: t('crudFields.recommendation') } },
+      { field: 'created_at', header: t('entityDetail.timeline.created'), sortable: true, filter: { type: 'dateRange' } },
+      { field: 'received_at', header: t('crudFields.received'), sortable: true, filter: { type: 'dateRange' } },
+      { field: 'completed_at', header: t('crudFields.completedM'), sortable: true, filter: { type: 'dateRange' } }
     ],
     fields: [
-      { key: 'sample_id', label: 'Образец', type: 'select', source: '/samples', required: true, layout: { span: 6 } },
-      { key: 'research_goal_id', label: 'Цель исследования', type: 'select', source: '/research_goals', required: true, layout: { span: 6 } },
-      { key: 'lab_id', label: 'Лаборатория', type: 'select', source: '/labs', layout: { span: 6 } },
-      { key: 'comment', label: 'Комментарий', type: 'textarea' },
-      { key: 'recommendation', label: 'Рекомендация', type: 'textarea' },
-      { key: 'received_at', label: 'Получен', type: 'date', layout: { span: 6 } },
-      { key: 'completed_at', label: 'Завершён', type: 'date', layout: { span: 6 } }
+      { key: 'sample_id', label: t('entityHelpers.relationLabels.samples'), type: 'select', source: '/samples', required: true, layout: { span: 6 } },
+      { key: 'research_goal_id', label: t('crudFields.researchGoal'), type: 'select', source: '/research_goals', required: true, layout: { span: 6 } },
+      { key: 'lab_id', label: t('access.columns.laboratory'), type: 'select', source: '/labs', layout: { span: 6 } },
+      { key: 'comment', label: t('workflowCommands.formFields.comment'), type: 'textarea' },
+      { key: 'recommendation', label: t('crudFields.recommendation'), type: 'textarea' },
+      { key: 'received_at', label: t('crudFields.received'), type: 'date', layout: { span: 6 } },
+      { key: 'completed_at', label: t('crudFields.completedM'), type: 'date', layout: { span: 6 } }
     ]
   },
   tests: {
     resource: 'tests',
-    title: 'Тесты',
-    description: 'Результаты отдельных тестов и показателей.',
+    title: t('nav.tests'),
+    description: t('crudModules.tests.description'),
     endpoint: '/tests',
     include: 'research,indicator,status',
     presetKey: 'tests',
@@ -861,53 +874,53 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       global: textFilter(),
       research_id: textFilter(),
       indicator_id: textFilter(),
-      status_id: textFilter(),
+      status_id: multiSelectFilter(),
       value: textFilter(),
       norm: textFilter(),
       comment: textFilter(),
       is_active: multiFilter()
     },
     filterFields: [
-      selectFilterField('research_id', 'Исследование', '/research'),
-      selectFilterField('indicator_id', 'Показатель', '/indicators'),
-      selectFilterField('status_id', 'Статус', '/test_statuses'),
-      textFilterField('value', 'Значение'),
-      textFilterField('norm', 'Норма'),
-      textFilterField('comment', 'Комментарий'),
-      booleanFilterField('is_active', 'Активен')
+      selectFilterField('research_id', t('entityHelpers.relationLabels.research'), '/research'),
+      selectFilterField('indicator_id', t('crudFields.indicator'), '/indicators'),
+      multiSelectFilterField('status_id', t('common.status'), '/test_statuses'),
+      textFilterField('value', t('workflowCommands.formFields.value')),
+      textFilterField('norm', t('workflowCommands.formFields.norm')),
+      textFilterField('comment', t('workflowCommands.formFields.comment')),
+      booleanFilterField('is_active', t('crudFields.active'))
     ],
     columns: [
-      { field: 'id', header: 'ID', sortable: true },
-      { field: 'research.name', header: 'Исследование', sortable: true, filter: { type: 'text', placeholder: 'Исследование' } },
-      { field: 'indicator.name', header: 'Показатель', sortable: true, filter: { type: 'text', placeholder: 'Показатель' } },
-      { field: 'status.name', header: 'Статус', sortable: true, filter: { type: 'text', placeholder: 'Статус' } },
-      { field: 'value', header: 'Значение', sortable: true, filter: { type: 'text', placeholder: 'Значение' } },
+      { field: 'id', header: t('crudFields.id'), sortable: true },
+      { field: 'research.name', header: t('entityHelpers.relationLabels.research'), sortable: true, filter: { type: 'text', placeholder: t('entityHelpers.relationLabels.research') } },
+      { field: 'indicator.name', header: t('crudFields.indicator'), sortable: true, filter: { type: 'text', placeholder: t('crudFields.indicator') } },
+      { field: 'status.name', header: t('common.status'), sortable: true, filter: { type: 'text', placeholder: t('common.status') } },
+      { field: 'value', header: t('workflowCommands.formFields.value'), sortable: true, filter: { type: 'text', placeholder: t('workflowCommands.formFields.value') } },
       {
         field: 'is_active',
-        header: 'Активен',
+        header: t('crudFields.active'),
         sortable: true,
         filter: {
           type: 'select',
           options: [
-            ...yesNoOptions
+            ...yesNoOptions()
           ]
         }
       },
-      { field: 'updated_at', header: 'Обновлено', sortable: true, filter: { type: 'dateRange' } }
+      { field: 'updated_at', header: t('crudFields.updated'), sortable: true, filter: { type: 'dateRange' } }
     ],
     fields: [
-      { key: 'research_id', label: 'Исследование', type: 'select', source: '/research', required: true },
-      { key: 'indicator_id', label: 'Показатель', type: 'select', source: '/indicators' },
-      { key: 'value', label: 'Значение' },
-      { key: 'norm', label: 'Норма' },
-      { key: 'comment', label: 'Комментарий', type: 'textarea' },
-      { key: 'is_active', label: 'Активен', type: 'boolean' }
+      { key: 'research_id', label: t('entityHelpers.relationLabels.research'), type: 'select', source: '/research', required: true },
+      { key: 'indicator_id', label: t('crudFields.indicator'), type: 'select', source: '/indicators' },
+      { key: 'value', label: t('workflowCommands.formFields.value') },
+      { key: 'norm', label: t('workflowCommands.formFields.norm') },
+      { key: 'comment', label: t('workflowCommands.formFields.comment'), type: 'textarea' },
+      { key: 'is_active', label: t('crudFields.active'), type: 'boolean' }
     ]
   },
   'sample-targets': {
     resource: 'sample-targets',
-    title: 'Цели образцов',
-    description: 'Связка образцов и целей исследований.',
+    title: t('permissions.resourceLabels.sample-targets'),
+    description: t('crudModules.sampleTargets.description'),
     endpoint: '/sample_targets',
     include: 'sample,research_goal,status',
     presetKey: 'sample-targets',
@@ -920,16 +933,16 @@ export const crudModules: Record<string, CrudModuleConfig> = {
       updated_at: dateFilter()
     },
     columns: [
-      { field: 'id', header: 'ID', sortable: true },
-      { field: 'sample.name', header: 'Образец', sortable: true, filter: { type: 'text', placeholder: 'Образец' } },
-      { field: 'research_goal.name', header: 'Цель исследования', sortable: true, filter: { type: 'text', placeholder: 'Цель исследования' } },
-      { field: 'status.name', header: 'Статус', sortable: true, filter: { type: 'text', placeholder: 'Статус' } },
-      { field: 'updated_at', header: 'Обновлено', sortable: true, filter: { type: 'dateRange' } }
+      { field: 'id', header: t('crudFields.id'), sortable: true },
+      { field: 'sample.name', header: t('entityHelpers.relationLabels.samples'), sortable: true, filter: { type: 'text', placeholder: t('entityHelpers.relationLabels.samples') } },
+      { field: 'research_goal.name', header: t('crudFields.researchGoal'), sortable: true, filter: { type: 'text', placeholder: t('crudFields.researchGoal') } },
+      { field: 'status.name', header: t('common.status'), sortable: true, filter: { type: 'text', placeholder: t('common.status') } },
+      { field: 'updated_at', header: t('crudFields.updated'), sortable: true, filter: { type: 'dateRange' } }
     ],
     fields: [
-      { key: 'sample_id', label: 'Образец', type: 'select', source: '/samples', required: true },
-      { key: 'research_goal_id', label: 'Цель исследования', type: 'select', source: '/research_goals', required: true },
-      { key: 'status_id', label: 'Статус', type: 'select', source: '/statuses' }
+      { key: 'sample_id', label: t('entityHelpers.relationLabels.samples'), type: 'select', source: '/samples', required: true },
+      { key: 'research_goal_id', label: t('crudFields.researchGoal'), type: 'select', source: '/research_goals', required: true },
+      { key: 'status_id', label: t('common.status'), type: 'select', source: '/statuses' }
     ]
   }
 }

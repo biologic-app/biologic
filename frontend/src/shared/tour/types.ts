@@ -1,12 +1,18 @@
-import type { DriveStep } from 'driver.js'
+import type { TourStep } from '@nuxt/ui/composables'
 import type { AuthUser } from '@/shared/types/auth'
 import type { Permission } from '@/shared/types/permissions'
 
 export type TourScope = string
 export type TourCompletionScope = 'user' | 'role'
 
-export interface AppTourStep extends DriveStep {
+export interface AppTourStep extends TourStep {
   routeName?: string
+  title?: string
+  body?: string
+  side?: 'top' | 'right' | 'bottom' | 'left'
+  align?: 'start' | 'center' | 'end'
+  /** Key into the tour action registry — run once before waiting for `target`. */
+  action?: string
 }
 
 export interface TourContext {

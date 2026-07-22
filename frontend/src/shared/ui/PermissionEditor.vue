@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import type { TableColumn } from '@nuxt/ui'
 import {
   actionLabels,
   crudActions,
   crudPermissionResources,
   resourceCommands,
-  resourceLabels
+  resourceLabels,
+  type ResourceCommand
 } from '@/shared/constants/permissions'
 import type { Permission, PermissionOverride, Resource, Action, AccessScope } from '@/shared/types/permissions'
 
@@ -175,6 +177,34 @@ const permissionCount = (resource: Resource) =>
   props.mode === 'permissions'
     ? (props.permissions || []).filter((permission) => permission.resource === resource).length
     : (props.overrides || []).filter((override) => override.resource === resource).length
+
+// Матрица «ресурс × CRUD-действие»: строки — ресурсы, колонки — действия;
+// содержимое ячейки рендерится именованным слотом `#${action}-cell`.
+type ResourceRow = { resource: Resource }
+
+const resourceRows = computed<ResourceRow[]>(() =>
+  visibleResources.value.map((resource) => ({ resource }))
+)
+
+const resourceGridColumns = computed<TableColumn<ResourceRow>[]>(() => [
+  { id: 'resource', header: 'Ресурс' },
+  ...crudActions.map((action) => ({ id: action, header: actionLabels[action] }))
+])
+
+const permissionMatrixUi = {
+  root: 'overflow-auto rounded-lg border border-default',
+  base: 'border-separate border-spacing-0',
+  thead: '[&>tr]:bg-elevated/60 [&>tr]:after:content-none',
+  tr: '[&:last-child>td]:border-b-0',
+  th: 'border-b border-e border-default px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted last:border-e-0',
+  td: 'whitespace-normal border-b border-e border-default px-3 py-2 align-top last:border-e-0'
+} as const
+
+const commandColumns: TableColumn<ResourceCommand>[] = [
+  { accessorKey: 'resource', header: 'Ресурс' },
+  { accessorKey: 'action', header: 'Команда' },
+  { id: 'access', header: 'Доступ' }
+]
 </script>
 
 <template>
@@ -191,106 +221,85 @@ const permissionCount = (resource: Resource) =>
         />
       </div>
 
-      <div class="overflow-hidden rounded-lg border border-default">
-        <div class="overflow-auto">
-          <div class="min-w-[860px]">
-            <div class="grid grid-cols-[13rem_repeat(4,minmax(10rem,1fr))] border-b border-default bg-elevated/60 text-xs font-semibold uppercase tracking-wide text-muted">
-              <div class="px-3 py-2">
-                Ресурс
-              </div>
-              <div
-                v-for="action in crudActions"
-                :key="action"
-                class="border-s border-default px-3 py-2"
-              >
-                {{ actionLabels[action] }}
-              </div>
-            </div>
-
-            <div
-              v-for="resource in visibleResources"
-              :key="resource"
-              class="grid grid-cols-[13rem_repeat(4,minmax(10rem,1fr))] border-b border-default last:border-b-0"
-            >
-              <div class="flex items-center justify-between gap-2 px-3 py-3">
-                <span class="text-sm font-medium text-highlighted">
-                  {{ resourceLabels[resource] }}
-                </span>
-                <UBadge
-                  :color="mode === 'permissions' ? 'success' : 'warning'"
-                  variant="subtle"
-                  :label="String(permissionCount(resource))"
-                />
-              </div>
-
-              <div
-                v-for="action in crudActions"
-                :key="`${resource}-${action}`"
-                class="border-s border-default px-3 py-2"
-              >
-                <template v-if="mode === 'permissions'">
-                  <div class="space-y-2">
-                    <USelect
-                      :model-value="permissionState(resource, action)"
-                      :items="permissionStateOptions"
-                      value-key="value"
-                      label-key="label"
-                      :disabled="readOnly"
-                      size="xs"
-                      class="w-full"
-                      aria-label="Действие"
-                      @update:model-value="setPermissionState(resource, action, $event as PermissionStateValue)"
-                    />
-                    <USelectMenu
-                      v-if="isAllowed(resource, action)"
-                      :model-value="permissionScope(resource, action)"
-                      :items="scopeOptions"
-                      value-key="value"
-                      label-key="label"
-                      :disabled="readOnly"
-                      size="xs"
-                      class="w-full"
-                      aria-label="Ограничение"
-                      @update:model-value="setPermissionScope(resource, action, $event as AccessScope)"
-                    />
-                  </div>
-                </template>
-
-                <template v-else>
-                  <p class="mb-2 text-xs text-muted">
-                    Роль: {{ inheritedAllowed(resource, action) ? `разрешено · ${inheritedScope(resource, action) || 'all'}` : 'запрещено' }}
-                  </p>
-                  <div class="space-y-2">
-                    <USelect
-                      :model-value="overrideState(resource, action)"
-                      :items="overrideStateOptions"
-                      value-key="value"
-                      label-key="label"
-                      :disabled="readOnly"
-                      size="xs"
-                      class="w-full"
-                      aria-label="Действие"
-                      @update:model-value="setOverride(resource, action, $event as OverrideStateValue)"
-                    />
-                    <USelectMenu
-                      v-if="overrideState(resource, action) === 'allow'"
-                      :model-value="getOverride(resource, action)?.scope || 'all'"
-                      :items="scopeOptions"
-                      value-key="value"
-                      label-key="label"
-                      :disabled="readOnly"
-                      size="xs"
-                      class="w-full"
-                      aria-label="Ограничение"
-                      @update:model-value="setOverrideScope(resource, action, $event as AccessScope)"
-                    />
-                  </div>
-                </template>
-              </div>
-            </div>
+      <UTable :data="resourceRows" :columns="resourceGridColumns" :ui="permissionMatrixUi">
+        <template #resource-cell="{ row }">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-sm font-medium text-highlighted">
+              {{ resourceLabels[row.original.resource] }}
+            </span>
+            <UBadge
+              :color="mode === 'permissions' ? 'success' : 'warning'"
+              variant="subtle"
+              :label="String(permissionCount(row.original.resource))"
+            />
           </div>
-        </div>
-      </div>
+        </template>
+
+        <template
+          v-for="action in crudActions"
+          :key="action"
+          #[`${action}-cell`]="{ row }"
+        >
+          <template v-if="mode === 'permissions'">
+            <div class="space-y-2">
+              <USelect
+                :model-value="permissionState(row.original.resource, action)"
+                :items="permissionStateOptions"
+                value-key="value"
+                label-key="label"
+                :disabled="readOnly"
+                size="xs"
+                class="w-full"
+                aria-label="Действие"
+                @update:model-value="setPermissionState(row.original.resource, action, $event as PermissionStateValue)"
+              />
+              <USelectMenu
+                v-if="isAllowed(row.original.resource, action)"
+                :model-value="permissionScope(row.original.resource, action)"
+                :items="scopeOptions"
+                value-key="value"
+                label-key="label"
+                :disabled="readOnly"
+                size="xs"
+                class="w-full"
+                aria-label="Ограничение"
+                @update:model-value="setPermissionScope(row.original.resource, action, $event as AccessScope)"
+              />
+            </div>
+          </template>
+
+          <template v-else>
+            <p class="mb-2 text-xs text-muted">
+              Роль: {{ inheritedAllowed(row.original.resource, action) ? `разрешено · ${inheritedScope(row.original.resource, action) || 'all'}` : 'запрещено' }}
+            </p>
+            <div class="space-y-2">
+              <USelect
+                :model-value="overrideState(row.original.resource, action)"
+                :items="overrideStateOptions"
+                value-key="value"
+                label-key="label"
+                :disabled="readOnly"
+                size="xs"
+                class="w-full"
+                aria-label="Действие"
+                @update:model-value="setOverride(row.original.resource, action, $event as OverrideStateValue)"
+              />
+              <USelectMenu
+                v-if="overrideState(row.original.resource, action) === 'allow'"
+                :model-value="getOverride(row.original.resource, action)?.scope || 'all'"
+                :items="scopeOptions"
+                value-key="value"
+                label-key="label"
+                :disabled="readOnly"
+                size="xs"
+                class="w-full"
+                aria-label="Ограничение"
+                @update:model-value="setOverrideScope(row.original.resource, action, $event as AccessScope)"
+              />
+            </div>
+          </template>
+        </template>
+      </UTable>
     </section>
 
     <section class="space-y-3">
@@ -305,92 +314,80 @@ const permissionCount = (resource: Resource) =>
         />
       </div>
 
-      <div class="overflow-hidden rounded-lg border border-default">
-        <div class="grid grid-cols-[13rem_1fr_minmax(13rem,auto)] border-b border-default bg-elevated/60 text-xs font-semibold uppercase tracking-wide text-muted">
-          <div class="px-3 py-2">
-            Ресурс
-          </div>
-          <div class="border-s border-default px-3 py-2">
-            Команда
-          </div>
-          <div class="border-s border-default px-3 py-2">
-            Доступ
-          </div>
-        </div>
+      <UTable :data="resourceCommands" :columns="commandColumns" :ui="permissionMatrixUi">
+        <template #resource-cell="{ row }">
+          <span class="text-sm font-medium text-highlighted">
+            {{ resourceLabels[row.original.resource] }}
+          </span>
+        </template>
 
-        <div
-          v-for="command in resourceCommands"
-          :key="`${command.resource}-${command.action}`"
-          class="grid grid-cols-[13rem_1fr_minmax(13rem,auto)] border-b border-default last:border-b-0"
-        >
-          <div class="px-3 py-3 text-sm font-medium text-highlighted">
-            {{ resourceLabels[command.resource] }}
-          </div>
-          <div class="border-s border-default px-3 py-3 text-sm text-muted">
-            {{ actionLabels[command.action] }}
-          </div>
-          <div class="border-s border-default px-3 py-2">
-            <template v-if="mode === 'permissions'">
-              <div class="space-y-2">
-                <USelect
-                  :model-value="permissionState(command.resource, command.action)"
-                  :items="permissionStateOptions"
-                  value-key="value"
-                  label-key="label"
-                  :disabled="readOnly"
-                  size="xs"
-                  class="w-full"
-                  aria-label="Действие"
-                  @update:model-value="setPermissionState(command.resource, command.action, $event as PermissionStateValue)"
-                />
-                <USelectMenu
-                  v-if="isAllowed(command.resource, command.action)"
-                  :model-value="permissionScope(command.resource, command.action)"
-                  :items="scopeOptions"
-                  value-key="value"
-                  label-key="label"
-                  :disabled="readOnly"
-                  size="xs"
-                  class="w-full"
-                  aria-label="Ограничение"
-                  @update:model-value="setPermissionScope(command.resource, command.action, $event as AccessScope)"
-                />
-              </div>
-            </template>
+        <template #action-cell="{ row }">
+          <span class="text-sm text-muted">
+            {{ actionLabels[row.original.action] }}
+          </span>
+        </template>
 
-            <template v-else>
-              <p class="mb-2 text-xs text-muted">
-                Роль: {{ inheritedAllowed(command.resource, command.action) ? `разрешено · ${inheritedScope(command.resource, command.action) || 'all'}` : 'запрещено' }}
-              </p>
-              <div class="space-y-2">
-                <USelect
-                  :model-value="overrideState(command.resource, command.action)"
-                  :items="overrideStateOptions"
-                  value-key="value"
-                  label-key="label"
-                  :disabled="readOnly"
-                  size="xs"
-                  class="w-full"
-                  aria-label="Действие"
-                  @update:model-value="setOverride(command.resource, command.action, $event as OverrideStateValue)"
-                />
-                <USelectMenu
-                  v-if="overrideState(command.resource, command.action) === 'allow'"
-                  :model-value="getOverride(command.resource, command.action)?.scope || 'all'"
-                  :items="scopeOptions"
-                  value-key="value"
-                  label-key="label"
-                  :disabled="readOnly"
-                  size="xs"
-                  class="w-full"
-                  aria-label="Ограничение"
-                  @update:model-value="setOverrideScope(command.resource, command.action, $event as AccessScope)"
-                />
-              </div>
-            </template>
-          </div>
-        </div>
-      </div>
+        <template #access-cell="{ row }">
+          <template v-if="mode === 'permissions'">
+            <div class="space-y-2">
+              <USelect
+                :model-value="permissionState(row.original.resource, row.original.action)"
+                :items="permissionStateOptions"
+                value-key="value"
+                label-key="label"
+                :disabled="readOnly"
+                size="xs"
+                class="w-full"
+                aria-label="Действие"
+                @update:model-value="setPermissionState(row.original.resource, row.original.action, $event as PermissionStateValue)"
+              />
+              <USelectMenu
+                v-if="isAllowed(row.original.resource, row.original.action)"
+                :model-value="permissionScope(row.original.resource, row.original.action)"
+                :items="scopeOptions"
+                value-key="value"
+                label-key="label"
+                :disabled="readOnly"
+                size="xs"
+                class="w-full"
+                aria-label="Ограничение"
+                @update:model-value="setPermissionScope(row.original.resource, row.original.action, $event as AccessScope)"
+              />
+            </div>
+          </template>
+
+          <template v-else>
+            <p class="mb-2 text-xs text-muted">
+              Роль: {{ inheritedAllowed(row.original.resource, row.original.action) ? `разрешено · ${inheritedScope(row.original.resource, row.original.action) || 'all'}` : 'запрещено' }}
+            </p>
+            <div class="space-y-2">
+              <USelect
+                :model-value="overrideState(row.original.resource, row.original.action)"
+                :items="overrideStateOptions"
+                value-key="value"
+                label-key="label"
+                :disabled="readOnly"
+                size="xs"
+                class="w-full"
+                aria-label="Действие"
+                @update:model-value="setOverride(row.original.resource, row.original.action, $event as OverrideStateValue)"
+              />
+              <USelectMenu
+                v-if="overrideState(row.original.resource, row.original.action) === 'allow'"
+                :model-value="getOverride(row.original.resource, row.original.action)?.scope || 'all'"
+                :items="scopeOptions"
+                value-key="value"
+                label-key="label"
+                :disabled="readOnly"
+                size="xs"
+                class="w-full"
+                aria-label="Ограничение"
+                @update:model-value="setOverrideScope(row.original.resource, row.original.action, $event as AccessScope)"
+              />
+            </div>
+          </template>
+        </template>
+      </UTable>
     </section>
   </div>
 </template>

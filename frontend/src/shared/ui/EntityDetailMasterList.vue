@@ -4,14 +4,11 @@ import { useInfiniteScroll } from "@vueuse/core";
 import TrackedFlagIcon from "@/shared/ui/TrackedFlagIcon.vue";
 import UrgentFlagIcon from "@/shared/ui/UrgentFlagIcon.vue";
 import OverdueFlagIcon from "@/shared/ui/OverdueFlagIcon.vue";
+import StatusBadge from "@/shared/ui/StatusBadge.vue";
 
-export type DetailListColor =
-  | "primary"
-  | "info"
-  | "success"
-  | "warning"
-  | "error"
-  | "neutral";
+// Raw backend color token (see `shared/domain/status-color.ts`) threaded into
+// the master-list item's status badge, rendered via `StatusBadge`.
+export type DetailListColor = string | null;
 
 export type DetailListItem = {
   id: string | number;
@@ -75,7 +72,7 @@ useInfiniteScroll(
     </div>
     <div
       ref="scrollEl"
-      class="master-scroll min-h-0 flex-1 overflow-y-auto py-1"
+      class="min-h-0 flex-1 overflow-y-auto py-1 [scrollbar-width:thin] [scrollbar-color:var(--ui-border-accented)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--ui-border-accented)]"
     >
       <button
         v-for="entry in items"
@@ -103,11 +100,9 @@ useInfiniteScroll(
           {{ entry.subtitle }}
         </span>
         <span class="mt-2 flex items-center justify-between gap-2">
-          <UBadge
+          <StatusBadge
             v-if="entry.badge"
-            :color="entry.color ?? 'neutral'"
-            variant="subtle"
-            size="md"
+            :color="entry.color"
             :label="entry.badge"
           />
           <span class="ml-auto flex items-center gap-1">
@@ -128,24 +123,3 @@ useInfiniteScroll(
     </div>
   </aside>
 </template>
-
-<style scoped>
-/* Тонкий скроллбар — стандартный слишком широк для узкого списка. */
-.master-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: var(--ui-border-accented) transparent;
-}
-
-.master-scroll::-webkit-scrollbar {
-  width: 6px;
-}
-
-.master-scroll::-webkit-scrollbar-thumb {
-  background-color: var(--ui-border-accented);
-  border-radius: 9999px;
-}
-
-.master-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-</style>

@@ -325,7 +325,7 @@ class DirectionStatusRepository:
 
     async def update(self, item_id: UUID, values: dict[str, Any]) -> Any:
         row = await self.read(item_id)
-        return await _update_row(self.session, row, _pick(values, ("name",)))
+        return await _update_row(self.session, row, _pick(values, ("color",)))
 
 
 class SampleStatusRepository:
@@ -340,7 +340,7 @@ class SampleStatusRepository:
 
     async def update(self, item_id: UUID, values: dict[str, Any]) -> Any:
         row = await self.read(item_id)
-        return await _update_row(self.session, row, _pick(values, ("name",)))
+        return await _update_row(self.session, row, _pick(values, ("color",)))
 
 
 class ResearchStatusRepository:
@@ -355,7 +355,7 @@ class ResearchStatusRepository:
 
     async def update(self, item_id: UUID, values: dict[str, Any]) -> Any:
         row = await self.read(item_id)
-        return await _update_row(self.session, row, _pick(values, ("name",)))
+        return await _update_row(self.session, row, _pick(values, ("color",)))
 
 
 class TestStatusRepository:
@@ -370,7 +370,7 @@ class TestStatusRepository:
 
     async def update(self, item_id: UUID, values: dict[str, Any]) -> Any:
         row = await self.read(item_id)
-        return await _update_row(self.session, row, _pick(values, ("name",)))
+        return await _update_row(self.session, row, _pick(values, ("color",)))
 
 
 async def _list_rows(
@@ -650,4 +650,4 @@ def _protocol_type_sortable_fields() -> tuple[str, ...]:
 
 
 def _status_sortable_fields() -> tuple[str, ...]:
-    return ("id", "code", "name", "created_at", "updated_at")
+    return ("id", "code", "color", "created_at", "updated_at")

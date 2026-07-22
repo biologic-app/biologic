@@ -3,7 +3,11 @@
 // и сборка событий таймлайна. Тестируемы и переиспользуемы между табами.
 import { formatDateTime } from "@/shared/utils/format";
 import { getValueByPath } from "@/shared/utils/object";
-import { SAMPLE_STATUS_REJECTED } from "@/shared/domain/status-timeline";
+import { SAMPLE_STATUS_REJECTED_CODE } from "@/shared/domain/status-timeline";
+import { i18n } from "@/shared/i18n";
+
+const t = (key: string, params?: Record<string, unknown>) =>
+  i18n.global.t(key, params ?? {}).toString();
 
 export type DetailFieldValue = string | number | boolean | null;
 
@@ -22,8 +26,11 @@ export interface RelatedRow extends DetailRow {
   title: string;
   statusText: string;
   // Нормализованный код статуса (resolveStatusCode) — для группировки строк и
-  // цвета статус-бейджа, консистентно со списками в DictionaryCrudContent.
+  // логики статусов, консистентно со списками в DictionaryCrudContent.
   statusCode: string;
+  // Реальный цвет статуса из include=status (бэкенд) — сырой токен для StatusBadge.
+  // Пусто, если статус не пришёл с записью.
+  statusColor?: string | null;
   updatedAtText: string;
   // Лаборатория исследования (research_goal/lab приходят в include). Пусто для
   // образцов.
@@ -79,7 +86,7 @@ export function namedValue(value: unknown): string {
 
 export function booleanStatus(row: DetailRow): string {
   if (typeof row.is_done === "boolean") {
-    return row.is_done ? "Завершено" : "В работе";
+    return row.is_done ? t("entityHelpers.completed") : t("entityHelpers.inProgress");
   }
 
   return "";
@@ -97,7 +104,7 @@ export function pickText(row: DetailRow, paths: string[]): string {
 
 export function formatPlain(value: unknown): string {
   if (value === null || value === undefined || value === "") return "-";
-  if (typeof value === "boolean") return value ? "Да" : "Нет";
+  if (typeof value === "boolean") return value ? t("access.yes") : t("access.no");
   if (isRecord(value)) return namedValue(value) || JSON.stringify(value);
   return String(value);
 }
@@ -121,17 +128,17 @@ export function makeEvent(
     id,
     label,
     description,
-    actor: actor || "system",
+    actor: actor || t("entityHelpers.systemActor"),
     date: typeof date === "string" ? date : null,
   };
 }
 
 export function relationLabel(kind: RelationKind): string {
   const labels: Record<RelationKind, string> = {
-    directions: "Направление",
-    samples: "Образец",
-    research: "Исследование",
-    tests: "Тест",
+    directions: t("entityHelpers.relationLabels.directions"),
+    samples: t("entityHelpers.relationLabels.samples"),
+    research: t("entityHelpers.relationLabels.research"),
+    tests: t("entityHelpers.relationLabels.tests"),
   };
 
   return labels[kind];
@@ -185,7 +192,7 @@ export function sampleRecordCode(row: Record<string, unknown>): string | null {
 // проваленным (согласовано с deadlineTrailItem, который скрывает индикатор).
 export function isSampleDeadlineOverdue(row: Record<string, unknown>): boolean {
   const statusCode = row.statusCode ?? getValueByPath(row, "status.code");
-  if (statusCode === SAMPLE_STATUS_REJECTED.code) return false;
+  if (statusCode === SAMPLE_STATUS_REJECTED_CODE) return false;
   const deadlineRaw = row.deadline;
   if (deadlineRaw === null || deadlineRaw === undefined || deadlineRaw === "") return false;
   const deadline = new Date(String(deadlineRaw)).getTime();

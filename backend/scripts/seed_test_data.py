@@ -328,33 +328,37 @@ SEED_USERS: tuple[dict[str, object], ...] = (
     },
 )
 
+# Status seed rows: (code, color). The stable `code` is the sole status
+# identity; the frontend translates labels via i18n. Colors are design-system-
+# neutral names (see src.core.status_colors); the frontend owns the color
+# vocabulary and maps each name onto its design system.
 DIRECTION_STATUSES: tuple[tuple[str, str], ...] = (
-    ("draft", "Черновик"),
-    ("registered", "Зарегистрировано"),
-    ("in_progress", "В работе"),
-    ("partially_completed", "Частично выполнено"),
-    ("completed", "Выполнено"),
+    ("draft", "gray"),
+    ("registered", "indigo"),
+    ("in_progress", "blue"),
+    ("partially_completed", "lime"),
+    ("completed", "green"),
 )
 
 SAMPLE_STATUSES: tuple[tuple[str, str], ...] = (
-    ("pending", "На регистрации"),
-    ("registered", "Зарегистрирован"),
-    ("rejected", "Брак"),
-    ("in_progress", "На исследовании"),
-    ("analyzed", "Обработан"),
-    ("completed", "Закрыт"),
+    ("pending", "amber"),
+    ("registered", "indigo"),
+    ("rejected", "red"),
+    ("in_progress", "blue"),
+    ("analyzed", "violet"),
+    ("completed", "green"),
 )
 
 RESEARCH_STATUSES: tuple[tuple[str, str], ...] = (
-    ("in_progress", "В работе"),
-    ("completed", "Завершено"),
-    ("rejected", "Отклонено"),
+    ("in_progress", "blue"),
+    ("completed", "green"),
+    ("rejected", "red"),
 )
 
 TEST_STATUSES: tuple[tuple[str, str], ...] = (
-    ("in_progress", "Выполняется"),
-    ("completed", "Выполнено"),
-    ("rejected", "Отклонено"),
+    ("in_progress", "blue"),
+    ("completed", "green"),
+    ("rejected", "red"),
 )
 
 # Realistic branches/protocol types. Previously ~100 synthetic placeholder
@@ -594,23 +598,42 @@ async def _seed_bootstrap_data(connection: AsyncConnection) -> None:
             {"key": role_key, "name": payload["name"], "scope_type": payload["scope_type"]},
         )
 
-    for table, rows in (
+    for table, status_rows in (
         ("direction_statuses", DIRECTION_STATUSES),
         ("sample_statuses", SAMPLE_STATUSES),
         ("research_statuses", RESEARCH_STATUSES),
         ("test_statuses", TEST_STATUSES),
-        ("protocol_types", PROTOCOL_TYPES),
     ):
         await connection.execute(
             text(
                 f"""
-                INSERT INTO {table} (code, name)
-                SELECT * FROM unnest(CAST(:code AS text[]), CAST(:name AS text[]))
-                ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
-                """  # noqa: S608 (table is one of 5 fixed literals above, not user input)
+                INSERT INTO {table} (code, color)
+                SELECT * FROM unnest(
+                    CAST(:code AS text[]), CAST(:color AS text[])
+                )
+                ON CONFLICT (code) DO UPDATE
+                SET color = EXCLUDED.color
+                """  # noqa: S608 (table is one of 4 fixed literals above, not user input)
             ),
-            {"code": [code for code, _ in rows], "name": [name for _, name in rows]},
+            {
+                "code": [code for code, _ in status_rows],
+                "color": [color for _, color in status_rows],
+            },
         )
+
+    await connection.execute(
+        text(
+            """
+            INSERT INTO protocol_types (code, name)
+            SELECT * FROM unnest(CAST(:code AS text[]), CAST(:name AS text[]))
+            ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+            """
+        ),
+        {
+            "code": [code for code, _ in PROTOCOL_TYPES],
+            "name": [name for _, name in PROTOCOL_TYPES],
+        },
+    )
 
     # branches.code has no unique/exclusion constraint (unlike the tables
     # above), so ON CONFLICT cannot target it — guard with NOT EXISTS instead.

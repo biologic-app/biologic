@@ -1,4 +1,8 @@
 import type { TechnicalAuditEvent } from "@/shared/ui/TechnicalAuditTimeline.vue";
+import { i18n } from "@/shared/i18n";
+
+const t = (key: string, params?: Record<string, unknown>) =>
+  i18n.global.t(key, params ?? {}).toString();
 
 export type TechnicalAuditHistoryEntry = {
   id: string;
@@ -12,12 +16,12 @@ export type TechnicalAuditHistoryEntry = {
   created_at?: string | null;
 };
 
-const fieldLabels: Record<string, string> = {
-  recommendation: "Рекомендация",
-  comment: "Комментарий",
-  status_code: "Статус",
-  status_id: "Статус",
-};
+const fieldLabels = (): Record<string, string> => ({
+  recommendation: t("crudFields.recommendation"),
+  comment: t("workflowCommands.formFields.comment"),
+  status_code: t("common.status"),
+  status_id: t("common.status"),
+});
 
 export function historyEntryToTechnicalAuditEvent(
   entry: TechnicalAuditHistoryEntry,
@@ -32,17 +36,17 @@ export function historyEntryToTechnicalAuditEvent(
 }
 
 function actionLabel(action: string | null | undefined) {
-  if (action === "research.update") return "Исследование обновлено";
-  if (action === "research_assigned") return "Исследование назначено";
-  if (action === "research_completed") return "Исследование завершено";
-  if (!action) return "Событие аудита";
+  if (action === "research.update") return t("technicalAudit.researchUpdated");
+  if (action === "research_assigned") return t("technicalAudit.researchAssigned");
+  if (action === "research_completed") return t("technicalAudit.researchCompleted");
+  if (!action) return t("technicalAudit.auditEvent");
 
   return action.replace(/[._-]/g, " ");
 }
 
 function diffDescription(diff: Record<string, unknown> | null | undefined) {
   if (!diff || Object.keys(diff).length === 0) {
-    return "Изменения записаны в журнал аудита.";
+    return t("technicalAudit.changesLoggedToAudit");
   }
 
   return Object.entries(diff)
@@ -51,7 +55,7 @@ function diffDescription(diff: Record<string, unknown> | null | undefined) {
 }
 
 function formatDiffField(field: string, value: unknown) {
-  const label = fieldLabels[field] ?? field;
+  const label = fieldLabels()[field] ?? field;
   if (isRecord(value) && ("from" in value || "to" in value)) {
     return `${label}: ${formatAuditValue(value.from)} -> ${formatAuditValue(value.to)}`;
   }
@@ -61,7 +65,7 @@ function formatDiffField(field: string, value: unknown) {
 
 function formatAuditValue(value: unknown) {
   if (value === null || value === undefined || value === "") return "-";
-  if (typeof value === "boolean") return value ? "Да" : "Нет";
+  if (typeof value === "boolean") return value ? t("access.yes") : t("access.no");
   if (typeof value === "object") return JSON.stringify(value);
   return String(value);
 }

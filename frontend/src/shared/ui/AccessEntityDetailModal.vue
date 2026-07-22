@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import type { TabsItem } from "@nuxt/ui";
 import { useEntityForm } from "@/shared/composables/useEntityForm";
 import EntityDetailModalShell, { type DetailListItem } from "@/shared/ui/EntityDetailModalShell.vue";
@@ -61,13 +62,14 @@ const emit = defineEmits<{
 const activeTab = ref("fields");
 const formRef = ref<HTMLFormElement | null>(null);
 const { formState, sync, reset, setValue } = useEntityForm();
+const { t } = useI18n();
 
 const tabs = computed<TabsItem[]>(() => {
   return [
-    { label: "Поля", icon: "i-lucide-list", value: "fields" },
-    { label: "Технический аудит", icon: "i-lucide-history", value: "technical" },
+    { label: t("accessDetail.fieldsTab"), icon: "i-lucide-list", value: "fields" },
+    { label: t("entityDetail.technicalAuditTab"), icon: "i-lucide-history", value: "technical" },
     {
-      label: props.kind === "user" ? "Права и роли" : "Права роли",
+      label: props.kind === "user" ? t("accessDetail.userPermissionsTab") : t("accessDetail.rolePermissionsTab"),
       icon: "i-lucide-shield-check",
       value: "permissions",
     },
@@ -77,23 +79,23 @@ const tabs = computed<TabsItem[]>(() => {
 const detailFields = computed<DetailField[]>(() => {
   if (props.kind === "role") {
     return [
-      { key: "key", label: "Ключ", required: true },
-      { key: "name", label: "Название", required: true },
-      { key: "scope_type", label: "Область роли", type: "select", required: true },
+      { key: "key", label: t("access.columns.key"), required: true },
+      { key: "name", label: t("access.columns.name"), required: true },
+      { key: "scope_type", label: t("accessDetail.scopeType"), type: "select", required: true },
     ];
   }
 
   const userFields: DetailField[] = [
-    { key: "username", label: "Логин", required: true },
-    { key: "code", label: "Код" },
-    { key: "first_name", label: "Имя" },
-    { key: "last_name", label: "Фамилия" },
-    { key: "patronymic", label: "Отчество" },
-    { key: "role_id", label: "Роль", type: "select" },
-    { key: "lab_id", label: "Лаборатория", type: "select" },
-    { key: "is_registrar", label: "Регистратор", type: "boolean" },
-    { key: "is_lab_head", label: "Заведующий лабораторией", type: "boolean" },
-    { key: "is_branch_head", label: "Руководитель филиала", type: "boolean" },
+    { key: "username", label: t("access.columns.username"), required: true },
+    { key: "code", label: t("access.columns.code") },
+    { key: "first_name", label: t("crudFields.firstName") },
+    { key: "last_name", label: t("directionWizard.lastName") },
+    { key: "patronymic", label: t("directionWizard.patronymic") },
+    { key: "role_id", label: t("access.columns.role"), type: "select" },
+    { key: "lab_id", label: t("access.columns.laboratory"), type: "select" },
+    { key: "is_registrar", label: t("access.columns.registrar"), type: "boolean" },
+    { key: "is_lab_head", label: t("accessDetail.labHead"), type: "boolean" },
+    { key: "is_branch_head", label: t("accessDetail.branchHead"), type: "boolean" },
   ];
 
   return props.readOnly
@@ -102,7 +104,7 @@ const detailFields = computed<DetailField[]>(() => {
         ...userFields,
         {
           key: "password_hash",
-          label: "Пароль",
+          label: t("login.password"),
           type: "password",
           required: props.mode === "create",
         },
@@ -135,12 +137,12 @@ const auditEvents = computed(() => {
 
   return buildFallbackAuditEvents(row, {
     stateLabel: accessStateLabel(row),
-    savedDescription: "Данные доступа сохранены через API.",
+    savedDescription: t("accessDetail.accessDataSaved"),
   });
 });
 
 const eyebrow = computed(() =>
-  `CRUD · ${props.kind === "role" ? "РОЛИ" : "ПОЛЬЗОВАТЕЛИ"}`,
+  `CRUD · ${props.kind === "role" ? t("accessDetail.rolesUppercase") : t("accessDetail.usersUppercase")}`,
 );
 
 watch(
@@ -179,7 +181,7 @@ function close() {
 }
 
 function formatValue(value: unknown) {
-  if (typeof value === "boolean") return value ? "Да" : "Нет";
+  if (typeof value === "boolean") return value ? t("access.yes") : t("access.no");
   if (value === null || value === undefined || value === "") return "-";
   return String(value);
 }
@@ -208,14 +210,14 @@ function openRole() {
 
 function accessStateLabel(row: AccessRow) {
   if (typeof row.is_active === "boolean") {
-    return row.is_active ? "Активна" : "Неактивна";
+    return row.is_active ? t("accessDetail.active") : t("accessDetail.inactive");
   }
 
   if (row.deleted_at) {
-    return "Удалена";
+    return t("accessDetail.deleted");
   }
 
-  return props.mode === "create" ? "Черновик" : "Актуальная запись";
+  return props.mode === "create" ? t("statusLabels.direction.draft") : t("accessDetail.currentRecord");
 }
 </script>
 
@@ -240,7 +242,7 @@ function accessStateLabel(row: AccessRow) {
     <template #header-actions>
       <UButton
         v-if="kind === 'user' && readOnly && formState.role_id"
-        label="Открыть роль"
+        :label="t('accessDetail.openRole')"
         icon="i-lucide-shield"
         color="neutral"
         variant="outline"
@@ -252,11 +254,11 @@ function accessStateLabel(row: AccessRow) {
     <section v-if="activeTab === 'fields'" class="space-y-3">
       <div class="flex items-center justify-between gap-3">
         <h3 class="text-sm font-semibold text-highlighted">
-          Поля записи
+          {{ t('accessDetail.recordFields') }}
         </h3>
         <UButton
           v-if="readOnly && editable"
-          label="Редактировать"
+          :label="t('access.actions.edit')"
           icon="i-lucide-pencil"
           color="neutral"
           variant="outline"
@@ -283,19 +285,19 @@ function accessStateLabel(row: AccessRow) {
     <section v-else-if="activeTab === 'permissions'" class="min-h-0">
       <div class="mb-3 flex items-center justify-between gap-3">
         <h3 class="text-sm font-semibold text-highlighted">
-          {{ kind === 'user' ? 'Права и роли' : 'Права роли' }}
+          {{ kind === 'user' ? t('accessDetail.userPermissionsTab') : t('accessDetail.rolePermissionsTab') }}
         </h3>
         <UBadge
           color="neutral"
           variant="outline"
-          :label="kind === 'user' ? `${overrides?.length || 0} overrides` : `${permissions?.length || 0} прав`"
+          :label="kind === 'user' ? `${overrides?.length || 0} overrides` : t('accessDetail.permissionsCount', { count: permissions?.length || 0 })"
         />
       </div>
       <div
         v-if="loading"
         class="py-8 text-center text-sm text-toned"
       >
-        Загрузка прав...
+        {{ t('accessDetail.loadingPermissions') }}
       </div>
       <PermissionEditor
         v-else
@@ -313,7 +315,7 @@ function accessStateLabel(row: AccessRow) {
 
     <template #footer>
       <UButton
-        label="Закрыть"
+        :label="t('crud.close')"
         color="neutral"
         variant="outline"
         :disabled="saving"
@@ -321,7 +323,7 @@ function accessStateLabel(row: AccessRow) {
       />
       <UButton
         v-if="!readOnly"
-        label="Сохранить"
+        :label="t('common.save')"
         icon="i-lucide-save"
         :loading="saving"
         @click="submit"

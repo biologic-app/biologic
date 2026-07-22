@@ -1,14 +1,17 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { DropdownMenuItem } from '@nuxt/ui'
 import WorkflowCrudPage from '@/shared/ui/WorkflowCrudPage.vue'
 import DirectionWizard from '@/modules/directions/components/DirectionWizard.vue'
 import ReleasedSamplesByDirectionModal from '@/shared/ui/ReleasedSamplesByDirectionModal.vue'
 import { usePermission } from '@/shared/composables/usePermission'
 import { crudModules } from '@/shared/config/crud-modules'
+import { registerTourAction } from '@/shared/tour/tour.actions'
 import type { CrudRow } from '@/shared/types/crud'
 
 const { can } = usePermission()
+const { t } = useI18n()
 
 const selectedConfig = crudModules.directions
 const createDisabled = computed(() => !can(selectedConfig.resource, 'create'))
@@ -58,6 +61,14 @@ const openCreateWizard = () => {
   importWizardOpen.value = true
 }
 
+let unregisterTourAction: (() => void) | null = null
+onMounted(() => {
+  unregisterTourAction = registerTourAction('directions-create', openCreateWizard)
+})
+onBeforeUnmount(() => {
+  unregisterTourAction?.()
+})
+
 const openDraftWizard = (row: CrudRow) => {
   wizardDirectionId.value = String(row.id)
   importWizardOpen.value = true
@@ -71,7 +82,7 @@ const rowActions = (row: CrudRow): DropdownMenuItem[] => {
   }
   return [
     {
-      label: 'Дозаполнить / Открыть мастер',
+      label: t('directionWizard.fillOrOpenWizard'),
       icon: 'i-lucide-pencil-ruler',
       onSelect: () => openDraftWizard(row),
     },
@@ -100,16 +111,17 @@ const onWizardOpenChange = (value: boolean, refresh: () => void) => {
   <WorkflowCrudPage
     :config="selectedConfig"
     panel-id="directions"
-    title="Направления"
-    search-placeholder="Поиск по направлениям"
+    :title="t('nav.directions')"
+    :search-placeholder="t('directionWizard.searchDirections')"
     :extra-row-actions="rowActions"
     :highlight-id="highlightId"
+    tour-scope="directions"
   >
     <template #navbar-right="{ refresh }">
       <div class="flex items-center gap-2">
         <UButton
           v-if="canViewReleased"
-          label="Выпущенные образцы"
+          :label="t('directionWizard.releasedSamples')"
           icon="i-lucide-package-check"
           color="neutral"
           variant="subtle"
@@ -117,9 +129,10 @@ const onWizardOpenChange = (value: boolean, refresh: () => void) => {
           data-telemetry="directions-open-released-samples"
           @click="releasedOpen = true"
         />
-        <UTooltip :text="createMenuDisabled ? 'Нет прав на создание' : 'Создать направление (импорт или вручную)'">
+        <UTooltip :text="createMenuDisabled ? t('dictionaries.noCreatePermission') : t('directionWizard.createDirectionTooltip')">
           <UButton
-            label="Создать направление"
+            data-tour="directions-create"
+            :label="t('directionWizard.createDirection')"
             :icon="createMenuDisabled ? 'i-lucide-lock' : 'i-lucide-plus'"
             :disabled="createMenuDisabled"
             data-testid="direction-create-open"

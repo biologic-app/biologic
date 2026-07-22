@@ -88,7 +88,9 @@ describe("filter select model helpers", () => {
     });
   });
 
-  test("renders every filter select as single selection", () => {
-    expect(dictionaryCrudContentSource).not.toContain("multiple");
+  test("binds :multiple on filter selects only for multiSelect filters", () => {
+    expect(dictionaryCrudContentSource).toContain(
+      ":multiple=\"filterField.filter?.type === 'multiSelect'\"",
+    );
   });
 });

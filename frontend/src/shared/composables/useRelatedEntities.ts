@@ -13,6 +13,15 @@ import {
   type RelationKind,
 } from "@/shared/ui/entity-detail.helpers";
 import { resolveStatusCode } from "@/shared/domain/status";
+import { statusLabel, type StatusEntity } from "@/shared/i18n/status-label";
+
+// i18n-неймспейс метки статуса скоупится по единственному числу сущности.
+const ENTITY_BY_RELATION: Record<RelationKind, StatusEntity> = {
+  directions: "direction",
+  samples: "sample",
+  research: "research",
+  tests: "test",
+};
 
 export const RELATED_PAGE_SIZE = 20;
 // Вложенных исследований на образец обычно немного — берём с запасом одной
@@ -67,13 +76,25 @@ export function relationRequest(businessKind: EntityKind | null | undefined): Re
 }
 
 function normalizeRelatedRow(row: DetailRow, kind: RelationKind): RelatedRow {
-  const statusText = namedValue(row.status) || booleanStatus(row) || "-";
   const statusCodeRaw = isRecord(row.status)
     ? (row.status as { code?: unknown }).code
     : undefined;
-  const statusCode = resolveStatusCode(
-    String(statusCodeRaw ?? statusText).trim().toLowerCase(),
-  );
+  // Приоритет — реальный backend `status.code`; эвристика по имени только как
+  // фолбэк, когда include не заполнил код.
+  const statusCode =
+    typeof statusCodeRaw === "string" && statusCodeRaw.trim()
+      ? statusCodeRaw.trim()
+      : resolveStatusCode(
+          String(namedValue(row.status) || booleanStatus(row) || "-")
+            .trim()
+            .toLowerCase(),
+        );
+  // Метка статуса — только перевод по (сущность, код) через i18n, не backend-имя.
+  const statusText = statusLabel(ENTITY_BY_RELATION[kind], statusCode) || "-";
+  // Реальный цвет статуса из include=status (бэкенд) — источник для бейджа.
+  const statusColor = isRecord(row.status)
+    ? ((row.status as { color?: unknown }).color as string | null | undefined) ?? null
+    : null;
   return {
     ...row,
     relationKind: kind,
@@ -81,6 +102,7 @@ function normalizeRelatedRow(row: DetailRow, kind: RelationKind): RelatedRow {
     title: pickText(row, ["name", "indicator.name", "research_goal.name", "sample.name", "code"]),
     statusText,
     statusCode,
+    statusColor,
     updatedAtText: formatDisplay(row.updated_at ?? row.completed_at ?? row.received_at),
     // lab приходит в include исследований; для образцов поле отсутствует → "".
     labName: namedValue(row.lab),

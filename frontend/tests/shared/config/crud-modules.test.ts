@@ -93,13 +93,14 @@ describe("workflow CRUD filters", () => {
     });
   });
 
-  test("does not configure workflow dropdown filters as multi-select", () => {
+  test("configures workflow status filters as multi-select", () => {
     ["directions", "samples", "research", "tests"].forEach((moduleKey) => {
       const config = crudModules[moduleKey];
+      const statusField = getCrudModuleFilterFields(config).find(
+        (field) => field.field === "status_id",
+      );
 
-      getCrudModuleFilterFields(config).forEach((field) => {
-        expect(field.filter?.type).not.toBe("multiSelect");
-      });
+      expect(statusField?.filter?.type).toBe("multiSelect");
     });
   });
 });

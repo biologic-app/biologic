@@ -49,12 +49,26 @@ function syncDocumentLocale(locale: AppLocale) {
 const initialLocale = resolveInitialLocale()
 syncDocumentLocale(initialLocale)
 
+// Russian has a 3-form plural (one/few/many: 1 образец, 2 образца, 5 образцов)
+// that vue-i18n's built-in rule doesn't cover — messages with 3 pipe-separated
+// forms for `ru` rely on this custom rule to pick the right index.
+function ruPluralRule(choice: number): number {
+  const mod10 = choice % 10
+  const mod100 = choice % 100
+  if (mod10 === 1 && mod100 !== 11) return 0
+  if (mod10 >= 2 && mod10 <= 4 && !(mod100 >= 12 && mod100 <= 14)) return 1
+  return 2
+}
+
 export const i18n = createI18n({
   legacy: false,
   locale: initialLocale,
   fallbackLocale: 'en',
   messages,
-  globalInjection: true
+  globalInjection: true,
+  pluralRules: {
+    ru: ruPluralRule
+  }
 })
 
 export function setAppLocale(locale: AppLocale) {

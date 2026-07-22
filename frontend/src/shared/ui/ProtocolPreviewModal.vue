@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import type { CrudRow } from "@/shared/types/crud";
 import { apiReadRequest } from "@/shared/api/client.api";
 import { sampleRecordCode } from "@/shared/ui/entity-detail.helpers";
@@ -13,6 +14,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: "update:open", value: boolean): void;
 }>();
+
+const { t } = useI18n();
 
 interface ConclusionText {
   name: string;
@@ -125,7 +128,7 @@ function formatRuDateQuoted(value: string | null | undefined) {
   const month = parts.find((part) => part.type === "month")?.value;
   const year = parts.find((part) => part.type === "year")?.value;
   if (!day || !month || !year) return null;
-  return `«${day}» ${month} ${year} г.`;
+  return t("protocolPreview.quotedDate", { day, month, year });
 }
 
 function formatShortDate(value: unknown) {
@@ -165,14 +168,14 @@ const sampleNotes = computed(() =>
 
 const conclusionParagraph = computed(() => {
   const text = conclusionText.value;
-  if (!text) return "заключение не указано.";
+  if (!text) return t("protocolPreview.conclusionNotSpecified");
   const plural = props.samples.length !== 1;
-  return (plural ? text.text_plural : text.text_singular) || text.name || "заключение не указано.";
+  return (plural ? text.text_plural : text.text_singular) || text.name || t("protocolPreview.conclusionNotSpecified");
 });
 
 const documentTitle = computed(() => {
   const yearNo = props.protocol?.year_no;
-  return yearNo ? `ПРОТОКОЛ ЛАБОРАТОРНЫХ ИСПЫТАНИЙ № ${yearNo}` : "ПРОТОКОЛ ЛАБОРАТОРНЫХ ИСПЫТАНИЙ";
+  return yearNo ? t("protocolPreview.documentTitleWithNumber", { yearNo }) : t("protocolPreview.documentTitle");
 });
 
 function close() {
@@ -183,7 +186,7 @@ function close() {
 <template>
   <UModal
     :open="open"
-    title="Предпросмотр протокола"
+    :title="t('protocolPreview.title')"
     :ui="{ content: 'w-[calc(100vw-2rem)] max-w-[54rem]' }"
     @update:open="emit('update:open', $event)"
   >
@@ -192,8 +195,7 @@ function close() {
         <div class="flex items-start gap-2 rounded-lg border border-dashed border-default bg-elevated/50 px-3 py-2 text-xs text-muted">
           <UIcon name="i-lucide-info" class="mt-0.5 size-4 shrink-0" />
           <span>
-            Черновой предпросмотр на стороне фронтенда. Официальный документ будет
-            формироваться на бэкенде по заранее подготовленному Excel-шаблону при экспорте.
+            {{ t('protocolPreview.draftNotice') }}
           </span>
         </div>
 
@@ -201,25 +203,25 @@ function close() {
           class="mx-auto max-w-[46rem] rounded-sm border border-default bg-white px-10 py-8 text-[13px] leading-6 text-neutral-900 shadow-sm"
           style="font-family: 'Times New Roman', Georgia, serif"
         >
-          <p class="mb-1 text-right text-[11px] text-neutral-500">Для внутреннего пользования</p>
+          <p class="mb-1 text-right text-[11px] text-neutral-500">{{ t('protocolPreview.internalUseOnly') }}</p>
           <p class="mb-3 text-right text-[13px]">{{ issuedDateLine }}</p>
 
           <h2 class="mb-1 text-center text-[15px] font-bold uppercase">
             {{ documentTitle }}
           </h2>
           <p class="mb-4 text-center text-[12px] text-neutral-700">
-            проб образцов, поступивших в лабораторию{{ receivedDateLine ? ` ${receivedDateLine}` : "" }}
+            {{ t('protocolPreview.samplesReceivedByLab') }}{{ receivedDateLine ? ` ${receivedDateLine}` : "" }}
           </p>
 
           <div class="mb-1 flex justify-center gap-2">
-            <span class="text-right" style="flex: 0 0 40%">По направлению:</span>
+            <span class="text-right" style="flex: 0 0 40%">{{ t('protocolPreview.byDirection') }}</span>
             <span class="text-left" style="flex: 1 1 40%">
               <USkeleton v-if="headerLoading" class="inline-block h-4 w-32 align-middle" />
               <template v-else>{{ referrerLine }}</template>
             </span>
           </div>
           <div class="mb-4 flex justify-center gap-2">
-            <span class="text-right" style="flex: 0 0 40%">Объект:</span>
+            <span class="text-right" style="flex: 0 0 40%">{{ t('protocolPreview.object') }}</span>
             <span class="text-left" style="flex: 1 1 40%">
               <USkeleton v-if="headerLoading" class="inline-block h-4 w-32 align-middle" />
               <template v-else>{{ objectLine }}</template>
@@ -229,15 +231,15 @@ function close() {
           <table class="mb-4 w-full border-collapse text-[12px]">
             <thead>
               <tr>
-                <th class="border border-neutral-800 px-2 py-1 font-medium">Рег. номер</th>
-                <th class="border border-neutral-800 px-2 py-1 font-medium">Название образца</th>
-                <th class="border border-neutral-800 px-2 py-1 font-medium">Дата результата</th>
+                <th class="border border-neutral-800 px-2 py-1 font-medium">{{ t('protocolPreview.regNumber') }}</th>
+                <th class="border border-neutral-800 px-2 py-1 font-medium">{{ t('protocolPreview.sampleName') }}</th>
+                <th class="border border-neutral-800 px-2 py-1 font-medium">{{ t('protocolPreview.resultDate') }}</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="!samples.length">
                 <td colspan="3" class="border border-neutral-800 px-2 py-3 text-center text-neutral-500">
-                  Образцы не найдены.
+                  {{ t('protocolPreview.samplesNotFound') }}
                 </td>
               </tr>
               <tr v-for="(sample, index) in samples" :key="sample.id">
@@ -249,18 +251,18 @@ function close() {
           </table>
 
           <p v-for="note in sampleNotes" :key="note.regNumber" class="mb-1 text-[12px]">
-            <span class="italic">Примечание к №{{ note.regNumber }}:</span>
+            <span class="italic">{{ t('protocolPreview.noteForNumber', { regNumber: note.regNumber }) }}</span>
             {{ note.comment }}
           </p>
 
           <p class="mt-4 mb-4 text-[13px]">
-            <span class="font-bold">ЗАКЛЮЧЕНИЕ:</span>
+            <span class="font-bold">{{ t('protocolPreview.conclusionLabel') }}</span>
             <USkeleton v-if="conclusionLoading" class="ml-2 inline-block h-4 w-64 align-middle" />
             <template v-else> {{ conclusionParagraph }}</template>
           </p>
 
           <div class="flex items-end justify-between text-[13px]">
-            <span>Ответственный за выпуск:</span>
+            <span>{{ t('protocolPreview.releaseResponsible') }}</span>
             <span class="min-w-40 border-b border-dashed border-neutral-500 text-right">&nbsp;</span>
           </div>
         </div>
@@ -270,7 +272,7 @@ function close() {
     <template #footer>
       <div class="flex w-full justify-end">
         <UButton
-          label="Закрыть"
+          :label="t('crud.close')"
           color="neutral"
           variant="ghost"
           @click="close"

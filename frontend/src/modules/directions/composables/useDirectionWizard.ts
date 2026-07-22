@@ -1,6 +1,10 @@
 import { reactive } from 'vue'
 import { useAuth } from '@/modules/auth'
+import { i18n } from '@/shared/i18n'
 import type { ApiClientError } from '@/shared/api/client.api'
+
+const t = (key: string, params?: Record<string, unknown>) =>
+  i18n.global.t(key, params ?? {}).toString()
 import {
   assignSampleResearch,
   createDirection,
@@ -50,12 +54,14 @@ export interface RegisterOutcome {
   message: string
 }
 
-const REGISTER_ERROR_MESSAGES: Record<string, string> = {
-  direction_missing_samples: 'В направлении нет ни одного образца.',
-  direction_missing_sample_data: 'У образцов не заполнены обязательные поля (название и тип образца).',
-  direction_missing_research_assignments: 'Образцам не назначены исследования.',
-  direction_missing_doctor_or_object: 'В направлении не указан санитарный врач и/или объект.',
-  status_not_configured: 'Не настроен статус направления.'
+// Значения — i18n-ключи (не готовый текст), резолвятся в registerErrorMessage
+// через t() в момент показа, чтобы переключение языка применялось сразу.
+const REGISTER_ERROR_MESSAGE_KEYS: Record<string, string> = {
+  direction_missing_samples: 'directionWizard.errorMissingSamples',
+  direction_missing_sample_data: 'directionWizard.errorMissingSampleData',
+  direction_missing_research_assignments: 'directionWizard.errorMissingResearchAssignments',
+  direction_missing_doctor_or_object: 'directionWizard.errorMissingDoctorOrObject',
+  status_not_configured: 'directionWizard.errorStatusNotConfigured'
 }
 
 const isApiClientError = (value: unknown): value is ApiClientError =>
@@ -64,9 +70,10 @@ const isApiClientError = (value: unknown): value is ApiClientError =>
 const registerErrorMessage = (error: unknown): { code?: string; message: string } => {
   if (isApiClientError(error)) {
     const code = error.code
-    return { code, message: (code && REGISTER_ERROR_MESSAGES[code]) || error.message }
+    const messageKey = code && REGISTER_ERROR_MESSAGE_KEYS[code]
+    return { code, message: (messageKey && t(messageKey)) || error.message }
   }
-  return { message: 'Не удалось зарегистрировать направление.' }
+  return { message: t('directionWizard.errorFailedToRegisterDirection') }
 }
 
 export function useDirectionWizard() {
@@ -141,7 +148,7 @@ export function useDirectionWizard() {
       await loadResults()
       return true
     } catch (error) {
-      state.importError = isApiClientError(error) ? error.message : 'Проверьте файл и повторите импорт.'
+      state.importError = isApiClientError(error) ? error.message : t('directionWizard.errorCheckFileAndRetry')
       return false
     } finally {
       state.importing = false
@@ -254,7 +261,7 @@ export function useDirectionWizard() {
       state.loadingResults = false
       return {
         ok: false,
-        message: isApiClientError(error) ? error.message : 'Не удалось создать направление.'
+        message: isApiClientError(error) ? error.message : t('directionWizard.failedToCreateDirectionMessage')
       }
     }
   }
@@ -620,7 +627,7 @@ export function useDirectionWizard() {
         }
         try {
           await registerDirection(direction.id, actorId, null)
-          state.registerResults[direction.id] = { ok: true, message: 'Зарегистрировано.' }
+          state.registerResults[direction.id] = { ok: true, message: t('directionWizard.registeredMessage') }
         } catch (error) {
           const { code, message } = registerErrorMessage(error)
           state.registerResults[direction.id] = { ok: false, code, message }

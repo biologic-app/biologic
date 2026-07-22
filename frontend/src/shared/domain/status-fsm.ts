@@ -1,0 +1,194 @@
+// Конечный автомат (FSM) статусов сущностей для графа переходов.
+//
+// ИСТОЧНИК ПРАВДЫ — backend `ALLOWED_TRANSITIONS` (эндпоинт GET
+// /api/v1/status-transitions). Этот модуль хранит только ПРЕЗЕНТАЦИЮ узлов
+// (название, иконка) и подписи рёбер, а сам набор рёбер строится из переданных
+// пар переходов (`buildEntityFsm`). `STATIC_TRANSITIONS` — зеркало бэкенда,
+// используется как мгновенный фолбэк, пока/если API недоступен.
+//
+// Вид перехода выводится автоматически:
+//   reject  — цель `rejected` (терминальная ветка брака/отклонения);
+//   loop    — цель раньше источника по оси жизненного цикла (возврат);
+//   forward — движение вперёд.
+
+import { i18n } from '@/shared/i18n'
+import type { StatusBaseColor } from '@/shared/domain/status-color'
+
+const t = (key: string, params?: Record<string, unknown>) =>
+  i18n.global.t(key, params ?? {}).toString()
+
+export type FsmEntityKind = 'directions' | 'samples' | 'research' | 'tests'
+
+export type FsmTransitionKind = 'forward' | 'reject' | 'loop'
+
+export interface FsmNode {
+  code: string
+  name: string
+  icon: string
+  // Design-system-neutral color name (backend seed palette). Part of the static
+  // diagram spec — the graph resolves it through `statusColorVar` for SVG fills.
+  color: StatusBaseColor
+}
+
+export interface FsmLink {
+  source: string
+  target: string
+  kind: FsmTransitionKind
+  label: string
+}
+
+export interface EntityFsm {
+  nodes: FsmNode[]
+  links: FsmLink[]
+}
+
+// Тела SVG-иконок Lucide (viewBox 24×24, stroke=currentColor) по коду статуса —
+// для отрисовки в центре узлов графа через svgDefs. Код статуса однозначно
+// соответствует иконке во всех сущностях.
+export const FSM_ICON_BODIES: Record<string, string> = {
+  draft: '<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M14.364 13.634a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506l4.013-4.009a1 1 0 0 0-3.004-3.004zm.123-5.776A1 1 0 0 1 14 7V2"/><path d="M20 19.645V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l2.516 2.516M8 18h1"/></g>',
+  registered: '<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14l2 2l4-4"/></g>',
+  in_progress: '<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2M6.453 15h11.094M8.5 2h7"/>',
+  partially_completed: '<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.1 2.182a10 10 0 0 1 3.8 0m0 19.636a10 10 0 0 1-3.8 0m7.509-18.097a10 10 0 0 1 2.69 2.7M2.182 13.9a10 10 0 0 1 0-3.8m18.097 7.509a10 10 0 0 1-2.7 2.69M21.818 10.1a10 10 0 0 1 0 3.8M3.721 6.391a10 10 0 0 1 2.7-2.69m-.03 16.578a10 10 0 0 1-2.69-2.7"/>',
+  completed: '<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12l2 2l4-4"/></g>',
+  pending: '<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11"/></g>',
+  analyzed: '<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18h8M3 22h18m-7 0a7 7 0 1 0 0-14h-1m-4 6h2m-2-2a2 2 0 0 1-2-2V6h6v4a2 2 0 0 1-2 2Zm3-6V3a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v3"/>',
+  rejected: '<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m15 9l-6 6m0-6l6 6"/></g>',
+}
+
+// Каталог узлов хранит i18n-ключ имени (nameKey), а не готовый текст — резолвится
+// через t() в момент построения FSM/словаря имён, чтобы переключение языка
+// применялось сразу без перезагрузки.
+type FsmNodeDef = { code: string; nameKey: string; icon: string; color: StatusBaseColor }
+
+// Презентация узлов (порядок = ось жизненного цикла) по каждому виду сущности.
+const FSM_NODES: Record<FsmEntityKind, FsmNodeDef[]> = {
+  directions: [
+    { code: 'draft', nameKey: 'statusLabels.direction.draft', icon: 'i-lucide-file-pen-line', color: 'gray' },
+    { code: 'registered', nameKey: 'statusLabels.direction.registered', icon: 'i-lucide-clipboard-check', color: 'indigo' },
+    { code: 'in_progress', nameKey: 'statusLabels.direction.in_progress', icon: 'i-lucide-flask-conical', color: 'blue' },
+    { code: 'partially_completed', nameKey: 'statusLabels.direction.partially_completed', icon: 'i-lucide-circle-dashed', color: 'lime' },
+    { code: 'completed', nameKey: 'statusLabels.direction.completed', icon: 'i-lucide-circle-check', color: 'green' },
+  ],
+  samples: [
+    { code: 'pending', nameKey: 'statusLabels.sample.pending', icon: 'i-lucide-inbox', color: 'amber' },
+    { code: 'registered', nameKey: 'statusLabels.sample.registered', icon: 'i-lucide-clipboard-check', color: 'indigo' },
+    { code: 'in_progress', nameKey: 'statusLabels.sample.in_progress', icon: 'i-lucide-flask-conical', color: 'blue' },
+    { code: 'analyzed', nameKey: 'statusLabels.sample.analyzed', icon: 'i-lucide-microscope', color: 'violet' },
+    { code: 'completed', nameKey: 'statusLabels.sample.completed', icon: 'i-lucide-circle-check', color: 'green' },
+    { code: 'rejected', nameKey: 'statusLabels.sample.rejected', icon: 'i-lucide-circle-x', color: 'red' },
+  ],
+  research: [
+    { code: 'in_progress', nameKey: 'statusLabels.research.in_progress', icon: 'i-lucide-flask-conical', color: 'blue' },
+    { code: 'completed', nameKey: 'statusLabels.research.completed', icon: 'i-lucide-circle-check', color: 'green' },
+    { code: 'rejected', nameKey: 'statusLabels.research.rejected', icon: 'i-lucide-circle-x', color: 'red' },
+  ],
+  tests: [
+    { code: 'in_progress', nameKey: 'statusLabels.test.in_progress', icon: 'i-lucide-flask-conical', color: 'blue' },
+    { code: 'completed', nameKey: 'statusLabels.test.completed', icon: 'i-lucide-circle-check', color: 'green' },
+    { code: 'rejected', nameKey: 'statusLabels.test.rejected', icon: 'i-lucide-circle-x', color: 'red' },
+  ],
+}
+
+// Подписи рёбер по `${from}->${to}` (по видам — коды пар повторяются между
+// сущностями с разным смыслом). Значения — i18n-ключи; отсутствующая подпись
+// → ребро без текста.
+const FSM_LINK_LABELS: Record<FsmEntityKind, Record<string, string>> = {
+  directions: {
+    'draft->registered': 'statusFsm.linkLabels.registration',
+    'registered->in_progress': 'statusFsm.linkLabels.toWork',
+    'in_progress->partially_completed': 'statusFsm.linkLabels.partial',
+    'in_progress->completed': 'statusFsm.linkLabels.completion',
+    'partially_completed->completed': 'statusFsm.linkLabels.completion',
+  },
+  samples: {
+    'pending->registered': 'statusFsm.linkLabels.registration',
+    'registered->in_progress': 'statusFsm.linkLabels.toWork',
+    'registered->rejected': 'statusFsm.linkLabels.defect',
+    'in_progress->analyzed': 'statusFsm.linkLabels.processing',
+    'in_progress->rejected': 'statusFsm.linkLabels.defect',
+    'analyzed->in_progress': 'statusFsm.linkLabels.revert',
+    'analyzed->completed': 'statusFsm.linkLabels.closing',
+  },
+  research: {
+    'in_progress->completed': 'statusFsm.linkLabels.completion',
+    'in_progress->rejected': 'statusFsm.linkLabels.rejection',
+  },
+  tests: {
+    'in_progress->completed': 'statusFsm.linkLabels.result',
+    'in_progress->rejected': 'statusFsm.linkLabels.rejection',
+  },
+}
+
+// Зеркало backend ALLOWED_TRANSITIONS — фолбэк, пока API недоступен. Должно
+// совпадать с status_policy.py; при рассинхроне побеждает ответ API.
+export const STATIC_TRANSITIONS: Record<FsmEntityKind, Array<[string, string]>> = {
+  directions: [
+    ['draft', 'registered'],
+    ['registered', 'in_progress'],
+    ['in_progress', 'partially_completed'],
+    ['in_progress', 'completed'],
+    ['partially_completed', 'completed'],
+  ],
+  samples: [
+    ['pending', 'registered'],
+    ['registered', 'in_progress'],
+    ['registered', 'rejected'],
+    ['in_progress', 'analyzed'],
+    ['in_progress', 'rejected'],
+    ['analyzed', 'in_progress'],
+    ['analyzed', 'completed'],
+  ],
+  research: [
+    ['in_progress', 'completed'],
+    ['in_progress', 'rejected'],
+  ],
+  tests: [
+    ['in_progress', 'completed'],
+    ['in_progress', 'rejected'],
+  ],
+}
+
+// Строит FSM (узлы + рёбра) из пар переходов: узлы берутся из презентационного
+// каталога (в порядке оси), рёбра — из пар с выведенным видом и подписью.
+// Неизвестные коды из API добавляются как узлы-заглушки, чтобы схема не падала.
+export const buildEntityFsm = (
+  kind: FsmEntityKind,
+  pairs: ReadonlyArray<readonly [string, string]>,
+): EntityFsm => {
+  const catalog = FSM_NODES[kind]
+  const order = new Map(catalog.map((node, index) => [node.code, index]))
+  const labels = FSM_LINK_LABELS[kind]
+  const referenced = new Set<string>()
+
+  const links: FsmLink[] = pairs.map(([from, to]) => {
+    referenced.add(from)
+    referenced.add(to)
+    const kindOf: FsmTransitionKind =
+      to === 'rejected'
+        ? 'reject'
+        : (order.get(to) ?? 0) < (order.get(from) ?? 0)
+          ? 'loop'
+          : 'forward'
+    const labelKey = labels[`${from}->${to}`]
+    return { source: from, target: to, kind: kindOf, label: labelKey ? t(labelKey) : '' }
+  })
+
+  const nodes: FsmNode[] = catalog
+    .filter((node) => referenced.has(node.code))
+    .map((node) => ({ code: node.code, name: t(node.nameKey), icon: node.icon, color: node.color }))
+  const known = new Set(nodes.map((node) => node.code))
+  for (const code of referenced) {
+    if (!known.has(code)) nodes.push({ code, name: code, icon: 'i-lucide-circle', color: 'gray' })
+  }
+
+  return { nodes, links }
+}
+
+// FSM из статического фолбэка (мгновенный рендер / офлайн).
+export const entityFsm = (kind: FsmEntityKind): EntityFsm =>
+  buildEntityFsm(kind, STATIC_TRANSITIONS[kind])
+
+// Названия статусов по коду для данной сущности (локализованы).
+export const fsmStatusNames = (kind: FsmEntityKind): Record<string, string> =>
+  Object.fromEntries(FSM_NODES[kind].map((node) => [node.code, t(node.nameKey)]))

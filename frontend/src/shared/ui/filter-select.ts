@@ -20,3 +20,21 @@ export const getFilterSelectModelValue = (value: FilterSelectValue) => {
 
 export const normalizeFilterSelectValue = (value: FilterSelectValue) =>
   getFilterSelectModelValue(value) ?? "";
+
+type FilterSelectResolvedValue = string | number | boolean;
+
+const toSelectedArray = (value: FilterSelectValue): FilterSelectResolvedValue[] =>
+  (Array.isArray(value) ? value : [value]).filter(
+    (item): item is FilterSelectResolvedValue =>
+      item !== null && item !== undefined && item !== "",
+  );
+
+// Multi-select variants: the filter value is an array of selected scalars
+// (e.g. several status_id UUIDs). buildParams sends it as an IN-list.
+export const getFilterMultiSelectModelValue = (
+  value: FilterSelectValue,
+): FilterSelectResolvedValue[] => toSelectedArray(value);
+
+export const normalizeFilterMultiSelectValue = (
+  value: FilterSelectValue,
+): FilterSelectResolvedValue[] => toSelectedArray(value);

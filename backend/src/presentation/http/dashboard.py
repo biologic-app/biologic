@@ -6,10 +6,18 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.application.dashboard.service import DashboardUseCase
+from src.application.dashboard.service import (
+    DashboardUseCase,
+    RegistrarDashboard,
+    RegistrarDashboardUseCase,
+)
 from src.core.database import get_db_session
 from src.core.responses import SingleResponse
-from src.infrastructure.repositories.dashboard import SqlAlchemyDashboardRepository
+from src.infrastructure.repositories.dashboard import (
+    SqlAlchemyDashboardRepository,
+    SqlAlchemyRegistrarDashboardRepository,
+)
+from src.presentation.http.access_control.dependencies import get_current_user_id
 
 router = APIRouter(tags=["dashboard"])
 
@@ -24,6 +32,14 @@ async def get_dashboard_use_case(
     )
 
 
+async def get_registrar_dashboard_use_case(
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> RegistrarDashboardUseCase:
+    return RegistrarDashboardUseCase(
+        repository=SqlAlchemyRegistrarDashboardRepository(session=session),
+    )
+
+
 @router.get("/dashboard/summary")
 async def dashboard_summary(
     use_case: Annotated[DashboardUseCase, Depends(get_dashboard_use_case)],
@@ -31,6 +47,20 @@ async def dashboard_summary(
     date_to: date,
     period: DashboardPeriod = "daily",
 ) -> SingleResponse[dict[str, object]]:
+    return await use_case.summary(
+        date_from=date_from,
+        date_to=date_to,
+        period=period,
+    )
+
+
+@router.get("/dashboard/registrar", dependencies=[Depends(get_current_user_id)])
+async def registrar_dashboard(
+    use_case: Annotated[RegistrarDashboardUseCase, Depends(get_registrar_dashboard_use_case)],
+    date_from: date,
+    date_to: date,
+    period: DashboardPeriod = "daily",
+) -> SingleResponse[RegistrarDashboard]:
     return await use_case.summary(
         date_from=date_from,
         date_to=date_to,

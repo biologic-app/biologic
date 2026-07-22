@@ -58,7 +58,7 @@ class FakeDirectionStatusUseCase:
             data={
                 "id": str(item_id),
                 "code": "draft",
-                "name": payload.model_dump()["name"],
+                "color": payload.model_dump()["color"],
             },
             meta=ResponseMeta(operation="direction_statuses.update"),
         )
@@ -182,7 +182,7 @@ async def test_status_resource_rejects_writes(monkeypatch: MonkeyPatch) -> None:
         monkeypatch,
         "POST",
         "/api/v1/direction_statuses",
-        json={"code": "archived", "name": "Archived"},
+        json={"code": "archived", "color": "gray"},
     )
 
     assert response.status_code == 409
@@ -190,18 +190,18 @@ async def test_status_resource_rejects_writes(monkeypatch: MonkeyPatch) -> None:
     assert payload["code"] == "resource_read_only"
 
 
-async def test_status_resource_allows_name_update(monkeypatch: MonkeyPatch) -> None:
+async def test_status_resource_allows_color_update(monkeypatch: MonkeyPatch) -> None:
     response = await _request(
         monkeypatch,
         "PATCH",
         "/api/v1/direction_statuses/00000000-0000-0000-0000-000000000001",
-        json={"name": "Черновик"},
+        json={"color": "indigo"},
     )
 
     assert response.status_code == 200
     payload = response.json()
     assert payload["data"]["code"] == "draft"
-    assert payload["data"]["name"] == "Черновик"
+    assert payload["data"]["color"] == "indigo"
     assert payload["meta"]["operation"] == "direction_statuses.update"
 
 
@@ -210,7 +210,7 @@ async def test_status_resource_rejects_code_update(monkeypatch: MonkeyPatch) -> 
         monkeypatch,
         "PATCH",
         "/api/v1/direction_statuses/00000000-0000-0000-0000-000000000001",
-        json={"code": "renamed", "name": "Renamed"},
+        json={"code": "renamed", "color": "blue"},
     )
 
     assert response.status_code == 422

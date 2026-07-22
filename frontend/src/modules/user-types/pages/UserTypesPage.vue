@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, h, nextTick, onMounted, reactive, ref, resolveComponent, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { DropdownMenuItem, TableColumn as NuxtTableColumn } from '@nuxt/ui'
 import { apiCreateRequest, apiReadListRequest, apiReadRequest, apiRequest, apiUpdateRequest } from '@/shared/api/client.api'
 import AccessEntityDetailModal from '@/shared/ui/AccessEntityDetailModal.vue'
+import NotificationsBellButton from '@/shared/ui/NotificationsBellButton.vue'
 import CrudDataTable from '@/shared/ui/CrudDataTable.vue'
 import CrudTableEmptyState from '@/shared/ui/CrudTableEmptyState.vue'
 import CrudFilterControls from '@/shared/ui/CrudFilterControls.vue'
@@ -24,6 +26,7 @@ import type { DetailListItem } from '@/shared/ui/EntityDetailMasterList.vue'
 
 const toast = useToast()
 const { can } = usePermission()
+const { t } = useI18n()
 
 const confirmDialog = ref<{ open: boolean; title: string; description: string; onConfirm: () => void }>({
   open: false,
@@ -45,7 +48,7 @@ function undoDelete(undoEntry: { item: RoleRow; timeout: ReturnType<typeof setTi
   }).catch(() => {
     table.data.value = table.data.value.filter((row) => row.id !== undoEntry.item.id);
     toast.add({
-      title: "Не удалось восстановить роль",
+      title: t("access.failedToRestoreRole"),
       color: "error",
     });
   });
@@ -61,7 +64,7 @@ type RoleRow = {
 }
 
 const errorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : 'Попробуйте ещё раз'
+  error instanceof Error ? error.message : t('access.tryAgain')
 
 const dialog = useCrudDialog<RoleRow>('user-types')
 const optimistic = useOptimistic<RoleRow>()
@@ -162,7 +165,7 @@ watch(
       permissions.value = response.data.permissions
     } catch (error: unknown) {
       toast.add({
-        title: 'Не удалось загрузить права роли',
+        title: t('access.failedToLoadRolePermissions'),
         description: errorMessage(error),
         color: 'error'
       })
@@ -190,7 +193,7 @@ const uiColumns = computed<NuxtTableColumn<RoleRow>[]>(() => {
         h(UButton, {
           color: 'neutral',
           variant: 'ghost',
-          label: 'Ключ',
+          label: t('access.columns.key'),
           icon:
             table.sorting.value.field !== 'key'
               ? 'i-lucide-arrow-up-down'
@@ -208,7 +211,7 @@ const uiColumns = computed<NuxtTableColumn<RoleRow>[]>(() => {
         h(UButton, {
           color: 'neutral',
           variant: 'ghost',
-          label: 'Название',
+          label: t('access.columns.name'),
           icon:
             table.sorting.value.field !== 'name'
               ? 'i-lucide-arrow-up-down'
@@ -222,7 +225,7 @@ const uiColumns = computed<NuxtTableColumn<RoleRow>[]>(() => {
     },
     {
       id: 'summary',
-      header: 'Права',
+      header: t('access.columns.permissions'),
       cell: ({ row }) => {
         if (isSkeletonRow(row.original)) {
           return renderSkeletonCell('summary', 3)
@@ -231,10 +234,10 @@ const uiColumns = computed<NuxtTableColumn<RoleRow>[]>(() => {
         const summary = row.original.permissionsSummary || { view: 0, create: 0, edit: 0, delete: 0 }
         const UTooltip = resolveComponent('UTooltip')
         const badges = [
-          { key: 'view', short: 'V', label: 'Просмотр' },
-          { key: 'create', short: 'C', label: 'Создание' },
-          { key: 'edit', short: 'E', label: 'Редактирование' },
-          { key: 'delete', short: 'D', label: 'Удаление' },
+          { key: 'view', short: 'V', label: t('permissions.actionLabels.view') },
+          { key: 'create', short: 'C', label: t('permissions.actionLabels.create') },
+          { key: 'edit', short: 'E', label: t('permissions.actionLabels.edit') },
+          { key: 'delete', short: 'D', label: t('permissions.actionLabels.delete') },
         ]
         return h('div', { class: 'flex flex-wrap gap-1' },
           badges.map(({ key, short, label }) =>
@@ -245,7 +248,7 @@ const uiColumns = computed<NuxtTableColumn<RoleRow>[]>(() => {
         )
       }
     },
-    { id: 'actions', header: 'Действия', meta: { class: { td: 'w-auto min-w-[56px] text-right' } } }
+    { id: 'actions', header: t('access.columns.actions'), meta: { class: { td: 'w-auto min-w-[56px] text-right' } } }
   ]
 })
 
@@ -253,21 +256,21 @@ const updatePermissions = (value: Permission[]) => {
   permissions.value = value
 }
 
-const roleFieldOptions = {
+const roleFieldOptions = computed(() => ({
   scope_type: [
-    { label: 'Глобально', value: 'global' },
-    { label: 'Своя лаборатория', value: 'own_lab' },
-    { label: 'Свой филиал', value: 'own_branch' },
-    { label: 'Свои объекты', value: 'own_objects' }
+    { label: t('access.scopeType.global'), value: 'global' },
+    { label: t('access.scopeType.ownLab'), value: 'own_lab' },
+    { label: t('access.scopeType.ownBranch'), value: 'own_branch' },
+    { label: t('access.scopeType.ownObjects'), value: 'own_objects' }
   ]
-}
+}))
 
 const accessDialogTitle = computed(() =>
   dialog.mode.value === 'create'
-    ? 'Создать роль'
+    ? t('access.createRole')
     : dialog.mode.value === 'edit'
-      ? 'Редактировать роль'
-      : 'Просмотр роли'
+      ? t('access.editRole')
+      : t('access.viewRole')
 )
 
 const applyFilters = (debounceGlobal = false) => {
@@ -300,8 +303,8 @@ const activeFilterCount = computed(() =>
 const removeItem = async (row: RoleRow) => {
   confirmDialog.value = {
     open: true,
-    title: "Удалить роль",
-    description: `Вы уверены, что хотите удалить роль "${row.name}"? Это действие нельзя отменить.`,
+    title: t("access.deleteRole"),
+    description: t("access.deleteRoleConfirm", { name: row.name }),
     async onConfirm() {
       deleting.value = true
       const deletedRow = { ...table.data.value.find((r) => r.id === row.id) || row }
@@ -314,12 +317,12 @@ const removeItem = async (row: RoleRow) => {
         const undoEntry = { item: deletedRow, timeout }
         pendingUndo.value.push(undoEntry)
         toast.add({
-          title: 'Роль удалена',
-          description: 'Роль будет удалена безвозвратно через 8 секунд.',
+          title: t('access.roleDeleted'),
+          description: t('access.roleDeletedPending'),
           color: 'success',
           icon: 'i-lucide-circle-check',
           actions: [{
-            label: 'Отменить',
+            label: t('access.undo'),
             icon: 'i-lucide-undo-2',
             onClick: () => undoDelete(undoEntry),
           }],
@@ -328,7 +331,7 @@ const removeItem = async (row: RoleRow) => {
       } catch (error: unknown) {
         rollback()
         toast.add({
-          title: 'Не удалось удалить роль',
+          title: t('access.failedToDeleteRole'),
           description: errorMessage(error),
           color: 'error'
         })
@@ -354,8 +357,8 @@ const deleteSelected = async () => {
 
   confirmDialog.value = {
     open: true,
-    title: "Удалить роли",
-    description: `Вы уверены, что хотите удалить ${selectedRows.value.length} ролей? Это действие нельзя отменить.`,
+    title: t("access.deleteRoles"),
+    description: t("access.deleteRolesConfirm", { count: selectedRows.value.length }),
     async onConfirm() {
       deleting.value = true
 
@@ -368,14 +371,14 @@ const deleteSelected = async () => {
         await Promise.all(rows.map((row) => apiRequest(`/roles/${row.id}`, { method: 'DELETE' })))
         rowSelection.value = {}
         toast.add({
-          title: 'Роли удалены',
+          title: t('access.rolesDeleted'),
           color: 'success',
           icon: 'i-lucide-circle-check',
         })
       } catch (error: unknown) {
         table.data.value = previous
         toast.add({
-          title: 'Не удалось удалить роли',
+          title: t('access.failedToDeleteRoles'),
           description: errorMessage(error),
           color: 'error'
         })
@@ -388,15 +391,15 @@ const deleteSelected = async () => {
 }
 
 const getRowActionItems = (row: RoleRow): DropdownMenuItem[] => [
-  { label: 'Просмотр', icon: 'i-lucide-eye', onSelect: () => dialog.openView(row) },
+  { label: t('access.actions.view'), icon: 'i-lucide-eye', onSelect: () => dialog.openView(row) },
   {
-    label: 'Редактировать',
+    label: t('access.actions.edit'),
     icon: can('user-types', 'edit') ? 'i-lucide-pencil' : 'i-lucide-lock',
     disabled: !can('user-types', 'edit'),
     onSelect: () => dialog.openEdit(row)
   },
   {
-    label: 'Удалить',
+    label: t('access.actions.delete'),
     icon: can('user-types', 'delete') ? 'i-lucide-trash-2' : 'i-lucide-lock',
     color: 'error',
     disabled: !can('user-types', 'delete'),
@@ -430,13 +433,13 @@ const handleRowContextmenu = async (event: Event, row: { original: RoleRow }) =>
   contextMenuOpen.value = true
 }
 
-const columnLabels: Record<string, string> = {
+const columnLabels = computed<Record<string, string>>(() => ({
   id: 'ID',
-  key: 'Ключ',
-  name: 'Название',
-  summary: 'Права',
-  actions: 'Действия'
-}
+  key: t('access.columns.key'),
+  name: t('access.columns.name'),
+  summary: t('access.columns.permissions'),
+  actions: t('access.columns.actions')
+}))
 
 const permissionKey = (permission: Pick<Permission, 'resource' | 'action'>) =>
   `${permission.resource}:${permission.action}`
@@ -480,7 +483,7 @@ const ensurePermissionAssignments = async (selected: Permission[]) => {
 }
 
 const columnMenuItems = computed(() =>
-  Object.entries(columnLabels).map(([key, label]) => ({
+  Object.entries(columnLabels.value).map(([key, label]) => ({
     label,
     type: 'checkbox' as const,
     checked: columnVisibility.value[key] !== false,
@@ -544,7 +547,7 @@ const onSave = async (formPayload?: Record<string, unknown>) => {
     dialog.close()
   } catch (error: unknown) {
     toast.add({
-      title: 'Не удалось сохранить роль',
+      title: t('access.failedToSaveRole'),
       description: errorMessage(error),
       color: 'error'
     })
@@ -564,17 +567,19 @@ onMounted(async () => {
 <template>
   <UDashboardPanel id="user-types">
     <template #header>
-      <UDashboardNavbar title="Доступ">
+      <UDashboardNavbar :title="t('access.title')">
         <template #leading>
           <UDashboardSidebarCollapse />
         </template>
         <template #right>
           <UButton
-            label="Создать роль"
+            :label="t('access.createRole')"
             :icon="can('user-types', 'create') ? 'i-lucide-plus' : 'i-lucide-lock'"
             :disabled="!can('user-types', 'create')"
             @click="dialog.openCreate()"
           />
+
+          <NotificationsBellButton />
         </template>
       </UDashboardNavbar>
 
@@ -587,7 +592,7 @@ onMounted(async () => {
           <div class="flex w-full flex-col gap-3 lg:flex-row lg:items-center">
             <CrudSearchControl
               v-model="filters.global.value"
-              placeholder="Поиск роли"
+              :placeholder="t('access.searchRole')"
               @update:model-value="applyFilters(true)"
             />
             <CrudFilterControls
@@ -599,8 +604,9 @@ onMounted(async () => {
         </template>
         <template #right>
           <div class="flex flex-wrap items-center gap-2">
-            <UTooltip text="Обновить данные">
+            <UTooltip :text="t('access.refreshData')">
               <UButton
+                :label="t('common.update')"
                 color="neutral"
                 variant="subtle"
                 icon="i-lucide-refresh-cw"
@@ -608,7 +614,7 @@ onMounted(async () => {
               />
             </UTooltip>
             <UDropdownMenu :items="columnMenuItems" :content="{ align: 'end' }">
-              <UTooltip text="Столбцы таблицы">
+              <UTooltip :text="t('access.tableColumns')">
                 <UButton color="neutral" variant="subtle" trailing-icon="i-lucide-settings-2" />
               </UTooltip>
             </UDropdownMenu>
@@ -625,8 +631,8 @@ onMounted(async () => {
         @reset="resetFilters()"
       >
         <div class="grid gap-3 md:grid-cols-3">
-          <UInput v-model="filters.key.value" placeholder="Ключ" />
-          <UInput v-model="filters.name.value" placeholder="Название" />
+          <UInput v-model="filters.key.value" :placeholder="t('access.columns.key')" />
+          <UInput v-model="filters.name.value" :placeholder="t('access.columns.name')" />
           <div class="grid gap-2 sm:grid-cols-2">
             <UInput
               :model-value="filters.updated_at.value?.[0] || ''"
@@ -683,13 +689,13 @@ onMounted(async () => {
         </template>
         <template #empty>
           <CrudTableEmptyState
-            :title="activeFilterCount ? 'Ничего не найдено' : 'Роли не найдены'"
+            :title="activeFilterCount ? t('access.notFound') : t('access.noRoles')"
             :description="activeFilterCount
-              ? 'Нет ролей, соответствующих фильтрам. Измените условия поиска.'
-              : 'Измените фильтры или создайте новую роль.'"
+              ? t('access.noRolesMatching')
+              : t('access.changeFiltersOrCreateRole')"
             :filtered="activeFilterCount > 0"
             :error="table.error.value"
-            error-description="Не удалось загрузить роли. Проверьте подключение или повторите попытку позже."
+            :error-description="t('access.failedToLoadRoles')"
             @clear-filters="resetFilters"
             @retry="table.refresh()"
           />
@@ -727,7 +733,7 @@ onMounted(async () => {
     :description="confirmDialog.description"
     :loading="deleting"
     confirm-color="error"
-    confirm-label="Удалить"
+    :confirm-label="t('common.delete')"
     confirm-icon="i-lucide-trash-2"
     @confirm="confirmDialog.onConfirm"
   />

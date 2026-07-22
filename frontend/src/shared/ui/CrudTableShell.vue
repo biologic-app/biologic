@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick, watch } from "vue";
+import { useI18n } from "vue-i18n";
 
 const props = withDefaults(
   defineProps<{
@@ -27,6 +28,7 @@ const emit = defineEmits<{
   (event: "loadMore"): void;
 }>();
 
+const { t } = useI18n();
 const sectionRef = ref<HTMLElement | null>(null);
 let io: IntersectionObserver | null = null;
 let mo: MutationObserver | null = null;
@@ -99,7 +101,7 @@ onUnmounted(() => {
 
     <div v-if="mode === 'paginated'" class="flex shrink-0 flex-col gap-3 py-4 pr-4 sm:flex-row sm:items-center sm:justify-between">
       <div class="flex items-center gap-3 text-sm text-toned">
-        <span>Всего: {{ total }}</span>
+        <span>{{ t('dashboard.chart.total') }}: {{ total }}</span>
         <USelectMenu
           :model-value="pageSize ?? 100"
           :items="pageSizeItems || [100]"

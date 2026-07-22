@@ -133,4 +133,4 @@ class ProtocolTypeUpdateRequest(StrictRequest):
 
 
 class StatusUpdateRequest(StrictRequest):
-    name: str
+    color: str
