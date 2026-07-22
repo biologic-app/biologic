@@ -52,32 +52,6 @@ const links = computed<NavigationMenuItem[][]>(() => [
       },
     },
     {
-      label: t("nav.research"),
-      resource: "research" as Resource,
-      icon: canViewResearch.value ? "i-lucide-flask-conical" : "i-lucide-lock",
-      to: { name: "research" },
-      disabled: !canViewResearch.value,
-      onSelect: () => {
-        open.value = false;
-      },
-    },
-    {
-      label: t("nav.researchV2"),
-      icon: "i-lucide-microscope",
-      to: { name: "research-v2" },
-      onSelect: () => {
-        open.value = false;
-      },
-    },
-    {
-      label: t("nav.workflows"),
-      icon: "i-lucide-workflow",
-      to: { name: "workflows" },
-      onSelect: () => {
-        open.value = false;
-      },
-    },
-    {
       label: t("nav.directions"),
       resource: "directions" as Resource,
       icon: canViewDirections.value ? "i-lucide-book-copy" : "i-lucide-lock",
@@ -97,11 +71,37 @@ const links = computed<NavigationMenuItem[][]>(() => [
       },
     },
     {
+      label: t("nav.research"),
+      resource: "research" as Resource,
+      icon: canViewResearch.value ? "i-lucide-flask-conical" : "i-lucide-lock",
+      to: { name: "research" },
+      disabled: !canViewResearch.value,
+      onSelect: () => {
+        open.value = false;
+      },
+    },
+    {
       label: t("nav.tests"),
       resource: "tests" as Resource,
       icon: canViewTests.value ? "i-lucide-clipboard-list" : "i-lucide-lock",
       to: { name: "tests" },
       disabled: !canViewTests.value,
+      onSelect: () => {
+        open.value = false;
+      },
+    },
+    {
+      label: t("nav.researchV2"),
+      icon: "i-lucide-microscope",
+      to: { name: "research-v2" },
+      onSelect: () => {
+        open.value = false;
+      },
+    },
+    {
+      label: t("nav.workflows"),
+      icon: "i-lucide-workflow",
+      to: { name: "workflows" },
       onSelect: () => {
         open.value = false;
       },

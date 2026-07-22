@@ -302,9 +302,12 @@ export function clearAllData() {
 
 export function initDemoData(demoSchemas: JournalSchema[]) {
   const storage = loadStorage()
-  if (storage.templates.length > 0) return // уже есть данные
+  const existingIds = new Set(storage.templates.map((t) => t.id))
+  let added = false
 
   for (const schema of demoSchemas) {
+    if (existingIds.has(schema.id)) continue // уже засеян раньше
+
     const template: JournalTemplate = {
       id: schema.id,
       title: schema.title,
@@ -314,7 +317,9 @@ export function initDemoData(demoSchemas: JournalSchema[]) {
       updatedAt: new Date().toISOString(),
     }
     storage.templates.push(template)
+    added = true
   }
 
+  if (!added) return
   saveStorage(storage)
 }

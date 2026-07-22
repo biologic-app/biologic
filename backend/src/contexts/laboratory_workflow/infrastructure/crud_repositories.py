@@ -1330,11 +1330,19 @@ async def _research_sample_includes(
     if not sample_ids:
         return {}
     result = await session.execute(
-        select(Sample.id, Sample.name).where(
-            Sample.id.in_(sample_ids), *_base_filters(Sample)
-        ),
+        select(
+            Sample.id, Sample.name, Sample.nomenclature_code, Sample.month_no
+        ).where(Sample.id.in_(sample_ids), *_base_filters(Sample)),
     )
-    return {row_id: {"id": row_id, "name": name} for row_id, name in result.all()}
+    return {
+        row_id: {
+            "id": row_id,
+            "name": name,
+            "nomenclature_code": nomenclature_code,
+            "month_no": month_no,
+        }
+        for row_id, name, nomenclature_code, month_no in result.all()
+    }
 
 
 async def _research_goal_includes(

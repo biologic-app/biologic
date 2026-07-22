@@ -31,7 +31,12 @@ import TrackedFlagIcon from "@/shared/ui/TrackedFlagIcon.vue";
 import UrgentFlagIcon from "@/shared/ui/UrgentFlagIcon.vue";
 import OverdueFlagIcon from "@/shared/ui/OverdueFlagIcon.vue";
 import type { DetailListItem } from "@/shared/ui/EntityDetailModalShell.vue";
-import { isSampleDeadlineOverdue, recordCode, shortPersonName } from "@/shared/ui/entity-detail.helpers";
+import {
+  isSampleDeadlineOverdue,
+  recordCode,
+  sampleRecordCode,
+  shortPersonName,
+} from "@/shared/ui/entity-detail.helpers";
 import {
   filterSelectOverlayUi,
   getFilterMultiSelectModelValue,
@@ -81,7 +86,6 @@ import {
   unsubscribeFromEntity,
   type SubscriptionEntity,
 } from "@/shared/api/subscriptions.api";
-import type { RowPinningState } from "@tanstack/table-core";
 import { useI18n } from "vue-i18n";
 
 type DetailKind = EntityDetailKind;
@@ -243,27 +247,30 @@ const columnVisibility = useTableColumnVisibility(tableSettingsKey, {
 });
 const rowSelection = ref<Record<string, boolean>>({});
 
-// Закрепление строк (row pinning) = ручная подписка на запись: пользователь
-// получает уведомления по всем её статусам, а отслеживаемые строки держатся
-// сверху таблицы. Доступно только направлениям и образцам (SubscriptionEntity).
-// Неявные подписки (роль/владелец/сан.врач) сюда не попадают — только ручные.
+// Отслеживание (ручная подписка на запись) — только статус-флаг в строке
+// (TrackedFlagIcon в ячейке статуса, пункт меню действий), БЕЗ фактического
+// TanStack row pinning: закрепление строк сверху конфликтовало с сортировкой
+// по столбцам (пины игнорируют текущую сортировку), из-за чего сортировка
+// выглядела «сломанной» для отслеживаемых строк. Доступно только
+// направлениям и образцам (SubscriptionEntity). Неявные подписки
+// (роль/владелец/сан.врач) сюда не попадают — только ручные.
 const supportsSubscriptions = computed(
   () => props.config.presetKey === "directions" || props.config.presetKey === "samples",
 );
-const rowPinning = ref<RowPinningState>({ top: [], bottom: [] });
+const subscribedIds = ref<Set<string>>(new Set());
 // Защита от двойных кликов, пока запрос в полёте (не reactive — на рендер не влияет).
 const pinInFlight = new Set<string>();
 
-const isRowPinned = (id: string) => (rowPinning.value.top ?? []).includes(id);
+const isRowPinned = (id: string) => subscribedIds.value.has(id);
 
 const setRowPinned = (id: string, pinned: boolean) => {
-  const top = new Set(rowPinning.value.top ?? []);
+  const next = new Set(subscribedIds.value);
   if (pinned) {
-    top.add(id);
+    next.add(id);
   } else {
-    top.delete(id);
+    next.delete(id);
   }
-  rowPinning.value = { top: [...top], bottom: rowPinning.value.bottom ?? [] };
+  subscribedIds.value = next;
 };
 
 const loadMySubscriptions = async () => {
@@ -272,7 +279,7 @@ const loadMySubscriptions = async () => {
   }
   try {
     const ids = await fetchMySubscriptionIds(props.config.presetKey as SubscriptionEntity);
-    rowPinning.value = { top: ids, bottom: [] };
+    subscribedIds.value = new Set(ids.map(String));
   } catch {
     // Тихо: отсутствие/сбой подписок не должны ломать таблицу.
   }
@@ -687,13 +694,17 @@ const listItemDate = (row: CrudRow): string => {
   return `${dateLabel} ${timeLabel}`;
 };
 
-// Подзаголовок строки списка: врач · объект (дата — отдельно, в заголовке).
+// Подзаголовок строки списка: для образцов — номер (месяц-код номенклатуры)
+// и поставщик; для остальных сущностей — врач · объект (дата — отдельно, в
+// заголовке).
 const listItemSubtitle = (row: CrudRow): string => {
   const doctor = getValueByPath(row, "doctor");
   const doctorName = doctor && typeof doctor === "object"
     ? shortPersonName(doctor as Record<string, unknown>)
     : "";
   return [
+    sampleRecordCode(row),
+    getStringValue(getValueByPath(row, "supplier")),
     doctorName,
     getStringValue(getValueByPath(row, "object.name")),
     getStringValue(getValueByPath(row, "code")),
@@ -906,40 +917,10 @@ const renderDirectionNumberCell = (rowItem: CrudRow) => {
 const uiColumns = computed(() => {
   const actionColumn = { id: "actions", header: t("access.columns.actions"), meta: { class: { td: "w-auto min-w-[56px] text-right" } } };
 
-  // Колонка-пин: клик подписывает/отписывает на запись и закрепляет её сверху.
-  // Читает isRowPinned/pinInFlight «вживую» при рендере — TanStack перерисует
-  // ячейку при изменении v-model:row-pinning, поэтому цвет/иконка следят за состоянием.
-  const pinColumn = {
-    id: "pin",
-    enableSorting: false,
-    enableHiding: false,
-    header: () => "",
-    meta: { class: { th: "w-10", td: "w-10" } },
-    cell: ({ row }: { row: TableRow<CrudRow> }) => {
-      const rowItem = row.original as CrudRow;
-      if (isSkeletonRow(rowItem)) {
-        return renderSkeletonCell("pin");
-      }
-      const id = String(rowItem.id);
-      const pinned = isRowPinned(id);
-      return h(UButton, {
-        icon: pinned ? "i-lucide-bell-ring" : "i-lucide-bell-plus",
-        color: pinned ? "primary" : "neutral",
-        variant: "ghost",
-        size: "sm",
-        square: true,
-        title: pinned ? t("crud.untrack") : t("crud.trackNotifications"),
-        "aria-label": pinned ? t("crud.untrack") : t("crud.trackNotifications"),
-        onClick: (event: Event) => {
-          event.stopPropagation();
-          void toggleRowPin(rowItem);
-        },
-      });
-    },
-  };
-
+  // Отдельная колонка-пин убрана из таблицы (направления/образцы) — статус
+  // отслеживания виден компактным флагом в ячейке статуса (TrackedFlagIcon) и
+  // управляется из карточки записи (SubscribeButton) или пункта меню действий.
   return [
-    ...(supportsSubscriptions.value ? [pinColumn] : []),
     ...props.config.columns.map((column, columnIndex) => ({
       id: getColumnId(column.field),
       accessorKey: column.field,
@@ -1909,7 +1890,6 @@ defineExpose({
   <CrudDataTable
     v-model:column-visibility="columnVisibility"
     v-model:row-selection="rowSelection"
-    v-model:row-pinning="rowPinning"
     data-tour="crud-table"
     :data="tableRows"
     :columns="uiColumns"

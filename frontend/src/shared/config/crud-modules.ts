@@ -5,6 +5,7 @@ import {
   SAMPLE_STATUS_FLOW,
   SAMPLE_STATUS_REJECTED
 } from '@/shared/domain/status-timeline'
+import { sampleRecordCode } from '@/shared/ui/entity-detail.helpers'
 import { i18n } from '@/shared/i18n'
 
 const t = (key: string, params?: Record<string, unknown>) =>
@@ -284,9 +285,16 @@ export const crudModules: Record<string, CrudModuleConfig> = {
     ],
     columns: [
       { field: 'id', header: t('crudFields.id'), sortable: true },
+      {
+        field: 'nomenclature_code',
+        header: t('crudFields.number'),
+        width: '120px',
+        filter: { type: 'text', placeholder: t('crudFields.number') },
+        body: (row) => sampleRecordCode(row) ?? '-'
+      },
       { field: 'name', header: t('access.columns.name'), sortable: true, width: '220px', wrap: true, filter: { type: 'text', placeholder: t('access.columns.name') } },
-      { field: 'alternate_name', header: t('crudFields.alternateName'), sortable: true, width: '220px', wrap: true, filter: { type: 'text', placeholder: t('crudFields.alternateName') } },
       { field: 'sample_type.name', header: t('crudFields.sampleType'), filter: { type: 'text', placeholder: t('crudFields.sampleType') } },
+      { field: 'alternate_name', header: t('crudFields.alternateName'), sortable: true, width: '220px', wrap: true, filter: { type: 'text', placeholder: t('crudFields.alternateName') } },
       { field: 'direction.name', header: t('crudFields.direction'), filter: { type: 'text', placeholder: t('crudFields.direction') } },
       { field: 'status.name', header: t('common.status'), width: '150px', filter: { type: 'text', placeholder: t('common.status') } },
       {
@@ -827,7 +835,14 @@ export const crudModules: Record<string, CrudModuleConfig> = {
     ],
     columns: [
       { field: 'id', header: t('crudFields.id'), sortable: true },
-      { field: 'sample.name', header: t('entityHelpers.relationLabels.samples'), sortable: true, filter: { type: 'text', placeholder: t('entityHelpers.relationLabels.samples') } },
+      {
+        field: 'sample.name',
+        header: t('entityHelpers.relationLabels.samples'),
+        filter: { type: 'text', placeholder: t('entityHelpers.relationLabels.samples') },
+        // Номер образца (месяц + код номенклатуры), а не название пробы —
+        // компактнее и однозначно идентифицирует образец, как в таблице «Образцы».
+        body: (row) => sampleRecordCode((row.sample as Record<string, unknown>) ?? {}) ?? '-'
+      },
       { field: 'research_goal.name', header: t('crudFields.researchGoal'), sortable: true, filter: { type: 'text', placeholder: t('crudFields.researchGoal') } },
       { field: 'lab.name', header: t('access.columns.laboratory'), sortable: true, filter: { type: 'text', placeholder: t('access.columns.laboratory') } },
       { field: 'status.name', header: t('common.status'), sortable: true, filter: { type: 'text', placeholder: t('common.status') } },

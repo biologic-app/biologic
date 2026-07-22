@@ -191,6 +191,13 @@ async def test_parses_real_document_end_to_end() -> None:
     assert first_sample["mass"] == "3 шт."
     assert first_sample["nomenclature_code"] == "00013560"
     assert first_sample["supplier"] == 'ООО "Компания "ГУД-ФУД"'
+    # Дата выхода образца из строки таблицы должна попадать и в дедлайн,
+    # и в "Отобран"/"Месяц" карточки образца, а не оставаться пустой.
+    assert first_sample["deadline"] == first_sample["sampled_at"]
+    assert first_sample["month_no"] == first_sample["sampled_at"].month
+    # "Время и дата доставки проб" из шапки — образец получен лабораторией
+    # сразу при импорте, не дожидаясь явной регистрации направления.
+    assert first_sample["received_at"] == direction_values["received_at"]
 
     assert summary.lab_assignments_created == len(sample_labs.created)
     assert summary.lab_assignments_created > 0

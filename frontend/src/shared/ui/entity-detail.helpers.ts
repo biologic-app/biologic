@@ -166,6 +166,24 @@ export function recordCode(row: Record<string, unknown> & { id: string | number 
   return entityDisplayCode(row.id);
 }
 
+// Номер образца по аналогии с номером направления («№ 2025-461»): месяц
+// отбора (month_no) + код номенклатуры — «№07-00035591». Источник месяца —
+// строго поле month_no (проставляется при импорте направления), без
+// подмены датами других полей. Без кода номенклатуры или месяца номер не
+// формируется — «частичный» номер без месяца был бы неоднозначен.
+export function sampleRecordCode(row: Record<string, unknown>): string | null {
+  const nomenclatureCode = row.nomenclature_code;
+  if (typeof nomenclatureCode !== "string" || !nomenclatureCode.trim()) {
+    return null;
+  }
+  const monthNo = row.month_no;
+  const hasMonth = typeof monthNo === "number" && Number.isInteger(monthNo) && monthNo >= 1 && monthNo <= 12;
+  if (!hasMonth) {
+    return null;
+  }
+  return `№${String(monthNo).padStart(2, "0")}-${nomenclatureCode}`;
+}
+
 // Провал дедлайна выпуска образца: если deadline не задан — false; иначе
 // сравниваем дедлайн с фактическим выпуском (completed_at) или «сейчас», если
 // образец ещё не выпущен. Совпадает с формулой deadlineStatus в

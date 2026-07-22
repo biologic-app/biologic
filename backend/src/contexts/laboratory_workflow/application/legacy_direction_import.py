@@ -436,6 +436,12 @@ class LegacyDirectionXlsImportService:
                 "direction_id": direction_row.id,
                 "name": product_name,
             }
+            # "Время и дата доставки проб" из шапки формы — образец физически
+            # получен лабораторией в этот момент, а не только при регистрации
+            # направления (см. _register_direction_samples, которая иначе
+            # оставляет received_at пустым до явной регистрации).
+            if header.received_at is not None:
+                sample_values["received_at"] = header.received_at
             mass = _mass_text(record.get("weight"), record.get("unit"))
             if mass is not None:
                 sample_values["mass"] = mass
@@ -451,9 +457,11 @@ class LegacyDirectionXlsImportService:
                 if value is not None:
                     sample_values[target] = value
 
-            deadline = _parse_ru_datetime(record.get("release_date"), record.get("release_time"))
-            if deadline is not None:
-                sample_values["deadline"] = deadline
+            release_at = _parse_ru_datetime(record.get("release_date"), record.get("release_time"))
+            if release_at is not None:
+                sample_values["deadline"] = release_at
+                sample_values["sampled_at"] = release_at
+                sample_values["month_no"] = release_at.month
 
             sample_row = await self.samples.create(sample_values, created_by=self.created_by)
             samples_imported += 1
