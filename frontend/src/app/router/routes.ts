@@ -46,7 +46,7 @@ export const routes: RouteRecordRaw[] = [
         component: () => import("@/pages/ResearchV2Page.vue"),
       },
       {
-        path: "/workflows",
+        path: "/workflows/:id?",
         name: "workflows",
         meta: { requiresAuth: true },
         component: () => import("@/pages/WorkflowsPage.vue"),

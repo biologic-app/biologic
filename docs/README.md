@@ -17,6 +17,9 @@ docs/
 - [backend-ddd-contexts.md](architecture/backend-ddd-contexts.md) — bounded contexts.
 - [schema-vs-backend-diff.md](architecture/schema-vs-backend-diff.md) — расхождения справочной модели данных и ORM.
 - [2026-05-14-backend-mvp-ddd-api-design.md](architecture/2026-05-14-backend-mvp-ddd-api-design.md) — спецификация API (CRUD + команды).
+- [2026-07-22-workflow-ui-engine-overview.md](architecture/2026-07-22-workflow-ui-engine-overview.md) — обзор движка рабочих процессов (frontend + backend + execute-step); точка входа.
+- [2026-07-22-workflow-schema-v2.md](architecture/2026-07-22-workflow-schema-v2.md) — спецификация формата схемы v2 (граф + экран + доменные привязки).
+- [2026-07-22-workflow-engine-adopt-vs-build.md](architecture/2026-07-22-workflow-engine-adopt-vs-build.md) — ADR: движок UI рабочих процессов (adopt vs build).
 - [adr/](architecture/adr/) — архитектурные решения (ADR).
 
 ## Продукт — `product/`

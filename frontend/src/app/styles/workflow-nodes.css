@@ -9,10 +9,14 @@
 .wf-node {
   --wf-accent: var(--ui-primary);
   --wf-accent-soft: color-mix(in oklab, var(--wf-accent) 12%, transparent);
+  /* Тот же масштаб скругления, что у кнопок/полей Nuxt UI (rounded-md), а не
+     произвольное большое значение — карточки нод должны читаться как часть
+     той же дизайн-системы, что и остальной интерфейс. */
+  --wf-radius: calc(var(--ui-radius) * 1.5);
   position: relative;
   min-width: 210px;
   max-width: 300px;
-  border-radius: 14px;
+  border-radius: var(--wf-radius);
   border: 1px solid var(--ui-border);
   background: var(--ui-bg);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 6px 16px -10px rgba(0, 0, 0, 0.18);
@@ -35,7 +39,7 @@
   position: absolute;
   inset: 0 0 auto 0;
   height: 3px;
-  border-radius: 14px 14px 0 0;
+  border-radius: var(--wf-radius) var(--wf-radius) 0 0;
   background: color-mix(in oklab, var(--wf-accent) 65%, transparent);
 }
 
@@ -60,7 +64,7 @@
   width: 28px;
   height: 28px;
   flex-shrink: 0;
-  border-radius: 9px;
+  border-radius: var(--ui-radius);
   background: var(--wf-accent-soft);
   color: var(--wf-accent);
 }
@@ -68,7 +72,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 3px;
 }
 .wf-node__title {
   font-weight: 600;
@@ -78,12 +82,21 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Тип ноды — цветной бейдж с названием (а не только акцентный цвет по всей
+   карточке), как UBadge: мягкий фон + подписанный текст, компактно. */
 .wf-node__kicker {
-  font-size: 10px;
-  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 0 6px;
+  border-radius: var(--ui-radius);
+  background: var(--wf-accent-soft);
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1.6;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: color-mix(in oklab, var(--wf-accent) 75%, var(--ui-text-muted));
+  color: var(--wf-accent);
 }
 
 /* ─── Тело ────────────────────────────────────────────────────────────────── */
@@ -107,7 +120,7 @@
   align-items: center;
   gap: 8px;
   padding: 5px 8px;
-  border-radius: 8px;
+  border-radius: var(--ui-radius);
   background: var(--ui-bg-muted);
 }
 .wf-field__dot {
@@ -142,7 +155,7 @@
   font-size: 11.5px;
   color: var(--ui-text-muted);
   border: 1px dashed var(--ui-border);
-  border-radius: 8px;
+  border-radius: var(--ui-radius);
   text-align: center;
 }
 

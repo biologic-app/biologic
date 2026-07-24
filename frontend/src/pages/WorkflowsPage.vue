@@ -1,235 +1,116 @@
 <script setup lang="ts">
-// Страница «Рабочие процессы» — реестр шаблонов журналов (рабочих процессов)
-// в таблице + конструктор процесса в полноэкранной модалке (как в направлениях).
-import { computed, h, nextTick, onBeforeUnmount, onMounted, reactive, resolveComponent, ref } from 'vue'
+// Страница «Рабочие процессы» — master-detail: список журналов слева + живой
+// канвас/раннер/карточка выбранного справа (US-канвас-редизайн). Модалка
+// (WorkflowDetailModal) ретирована — её содержимое перенесено в правую панель.
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { TableColumn } from '@nuxt/ui'
+import { useRoute, useRouter } from 'vue-router'
+import type { DropdownMenuItem } from '@nuxt/ui'
 import { useLocale } from '@/shared/composables/useLocale'
-import { useTableColumnVisibility } from '@/shared/composables/useTableSettings'
 import type { FormField } from '@/shared/types/form'
 import ConfirmDialog from '@/shared/ui/ConfirmDialog.vue'
-import CrudDataTable from '@/shared/ui/CrudDataTable.vue'
-import CrudFilterControls from '@/shared/ui/CrudFilterControls.vue'
-import CrudFilterModal from '@/shared/ui/CrudFilterModal.vue'
 import CrudFormModal from '@/shared/ui/CrudFormModal.vue'
-import CrudTableEmptyState from '@/shared/ui/CrudTableEmptyState.vue'
+import NotificationsBellButton from '@/shared/ui/NotificationsBellButton.vue'
 import RowContextMenu from '@/shared/ui/RowContextMenu.vue'
-import type { DetailListItem } from '@/shared/ui/EntityDetailModalShell.vue'
-import WorkflowDetailModal from '@/modules/journals/components/WorkflowDetailModal.vue'
+import TourMenu from '@/shared/ui/TourMenu.vue'
+import JournalBuilder from '@/modules/workflows/components/JournalBuilder.vue'
+import WorkflowPreview from '@/modules/workflows/components/WorkflowPreview.vue'
 import {
+  countRunsByTemplate,
   createTemplate,
   deleteTemplate,
   getTemplate,
-  getTemplates,
+  importData,
   initDemoData,
+  listTemplates,
   renameTemplate,
-} from '@/modules/journals/composables/useJournalStorage'
-import { microbiologyStudy } from '@/modules/journals/data/microbiology-study'
-import { patientIntake } from '@/modules/journals/data/patient-intake'
-import { workflowCreation } from '@/modules/journals/data/workflow-creation'
-import type { JournalSchema, JournalTemplate } from '@/modules/journals/types/journal'
-
-const UButton = resolveComponent('UButton')
+} from '@/modules/workflows/api/workflows.api'
+import { fireSafety } from '@/modules/workflows/data/fire-safety'
+import { labTestResult } from '@/modules/workflows/data/lab-test-result'
+import { microbiologyStudy } from '@/modules/workflows/data/microbiology-study'
+import { patientIntake } from '@/modules/workflows/data/patient-intake'
+import { workflowCreation } from '@/modules/workflows/data/workflow-creation'
+import type { JournalSchema, JournalTemplate } from '@/modules/workflows/types/journal'
 
 const toast = useToast()
 const { t } = useI18n()
 const { intlLocale } = useLocale()
-
-const tableSettingsKey = 'table-settings:workflows:v1'
-const columnVisibility = useTableColumnVisibility(tableSettingsKey)
+const route = useRoute()
+const router = useRouter()
 
 interface WorkflowRow {
   id: string
   title: string
-  versions: number
   currentVersion: number
   entries: number
   updatedAt: string
 }
 
 const templates = ref<JournalTemplate[]>([])
+// Число записей (runs) по каждому шаблону — один запрос вместо N+1 на строку.
+const runCountByTemplate = ref<Record<string, number>>({})
 const search = ref('')
 
-// Кратковременная подсветка недавно затронутой строки — как в «Направлениях».
-const highlightId = ref<string | null>(null)
-let highlightTimer: ReturnType<typeof setTimeout> | null = null
-function highlightRow(id: string | null) {
-  if (highlightTimer) {
-    clearTimeout(highlightTimer)
-    highlightTimer = null
+async function refresh() {
+  const [tpls, counts] = await Promise.all([listTemplates(), countRunsByTemplate()])
+  templates.value = tpls
+  runCountByTemplate.value = counts
+}
+
+onMounted(async () => {
+  await initDemoData([workflowCreation, patientIntake, microbiologyStudy, labTestResult, fireSafety])
+  await refresh()
+  const routeId = typeof route.params.id === 'string' ? route.params.id : undefined
+  if (routeId && templates.value.some((tpl) => tpl.id === routeId)) {
+    selectedTemplateId.value = routeId
+  } else if (templates.value.length) {
+    selectedTemplateId.value = templates.value[0].id
   }
-  highlightId.value = id
-  if (!id) {
+})
+
+// Разовый импорт данных старого localStorage-конструктора в backend.
+async function importFromLocalStorage() {
+  const raw = typeof window !== 'undefined'
+    ? localStorage.getItem('journal-constructor-storage')
+    : null
+  if (!raw) {
+    toast.add({ title: 'В localStorage нет данных для импорта', color: 'warning', icon: 'i-lucide-info' })
     return
   }
-  highlightTimer = setTimeout(() => {
-    highlightId.value = null
-    highlightTimer = null
-  }, 3500)
-}
-
-function refresh() {
-  templates.value = getTemplates()
-}
-
-onMounted(() => {
-  initDemoData([workflowCreation, patientIntake, microbiologyStudy])
-  refresh()
-})
-
-onBeforeUnmount(() => {
-  if (highlightTimer) {
-    clearTimeout(highlightTimer)
-  }
-})
-
-type SortableField = 'title' | 'versions' | 'currentVersion' | 'entries' | 'updatedAt'
-const sortField = ref<SortableField>('updatedAt')
-const sortOrder = ref<1 | -1>(-1)
-
-function setSort(field: SortableField) {
-  if (sortField.value === field) {
-    sortOrder.value = sortOrder.value === 1 ? -1 : 1
-    return
-  }
-  sortField.value = field
-  sortOrder.value = 1
-}
-
-// ─── Фильтры — как в справочниках/направлениях (кнопка «Фильтр» + модалка) ─
-interface WorkflowFilters {
-  currentVersion: { min: number | undefined, max: number | undefined }
-  updatedAt: { from: string | undefined, to: string | undefined }
-}
-
-function createEmptyFilters(): WorkflowFilters {
-  return {
-    currentVersion: { min: undefined, max: undefined },
-    updatedAt: { from: undefined, to: undefined },
+  try {
+    const summary = await importData(raw)
+    await refresh()
+    toast.add({
+      title: `Импортировано шаблонов: ${summary.templates}, записей: ${summary.runs}`,
+      color: 'success',
+      icon: 'i-lucide-check',
+    })
+  } catch (error) {
+    toast.add({
+      title: 'Ошибка импорта из localStorage',
+      description: (error as Error).message,
+      color: 'error',
+      icon: 'i-lucide-circle-alert',
+    })
   }
 }
-
-const filters = reactive<WorkflowFilters>(createEmptyFilters())
-const filterModalOpen = ref(false)
-
-function resetFilters() {
-  Object.assign(filters, createEmptyFilters())
-}
-
-const activeFilterCount = computed(() => {
-  let count = 0
-  if (filters.currentVersion.min !== undefined || filters.currentVersion.max !== undefined) {
-    count += 1
-  }
-  if (filters.updatedAt.from !== undefined || filters.updatedAt.to !== undefined) {
-    count += 1
-  }
-  return count
-})
 
 const rows = computed<WorkflowRow[]>(() => {
   const query = search.value.trim().toLowerCase()
-  const filtered = templates.value
+  return templates.value
     .filter((template) => !query || template.title.toLowerCase().includes(query))
-    .filter((template) => {
-      const { min, max } = filters.currentVersion
-      if (min !== undefined && template.currentVersion < min) return false
-      if (max !== undefined && template.currentVersion > max) return false
-      return true
-    })
-    .filter((template) => {
-      const { from, to } = filters.updatedAt
-      const updatedAt = template.updatedAt.slice(0, 10)
-      if (from && updatedAt < from) return false
-      if (to && updatedAt > to) return false
-      return true
-    })
     .map((template) => ({
       id: template.id,
       title: template.title,
-      versions: template.versions.length,
       currentVersion: template.currentVersion,
-      entries: template.versions.reduce((sum, version) => sum + version.entries.length, 0),
+      entries: runCountByTemplate.value[template.id] ?? 0,
       updatedAt: template.updatedAt,
     }))
-
-  const field = sortField.value
-  const order = sortOrder.value
-  return [...filtered].sort((a, b) => {
-    const left = a[field]
-    const right = b[field]
-    if (left < right) return -1 * order
-    if (left > right) return 1 * order
-    return 0
-  })
-})
-
-function sortHeader(field: SortableField, label: string) {
-  return () =>
-    h(UButton, {
-      color: 'neutral',
-      variant: 'ghost',
-      label,
-      icon:
-        sortField.value !== field
-          ? 'i-lucide-arrow-up-down'
-          : sortOrder.value === 1
-            ? 'i-lucide-arrow-up-narrow-wide'
-            : 'i-lucide-arrow-down-wide-narrow',
-      class: '-mx-2.5',
-      onClick: () => setSort(field),
-    })
-}
-
-const columns = computed<TableColumn<WorkflowRow>[]>(() => [
-  { accessorKey: 'title', header: sortHeader('title', t('workflows.columns.title')) },
-  { accessorKey: 'versions', header: sortHeader('versions', t('workflows.columns.versions')) },
-  { accessorKey: 'currentVersion', header: sortHeader('currentVersion', t('workflows.columns.currentVersion')) },
-  { accessorKey: 'entries', header: sortHeader('entries', t('workflows.columns.entries')) },
-  { accessorKey: 'updatedAt', header: sortHeader('updatedAt', t('workflows.columns.updatedAt')) },
-  {
-    id: 'actions',
-    header: t('workflows.columns.actions'),
-    meta: { class: { td: 'w-auto min-w-[56px] text-right' } },
-  },
-])
-
-const columnMenuItems = computed(() => {
-  const entries: Array<{ key: string, label: string }> = [
-    { key: 'title', label: t('workflows.columns.title') },
-    { key: 'versions', label: t('workflows.columns.versions') },
-    { key: 'currentVersion', label: t('workflows.columns.currentVersion') },
-    { key: 'entries', label: t('workflows.columns.entries') },
-    { key: 'updatedAt', label: t('workflows.columns.updatedAt') },
-    { key: 'actions', label: t('workflows.columns.actions') },
-  ]
-  return entries.map(({ key, label }) => ({
-    label,
-    type: 'checkbox' as const,
-    checked: columnVisibility.value[key] !== false,
-    onUpdateChecked(checked: boolean) {
-      columnVisibility.value = { ...columnVisibility.value, [key]: checked }
-    },
-    onSelect(event?: Event) {
-      event?.preventDefault()
-    },
-  }))
+    .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0))
 })
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(intlLocale.value)
-}
-
-// ─── Конструктор (вкладка в карточке процесса) ─────────────────────────────
-function openBuilder(id: string) {
-  detailId.value = id
-  detailActiveTab.value = 'builder'
-  detailOpen.value = true
-}
-
-function onVersionSaved(version: number) {
-  refresh()
-  toast.add({ title: t('workflows.toasts.versionSaved', { version }), color: 'success', icon: 'i-lucide-check' })
 }
 
 // ─── Создание / переименование (единая форма, как в справочниках) ─────────
@@ -260,16 +141,16 @@ function openRename(row: WorkflowRow) {
   formModalOpen.value = true
 }
 
-function saveWorkflowForm(payload: Record<string, unknown>) {
+async function saveWorkflowForm(payload: Record<string, unknown>) {
   const title = String(payload.title ?? '').trim()
   if (!title) {
     return
   }
 
   if (formMode.value === 'edit' && formEditId.value) {
-    renameTemplate(formEditId.value, title)
+    await renameTemplate(formEditId.value, title)
     formModalOpen.value = false
-    refresh()
+    await refresh()
     toast.add({ title: t('workflows.toasts.renamed'), color: 'success', icon: 'i-lucide-check' })
     return
   }
@@ -279,18 +160,18 @@ function saveWorkflowForm(payload: Record<string, unknown>) {
     title,
     version: 1,
     nodes: [
-      { id: 'start', type: 'start', position: { x: 0, y: 160 }, data: { label: 'Начало' } },
-      { id: 'end', type: 'end', position: { x: 400, y: 160 }, data: { label: 'Конец' } },
+      { id: 'start', type: 'start', position: { x: 80, y: 40 }, data: { label: 'Начало' } },
+      { id: 'end', type: 'end', position: { x: 80, y: 200 }, data: { label: 'Конец' } },
     ],
     edges: [{ id: 'e-start-end', source: 'start', target: 'end' }],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   }
-  const template = createTemplate(title, schema)
+  const template = await createTemplate(title, schema)
   formModalOpen.value = false
-  refresh()
+  await refresh()
   toast.add({ title: t('workflows.toasts.created'), color: 'success', icon: 'i-lucide-check' })
-  openBuilder(template.id)
+  selectTemplate(template.id)
 }
 
 // ─── Удаление ─────────────────────────────────────────────────────────────
@@ -302,144 +183,101 @@ function openDelete(row: WorkflowRow) {
   deleteOpen.value = true
 }
 
-function confirmDelete() {
+async function confirmDelete() {
   if (!deleteRow.value) {
     return
   }
-  deleteTemplate(deleteRow.value.id)
+  const wasSelected = deleteRow.value.id === selectedTemplateId.value
+  await deleteTemplate(deleteRow.value.id)
   deleteOpen.value = false
   deleteRow.value = null
-  refresh()
+  await refresh()
+  if (wasSelected) {
+    selectTemplate(rows.value[0]?.id ?? null)
+  }
   toast.add({ title: t('workflows.toasts.deleted'), color: 'success', icon: 'i-lucide-check' })
 }
 
-// ─── Множественный выбор строк — как во всех остальных таблицах ───────────
-const rowSelection = ref<Record<string, boolean>>({})
-const selectedRows = computed(() => rows.value.filter((row) => rowSelection.value[row.id]))
-
-const bulkDeleteOpen = ref(false)
-
-function openBulkDelete() {
-  if (!selectedRows.value.length) {
-    return
-  }
-  bulkDeleteOpen.value = true
-}
-
-function confirmBulkDelete() {
-  const ids = selectedRows.value.map((row) => row.id)
-  ids.forEach((id) => deleteTemplate(id))
-  bulkDeleteOpen.value = false
-  rowSelection.value = {}
-  refresh()
-  toast.add({ title: t('workflows.toasts.bulkDeleted', { count: ids.length }), color: 'success', icon: 'i-lucide-check' })
-}
-
-// ─── Карточка процесса — тот же каркас, что и у направлений ───────────────
-const detailOpen = ref(false)
-const detailId = ref<string | null>(null)
-const detailActiveTab = ref('card')
-
-const detailTemplate = computed(() => (detailId.value ? getTemplate(detailId.value) ?? null : null))
-
-const listItems = computed<DetailListItem[]>(() =>
-  rows.value.map((row) => ({
-    id: row.id,
-    title: row.title,
-    date: formatDate(row.updatedAt),
-    subtitle: t('workflows.detail.entriesCount', { count: row.entries }),
-    badge: t('workflows.version', { version: row.currentVersion }),
-    color: 'neutral',
-  })),
-)
-
-function openDetail(id: string) {
-  detailId.value = id
-  detailActiveTab.value = 'card'
-  detailOpen.value = true
-}
-
-function onDetailClose(open: boolean) {
-  detailOpen.value = open
-  if (!open) {
-    const edited = detailId.value
-    refresh()
-    highlightRow(edited)
-  }
-}
-
-function onDetailRename(template: JournalTemplate) {
-  const row = rows.value.find((item) => item.id === template.id)
-  if (row) {
-    openRename(row)
-  }
-}
-
-function onDetailDelete(template: JournalTemplate) {
-  const row = rows.value.find((item) => item.id === template.id)
-  if (row) {
-    openDelete(row)
-  }
-}
-
-// ─── Действия строки ──────────────────────────────────────────────────────
-function rowActions(row: WorkflowRow) {
+// ─── Действия по элементу списка ────────────────────────────────────────────
+function itemActions(row: WorkflowRow): DropdownMenuItem[] {
   return [
-    [
-      {
-        label: t('workflows.actions.view'),
-        icon: 'i-lucide-eye',
-        onSelect: () => openDetail(row.id),
-      },
-      {
-        label: t('workflows.actions.openBuilder'),
-        icon: 'i-lucide-workflow',
-        onSelect: () => openBuilder(row.id),
-      },
-      {
-        label: t('workflows.actions.rename'),
-        icon: 'i-lucide-pencil',
-        onSelect: () => openRename(row),
-      },
-    ],
-    [
-      {
-        label: t('workflows.actions.delete'),
-        icon: 'i-lucide-trash-2',
-        color: 'error' as const,
-        onSelect: () => openDelete(row),
-      },
-    ],
+    { label: t('workflows.actions.rename'), icon: 'i-lucide-pencil', onSelect: () => openRename(row) },
+    { type: 'separator' },
+    { label: t('workflows.actions.delete'), icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: () => openDelete(row) },
   ]
 }
 
-// ─── Правый клик — контекстное меню строки (как во всех остальных таблицах) ─
+// Правый клик по элементу списка — то же меню, что у кнопки «⋯».
 const contextRow = ref<WorkflowRow | null>(null)
 const contextMenuOpen = ref(false)
 const contextMenuPosition = ref({ x: 0, y: 0 })
+const contextMenuItems = computed(() => (contextRow.value ? itemActions(contextRow.value) : []))
 
-const contextMenuItems = computed(() => {
-  if (!contextRow.value) {
-    return []
-  }
-  return rowActions(contextRow.value).flatMap((group, index) =>
-    index === 0 ? group : [{ type: 'separator' as const }, ...group],
-  )
-})
-
-async function handleRowContextmenu(event: Event, row: { original: WorkflowRow }) {
+async function handleRowContextmenu(event: MouseEvent, row: WorkflowRow) {
   event.preventDefault()
-  const mouseEvent = event as MouseEvent
-  contextRow.value = row.original
+  contextRow.value = row
   contextMenuOpen.value = false
-  contextMenuPosition.value = { x: mouseEvent.clientX, y: mouseEvent.clientY }
+  contextMenuPosition.value = { x: event.clientX, y: event.clientY }
   await nextTick()
   contextMenuOpen.value = true
 }
+
+// ─── Выбор процесса (master-detail) ────────────────────────────────────────
+const selectedTemplateId = ref<string | null>(null)
+const detailTemplate = ref<JournalTemplate | null>(null)
+// Черновая схема канваса — синхронизируется с JournalBuilder (autosave) и
+// кормит и «Тестовый прогон», и внутреннее состояние конструктора.
+const builderSchema = ref<JournalSchema | null>(null)
+
+watch(selectedTemplateId, async (id) => {
+  detailTemplate.value = id ? (await getTemplate(id)) ?? null : null
+})
+
+watch(
+  detailTemplate,
+  (template) => {
+    builderSchema.value = template ? template.versions[template.currentVersion - 1]?.schema ?? null : null
+  },
+  { immediate: true },
+)
+
+function selectTemplate(id: string | null) {
+  selectedTemplateId.value = id
+  void router.replace(id ? `/workflows/${id}` : '/workflows')
+}
+
+async function onVersionSaved(version: number) {
+  await refresh()
+  if (selectedTemplateId.value) {
+    detailTemplate.value = (await getTemplate(selectedTemplateId.value)) ?? null
+  }
+  toast.add({ title: t('workflows.toasts.versionSaved', { version }), color: 'success', icon: 'i-lucide-check' })
+}
+
+// ─── Пробный запуск (Preview) — оверлей с живой черновой схемой ───────────
+const previewOpen = ref(false)
+// Изоляция: ключ = снимок схемы на момент открытия, чтобы движок Preview
+// стартовал с чистого состояния на актуальных, в т.ч. несохранённых, нодах.
+const previewKey = ref(0)
+function openPreview() {
+  previewKey.value += 1
+  previewOpen.value = true
+}
+
+// Строка списка выбранного процесса — для переиспользования openRename/openDelete
+// из шапки правой панели (см. rowActions в списке слева).
+const selectedRow = computed<WorkflowRow | null>(() => rows.value.find((r) => r.id === selectedTemplateId.value) ?? null)
 </script>
 
 <template>
-  <UDashboardPanel id="workflows" :ui="{ body: 'min-h-0 overflow-hidden' }">
+  <UDashboardPanel
+    id="workflows-list"
+    resizable
+    :default-size="26"
+    :min-size="20"
+    :max-size="38"
+    :ui="{ body: 'min-h-0 overflow-hidden p-0 sm:p-0' }"
+  >
     <template #header>
       <UDashboardNavbar :title="t('workflows.title')">
         <template #leading>
@@ -449,168 +287,168 @@ async function handleRowContextmenu(event: Event, row: { original: WorkflowRow }
           <UButton
             :label="t('workflows.newProcess')"
             icon="i-lucide-plus"
+            size="sm"
             @click="openCreate"
           />
+          <NotificationsBellButton />
+          <TourMenu scope="workflows" />
         </template>
       </UDashboardNavbar>
 
       <UDashboardToolbar>
         <template #left>
-          <div class="flex w-full flex-col gap-3 lg:flex-row lg:items-center">
-            <UInput
-              v-model="search"
-              icon="i-lucide-search"
-              :placeholder="t('workflows.searchPlaceholder')"
-              class="w-full lg:w-80"
-            />
-            <CrudFilterControls
-              :active-count="activeFilterCount"
-              @open="filterModalOpen = true"
-              @clear="resetFilters"
-            />
-          </div>
+          <UInput
+            v-model="search"
+            icon="i-lucide-search"
+            :placeholder="t('workflows.searchPlaceholder')"
+            class="w-full"
+          />
         </template>
         <template #right>
-          <div class="flex items-center gap-2">
-            <UTooltip :text="t('workflows.refresh')">
-              <UButton
-                :label="t('workflows.refresh')"
-                color="neutral"
-                variant="subtle"
-                icon="i-lucide-refresh-cw"
-                @click="refresh"
-              />
-            </UTooltip>
-            <UDropdownMenu :items="columnMenuItems" :content="{ align: 'end' }">
-              <UTooltip :text="t('workflows.columnsTooltip')">
-                <UButton
-                  color="neutral"
-                  variant="subtle"
-                  trailing-icon="i-lucide-settings-2"
-                />
-              </UTooltip>
-            </UDropdownMenu>
-          </div>
+          <UTooltip :text="t('workflows.refresh')">
+            <UButton
+              :label="t('workflows.refresh')"
+              icon="i-lucide-refresh-cw"
+              color="neutral"
+              variant="subtle"
+              size="sm"
+              @click="refresh"
+            />
+          </UTooltip>
+          <UTooltip text="Импортировать процессы из старого localStorage в базу">
+            <UButton
+              icon="i-lucide-database-backup"
+              color="neutral"
+              variant="subtle"
+              size="sm"
+              @click="importFromLocalStorage"
+            />
+          </UTooltip>
         </template>
       </UDashboardToolbar>
     </template>
 
     <template #body>
-      <div class="flex h-full min-h-0 w-full flex-col">
-        <CrudFilterModal
-          v-model:open="filterModalOpen"
-          :active-count="activeFilterCount"
-          @reset="resetFilters"
-        >
-          <div class="grid gap-3 sm:grid-cols-2">
-            <div class="space-y-2">
-              <p class="text-sm font-medium text-highlighted">
-                {{ t('workflows.columns.currentVersion') }}
-              </p>
-              <div class="flex items-center gap-2">
-                <UInput
-                  v-model.number="filters.currentVersion.min"
-                  type="number"
-                  :min="1"
-                  :placeholder="t('workflows.filters.versionFrom')"
+      <div class="flex h-full min-h-0 flex-col">
+        <div class="min-h-0 flex-1 overflow-y-auto">
+          <div
+            v-for="row in rows"
+            :key="row.id"
+            role="button"
+            tabindex="0"
+            class="group flex w-full items-center gap-2 border-b border-l-4 border-b-default/60 px-3 py-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-primary"
+            :class="row.id === selectedTemplateId
+              ? 'border-l-primary bg-primary/10'
+              : 'border-l-transparent hover:bg-elevated'"
+            @click="selectTemplate(row.id)"
+            @keydown.enter="selectTemplate(row.id)"
+            @contextmenu="handleRowContextmenu($event, row)"
+          >
+            <UIcon name="i-lucide-workflow" class="size-4 shrink-0 text-dimmed" />
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-medium text-highlighted">{{ row.title }}</span>
+              <span class="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
+                <UBadge
+                  color="neutral"
+                  variant="subtle"
+                  size="sm"
+                  :label="t('workflows.version', { version: row.currentVersion })"
                 />
-                <UInput
-                  v-model.number="filters.currentVersion.max"
-                  type="number"
-                  :min="1"
-                  :placeholder="t('workflows.filters.versionTo')"
-                />
-              </div>
-            </div>
-            <div class="space-y-2">
-              <p class="text-sm font-medium text-highlighted">
-                {{ t('workflows.columns.updatedAt') }}
-              </p>
-              <div class="flex items-center gap-2">
-                <UInput
-                  v-model="filters.updatedAt.from"
-                  type="date"
-                />
-                <UInput
-                  v-model="filters.updatedAt.to"
-                  type="date"
-                />
-              </div>
-            </div>
-          </div>
-        </CrudFilterModal>
-
-        <CrudDataTable
-          v-model:row-selection="rowSelection"
-          v-model:column-visibility="columnVisibility"
-          :data="rows"
-          :columns="columns"
-          :total="rows.length"
-          :highlight-id="highlightId"
-          selectable
-          can-delete
-          @row-contextmenu="handleRowContextmenu"
-          @delete-selected="openBulkDelete"
-        >
-          <template #before-table>
-            <RowContextMenu
-              v-model:open="contextMenuOpen"
-              :items="contextMenuItems"
-              :x="contextMenuPosition.x"
-              :y="contextMenuPosition.y"
-            />
-          </template>
-          <template #title-cell="{ row }">
-            <div class="flex items-center gap-2 font-medium text-highlighted">
-              <UIcon name="i-lucide-file-text" class="size-4 text-dimmed" />
-              {{ row.original.title }}
-            </div>
-          </template>
-          <template #currentVersion-cell="{ row }">
-            <UBadge
-              color="neutral"
-              variant="subtle"
-              size="sm"
-              :label="t('workflows.version', { version: row.original.currentVersion })"
-            />
-          </template>
-          <template #updatedAt-cell="{ row }">
-            {{ formatDate(row.original.updatedAt) }}
-          </template>
-          <template #actions-cell="{ row }">
-            <UDropdownMenu :items="rowActions(row.original)" :content="{ align: 'end' }">
+                <span>{{ t('workflows.detail.entriesCount', { count: row.entries }) }}</span>
+                <span class="ml-auto shrink-0">{{ formatDate(row.updatedAt) }}</span>
+              </span>
+            </span>
+            <UDropdownMenu :items="itemActions(row)" :content="{ align: 'end' }" @click.stop>
               <UButton
                 icon="i-lucide-ellipsis-vertical"
                 color="neutral"
                 variant="ghost"
-                size="sm"
+                size="xs"
+                class="opacity-0 group-hover:opacity-100"
+                @click.stop
               />
             </UDropdownMenu>
-          </template>
-          <template #empty>
-            <CrudTableEmptyState
-              :title="t('workflows.empty.title')"
-              :description="t('workflows.empty.description')"
-            />
-          </template>
-        </CrudDataTable>
+          </div>
+
+          <div v-if="!rows.length" class="p-6 text-center">
+            <p class="text-sm font-medium text-highlighted">
+              {{ t('workflows.empty.title') }}
+            </p>
+            <p class="mt-1 text-xs text-muted">
+              {{ t('workflows.empty.description') }}
+            </p>
+          </div>
+        </div>
       </div>
     </template>
   </UDashboardPanel>
 
-  <!-- Карточка процесса — как у направлений: список слева + поля + история версий -->
-  <WorkflowDetailModal
-    v-model:active-tab="detailActiveTab"
-    :open="detailOpen"
-    :template="detailTemplate"
-    :list-items="listItems"
-    :selected-id="detailId"
-    @update:open="onDetailClose"
-    @select="(id) => (detailId = String(id))"
-    @rename="onDetailRename"
-    @delete="onDetailDelete"
-    @version-saved="onVersionSaved"
+  <RowContextMenu
+    v-model:open="contextMenuOpen"
+    :items="contextMenuItems"
+    :x="contextMenuPosition.x"
+    :y="contextMenuPosition.y"
   />
+
+  <UDashboardPanel id="workflows-detail" class="hidden lg:flex" :ui="{ body: 'min-h-0 overflow-hidden p-0 sm:p-0' }">
+    <template v-if="detailTemplate" #header>
+      <UDashboardNavbar :title="detailTemplate.title">
+        <template #right>
+          <UButton
+            :label="t('workflows.canvas.previewButton')"
+            icon="i-lucide-flask-conical"
+            color="primary"
+            variant="soft"
+            size="sm"
+            @click="openPreview"
+          />
+          <UButton
+            :label="t('workflows.actions.rename')"
+            icon="i-lucide-pencil"
+            color="neutral"
+            variant="outline"
+            size="sm"
+            @click="selectedRow && openRename(selectedRow)"
+          />
+          <UButton
+            :label="t('workflows.actions.delete')"
+            icon="i-lucide-trash-2"
+            color="error"
+            variant="outline"
+            size="sm"
+            @click="selectedRow && openDelete(selectedRow)"
+          />
+        </template>
+      </UDashboardNavbar>
+    </template>
+
+    <template #body>
+      <div v-if="!detailTemplate" class="flex h-full items-center justify-center p-8">
+        <p class="text-sm text-muted">
+          {{ t('workflows.empty.description') }}
+        </p>
+      </div>
+
+      <JournalBuilder
+        v-else-if="builderSchema"
+        :key="detailTemplate.id"
+        v-model="builderSchema"
+        :template-id="detailTemplate.id"
+        @version-saved="onVersionSaved"
+      />
+    </template>
+  </UDashboardPanel>
+
+  <!-- Пробный запуск: живая черновая схема, ничего не пишет в БД -->
+  <UModal
+    v-model:open="previewOpen"
+    :title="t('workflows.canvas.previewTitle')"
+    :ui="{ content: 'max-w-[calc(100vw-4rem)] sm:max-w-6xl' }"
+  >
+    <template #body>
+      <WorkflowPreview v-if="builderSchema" :key="previewKey" :schema="builderSchema" />
+    </template>
+  </UModal>
 
   <!-- Создание / переименование процесса — единая форма, как в справочниках -->
   <CrudFormModal
@@ -632,16 +470,5 @@ async function handleRowContextmenu(event: Event, row: { original: WorkflowRow }
     confirm-color="error"
     confirm-icon="i-lucide-trash-2"
     @confirm="confirmDelete"
-  />
-
-  <!-- Массовое удаление выбранных процессов -->
-  <ConfirmDialog
-    v-model:open="bulkDeleteOpen"
-    :title="t('workflows.bulkDeleteDialog.title')"
-    :description="t('workflows.bulkDeleteDialog.description', { count: selectedRows.length })"
-    :confirm-label="t('workflows.bulkDeleteDialog.confirm')"
-    confirm-color="error"
-    confirm-icon="i-lucide-trash-2"
-    @confirm="confirmBulkDelete"
   />
 </template>
