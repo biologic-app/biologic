@@ -1,6 +1,25 @@
-import type { APIRequestContext } from '@playwright/test'
+import { type APIRequestContext, request as playwrightRequest } from '@playwright/test'
 
 export const API_BASE = process.env.E2E_API_BASE_URL || 'http://localhost:8080/api/v1'
+
+/**
+ * A standalone authenticated API context. Fixture setup for a lab-doctor test
+ * needs create rights on directions/samples/research_goals that the lab-doctor
+ * role does not have (only `indicators:create`), so the chain is provisioned by
+ * an admin context while the UI walkthrough stays on the doctor's `page`.
+ * Dispose it at the end of the test.
+ */
+export async function apiLoginAs(credentials: {
+  username: string
+  password: string
+}): Promise<APIRequestContext> {
+  const context = await playwrightRequest.newContext()
+  const response = await context.post(`${API_BASE}/auth/login`, { data: credentials })
+  if (!response.ok()) {
+    throw new Error(`API login failed for ${credentials.username}: ${response.status()}`)
+  }
+  return context
+}
 
 export async function currentUser(request: APIRequestContext) {
   const response = await request.get(`${API_BASE}/auth/me`)

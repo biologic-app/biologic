@@ -24,6 +24,7 @@ class ChangeLog(Base):
         Index("change_log_change_log_actor_id", "actor_id"),
         Index("change_log_change_log_branch_id", "branch_id"),
         Index("change_log_change_log_created_at", "created_at"),
+        Index("ix_change_log_workflow_run_id", "workflow_run_id"),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -42,6 +43,9 @@ class ChangeLog(Base):
     actor_name: Mapped[str | None] = mapped_column(Text)
     snapshot: Mapped[dict[str, object] | None] = mapped_column(JSONB)
     diff: Mapped[dict[str, object] | None] = mapped_column(JSONB)
+    # Correlates a domain mutation with the workflow run that triggered it
+    # (via execute-step); NULL for mutations made outside a workflow run.
+    workflow_run_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

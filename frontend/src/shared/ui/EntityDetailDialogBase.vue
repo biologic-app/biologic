@@ -21,7 +21,7 @@ import EntityRelatedTab from "@/shared/ui/EntityRelatedTab.vue";
 // Ленивая загрузка: вкладка с воркфлоу-журналом нужна только в Исследованиях V2,
 // не тянем модуль journals в чанк карточки для остальных сущностей.
 const ResearchWorkflowTab = defineAsyncComponent(
-  () => import("@/modules/journals/components/ResearchWorkflowTab.vue"),
+  () => import("@/modules/workflows/components/ResearchWorkflowTab.vue"),
 );
 import EntityDetailModalShell from "@/shared/ui/EntityDetailModalShell.vue";
 import type { DetailListItem } from "@/shared/ui/EntityDetailMasterList.vue";

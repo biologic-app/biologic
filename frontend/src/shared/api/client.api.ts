@@ -12,7 +12,11 @@ import { client as generatedApiClient } from '@/shared/api/generated/client.gen'
 import { formatReferenceOption } from '@/shared/api/reference-options'
 
 type ApiParams = Record<string, unknown>
-type ApiRequestOptions = Omit<RequestInit, 'body'> & { params?: ApiParams; body?: unknown }
+// `rawBody` opts a request out of camelCase→snake_case key conversion. Needed for
+// payloads that carry opaque JSONB (workflow schema graphs, run answers/loops):
+// their nested keys are authored camelCase and must round-trip verbatim, so the
+// recursive converter would corrupt them (`formatVersion`→`format_version`, etc.).
+type ApiRequestOptions = Omit<RequestInit, 'body'> & { params?: ApiParams; body?: unknown; rawBody?: boolean }
 type PlainObject = Record<string, unknown>
 
 const apiPrefixRaw = import.meta.env.VITE_API_PREFIX || '/api/v1'
@@ -246,10 +250,12 @@ export const apiRequest = async <T>(
   options: ApiRequestOptions = {},
   allowRefresh = true
 ): Promise<T> => {
-  const { body, headers, method = 'GET', params, ...requestInit } = options
+  const { body, headers, method = 'GET', params, rawBody, ...requestInit } = options
   const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData
   const requestBody =
-    !isFormData && useSnakeCaseRequests && body !== undefined ? convertKeysToSnakeCase(body) : body
+    !isFormData && useSnakeCaseRequests && !rawBody && body !== undefined
+      ? convertKeysToSnakeCase(body)
+      : body
 
   const result = await generatedApiClient.request<T, unknown, false, 'fields'>({
     ...requestInit,

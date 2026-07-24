@@ -57,10 +57,13 @@ async function ensureAppShellRendered(page: Page) {
 /** Logs in through the real /login form (manual credential entry) as the given user. */
 export async function loginAs(page: Page, credentials: { username: string; password: string }) {
   await page.goto('/login')
-  await page.getByLabel('Username').fill(credentials.username)
-  await page.getByLabel('Password').fill(credentials.password)
-  await page.getByRole('button', { name: 'Sign in' }).click()
-  await page.waitForURL('**/dashboard')
+  // Locale-agnostic selectors: the login form renders localized labels
+  // (RU «Логин»/«Пароль»/«Войти» by default), so match on the stable
+  // autocomplete/type attributes instead of label text.
+  await page.locator('input[autocomplete="username"]').fill(credentials.username)
+  await page.locator('input[autocomplete="current-password"]').fill(credentials.password)
+  await page.locator('button[type="submit"]').click()
+  await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 15000 })
   await ensureAppShellRendered(page)
   await dismissOnboarding(page)
 }

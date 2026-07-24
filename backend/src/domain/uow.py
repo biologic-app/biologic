@@ -26,6 +26,7 @@ from src.application.catalogs.ports import (
     CatalogCrudRepository,
     CatalogStatusRepository,
 )
+from src.application.workflows.ports import WorkflowsRepository
 from src.contexts.laboratory_workflow.application.ports import WorkflowRepository
 from src.contexts.notifications.application.service import NotificationRepository
 
@@ -38,6 +39,7 @@ class UnitOfWork(Protocol):
     """
 
     workflow: WorkflowRepository
+    workflows: WorkflowsRepository
     notifications: NotificationRepository
 
     # Catalogs (reference data) repositories.

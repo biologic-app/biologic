@@ -30,6 +30,12 @@ from src.infrastructure.db.models.ui_event import UiEvent
 from src.infrastructure.db.models.user import User
 from src.infrastructure.db.models.user_permission_override import UserPermissionOverride
 from src.infrastructure.db.models.user_scope import UserScope
+from src.infrastructure.db.models.workflow_attachment import WorkflowAttachment
+from src.infrastructure.db.models.workflow_run import WorkflowRun
+from src.infrastructure.db.models.workflow_run_event import WorkflowRunEvent
+from src.infrastructure.db.models.workflow_schema_version import WorkflowSchemaVersion
+from src.infrastructure.db.models.workflow_step_execution import WorkflowStepExecution
+from src.infrastructure.db.models.workflow_template import WorkflowTemplate
 
 __all__ = [
     "Base",
@@ -65,4 +71,10 @@ __all__ = [
     "User",
     "UserPermissionOverride",
     "UserScope",
+    "WorkflowAttachment",
+    "WorkflowRun",
+    "WorkflowRunEvent",
+    "WorkflowSchemaVersion",
+    "WorkflowStepExecution",
+    "WorkflowTemplate",
 ]

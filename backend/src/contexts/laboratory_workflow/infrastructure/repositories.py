@@ -53,6 +53,10 @@ class SqlAlchemyWorkflowRepository:
     def __init__(self, *, session: AsyncSession) -> None:
         self.session = session
         self.events: list[StatusChanged] = []
+        # When a command runs on behalf of a workflow run (execute-step), this is
+        # set so every audit row it writes is correlated to that run. None keeps
+        # the historical behaviour for commands invoked outside a workflow.
+        self._workflow_run_id: UUID | None = None
 
     async def resolve_notification_targets(
         self, entity_type: str, entity_id: UUID
@@ -609,24 +613,29 @@ class SqlAlchemyWorkflowRepository:
         norm: str | None,
         comment: str | None,
         verdict: bool | None,
+        workflow_run_id: UUID | None = None,
     ) -> CommandResult:
-        test = await self._get_test_for_update(test_id)
-        await self._ensure_sample_started_for_test(test, actor_id)
-        test.value = value
-        test.norm = norm
-        test.comment = comment
-        test.verdict = verdict
-        result = await self._transition_test(
-            test=test,
-            actor_id=actor_id,
-            to_code=TEST_COMPLETED,
-            action="test_completed",
-            reason=comment,
-            commit=False,
-        )
-        await self._complete_parents_when_terminal(test.research_id, actor_id)
-        await self.session.flush()
-        return result
+        self._workflow_run_id = workflow_run_id
+        try:
+            test = await self._get_test_for_update(test_id)
+            await self._ensure_sample_started_for_test(test, actor_id)
+            test.value = value
+            test.norm = norm
+            test.comment = comment
+            test.verdict = verdict
+            result = await self._transition_test(
+                test=test,
+                actor_id=actor_id,
+                to_code=TEST_COMPLETED,
+                action="test_completed",
+                reason=comment,
+                commit=False,
+            )
+            await self._complete_parents_when_terminal(test.research_id, actor_id)
+            await self.session.flush()
+            return result
+        finally:
+            self._workflow_run_id = None
 
     async def reject_research(
         self, research_id: UUID, actor_id: UUID, reason: str
@@ -641,21 +650,31 @@ class SqlAlchemyWorkflowRepository:
             reason=reason,
         )
 
-    async def reject_test(self, test_id: UUID, actor_id: UUID, reason: str) -> CommandResult:
-        test = await self._get_test_for_update(test_id)
-        await self._ensure_sample_started_for_test(test, actor_id)
-        test.comment = reason
-        result = await self._transition_test(
-            test=test,
-            actor_id=actor_id,
-            to_code=TEST_REJECTED,
-            action="test_rejected",
-            reason=reason,
-            commit=False,
-        )
-        await self._complete_parents_when_terminal(test.research_id, actor_id)
-        await self.session.flush()
-        return result
+    async def reject_test(
+        self,
+        test_id: UUID,
+        actor_id: UUID,
+        reason: str,
+        workflow_run_id: UUID | None = None,
+    ) -> CommandResult:
+        self._workflow_run_id = workflow_run_id
+        try:
+            test = await self._get_test_for_update(test_id)
+            await self._ensure_sample_started_for_test(test, actor_id)
+            test.comment = reason
+            result = await self._transition_test(
+                test=test,
+                actor_id=actor_id,
+                to_code=TEST_REJECTED,
+                action="test_rejected",
+                reason=reason,
+                commit=False,
+            )
+            await self._complete_parents_when_terminal(test.research_id, actor_id)
+            await self.session.flush()
+            return result
+        finally:
+            self._workflow_run_id = None
 
     async def _ensure_sample_started_for_test(self, test: Test, actor_id: UUID) -> None:
         """Move the test's sample (and its direction) into work if still registered.
@@ -1255,6 +1274,7 @@ class SqlAlchemyWorkflowRepository:
         actor_id: UUID,
         diff: dict[str, object],
         snapshot: dict[str, object] | None = None,
+        workflow_run_id: UUID | None = None,
     ) -> None:
         self.session.add(
             ChangeLog(
@@ -1264,5 +1284,6 @@ class SqlAlchemyWorkflowRepository:
                 actor_id=actor_id,
                 snapshot=snapshot or {},
                 diff=diff,
+                workflow_run_id=workflow_run_id or self._workflow_run_id,
             ),
         )

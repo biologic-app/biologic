@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     # single uvicorn process covers both `/api/v1` and the UI (offline Windows
     # deploy). Left unset in development, where Vite serves the frontend.
     static_dir: str | None = None
+    # Maximum size (MB) accepted for a workflow run attachment stored as bytea.
+    workflow_attachment_max_mb: int = 10
 
     @property
     def plugins_dir(self) -> Path:

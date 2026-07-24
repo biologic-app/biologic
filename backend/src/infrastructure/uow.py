@@ -23,6 +23,7 @@ from src.application.catalogs.ports import (
     CatalogCrudRepository,
     CatalogStatusRepository,
 )
+from src.application.workflows.ports import WorkflowsRepository
 from src.contexts.laboratory_workflow.application.ports import WorkflowRepository
 from src.contexts.laboratory_workflow.infrastructure.repositories import (
     SqlAlchemyWorkflowRepository,
@@ -57,12 +58,14 @@ from src.infrastructure.repositories.catalogs import (
     SampleTypeRepository,
     TestStatusRepository,
 )
+from src.infrastructure.repositories.workflows import SqlAlchemyWorkflowsRepository
 
 
 class SqlAlchemyUnitOfWork:
     """Concrete single Unit of Work bound to one async session."""
 
     workflow: WorkflowRepository
+    workflows: WorkflowsRepository
     notifications: NotificationRepository
     branches: CatalogCrudRepository
     labs: CatalogCrudRepository
@@ -93,6 +96,7 @@ class SqlAlchemyUnitOfWork:
         self.session = self._session_factory()
         await self.session.begin()
         self.workflow = SqlAlchemyWorkflowRepository(session=self.session)
+        self.workflows = SqlAlchemyWorkflowsRepository(session=self.session)
         self.notifications = SqlAlchemyNotificationRepository(session=self.session)
         self.branches = BranchRepository(session=self.session)
         self.labs = LabRepository(session=self.session)

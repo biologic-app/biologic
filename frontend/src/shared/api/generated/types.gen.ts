@@ -10,6 +10,24 @@ export type ClientOptions = {
 export type AccessScopeType = 'own' | 'own_lab' | 'all_labs' | 'own_branch' | 'all_branches' | 'all';
 
 /**
+ * AddCommentRequest
+ */
+export type AddCommentRequest = {
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Node Id
+     */
+    node_id?: string | null;
+    /**
+     * Author
+     */
+    author?: string | null;
+};
+
+/**
  * AlertCommandRequest
  */
 export type AlertCommandRequest = {
@@ -105,6 +123,20 @@ export type BodyImportDirectionsApiV1DirectionsImportPost = {
      * Type
      */
     type: string;
+};
+
+/**
+ * Body_upload_attachment_api_v1_workflow_runs__run_id__attachments_post
+ */
+export type BodyUploadAttachmentApiV1WorkflowRunsRunIdAttachmentsPost = {
+    /**
+     * File
+     */
+    file: Blob | File;
+    /**
+     * Field Id
+     */
+    field_id: string;
 };
 
 /**
@@ -420,6 +452,52 @@ export type DoctorUpdateRequest = {
 };
 
 /**
+ * ExecuteStepActionRequest
+ */
+export type ExecuteStepActionRequest = {
+    /**
+     * Action Id
+     */
+    action_id: string;
+    /**
+     * Command
+     */
+    command: string;
+    /**
+     * Resolved Args
+     */
+    resolved_args?: {
+        [key: string]: unknown;
+    };
+};
+
+/**
+ * ExecuteStepRequest
+ */
+export type ExecuteStepRequest = {
+    /**
+     * Node Id
+     */
+    node_id: string;
+    /**
+     * Attempt
+     */
+    attempt: number;
+    /**
+     * Actions
+     */
+    actions?: Array<ExecuteStepActionRequest>;
+    /**
+     * Actor Id
+     */
+    actor_id?: string | null;
+    /**
+     * Author
+     */
+    author?: string | null;
+};
+
+/**
  * HTTPValidationError
  */
 export type HttpValidationError = {
@@ -427,6 +505,132 @@ export type HttpValidationError = {
      * Detail
      */
     detail?: Array<ValidationError>;
+};
+
+/**
+ * ImportEventRequest
+ */
+export type ImportEventRequest = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Node Id
+     */
+    node_id?: string | null;
+    /**
+     * Payload
+     */
+    payload?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Author
+     */
+    author?: string | null;
+};
+
+/**
+ * ImportRequest
+ */
+export type ImportRequest = {
+    /**
+     * Templates
+     */
+    templates?: Array<ImportTemplateRequest>;
+};
+
+/**
+ * ImportRunRequest
+ */
+export type ImportRunRequest = {
+    /**
+     * Schema Version
+     */
+    schema_version: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Status
+     */
+    status?: string;
+    /**
+     * Scope Kind
+     */
+    scope_kind?: string | null;
+    /**
+     * Scope Id
+     */
+    scope_id?: string | null;
+    /**
+     * Answers
+     */
+    answers?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Loops
+     */
+    loops?: {
+        [key: string]: unknown;
+    };
+    /**
+     * History
+     */
+    history?: Array<unknown>;
+    /**
+     * Current Node Id
+     */
+    current_node_id?: string | null;
+    /**
+     * Created By
+     */
+    created_by?: string | null;
+    /**
+     * Events
+     */
+    events?: Array<ImportEventRequest>;
+};
+
+/**
+ * ImportTemplateRequest
+ */
+export type ImportTemplateRequest = {
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Current Version
+     */
+    current_version?: number;
+    /**
+     * Versions
+     */
+    versions?: Array<ImportVersionRequest>;
+    /**
+     * Runs
+     */
+    runs?: Array<ImportRunRequest>;
+};
+
+/**
+ * ImportVersionRequest
+ */
+export type ImportVersionRequest = {
+    /**
+     * Version
+     */
+    version: number;
+    /**
+     * Schema
+     */
+    schema: {
+        [key: string]: unknown;
+    };
 };
 
 /**
@@ -1317,6 +1521,88 @@ export type RoleUpdateRequest = {
 };
 
 /**
+ * RunCreateRequest
+ */
+export type RunCreateRequest = {
+    /**
+     * Template Id
+     */
+    template_id: string;
+    /**
+     * Schema Version
+     */
+    schema_version?: number | null;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Scope Kind
+     */
+    scope_kind?: string | null;
+    /**
+     * Scope Id
+     */
+    scope_id?: string | null;
+    /**
+     * Answers
+     */
+    answers?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Loops
+     */
+    loops?: {
+        [key: string]: unknown;
+    };
+    /**
+     * History
+     */
+    history?: Array<unknown>;
+    /**
+     * Current Node Id
+     */
+    current_node_id?: string | null;
+    /**
+     * Created By
+     */
+    created_by?: string | null;
+};
+
+/**
+ * RunUpdateRequest
+ *
+ * PATCH accepts only executor-editable fields — never status or events.
+ */
+export type RunUpdateRequest = {
+    /**
+     * Title
+     */
+    title?: string | null;
+    /**
+     * Answers
+     */
+    answers?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Loops
+     */
+    loops?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * History
+     */
+    history?: Array<unknown> | null;
+    /**
+     * Current Node Id
+     */
+    current_node_id?: string | null;
+};
+
+/**
  * SampleCreateRequest
  */
 export type SampleCreateRequest = {
@@ -1713,6 +1999,34 @@ export type TelemetryEventIn = {
      * Role
      */
     role?: string | null;
+};
+
+/**
+ * TemplateCreateRequest
+ */
+export type TemplateCreateRequest = {
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Current Version
+     */
+    current_version?: number;
+};
+
+/**
+ * TemplateUpdateRequest
+ */
+export type TemplateUpdateRequest = {
+    /**
+     * Title
+     */
+    title?: string | null;
+    /**
+     * Current Version
+     */
+    current_version?: number | null;
 };
 
 /**
@@ -7133,6 +7447,640 @@ export type UpdateTestStatusApiV1TestStatusesItemIdPatchResponses = {
 };
 
 export type UpdateTestStatusApiV1TestStatusesItemIdPatchResponse = UpdateTestStatusApiV1TestStatusesItemIdPatchResponses[keyof UpdateTestStatusApiV1TestStatusesItemIdPatchResponses];
+
+export type ListTemplatesApiV1WorkflowTemplatesGetData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Cursor
+         */
+        cursor?: string | null;
+        /**
+         * Sort By
+         */
+        sort_by?: string | null;
+        /**
+         * Sort Order
+         */
+        sort_order?: 'asc' | 'desc';
+        /**
+         * Filters
+         */
+        filters?: string | null;
+        /**
+         * Search
+         */
+        search?: string | null;
+        /**
+         * Include
+         */
+        include?: string | null;
+    };
+    url: '/api/v1/workflow-templates';
+};
+
+export type ListTemplatesApiV1WorkflowTemplatesGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListTemplatesApiV1WorkflowTemplatesGetError = ListTemplatesApiV1WorkflowTemplatesGetErrors[keyof ListTemplatesApiV1WorkflowTemplatesGetErrors];
+
+export type ListTemplatesApiV1WorkflowTemplatesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ListResponseDictStrObject;
+};
+
+export type ListTemplatesApiV1WorkflowTemplatesGetResponse = ListTemplatesApiV1WorkflowTemplatesGetResponses[keyof ListTemplatesApiV1WorkflowTemplatesGetResponses];
+
+export type CreateTemplateApiV1WorkflowTemplatesPostData = {
+    body: TemplateCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/workflow-templates';
+};
+
+export type CreateTemplateApiV1WorkflowTemplatesPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateTemplateApiV1WorkflowTemplatesPostError = CreateTemplateApiV1WorkflowTemplatesPostErrors[keyof CreateTemplateApiV1WorkflowTemplatesPostErrors];
+
+export type CreateTemplateApiV1WorkflowTemplatesPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: SingleResponseDictStrObject;
+};
+
+export type CreateTemplateApiV1WorkflowTemplatesPostResponse = CreateTemplateApiV1WorkflowTemplatesPostResponses[keyof CreateTemplateApiV1WorkflowTemplatesPostResponses];
+
+export type ImportTemplatesApiV1WorkflowTemplatesImportPostData = {
+    body: ImportRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/workflow-templates/import';
+};
+
+export type ImportTemplatesApiV1WorkflowTemplatesImportPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ImportTemplatesApiV1WorkflowTemplatesImportPostError = ImportTemplatesApiV1WorkflowTemplatesImportPostErrors[keyof ImportTemplatesApiV1WorkflowTemplatesImportPostErrors];
+
+export type ImportTemplatesApiV1WorkflowTemplatesImportPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SingleResponseDictStrObject;
+};
+
+export type ImportTemplatesApiV1WorkflowTemplatesImportPostResponse = ImportTemplatesApiV1WorkflowTemplatesImportPostResponses[keyof ImportTemplatesApiV1WorkflowTemplatesImportPostResponses];
+
+export type DeleteTemplateApiV1WorkflowTemplatesTemplateIdDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Template Id
+         */
+        template_id: string;
+    };
+    query?: never;
+    url: '/api/v1/workflow-templates/{template_id}';
+};
+
+export type DeleteTemplateApiV1WorkflowTemplatesTemplateIdDeleteErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteTemplateApiV1WorkflowTemplatesTemplateIdDeleteError = DeleteTemplateApiV1WorkflowTemplatesTemplateIdDeleteErrors[keyof DeleteTemplateApiV1WorkflowTemplatesTemplateIdDeleteErrors];
+
+export type DeleteTemplateApiV1WorkflowTemplatesTemplateIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteTemplateApiV1WorkflowTemplatesTemplateIdDeleteResponse = DeleteTemplateApiV1WorkflowTemplatesTemplateIdDeleteResponses[keyof DeleteTemplateApiV1WorkflowTemplatesTemplateIdDeleteResponses];
+
+export type ReadTemplateApiV1WorkflowTemplatesTemplateIdGetData = {
+    body?: never;
+    path: {
+        /**
+         * Template Id
+         */
+        template_id: string;
+    };
+    query?: {
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Cursor
+         */
+        cursor?: string | null;
+        /**
+         * Sort By
+         */
+        sort_by?: string | null;
+        /**
+         * Sort Order
+         */
+        sort_order?: 'asc' | 'desc';
+        /**
+         * Filters
+         */
+        filters?: string | null;
+        /**
+         * Search
+         */
+        search?: string | null;
+        /**
+         * Include
+         */
+        include?: string | null;
+    };
+    url: '/api/v1/workflow-templates/{template_id}';
+};
+
+export type ReadTemplateApiV1WorkflowTemplatesTemplateIdGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadTemplateApiV1WorkflowTemplatesTemplateIdGetError = ReadTemplateApiV1WorkflowTemplatesTemplateIdGetErrors[keyof ReadTemplateApiV1WorkflowTemplatesTemplateIdGetErrors];
+
+export type ReadTemplateApiV1WorkflowTemplatesTemplateIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: SingleResponseDictStrObject;
+};
+
+export type ReadTemplateApiV1WorkflowTemplatesTemplateIdGetResponse = ReadTemplateApiV1WorkflowTemplatesTemplateIdGetResponses[keyof ReadTemplateApiV1WorkflowTemplatesTemplateIdGetResponses];
+
+export type UpdateTemplateApiV1WorkflowTemplatesTemplateIdPatchData = {
+    body: TemplateUpdateRequest;
+    path: {
+        /**
+         * Template Id
+         */
+        template_id: string;
+    };
+    query?: never;
+    url: '/api/v1/workflow-templates/{template_id}';
+};
+
+export type UpdateTemplateApiV1WorkflowTemplatesTemplateIdPatchErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateTemplateApiV1WorkflowTemplatesTemplateIdPatchError = UpdateTemplateApiV1WorkflowTemplatesTemplateIdPatchErrors[keyof UpdateTemplateApiV1WorkflowTemplatesTemplateIdPatchErrors];
+
+export type UpdateTemplateApiV1WorkflowTemplatesTemplateIdPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: SingleResponseDictStrObject;
+};
+
+export type UpdateTemplateApiV1WorkflowTemplatesTemplateIdPatchResponse = UpdateTemplateApiV1WorkflowTemplatesTemplateIdPatchResponses[keyof UpdateTemplateApiV1WorkflowTemplatesTemplateIdPatchResponses];
+
+export type CreateTemplateVersionApiV1WorkflowTemplatesTemplateIdVersionsPostData = {
+    /**
+     * Schema
+     */
+    body: {
+        [key: string]: unknown;
+    };
+    path: {
+        /**
+         * Template Id
+         */
+        template_id: string;
+    };
+    query?: never;
+    url: '/api/v1/workflow-templates/{template_id}/versions';
+};
+
+export type CreateTemplateVersionApiV1WorkflowTemplatesTemplateIdVersionsPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateTemplateVersionApiV1WorkflowTemplatesTemplateIdVersionsPostError = CreateTemplateVersionApiV1WorkflowTemplatesTemplateIdVersionsPostErrors[keyof CreateTemplateVersionApiV1WorkflowTemplatesTemplateIdVersionsPostErrors];
+
+export type CreateTemplateVersionApiV1WorkflowTemplatesTemplateIdVersionsPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: SingleResponseDictStrObject;
+};
+
+export type CreateTemplateVersionApiV1WorkflowTemplatesTemplateIdVersionsPostResponse = CreateTemplateVersionApiV1WorkflowTemplatesTemplateIdVersionsPostResponses[keyof CreateTemplateVersionApiV1WorkflowTemplatesTemplateIdVersionsPostResponses];
+
+export type ListRunsApiV1WorkflowRunsGetData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Cursor
+         */
+        cursor?: string | null;
+        /**
+         * Sort By
+         */
+        sort_by?: string | null;
+        /**
+         * Sort Order
+         */
+        sort_order?: 'asc' | 'desc';
+        /**
+         * Filters
+         */
+        filters?: string | null;
+        /**
+         * Search
+         */
+        search?: string | null;
+        /**
+         * Include
+         */
+        include?: string | null;
+    };
+    url: '/api/v1/workflow-runs';
+};
+
+export type ListRunsApiV1WorkflowRunsGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListRunsApiV1WorkflowRunsGetError = ListRunsApiV1WorkflowRunsGetErrors[keyof ListRunsApiV1WorkflowRunsGetErrors];
+
+export type ListRunsApiV1WorkflowRunsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ListResponseDictStrObject;
+};
+
+export type ListRunsApiV1WorkflowRunsGetResponse = ListRunsApiV1WorkflowRunsGetResponses[keyof ListRunsApiV1WorkflowRunsGetResponses];
+
+export type CreateRunApiV1WorkflowRunsPostData = {
+    body: RunCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/workflow-runs';
+};
+
+export type CreateRunApiV1WorkflowRunsPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateRunApiV1WorkflowRunsPostError = CreateRunApiV1WorkflowRunsPostErrors[keyof CreateRunApiV1WorkflowRunsPostErrors];
+
+export type CreateRunApiV1WorkflowRunsPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: SingleResponseDictStrObject;
+};
+
+export type CreateRunApiV1WorkflowRunsPostResponse = CreateRunApiV1WorkflowRunsPostResponses[keyof CreateRunApiV1WorkflowRunsPostResponses];
+
+export type DeleteRunApiV1WorkflowRunsRunIdDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: string;
+    };
+    query?: never;
+    url: '/api/v1/workflow-runs/{run_id}';
+};
+
+export type DeleteRunApiV1WorkflowRunsRunIdDeleteErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteRunApiV1WorkflowRunsRunIdDeleteError = DeleteRunApiV1WorkflowRunsRunIdDeleteErrors[keyof DeleteRunApiV1WorkflowRunsRunIdDeleteErrors];
+
+export type DeleteRunApiV1WorkflowRunsRunIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteRunApiV1WorkflowRunsRunIdDeleteResponse = DeleteRunApiV1WorkflowRunsRunIdDeleteResponses[keyof DeleteRunApiV1WorkflowRunsRunIdDeleteResponses];
+
+export type ReadRunApiV1WorkflowRunsRunIdGetData = {
+    body?: never;
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: string;
+    };
+    query?: {
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Cursor
+         */
+        cursor?: string | null;
+        /**
+         * Sort By
+         */
+        sort_by?: string | null;
+        /**
+         * Sort Order
+         */
+        sort_order?: 'asc' | 'desc';
+        /**
+         * Filters
+         */
+        filters?: string | null;
+        /**
+         * Search
+         */
+        search?: string | null;
+        /**
+         * Include
+         */
+        include?: string | null;
+    };
+    url: '/api/v1/workflow-runs/{run_id}';
+};
+
+export type ReadRunApiV1WorkflowRunsRunIdGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadRunApiV1WorkflowRunsRunIdGetError = ReadRunApiV1WorkflowRunsRunIdGetErrors[keyof ReadRunApiV1WorkflowRunsRunIdGetErrors];
+
+export type ReadRunApiV1WorkflowRunsRunIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: SingleResponseDictStrObject;
+};
+
+export type ReadRunApiV1WorkflowRunsRunIdGetResponse = ReadRunApiV1WorkflowRunsRunIdGetResponses[keyof ReadRunApiV1WorkflowRunsRunIdGetResponses];
+
+export type UpdateRunApiV1WorkflowRunsRunIdPatchData = {
+    body: RunUpdateRequest;
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: string;
+    };
+    query?: never;
+    url: '/api/v1/workflow-runs/{run_id}';
+};
+
+export type UpdateRunApiV1WorkflowRunsRunIdPatchErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateRunApiV1WorkflowRunsRunIdPatchError = UpdateRunApiV1WorkflowRunsRunIdPatchErrors[keyof UpdateRunApiV1WorkflowRunsRunIdPatchErrors];
+
+export type UpdateRunApiV1WorkflowRunsRunIdPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: SingleResponseDictStrObject;
+};
+
+export type UpdateRunApiV1WorkflowRunsRunIdPatchResponse = UpdateRunApiV1WorkflowRunsRunIdPatchResponses[keyof UpdateRunApiV1WorkflowRunsRunIdPatchResponses];
+
+export type CompleteRunApiV1WorkflowRunsRunIdCompletePostData = {
+    body?: never;
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: string;
+    };
+    query?: never;
+    url: '/api/v1/workflow-runs/{run_id}/complete';
+};
+
+export type CompleteRunApiV1WorkflowRunsRunIdCompletePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CompleteRunApiV1WorkflowRunsRunIdCompletePostError = CompleteRunApiV1WorkflowRunsRunIdCompletePostErrors[keyof CompleteRunApiV1WorkflowRunsRunIdCompletePostErrors];
+
+export type CompleteRunApiV1WorkflowRunsRunIdCompletePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SingleResponseDictStrObject;
+};
+
+export type CompleteRunApiV1WorkflowRunsRunIdCompletePostResponse = CompleteRunApiV1WorkflowRunsRunIdCompletePostResponses[keyof CompleteRunApiV1WorkflowRunsRunIdCompletePostResponses];
+
+export type ArchiveRunApiV1WorkflowRunsRunIdArchivePostData = {
+    body?: never;
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: string;
+    };
+    query?: never;
+    url: '/api/v1/workflow-runs/{run_id}/archive';
+};
+
+export type ArchiveRunApiV1WorkflowRunsRunIdArchivePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ArchiveRunApiV1WorkflowRunsRunIdArchivePostError = ArchiveRunApiV1WorkflowRunsRunIdArchivePostErrors[keyof ArchiveRunApiV1WorkflowRunsRunIdArchivePostErrors];
+
+export type ArchiveRunApiV1WorkflowRunsRunIdArchivePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SingleResponseDictStrObject;
+};
+
+export type ArchiveRunApiV1WorkflowRunsRunIdArchivePostResponse = ArchiveRunApiV1WorkflowRunsRunIdArchivePostResponses[keyof ArchiveRunApiV1WorkflowRunsRunIdArchivePostResponses];
+
+export type AddRunCommentApiV1WorkflowRunsRunIdCommentsPostData = {
+    body: AddCommentRequest;
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: string;
+    };
+    query?: never;
+    url: '/api/v1/workflow-runs/{run_id}/comments';
+};
+
+export type AddRunCommentApiV1WorkflowRunsRunIdCommentsPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AddRunCommentApiV1WorkflowRunsRunIdCommentsPostError = AddRunCommentApiV1WorkflowRunsRunIdCommentsPostErrors[keyof AddRunCommentApiV1WorkflowRunsRunIdCommentsPostErrors];
+
+export type AddRunCommentApiV1WorkflowRunsRunIdCommentsPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: SingleResponseDictStrObject;
+};
+
+export type AddRunCommentApiV1WorkflowRunsRunIdCommentsPostResponse = AddRunCommentApiV1WorkflowRunsRunIdCommentsPostResponses[keyof AddRunCommentApiV1WorkflowRunsRunIdCommentsPostResponses];
+
+export type ExecuteStepApiV1WorkflowRunsRunIdExecuteStepPostData = {
+    body: ExecuteStepRequest;
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: string;
+    };
+    query?: never;
+    url: '/api/v1/workflow-runs/{run_id}/execute-step';
+};
+
+export type ExecuteStepApiV1WorkflowRunsRunIdExecuteStepPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ExecuteStepApiV1WorkflowRunsRunIdExecuteStepPostError = ExecuteStepApiV1WorkflowRunsRunIdExecuteStepPostErrors[keyof ExecuteStepApiV1WorkflowRunsRunIdExecuteStepPostErrors];
+
+export type ExecuteStepApiV1WorkflowRunsRunIdExecuteStepPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SingleResponseDictStrObject;
+};
+
+export type ExecuteStepApiV1WorkflowRunsRunIdExecuteStepPostResponse = ExecuteStepApiV1WorkflowRunsRunIdExecuteStepPostResponses[keyof ExecuteStepApiV1WorkflowRunsRunIdExecuteStepPostResponses];
+
+export type UploadAttachmentApiV1WorkflowRunsRunIdAttachmentsPostData = {
+    body: BodyUploadAttachmentApiV1WorkflowRunsRunIdAttachmentsPost;
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: string;
+    };
+    query?: never;
+    url: '/api/v1/workflow-runs/{run_id}/attachments';
+};
+
+export type UploadAttachmentApiV1WorkflowRunsRunIdAttachmentsPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UploadAttachmentApiV1WorkflowRunsRunIdAttachmentsPostError = UploadAttachmentApiV1WorkflowRunsRunIdAttachmentsPostErrors[keyof UploadAttachmentApiV1WorkflowRunsRunIdAttachmentsPostErrors];
+
+export type UploadAttachmentApiV1WorkflowRunsRunIdAttachmentsPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: SingleResponseDictStrObject;
+};
+
+export type UploadAttachmentApiV1WorkflowRunsRunIdAttachmentsPostResponse = UploadAttachmentApiV1WorkflowRunsRunIdAttachmentsPostResponses[keyof UploadAttachmentApiV1WorkflowRunsRunIdAttachmentsPostResponses];
+
+export type DownloadAttachmentApiV1WorkflowAttachmentsAttachmentIdGetData = {
+    body?: never;
+    path: {
+        /**
+         * Attachment Id
+         */
+        attachment_id: string;
+    };
+    query?: never;
+    url: '/api/v1/workflow-attachments/{attachment_id}';
+};
+
+export type DownloadAttachmentApiV1WorkflowAttachmentsAttachmentIdGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DownloadAttachmentApiV1WorkflowAttachmentsAttachmentIdGetError = DownloadAttachmentApiV1WorkflowAttachmentsAttachmentIdGetErrors[keyof DownloadAttachmentApiV1WorkflowAttachmentsAttachmentIdGetErrors];
+
+export type DownloadAttachmentApiV1WorkflowAttachmentsAttachmentIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
 
 export type RecordTelemetryEventsApiV1TelemetryEventsPostData = {
     body: TelemetryBatchIn;

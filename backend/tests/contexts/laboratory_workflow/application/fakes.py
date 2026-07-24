@@ -12,6 +12,7 @@ from src.application.access_control.ports import (
     UserPermissionOverrideRepositoryPort,
 )
 from src.application.catalogs.ports import CatalogCrudRepository, CatalogStatusRepository
+from src.application.workflows.ports import WorkflowsRepository
 from src.contexts.laboratory_workflow.application.dto import CommandResult
 from src.contexts.laboratory_workflow.application.ports import WorkflowRepository
 from src.contexts.notifications.application.service import NotificationRepository
@@ -61,6 +62,7 @@ class WorkflowRepositoryFake(WorkflowRepository):
         norm: str | None,
         comment: str | None,
         verdict: bool | None,
+        workflow_run_id: UUID | None = None,
     ) -> CommandResult:
         raise AssertionError("complete_test should not be called")
 
@@ -77,6 +79,7 @@ class WorkflowRepositoryFake(WorkflowRepository):
         test_id: UUID,
         actor_id: UUID,
         reason: str,
+        workflow_run_id: UUID | None = None,
     ) -> CommandResult:
         raise AssertionError("reject_test should not be called")
 
@@ -134,6 +137,7 @@ class FakeUnitOfWork:
         self.workflow = workflow
         # Never exercised by these fakes (no domain events are emitted), but the
         # attribute must satisfy the UnitOfWork protocol for the type checker.
+        self.workflows = cast(WorkflowsRepository, None)
         self.notifications = cast(NotificationRepository, None)
         self.branches = cast(CatalogCrudRepository, None)
         self.labs = cast(CatalogCrudRepository, None)

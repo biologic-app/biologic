@@ -44,6 +44,7 @@ class WorkflowRepository(Protocol):
         norm: str | None,
         comment: str | None,
         verdict: bool | None,
+        workflow_run_id: UUID | None = None,
     ) -> CommandResult: ...
 
     async def reject_research(
@@ -58,6 +59,7 @@ class WorkflowRepository(Protocol):
         test_id: UUID,
         actor_id: UUID,
         reason: str,
+        workflow_run_id: UUID | None = None,
     ) -> CommandResult: ...
 
     async def close_sample(

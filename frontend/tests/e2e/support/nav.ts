@@ -40,6 +40,10 @@ export async function goToTests(page: Page) {
   await clickNavLink(page, 'Tests')
 }
 
+export async function goToWorkflows(page: Page) {
+  await clickNavLink(page, 'Workflows')
+}
+
 /**
  * Closes the reworked entity-detail modal (EntityDetailModalShell). The shell
  * is `dismissible: false` (Escape / click-outside do nothing) and its close
