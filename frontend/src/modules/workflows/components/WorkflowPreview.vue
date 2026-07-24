@@ -117,12 +117,22 @@ function traceClass(id: string, visited: Set<string>, current: string): string {
     .join(' ')
 }
 
+// Ребро «пройдено», если и источник, и цель уже посещены (или цель — текущий
+// шаг) — у непройденной ветки условия (например «Нет», когда пошли по «Да»)
+// цель в visited не попадёт, и ребро останется в состоянии «впереди».
+function traceEdgeClass(source: string, target: string, visited: Set<string>, current: string): string {
+  const sourceOk = visited.has(source) || source === startId.value
+  const targetOk = visited.has(target) || target === current
+  if (!sourceOk || !targetOk) return ''
+  return target === current ? 'wf-trace-edge--current' : 'wf-trace-edge--visited'
+}
+
 // v-model:nodes для VueFlow. Переприсваиваем массив при навигации, чтобы граф
 // пересинхронизировал классы подсветки. Read-only: перетаскивание/выделение off.
 // Типы — обёртки над JournalNode/JournalEdge (без domAttributes VueFlow), как в
 // билдере: так VueFlow-проп принимает их без конфликта глубоких типов.
 type TraceNode = JournalNode & { class?: string, draggable?: boolean, selectable?: boolean }
-type TraceEdge = JournalEdge & { selectable?: boolean }
+type TraceEdge = JournalEdge & { selectable?: boolean, class?: string, animated?: boolean }
 
 const graphNodes = ref<TraceNode[]>([])
 const graphEdges = ref<TraceEdge[]>([])
@@ -136,7 +146,12 @@ function rebuildGraph() {
     selectable: false,
     class: traceClass(n.id, visited, current),
   }))
-  graphEdges.value = base.value.edges.map((e) => ({ ...e, selectable: false }))
+  graphEdges.value = base.value.edges.map((e) => {
+    const cls = traceEdgeClass(e.source, e.target, visited, current)
+    // e.class уже может нести цвет ветки условия (wf-edge--true/false из
+    // JournalBuilder) — сохраняем его вместе с классом трассировки маршрута.
+    return { ...e, selectable: false, class: [e.class, cls].filter(Boolean).join(' '), animated: cls === 'wf-trace-edge--current' }
+  })
 }
 
 watch(
@@ -418,5 +433,20 @@ watch(
 }
 :deep(.vue-flow__node:not(.wf-trace--visited):not(.wf-trace--current) .wf-node) {
   opacity: 0.5;
+}
+
+/* Подсветка маршрута на рёбрах: пройденные — сплошные и чёткие, ребро к
+   текущему шагу — акцентное и «бегущее» (animated из graphEdges[].animated),
+   непройденные — приглушены (item 3/4 фидбека по дизайну канваса). */
+:deep(.vue-flow__edge.wf-trace-edge--visited .vue-flow__edge-path) {
+  stroke: var(--ui-primary);
+  opacity: 0.7;
+}
+:deep(.vue-flow__edge.wf-trace-edge--current .vue-flow__edge-path) {
+  stroke: var(--ui-primary);
+  stroke-width: 2.5;
+}
+:deep(.vue-flow__edge:not(.wf-trace-edge--visited):not(.wf-trace-edge--current) .vue-flow__edge-path) {
+  opacity: 0.35;
 }
 </style>

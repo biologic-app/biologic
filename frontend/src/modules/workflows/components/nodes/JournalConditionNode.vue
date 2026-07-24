@@ -1,13 +1,19 @@
 <script setup lang="ts">
 // components/nodes/JournalConditionNode.vue
-import { computed } from 'vue';
-import { Handle, Position } from '@vue-flow/core';
+import { useWorkflowNodeDimmed } from '@/modules/workflows/composables/useWorkflowHighlight';
+import { useWorkflowNodeMenu } from '@/modules/workflows/composables/useWorkflowNodeMenu';
 import type { JournalConditionData } from '@/modules/workflows/types/journal';
+import { Handle, Position } from '@vue-flow/core';
+import { computed } from 'vue';
 
 const props = defineProps<{
+  id: string
   data: JournalConditionData
   selected?: boolean
 }>()
+
+const dimmed = useWorkflowNodeDimmed(computed(() => props.id))
+const openNodeMenu = useWorkflowNodeMenu()
 
 /**
  * Преобразуем json-logic rule в читаемую строку на русском
@@ -73,17 +79,27 @@ const usedVars = computed(() => {
 </script>
 
 <template>
-  <div class="wf-node wf-node--condition" :class="{ 'wf-node--selected': selected }">
+  <div
+    class="wf-node wf-node--condition"
+    :class="{ 'wf-node--selected': selected, 'wf-node--dimmed': dimmed }"
+  >
     <Handle type="target" :position="Position.Top" />
 
     <div class="wf-node__header">
-      <span class="wf-node__icon">
-        <UIcon name="i-lucide-git-branch" class="size-4" />
-      </span>
-      <div class="wf-node__heading">
-        <span class="wf-node__kicker">Условие</span>
-        <span class="wf-node__title">{{ data.label }}</span>
+      <div class="wf-node__header-row">
+        <span class="wf-node__icon">
+          <UIcon name="i-lucide-split" class="size-4" />
+        </span>
+        <div class="wf-node__heading">
+          <span class="wf-node__title">{{ data.label }}</span>
+        </div>
+        <button type="button" class="wf-node__menu" @click.stop="openNodeMenu(id, $event)">
+          <UIcon name="i-lucide-grip-vertical" class="size-3.5" />
+        </button>
       </div>
+      <p v-if="data.description" class="wf-node__desc">
+        {{ data.description }}
+      </p>
     </div>
 
     <div class="wf-node__body">
@@ -96,29 +112,23 @@ const usedVars = computed(() => {
       <div v-if="usedVars.length" class="wf-cond__vars">
         <span v-for="v in usedVars" :key="v" class="wf-cond__var">{{ v }}</span>
       </div>
-
-      <!-- Ветки (выровнены по хэндлам на нижней грани: true слева, false справа) -->
-      <div class="wf-cond__branches">
-        <span class="wf-cond__branch wf-cond__branch--true">
-          <UIcon name="i-lucide-check" class="size-3" /> Да
-        </span>
-        <span class="wf-cond__branch wf-cond__branch--false">
-          <UIcon name="i-lucide-x" class="size-3" /> Нет
-        </span>
-      </div>
     </div>
+
+    <!-- Ветки — подписи «Да»/«Нет» теперь на самих рёбрах (edge.label), а не
+         кнопками внутри карточки; здесь остаются только цветовые маркеры
+         хэндлов ниже, выровненные под ними (true слева, false справа). -->
 
     <!-- id хэндла должен совпадать с edge.sourceHandle в схеме ('true' / 'false') -->
     <Handle
       id="true"
       type="source"
-      :position="Position.Bottom"
+      :position="Position.Right"
       class="wf-handle--true"
     />
     <Handle
       id="false"
       type="source"
-      :position="Position.Bottom"
+      :position="Position.Left"
       class="wf-handle--false"
     />
   </div>
@@ -126,14 +136,13 @@ const usedVars = computed(() => {
 
 <style scoped>
 .wf-cond__rule {
-  padding: 8px 10px;
-  font-size: 12.5px;
+  padding: 6px 9px;
+  font-size: 12px;
   font-weight: 500;
   line-height: 1.45;
   color: var(--ui-text-highlighted);
   background: var(--ui-bg-muted);
   border-radius: var(--ui-radius);
-  border-left: 3px solid var(--ui-warning);
   word-break: break-word;
 }
 .wf-cond__vars {
@@ -146,47 +155,19 @@ const usedVars = computed(() => {
   font-weight: 500;
   padding: 2px 7px;
   border-radius: var(--ui-radius);
-  color: var(--ui-primary);
-  background: color-mix(in oklab, var(--ui-primary) 12%, transparent);
+  color: var(--ui-text-muted);
+  background: var(--ui-bg-muted);
+  border: 1px solid var(--ui-border);
 }
-.wf-cond__branches {
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  gap: 6px;
-  margin-top: 2px;
-}
-.wf-cond__branch {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 10px;
-  font-weight: 600;
-  padding: 2px 9px;
-  border-radius: 999px;
-}
-.wf-cond__branch--true {
-  color: var(--ui-success);
-  background: color-mix(in oklab, var(--ui-success) 14%, transparent);
-}
-.wf-cond__branch--false {
-  color: var(--ui-error);
-  background: color-mix(in oklab, var(--ui-error) 14%, transparent);
-}
-
-/* Хэндлы веток на нижней грани, side-by-side: true слева, false справа */
+/* Хэндлы веток на нижней грани, side-by-side: «Да» справа, «Нет» слева.
+   bottom: 0 (не -6px) — так же, как у стандартного .vue-flow__handle-bottom,
+   кружок ровно straddle-ит границу карточки, а не висит ниже неё. */
 :deep(.wf-handle--true) {
-  left: 32% !important;
-  bottom: -6px !important;
-  top: auto !important;
-  background: var(--ui-success) !important;
+  background: var(--ui-bg) !important;
   border-color: var(--ui-success) !important;
 }
 :deep(.wf-handle--false) {
-  left: 68% !important;
-  bottom: -6px !important;
-  top: auto !important;
-  background: var(--ui-error) !important;
+  background: var(--ui-bg) !important;
   border-color: var(--ui-error) !important;
 }
 </style>

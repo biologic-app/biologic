@@ -2,12 +2,6 @@
 // components/JournalBuilder.vue
 // Конструктор с графическим редактором правил
 
-import { computed, markRaw, nextTick, onMounted, ref, watch } from 'vue'
-import { Background } from '@vue-flow/background'
-import { Controls } from '@vue-flow/controls'
-import { VueFlow, useNodesInitialized, useVueFlow, type Connection, type NodeMouseEvent, type NodeTypesObject } from '@vue-flow/core'
-import type { DropdownMenuItem } from '@nuxt/ui'
-import RowContextMenu from '@/shared/ui/RowContextMenu.vue'
 import {
   exportTemplate,
   getSchemaVersions,
@@ -16,15 +10,52 @@ import {
   saveSchemaVersion,
   updateCurrentSchema,
 } from '@/modules/workflows/api/workflows.api'
-import type { DomainAction, JournalConditionData, JournalEdge, JournalLoopData, JournalNode, JournalSchema, JournalStepData, Screen } from '@/modules/workflows/types/journal'
-import { ensureV2, screenFields, toScreen } from '@/modules/workflows/engine/convert'
+import { provideWorkflowHighlight } from '@/modules/workflows/composables/useWorkflowHighlight'
 import { useWorkflowLayout } from '@/modules/workflows/composables/useWorkflowLayout'
+import { provideWorkflowNodeMenu } from '@/modules/workflows/composables/useWorkflowNodeMenu'
+import { ensureV2, screenFields, toScreen } from '@/modules/workflows/engine/convert'
+import type { DomainAction, JournalConditionData, JournalEdge, JournalLoopData, JournalNode, JournalSchema, JournalStepData, Screen } from '@/modules/workflows/types/journal'
+import RowContextMenu from '@/shared/ui/RowContextMenu.vue'
+import type { DropdownMenuItem } from '@nuxt/ui'
+import { Background } from '@vue-flow/background'
+import { Controls } from '@vue-flow/controls'
+import { VueFlow, useNodesInitialized, useVueFlow, type Connection, type NodeMouseEvent, type NodeTypesObject } from '@vue-flow/core'
+import { MiniMap } from '@vue-flow/minimap'
+import { computed, markRaw, nextTick, onMounted, ref, watch } from 'vue'
 import JournalConditionNode from './nodes/JournalConditionNode.vue'
 import JournalEndNode from './nodes/JournalEndNode.vue'
 import JournalLoopNode from './nodes/JournalLoopNode.vue'
 import JournalStartNode from './nodes/JournalStartNode.vue'
 import JournalStepNode from './nodes/JournalStepNode.vue'
 import WorkflowNodeSlideover from './WorkflowNodeSlideover.vue'
+
+// Подпись + цвет ветки условия — на самом ребре (item 2 фидбека), не кнопкой
+// внутри карточки; id хэндла остаётся 'true'/'false' (движок/раннер резолвят
+// по нему). Цвет ребра совпадает с цветом хэндла: «Да» — зелёный, «Нет» — красный.
+function branchLabel(sourceHandle: string | null | undefined): string | undefined {
+  if (sourceHandle === 'true') return 'Да'
+  if (sourceHandle === 'false') return 'Нет'
+  return undefined
+}
+function branchClass(sourceHandle: string | null | undefined): string | undefined {
+  if (sourceHandle === 'true') return 'wf-edge--true'
+  if (sourceHandle === 'false') return 'wf-edge--false'
+  return undefined
+}
+function withBranchLabels(list: JournalEdge[]): JournalEdge[] {
+  return list.map((edge) => ({
+    ...edge,
+    label: branchLabel(edge.sourceHandle) ?? edge.label,
+    class: branchClass(edge.sourceHandle),
+  }))
+}
+
+// Таскать карточку можно только за «⋯» в шапке — не за произвольное место
+// (клики по полям/кнопкам внутри тела ноды не должны задевать drag).
+const DRAG_HANDLE_SELECTOR = '.wf-node__menu'
+function withDragHandle(list: JournalNode[]): JournalNode[] {
+  return list.map((node) => ({ ...node, dragHandle: DRAG_HANDLE_SELECTOR }))
+}
 
 const props = defineProps<{
   modelValue: JournalSchema
@@ -56,12 +87,13 @@ const cloneData = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 // Нормализуем к v2 при загрузке: у каждого step/loop-узла появляется data.screen,
 // который редактирует ScreenEditor (US-006). Плоский fields[] остаётся как есть —
 // раннер через toScreen предпочитает screen, поэтому источник истины экрана один.
-const nodes = ref<JournalNode[]>(cloneData(ensureV2(props.modelValue).nodes))
-const edges = ref<JournalEdge[]>(cloneData(props.modelValue.edges))
+const nodes = ref<JournalNode[]>(withDragHandle(cloneData(ensureV2(props.modelValue).nodes)))
+const edges = ref<JournalEdge[]>(withBranchLabels(cloneData(props.modelValue.edges)))
 const selectedNodeId = ref<string | null>(null)
 const showVersionModal = ref(false)
 const versionNote = ref('')
 const importInput = ref<HTMLInputElement | null>(null)
+const canvasEl = ref<HTMLElement | null>(null)
 
 const selectedNode = computed(() => nodes.value.find((n) => n.id === selectedNodeId.value) ?? null)
 const slideoverOpen = ref(false)
@@ -83,6 +115,46 @@ onMounted(() => {
 function onNodeClick({ node }: { node: { id: string } }) {
   selectedNodeId.value = node.id
   slideoverOpen.value = true
+}
+
+// ─── Подсветка связанных нод/рёбер при наведении (item 7 фидбека) ──────────
+// Ноды получают состояние через provide/inject (useWorkflowHighlight) — без
+// мутации persisted nodes.value, чтобы наведение не триггерило автосохранение.
+// Рёбра стилизуются напрямую в DOM (та же причина): built-in smoothstep-эдж
+// не читает состояние без мутации edges.value, а это провоцирует autosave.
+const highlightIds = provideWorkflowHighlight()
+
+function connectedEdgeIds(nodeId: string): Set<string> {
+  return new Set(edges.value.filter((e) => e.source === nodeId || e.target === nodeId).map((e) => e.id))
+}
+
+function onNodeMouseEnter({ node }: { node: { id: string } }) {
+  const ids = connectedEdgeIds(node.id)
+  highlightIds.value = new Set([node.id, ...edges.value
+    .filter((e) => ids.has(e.id))
+    .flatMap((e) => [e.source, e.target])])
+
+  const root = canvasEl.value
+  if (!root) return
+  root.classList.add('journal-builder__canvas--hover-active')
+  root.querySelectorAll('.vue-flow__edge').forEach((el) => {
+    const isConnected = ids.has(el.getAttribute('data-id') ?? '')
+    el.classList.toggle('wf-edge--highlighted', isConnected)
+    // «Бегущий пунктир» от источника к получателю — тот же класс, что и у
+    // встроенного animated:true (путь SVG у Vue Flow всегда рисуется
+    // source → target, поэтому направление анимации совпадает само собой).
+    el.classList.toggle('animated', isConnected)
+  })
+}
+
+function onNodeMouseLeave() {
+  highlightIds.value = null
+  const root = canvasEl.value
+  if (!root) return
+  root.classList.remove('journal-builder__canvas--hover-active')
+  root.querySelectorAll('.wf-edge--highlighted').forEach((el) => {
+    el.classList.remove('wf-edge--highlighted', 'animated')
+  })
 }
 
 function applyLayout() {
@@ -138,6 +210,7 @@ function addRelatedNode(id: string) {
     type: 'step',
     position,
     data: { label: 'Новый шаг', fields: [], screen: { rows: [] } } satisfies JournalStepData,
+    dragHandle: DRAG_HANDLE_SELECTOR,
   })
   addEdges([{ id: `e-${id}-${newId}`, source: id, target: newId }])
   selectedNodeId.value = newId
@@ -156,26 +229,37 @@ const contextMenuItems = computed<DropdownMenuItem[]>(() => {
   const id = contextNodeId.value
   if (!id) return []
   const node = nodes.value.find((n) => n.id === id)
+  // Старт/Финиш — по одному на схему, дублировать их бессмысленно (и опасно:
+  // раннер/движок ожидают ровно один узел каждого типа).
   const isTerminal = node?.type === 'start' || node?.type === 'end'
   const items: DropdownMenuItem[] = [
     { label: 'Открыть', icon: 'i-lucide-square-pen', onSelect: () => { selectedNodeId.value = id; slideoverOpen.value = true } },
-    { label: 'Дублировать', icon: 'i-lucide-copy', onSelect: () => duplicateNode(id) },
-    { label: 'Создать связанную', icon: 'i-lucide-git-branch-plus', onSelect: () => addRelatedNode(id) },
   ]
+  if (!isTerminal) {
+    items.push({ label: 'Дублировать', icon: 'i-lucide-copy', onSelect: () => duplicateNode(id) })
+  }
+  items.push({ label: 'Создать связанную', icon: 'i-lucide-git-branch-plus', onSelect: () => addRelatedNode(id) })
   if (!isTerminal) {
     items.push({ type: 'separator' }, { label: 'Удалить', icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: () => deleteNode(id) })
   }
   return items
 })
 
-async function onNodeContextMenu({ event, node }: NodeMouseEvent) {
+async function openNodeMenu(id: string, event: MouseEvent) {
   event.preventDefault()
-  contextNodeId.value = node.id
+  contextNodeId.value = id
   contextMenuOpen.value = false
-  const mouseEvent = event as MouseEvent
-  contextMenuPosition.value = { x: mouseEvent.clientX, y: mouseEvent.clientY }
+  contextMenuPosition.value = { x: event.clientX, y: event.clientY }
   await nextTick()
   contextMenuOpen.value = true
+}
+
+// «⋯» в шапке ноды (n8n-подобный референс) открывает то же меню, что и
+// правый клик — единая точка входа для всех 5 компонентов нод (provide/inject).
+provideWorkflowNodeMenu(openNodeMenu)
+
+function onNodeContextMenu({ event, node }: NodeMouseEvent) {
+  void openNodeMenu(node.id, event as MouseEvent)
 }
 
 onConnect((connection: Connection) => {
@@ -185,6 +269,8 @@ onConnect((connection: Connection) => {
       source: connection.source,
       target: connection.target,
       sourceHandle: connection.sourceHandle as 'true' | 'false' | undefined,
+      label: branchLabel(connection.sourceHandle),
+      class: branchClass(connection.sourceHandle),
     },
   ])
 })
@@ -203,6 +289,7 @@ function addStepNode() {
     type: 'step',
     position: nextPosition(),
     data: { label: 'Новый шаг', fields: [], screen: { rows: [] } } satisfies JournalStepData,
+    dragHandle: DRAG_HANDLE_SELECTOR,
   })
   selectedNodeId.value = id
   slideoverOpen.value = true
@@ -215,6 +302,7 @@ function addConditionNode() {
     type: 'condition',
     position: nextPosition(),
     data: { label: 'Новое условие', rule: { '==': [1, 1] } } satisfies JournalConditionData,
+    dragHandle: DRAG_HANDLE_SELECTOR,
   })
   selectedNodeId.value = id
   slideoverOpen.value = true
@@ -227,6 +315,7 @@ function addLoopNode() {
     type: 'loop',
     position: nextPosition(),
     data: { label: 'Новый цикл', itemNoun: 'тест', fields: [], screen: { rows: [] } } satisfies JournalLoopData,
+    dragHandle: DRAG_HANDLE_SELECTOR,
   })
   selectedNodeId.value = id
   slideoverOpen.value = true
@@ -322,8 +411,8 @@ async function saveNewVersion() {
 async function loadVersion(version: number) {
   const schema = (await getSchemaVersions(props.templateId))[version - 1]
   if (!schema) return
-  nodes.value = cloneData(ensureV2(schema).nodes)
-  edges.value = cloneData(schema.edges)
+  nodes.value = withDragHandle(cloneData(ensureV2(schema).nodes))
+  edges.value = withBranchLabels(cloneData(schema.edges))
   selectedNodeId.value = null
   emit('update:modelValue', schema)
   arrangeOnceReady()
@@ -453,7 +542,7 @@ defineExpose({ exportSchema, saveCurrent, saveNewVersion })
       </div>
     </div>
 
-    <div class="journal-builder__canvas">
+    <div ref="canvasEl" class="journal-builder__canvas">
       <VueFlow
         v-model:nodes="nodes"
         v-model:edges="edges"
@@ -464,9 +553,12 @@ defineExpose({ exportSchema, saveCurrent, saveNewVersion })
         :fit-view-options="{ padding: 0.12 }"
         @node-click="onNodeClick"
         @node-context-menu="onNodeContextMenu"
+        @node-mouse-enter="onNodeMouseEnter"
+        @node-mouse-leave="onNodeMouseLeave"
       >
         <Background pattern-color="#aaa" :gap="16" />
         <Controls />
+        <MiniMap pannable zoomable />
       </VueFlow>
 
       <RowContextMenu

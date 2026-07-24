@@ -2,6 +2,7 @@
 @import "@nuxt/ui";
 @import "@vue-flow/core/dist/style.css";
 @import "@vue-flow/core/dist/theme-default.css";
+@import "@vue-flow/minimap/dist/style.css";
 @import "./workflow-nodes.css";
 @import "@fontsource-variable/onest/wght.css";
 @import "@fontsource/public-sans/400.css";

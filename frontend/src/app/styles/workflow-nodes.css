@@ -1,14 +1,14 @@
 /* assets/css/workflow-nodes.css
  * Единая дизайн-система нод воркфлоу на токенах Nuxt UI (--ui-*).
- * Один общий «каркас» .wf-node + акцентный цвет на тип ноды через --wf-accent.
+ * Монохромная карточка (n8n-подобный референс): без цветной рамки/значка по
+ * типу, тип различается иконкой + содержимым, не цветом. Цвет остаётся только
+ * на хэндлах/рёбрах веток условия (зелёный «Да» / красный «Нет»).
  * Не scoped специально: так же оформляем хэндлы Vue Flow (.vue-flow__handle),
  * не прибегая к !important-хакам внутри компонентов.
  */
 
 /* ─── Каркас ноды ─────────────────────────────────────────────────────────── */
 .wf-node {
-  --wf-accent: var(--ui-primary);
-  --wf-accent-soft: color-mix(in oklab, var(--wf-accent) 12%, transparent);
   /* Тот же масштаб скругления, что у кнопок/полей Nuxt UI (rounded-md), а не
      произвольное большое значение — карточки нод должны читаться как часть
      той же дизайн-системы, что и остальной интерфейс. */
@@ -21,134 +21,132 @@
   background: var(--ui-bg);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 6px 16px -10px rgba(0, 0, 0, 0.18);
   transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+  /* Vue Flow ставит cursor:grab на весь .vue-flow__node (draggable), но
+     таскать теперь можно только за ручку (dragHandle = .wf-node__menu) —
+     на самой карточке нужен обычный «кликабельный» курсор, drag вводит в
+     заблуждение. .wf-node__menu ниже переопределяет курсор обратно на grab. */
+  cursor: pointer;
 }
 .wf-node:hover {
-  border-color: color-mix(in oklab, var(--wf-accent) 45%, var(--ui-border));
+  border-color: var(--ui-border-accented);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05), 0 10px 22px -12px rgba(0, 0, 0, 0.28);
 }
 .wf-node--selected,
 .wf-node--selected:hover {
-  border-color: var(--wf-accent);
-  box-shadow: 0 0 0 2px color-mix(in oklab, var(--wf-accent) 28%, transparent),
+  border-color: var(--ui-primary);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--ui-primary) 28%, transparent),
     0 10px 24px -12px rgba(0, 0, 0, 0.3);
 }
 
-/* тонкая акцентная полоса сверху — общий «родовой признак» всех нод */
-.wf-node::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 3px;
-  border-radius: var(--wf-radius) var(--wf-radius) 0 0;
-  background: color-mix(in oklab, var(--wf-accent) 65%, transparent);
-}
-
-/* акцент на тип ноды (семантические токены Nuxt UI) */
-.wf-node--start { --wf-accent: var(--ui-color-neutral-500); }   /* серый */
-.wf-node--step { --wf-accent: var(--ui-info); }                 /* info */
-.wf-node--condition { --wf-accent: var(--ui-warning); }         /* warning */
-.wf-node--loop { --wf-accent: var(--ui-success); }              /* цикл */
-.wf-node--end { --wf-accent: var(--ui-color-neutral-500); }     /* серый */
-
-/* ─── Шапка ───────────────────────────────────────────────────────────────── */
+/* ─── Шапка: строка (иконка + заголовок + «⋯») + подзаголовок под ней —
+   обе строки ещё НАД линией-разделителем; тело (поля) уже под ней. ──────── */
 .wf-node__header {
   display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 11px;
+  border-bottom: 1px solid var(--ui-border);
+}
+.wf-node__header-row {
+  display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 11px 13px;
+  gap: 7px;
 }
 .wf-node__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
   flex-shrink: 0;
-  border-radius: var(--ui-radius);
-  background: var(--wf-accent-soft);
-  color: var(--wf-accent);
+  color: var(--ui-text-muted);
 }
 .wf-node__heading {
   min-width: 0;
+  flex: 1;
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  align-items: baseline;
+  gap: 6px;
 }
 .wf-node__title {
   font-weight: 600;
-  font-size: 13px;
-  line-height: 1.25;
+  font-size: 12.5px;
+  line-height: 1.3;
   color: var(--ui-text-highlighted);
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
-/* Тип ноды — цветной бейдж с названием (а не только акцентный цвет по всей
-   карточке), как UBadge: мягкий фон + подписанный текст, компактно. */
+/* Тип ноды — компактная серая подпись рядом с заголовком, без цветного фона. */
 .wf-node__kicker {
-  display: inline-flex;
-  align-items: center;
-  width: fit-content;
-  padding: 0 6px;
-  border-radius: var(--ui-radius);
-  background: var(--wf-accent-soft);
-  font-size: 9.5px;
-  font-weight: 700;
-  line-height: 1.6;
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--wf-accent);
+  color: var(--ui-text-dimmed);
+}
+/* Единственная ручка перетаскивания ноды (node.dragHandle в JournalBuilder) —
+   курсор сигнализирует «отсюда можно тащить», клик по ней (без движения)
+   по-прежнему открывает меню. */
+.wf-node__menu {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--ui-radius);
+  color: var(--ui-text-dimmed);
+  background: transparent;
+  border: none;
+  cursor: grab;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.wf-node__menu:hover {
+  background: var(--ui-bg-elevated);
+  color: var(--ui-text);
+}
+.wf-node__menu:active {
+  cursor: grabbing;
 }
 
-/* ─── Тело ────────────────────────────────────────────────────────────────── */
+/* ─── Тело: строки «подпись — значение», без цветных фишек ───────────────── */
 .wf-node__body {
-  padding: 0 13px 12px;
+  padding: 8px 11px 10px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 .wf-node__desc {
-  padding: 0 13px 11px;
-  margin-top: -4px;
-  font-size: 11.5px;
+  font-size: 11px;
   line-height: 1.35;
   color: var(--ui-text-muted);
 }
 
-/* строки полей (нода шага) */
 .wf-field {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px 8px;
-  border-radius: var(--ui-radius);
-  background: var(--ui-bg-muted);
+  gap: 6px;
 }
-.wf-field__dot {
-  width: 6px;
-  height: 6px;
+.wf-field__icon {
   flex-shrink: 0;
-  border-radius: 50%;
-  background: var(--ui-text-dimmed);
-}
-.wf-field__dot--required {
-  background: var(--wf-accent);
+  width: 12px;
+  height: 12px;
+  color: var(--ui-text-dimmed);
 }
 .wf-field__name {
   flex: 1;
   min-width: 0;
   font-size: 11.5px;
-  color: var(--ui-text);
+  color: var(--ui-text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .wf-field__type {
   flex-shrink: 0;
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--ui-text-dimmed);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ui-text-highlighted);
 }
 .wf-node__empty {
   padding: 6px 8px;
@@ -159,15 +157,73 @@
   text-align: center;
 }
 
-/* ─── Хэндлы Vue Flow ─────────────────────────────────────────────────────── */
+/* ─── Хэндлы и рёбра Vue Flow ─────────────────────────────────────────────── */
+/* Точки — тёмные (не серые); зелёный/красный остаётся только на ветках
+   условия — переопределяется точечно в JournalConditionNode.vue. */
 .wf-node .vue-flow__handle {
-  width: 11px;
-  height: 11px;
+  width: 10px;
+  height: 10px;
   background: var(--ui-bg);
-  border: 2px solid color-mix(in oklab, var(--wf-accent) 55%, var(--ui-border));
+  border: 2px solid var(--ui-text-highlighted);
   transition: background 0.12s ease, border-color 0.12s ease;
 }
 .wf-node .vue-flow__handle:hover {
-  background: var(--wf-accent);
-  border-color: var(--wf-accent);
+  background: var(--ui-text-highlighted);
+  border-color: var(--ui-text-highlighted);
+}
+
+/* Рёбра — тёмные и заметно толще (референс), без наконечников-стрелок. */
+.vue-flow__edge-path {
+  stroke: var(--ui-text-highlighted);
+  stroke-width: 1.75;
+}
+/* Ветки условия — ребро того же цвета, что и хэндл-источник («Да» зелёное,
+   «Нет» красное), см. JournalBuilder withBranchLabels/branchClass. */
+.vue-flow__edge.wf-edge--true .vue-flow__edge-path {
+  stroke: var(--ui-success);
+}
+.vue-flow__edge.wf-edge--false .vue-flow__edge-path {
+  stroke: var(--ui-error);
+}
+.vue-flow__edge.wf-edge--true .vue-flow__edge-textbg,
+.vue-flow__edge.wf-edge--false .vue-flow__edge-textbg {
+  fill: var(--ui-bg);
+}
+/* Подписи «Да»/«Нет» — жирнее и крупнее дефолтных, чтобы читались на любом
+   фоне канваса, а не терялись тонкой цветной линией. */
+.vue-flow__edge.wf-edge--true .vue-flow__edge-text,
+.vue-flow__edge.wf-edge--false .vue-flow__edge-text {
+  font-size: 12px;
+  font-weight: 700;
+}
+.vue-flow__edge.wf-edge--true .vue-flow__edge-text {
+  fill: var(--ui-success);
+}
+.vue-flow__edge.wf-edge--false .vue-flow__edge-text {
+  fill: var(--ui-error);
+}
+
+/* При наведении на ноду (см. JournalBuilder onNodeMouseEnter) связанные рёбра
+   получают ту же анимацию «бегущего пунктира», что и встроенный
+   `animated: true` у Vue Flow (класс .animated из @vue-flow/core/style.css) —
+   но выставляется точечно в DOM, чтобы не мутировать persisted edges.value. */
+
+/* ─── Подсветка соседей при наведении (item 7) ───────────────────────────── */
+/* Затемняем непричастные ноды/рёбра, пока курсор на одной из нод — связанные
+   остаются чёткими. Класс на .wf-node ставится через provide/inject
+   (useWorkflowHighlight), на .vue-flow__edge — напрямую в DOM из JournalBuilder
+   (оба пути не трогают persisted nodes/edges, чтобы не триггерить autosave). */
+.wf-node--dimmed {
+  opacity: 0.35;
+  transition: opacity 0.15s ease;
+}
+.journal-builder__canvas--hover-active .vue-flow__edge {
+  opacity: 0.25;
+  transition: opacity 0.15s ease;
+}
+.journal-builder__canvas--hover-active .vue-flow__edge.wf-edge--highlighted {
+  opacity: 1;
+}
+.vue-flow__edge.wf-edge--highlighted .vue-flow__edge-path {
+  stroke-width: 2.5;
 }

@@ -109,7 +109,18 @@ export interface JournalStepData {
 
 export interface JournalConditionData {
   label: string
+  description?: string
   rule: JsonLogicRule
+}
+
+// Триггер запуска процесса. Пока единственный вариант — 'manual' (запускает
+// оператор вручную); значение задела под будущие типы (по расписанию, по
+// событию и т.п.), поэтому поле опционально и по умолчанию считается 'manual'.
+export type JournalStartTrigger = 'manual'
+
+export interface JournalStartData {
+  label: string
+  trigger?: JournalStartTrigger
 }
 
 // Цикл: повторяемый шаг. Врач добавляет произвольное число итераций
@@ -128,7 +139,11 @@ export interface JournalNode {
   id: string
   type: 'start' | 'step' | 'condition' | 'loop' | 'end'
   position: { x: number; y: number }
-  data: JournalStepData | JournalConditionData | JournalLoopData | { label: string }
+  data: JournalStartData | JournalStepData | JournalConditionData | JournalLoopData | { label: string }
+  // CSS-селектор ручки перетаскивания ноды — константа '.wf-node__menu' для
+  // всех нод (см. JournalBuilder): карточку можно таскать только за «⋯»,
+  // не за произвольное место, чтобы клики по полям/кнопкам внутри не задевали drag.
+  dragHandle?: string
 }
 
 export interface JournalEdge {
@@ -136,6 +151,12 @@ export interface JournalEdge {
   source: string
   target: string
   sourceHandle?: 'true' | 'false'
+  // Подпись ветки на самом ребре канваса («Да»/«Нет») — производное от
+  // sourceHandle, задаётся один раз при создании связи (см. JournalBuilder).
+  label?: string
+  // CSS-класс ребра (например, цвет ветки условия) — тоже производное от
+  // sourceHandle, задаётся один раз при создании связи.
+  class?: string
 }
 
 // ─── Схема (шаблон) журнала ─────────────────────────────────────────────────

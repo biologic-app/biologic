@@ -4,7 +4,7 @@
 // в оверлей (US-канвас-редизайн §4). Двусторонняя правка (label/description/role,
 // screen, actions, rule) остаётся как есть — это move, не rewrite.
 import { computed } from 'vue'
-import type { DomainAction, JournalConditionData, JournalLoopData, JournalNode, JournalStepData, Screen } from '@/modules/workflows/types/journal'
+import type { DomainAction, JournalConditionData, JournalLoopData, JournalNode, JournalStartData, JournalStepData, Screen } from '@/modules/workflows/types/journal'
 import RuleBuilder from './RuleBuilder.vue'
 import ScreenEditor from './ScreenEditor.vue'
 import StepActionsEditor from './StepActionsEditor.vue'
@@ -33,6 +33,10 @@ const nodeTypeLabels: Record<string, string> = {
 }
 
 const isScreenNode = computed(() => props.node.type === 'step' || props.node.type === 'loop')
+
+// Пока единственный вариант — «Ручной»; список расширяемый под будущие
+// триггеры (по расписанию, по событию и т.п.).
+const triggerOptions = [{ label: 'Ручной', value: 'manual' as const }]
 
 const screenModel = computed<Screen>({
   get: () => props.screen,
@@ -69,6 +73,28 @@ const actionsModel = computed<DomainAction[]>({
         <UFormField label="Название" size="sm">
           <UInput v-model="(node.data as any).label" size="sm" />
         </UFormField>
+
+        <template v-if="node.type === 'start'">
+          <UFormField
+            label="Триггер"
+            size="sm"
+            class="mt-2"
+            help="Как запускается процесс. Пока доступен только ручной запуск оператором."
+          >
+            <USelect
+              :model-value="(node.data as JournalStartData).trigger ?? 'manual'"
+              :items="triggerOptions"
+              size="sm"
+              @update:model-value="(v) => ((node.data as JournalStartData).trigger = v)"
+            />
+          </UFormField>
+        </template>
+
+        <template v-if="node.type === 'condition'">
+          <UFormField label="Описание" size="sm" class="mt-2">
+            <UInput v-model="(node.data as JournalConditionData).description" size="sm" />
+          </UFormField>
+        </template>
 
         <template v-if="node.type === 'step'">
           <UFormField label="Описание" size="sm" class="mt-2">

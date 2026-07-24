@@ -1,41 +1,53 @@
 <script setup lang="ts">
 // components/nodes/JournalLoopNode.vue
 // Циклическая нода: повторяемый шаг с ручным выходом.
-import { Handle, Position } from '@vue-flow/core';
+import { useWorkflowNodeDimmed } from '@/modules/workflows/composables/useWorkflowHighlight';
+import { useWorkflowNodeMenu } from '@/modules/workflows/composables/useWorkflowNodeMenu';
+import { fieldTypeIcon } from '@/modules/workflows/engine/field-icons';
 import type { JournalLoopData } from '@/modules/workflows/types/journal';
+import { Handle, Position } from '@vue-flow/core';
+import { computed } from 'vue';
 
-defineProps<{
+const props = defineProps<{
+  id: string
   data: JournalLoopData
   selected?: boolean
 }>()
+
+const dimmed = useWorkflowNodeDimmed(computed(() => props.id))
+const openNodeMenu = useWorkflowNodeMenu()
 </script>
 
 <template>
-  <div class="wf-node wf-node--loop" :class="{ 'wf-node--selected': selected }">
+  <div
+    class="wf-node wf-node--loop"
+    :class="{ 'wf-node--selected': selected, 'wf-node--dimmed': dimmed }"
+  >
     <Handle type="target" :position="Position.Top" />
 
-    <!-- декоративная дуга «цикла» над нодой -->
-    <span class="wf-loop__arc" aria-hidden="true">
-      <UIcon name="i-lucide-rotate-cw" class="size-3.5" />
-    </span>
+
+
 
     <div class="wf-node__header">
-      <span class="wf-node__icon">
-        <UIcon name="i-lucide-repeat" class="size-4" />
-      </span>
-      <div class="wf-node__heading">
-        <span class="wf-node__kicker">Цикл · повтор вручную</span>
-        <span class="wf-node__title">{{ data.label }}</span>
+      <div class="wf-node__header-row">
+        <span class="wf-node__icon">
+          <UIcon name="i-lucide-repeat-2" class="size-4" />
+        </span>
+        <div class="wf-node__heading">
+          <span class="wf-node__title">{{ data.label }}</span>
+        </div>
+        <button type="button" class="wf-node__menu" @click.stop="openNodeMenu(id, $event)">
+          <UIcon name="i-lucide-grip-vertical" class="size-3.5" />
+        </button>
       </div>
-    </div>
-
-    <div v-if="data.description" class="wf-node__desc">
-      {{ data.description }}
+      <p v-if="data.description" class="wf-node__desc">
+        {{ data.description }}
+      </p>
     </div>
 
     <div class="wf-node__body">
       <div v-for="field in data.fields" :key="field.id" class="wf-field">
-        <span class="wf-field__dot" :class="{ 'wf-field__dot--required': field.required }" />
+        <UIcon :name="fieldTypeIcon(field.type)" class="wf-field__icon" />
         <span class="wf-field__name">{{ field.label }}</span>
         <span class="wf-field__type">{{ field.type }}</span>
       </div>
@@ -54,30 +66,32 @@ defineProps<{
 </template>
 
 <style scoped>
-.wf-loop__arc {
+.wf-loop__loopback {
   position: absolute;
-  top: -13px;
-  left: 16px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  color: var(--ui-success);
-  background: var(--ui-bg);
-  border: 1.5px solid color-mix(in oklab, var(--ui-success) 55%, var(--ui-border));
+  top: 0;
+  right: -15px;
+  width: 20px;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+.wf-loop__loopback-path {
+  /* Тот же вид, что у обычных рёбер канваса (.vue-flow__edge-path) — чтобы
+     self-loop читался как настоящее ребро, а не декоративная дуга. */
+  stroke: var(--ui-text-highlighted);
+  stroke-width: 1.75;
+  stroke-linecap: round;
 }
 .wf-loop__note {
   display: flex;
   align-items: center;
   gap: 5px;
-  margin-top: 6px;
+  margin-top: 2px;
   padding: 5px 8px;
   border-radius: var(--ui-radius);
   font-size: 10.5px;
   font-weight: 500;
-  color: var(--ui-success);
-  background: color-mix(in oklab, var(--ui-success) 10%, transparent);
+  color: var(--ui-text-muted);
+  background: var(--ui-bg-muted);
 }
 </style>

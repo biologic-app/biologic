@@ -1,8 +1,8 @@
 // composables/useWorkflowLayout.ts
 // Авто-раскладка канваса сверху-вниз (dagre), эталон — официальный пример Vue Flow.
+import type { JournalEdge, JournalNode } from '@/modules/workflows/types/journal'
 import dagre from '@dagrejs/dagre'
 import { Position, useVueFlow } from '@vue-flow/core'
-import type { JournalEdge, JournalNode } from '@/modules/workflows/types/journal'
 
 const DEFAULT_WIDTH = 260
 const DEFAULT_HEIGHT = 96

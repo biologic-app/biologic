@@ -160,7 +160,7 @@ async function saveWorkflowForm(payload: Record<string, unknown>) {
     title,
     version: 1,
     nodes: [
-      { id: 'start', type: 'start', position: { x: 80, y: 40 }, data: { label: 'Начало' } },
+      { id: 'start', type: 'start', position: { x: 80, y: 40 }, data: { label: 'Начало', trigger: 'manual' } },
       { id: 'end', type: 'end', position: { x: 80, y: 200 }, data: { label: 'Конец' } },
     ],
     edges: [{ id: 'e-start-end', source: 'start', target: 'end' }],
