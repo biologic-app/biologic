@@ -8,6 +8,7 @@ from src.presentation.http.access_control.router import router as access_control
 from src.presentation.http.audit import router as audit_router
 from src.presentation.http.catalogs.router import router as catalogs_router
 from src.presentation.http.dashboard import router as dashboard_router
+from src.presentation.http.database.router import router as database_router
 from src.presentation.http.released_samples import router as released_samples_router
 from src.presentation.http.workflows.router import router as workflows_router
 
@@ -31,3 +32,4 @@ router.include_router(audit_router)
 router.include_router(catalogs_router)
 router.include_router(workflows_router)
 router.include_router(telemetry_router)
+router.include_router(database_router)

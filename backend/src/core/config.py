@@ -37,6 +37,15 @@ class Settings(BaseSettings):
     static_dir: str | None = None
     # Maximum size (MB) accepted for a workflow run attachment stored as bytea.
     workflow_attachment_max_mb: int = 10
+    # Maximum uploaded full-database dump size accepted by the admin transfer API.
+    database_backup_max_mb: int = 1024
+    # Filesystem directory holding database dumps. Only the path is kept in
+    # PostgreSQL (``database_backups``); the payload never lives in a table.
+    database_backup_dir: str = str(BASE_DIR / "var" / "backups")
+    # A restore takes ACCESS EXCLUSIVE locks on every application table. Rather
+    # than queue behind a long-running transaction until the request times out,
+    # give up after this many seconds and tell the operator why.
+    database_restore_lock_timeout_seconds: int = 30
 
     @property
     def plugins_dir(self) -> Path:
