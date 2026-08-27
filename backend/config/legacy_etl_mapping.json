@@ -1,0 +1,492 @@
+{
+  "version": 1,
+  "source_schema": "legacy_fast",
+  "batch_size": 2000,
+  "value_maps": {
+    "labs": {
+      "х": "TH",
+      "б": "BAK",
+      "р": "RV",
+      "тб": "TB",
+      "пцр": "PCR"
+    },
+    "statuses": {
+      "1": "completed",
+      "2": "rejected",
+      "3": "in_progress"
+    },
+    "roles": {
+      "2": "admin",
+      "3": "registrar",
+      "4": "branch_chief",
+      "5": "lab_chief",
+      "6": "lab_assistant",
+      "7": "observer"
+    },
+    "target_aliases": {
+      "бак": "бак",
+      "б": "бак",
+      "т/х": "т/х",
+      "тх": "т/х",
+      "т/б": "т/б",
+      "тб": "т/б",
+      "рв": "РВ",
+      "пцр": "ПЦР",
+      "hg": "Hg",
+      "as": "As",
+      "полн. ан.": "полн. ан.",
+      "нитраты": "нитраты",
+      "экспресс": "экспресс",
+      "б/бак": "б/бак"
+    }
+  },
+  "entities": {
+    "roles": {
+      "enabled": true,
+      "target_table": "roles",
+      "target_columns": {
+        "id": "id",
+        "key": "key",
+        "name": "name",
+        "scope_type": "scope_type",
+        "is_system": "is_system"
+      }
+    },
+    "users": {
+      "enabled": true,
+      "source_table": "users",
+      "target_table": "users",
+      "source_columns": {
+        "id": "id",
+        "username": "username",
+        "full_name": "full_name",
+        "code": "user_cod",
+        "role_source_id": "user_type_id",
+        "created_at": "created",
+        "updated_at": "modified",
+        "deleted": "deleted"
+      },
+      "target_columns": {
+        "id": "id",
+        "username": "username",
+        "password_hash": "password_hash",
+        "token_version": "token_version",
+        "status": "status",
+        "code": "code",
+        "first_name": "first_name",
+        "last_name": "last_name",
+        "patronymic": "patronymic",
+        "role_id": "role_id",
+        "created_at": "created_at",
+        "updated_at": "updated_at",
+        "deleted_at": "deleted_at"
+      }
+    },
+    "labs": {
+      "enabled": true,
+      "source_table": "podrs",
+      "target_table": "labs",
+      "source_columns": {
+        "id": "id",
+        "name": "name",
+        "code": "podr_cod",
+        "full_name": "name_full",
+        "created_at": "created",
+        "updated_at": "modified",
+        "deleted": "deleted"
+      },
+      "target_columns": {
+        "id": "id",
+        "code": "code",
+        "name": "name",
+        "full_name": "full_name",
+        "created_at": "created_at",
+        "updated_at": "updated_at",
+        "deleted_at": "deleted_at"
+      }
+    },
+    "doctors": {
+      "enabled": true,
+      "source_table": "sandoctors",
+      "target_table": "doctors",
+      "source_columns": {
+        "id": "id",
+        "name": "name",
+        "full_name": "name_full",
+        "user_source_id": "user_id",
+        "created_at": "created",
+        "updated_at": "modified",
+        "deleted": "deleted"
+      },
+      "target_columns": {
+        "id": "id",
+        "first_name": "first_name",
+        "last_name": "last_name",
+        "patronymic": "patronymic",
+        "user_id": "user_id",
+        "created_at": "created_at",
+        "updated_at": "updated_at",
+        "deleted_at": "deleted_at"
+      }
+    },
+    "objects": {
+      "enabled": true,
+      "source_table": "resobjects",
+      "target_table": "objects",
+      "source_columns": {
+        "id": "id",
+        "name": "name",
+        "full_name": "name_full",
+        "address": "adress",
+        "created_at": "created",
+        "updated_at": "modified",
+        "deleted": "deleted"
+      },
+      "target_columns": {
+        "id": "id",
+        "code": "code",
+        "name": "name",
+        "full_name": "full_name",
+        "address": "address",
+        "created_at": "created_at",
+        "updated_at": "updated_at",
+        "deleted_at": "deleted_at"
+      }
+    },
+    "sample_types": {
+      "enabled": true,
+      "source_table": "obr_types",
+      "target_table": "sample_types",
+      "source_columns": {
+        "id": "id",
+        "name": "name",
+        "created_at": "created",
+        "updated_at": "modified",
+        "deleted": "deleted"
+      },
+      "target_columns": {
+        "id": "id",
+        "code": "code",
+        "name": "name",
+        "created_at": "created_at",
+        "updated_at": "updated_at",
+        "deleted_at": "deleted_at"
+      }
+    },
+    "research_goals": {
+      "enabled": true,
+      "source_table": "obrs",
+      "target_table": "research_goals",
+      "source_columns": {"target": "target"},
+      "target_columns": {"id": "id", "code": "code", "name": "name", "comment": "comment"}
+    },
+    "indicators": {
+      "enabled": true,
+      "source_table": "poks",
+      "target_table": "indicators",
+      "source_columns": {
+        "id": "id",
+        "sample_type_source_id": "obr_type_id",
+        "name": "name",
+        "unit": "edizm",
+        "norm_text": "norm",
+        "norm_value": "norm_value",
+        "default_text": "default_text",
+        "comment": "comment",
+        "created_at": "created",
+        "updated_at": "modified",
+        "deleted": "deleted"
+      },
+      "target_columns": {
+        "id": "id",
+        "name": "name",
+        "unit": "unit",
+        "norm_text": "norm_text",
+        "norm_value": "norm_value",
+        "default_text": "default_text",
+        "comment": "comment",
+        "sample_type_id": "sample_type_id",
+        "created_at": "created_at",
+        "updated_at": "updated_at",
+        "deleted_at": "deleted_at"
+      }
+    },
+    "conclusions": {
+      "enabled": true,
+      "source_table": "zakls",
+      "target_table": "conclusions",
+      "source_columns": {
+        "id": "id",
+        "name": "name",
+        "text": "text",
+        "created_at": "created",
+        "updated_at": "modified",
+        "deleted": "deleted"
+      },
+      "target_columns": {
+        "id": "id",
+        "code": "code",
+        "name": "name",
+        "text_singular": "text_singular",
+        "text_plural": "text_plural",
+        "created_at": "created_at",
+        "updated_at": "updated_at",
+        "deleted_at": "deleted_at"
+      }
+    },
+    "protocol_types": {
+      "enabled": true,
+      "source_table": "protocol_types",
+      "target_table": "protocol_types",
+      "source_columns": {
+        "id": "id",
+        "name": "name",
+        "created_at": "created",
+        "updated_at": "modified",
+        "deleted": "deleted"
+      },
+      "target_columns": {
+        "id": "id",
+        "code": "code",
+        "name": "name",
+        "created_at": "created_at",
+        "updated_at": "updated_at",
+        "deleted_at": "deleted_at"
+      }
+    },
+    "protocols": {
+      "enabled": true,
+      "source_table": "protocols",
+      "target_table": "protocols",
+      "source_columns": {
+        "id": "id",
+        "year_no": "year",
+        "conclusion_source_id": "zakl_id",
+        "protocol_type_source_id": "protocol_type_id",
+        "copies": "ex_num",
+        "is_signed": "simple_status",
+        "protocol_copy_name": "file_name",
+        "excerpt_copy_name": "file_vyp_name",
+        "user_source_id": "user_id",
+        "created_at": "created",
+        "updated_at": "modified",
+        "deleted": "deleted"
+      },
+      "target_columns": {
+        "id": "id",
+        "year_no": "year_no",
+        "copies": "copies",
+        "is_signed": "is_signed",
+        "protocol_copy_name": "protocol_copy_name",
+        "excerpt_copy_name": "excerpt_copy_name",
+        "conclusion_id": "conclusion_id",
+        "protocol_type_id": "protocol_type_id",
+        "created_by": "created_by",
+        "updated_by": "updated_by",
+        "created_at": "created_at",
+        "updated_at": "updated_at",
+        "deleted_at": "deleted_at"
+      }
+    },
+    "directions": {
+      "enabled": true,
+      "source_table": "naprs",
+      "target_table": "directions",
+      "source_columns": {
+        "id": "id",
+        "base_no": "id_year",
+        "year_no": "year",
+        "doctor_source_id": "sandoctor_id",
+        "object_source_id": "resobject_id",
+        "is_done": "simple_status",
+        "is_urgent": "urgent",
+        "sampled_at": "time_otbor",
+        "received_at": "time_in",
+        "completed_at": "time_out",
+        "user_source_id": "user_id",
+        "created_at": "created",
+        "updated_at": "modified",
+        "deleted": "deleted"
+      },
+      "target_columns": {
+        "id": "id",
+        "year_no": "year_no",
+        "base_no": "base_no",
+        "is_done": "is_done",
+        "is_urgent": "is_urgent",
+        "doctor_id": "doctor_id",
+        "object_id": "object_id",
+        "created_by": "created_by",
+        "updated_by": "updated_by",
+        "sampled_at": "sampled_at",
+        "received_at": "received_at",
+        "completed_at": "completed_at",
+        "created_at": "created_at",
+        "updated_at": "updated_at",
+        "deleted_at": "deleted_at"
+      }
+    },
+    "samples": {
+      "enabled": true,
+      "source_table": "obrs",
+      "target_table": "samples",
+      "source_columns": {
+        "id": "id",
+        "month_no": "month",
+        "name": "name",
+        "alternate_name": "alt_name",
+        "mass": "mass",
+        "target_description": "target",
+        "comment": "comment",
+        "section": "section",
+        "delivery": "postavka",
+        "nomenclature_code": "nomencl_cod",
+        "batch_code": "part_cod",
+        "supplier": "postavshik",
+        "is_urgent": "urgent",
+        "is_done": "simple_status",
+        "direction_source_id": "napr_id",
+        "sample_type_source_id": "obr_type_id",
+        "protocol_source_id": "protocol_id",
+        "received_at": "time_in",
+        "completed_at": "time_out",
+        "user_source_id": "user_id",
+        "created_at": "created",
+        "updated_at": "modified",
+        "deleted": "deleted"
+      },
+      "target_columns": {
+        "id": "id",
+        "month_no": "month_no",
+        "name": "name",
+        "alternate_name": "alternate_name",
+        "mass": "mass",
+        "target_description": "target_description",
+        "comment": "comment",
+        "section": "section",
+        "delivery": "delivery",
+        "nomenclature_code": "nomenclature_code",
+        "batch_code": "batch_code",
+        "supplier": "supplier",
+        "is_urgent": "is_urgent",
+        "is_done": "is_done",
+        "sample_type_id": "sample_type_id",
+        "status_id": "status_id",
+        "direction_id": "direction_id",
+        "protocol_id": "protocol_id",
+        "sampled_at": "sampled_at",
+        "received_at": "received_at",
+        "completed_at": "completed_at",
+        "created_by": "created_by",
+        "updated_by": "updated_by",
+        "created_at": "created_at",
+        "updated_at": "updated_at",
+        "deleted_at": "deleted_at"
+      }
+    },
+    "research": {
+      "enabled": true,
+      "source_table": "results",
+      "target_table": "research",
+      "source_columns": {
+        "id": "id",
+        "sample_source_id": "obr_id",
+        "lab_source_id": "podr_id",
+        "status_source_id": "status_id",
+        "comment": "comment",
+        "recommendation": "recommend",
+        "received_at": "time_in",
+        "completed_at": "time_out",
+        "user_source_id": "user_id",
+        "created_at": "created",
+        "updated_at": "modified",
+        "deleted": "deleted"
+      },
+      "target_columns": {
+        "id": "id",
+        "sample_id": "sample_id",
+        "research_goal_id": "research_goal_id",
+        "lab_id": "lab_id",
+        "comment": "comment",
+        "recommendation": "recommendation",
+        "status_id": "status_id",
+        "created_by": "created_by",
+        "updated_by": "updated_by",
+        "received_at": "received_at",
+        "completed_at": "completed_at",
+        "created_at": "created_at",
+        "updated_at": "updated_at",
+        "deleted_at": "deleted_at"
+      }
+    },
+    "tests": {
+      "enabled": true,
+      "source_table": "tests",
+      "target_table": "tests",
+      "source_columns": {
+        "id": "id",
+        "research_source_id": "result_id",
+        "indicator_source_id": "pok_id",
+        "is_active": "active",
+        "value": "value",
+        "comment": "comment",
+        "norm": "norm",
+        "status_source_id": "status_id",
+        "user_source_id": "user_id",
+        "created_at": "created",
+        "updated_at": "modified",
+        "deleted": "deleted"
+      },
+      "target_columns": {
+        "id": "id",
+        "value": "value",
+        "comment": "comment",
+        "norm": "norm",
+        "verdict": "verdict",
+        "is_active": "is_active",
+        "research_id": "research_id",
+        "indicator_id": "indicator_id",
+        "status_id": "status_id",
+        "created_by": "created_by",
+        "updated_by": "updated_by",
+        "created_at": "created_at",
+        "updated_at": "updated_at",
+        "deleted_at": "deleted_at"
+      }
+    },
+    "sample_labs": {
+      "enabled": true,
+      "source_table": "results",
+      "target_table": "sample_labs",
+      "source_columns": {"sample_source_id": "obr_id", "lab_source_id": "podr_id"},
+      "target_columns": {"id": "id", "sample_id": "sample_id", "lab_id": "lab_id"}
+    },
+    "obr_targets_audit": {
+      "enabled": true,
+      "source_table": "obr_targets",
+      "target_table": "warning",
+      "source_columns": {
+        "id": "id",
+        "sample_source_id": "obr_id",
+        "target_source_id": "target_id"
+      },
+      "target_columns": {}
+    },
+    "sample_statuses": {
+      "enabled": true,
+      "target_table": "sample_statuses",
+      "target_columns": {"id": "id", "code": "code"}
+    },
+    "research_statuses": {
+      "enabled": true,
+      "target_table": "research_statuses",
+      "target_columns": {"id": "id", "code": "code"}
+    },
+    "test_statuses": {
+      "enabled": true,
+      "target_table": "test_statuses",
+      "target_columns": {"id": "id", "code": "code"}
+    }
+  },
+  "generic_entities": []
+}

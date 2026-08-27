@@ -48,7 +48,7 @@ ROLE_DEFINITIONS: dict[str, dict[str, str]] = {
     "lab_assistant": {"name": "Lab Assistant", "scope_type": "own_lab"},
     "lab_chief": {"name": "Lab Chief", "scope_type": "own_lab"},
     "branch_chief": {"name": "Branch Chief", "scope_type": "own_branch"},
-    "developer": {"name": "Developer", "scope_type": "global"},
+    "superadmin": {"name": "Superadmin", "scope_type": "global"},
 }
 
 PERMISSION_CATALOG: tuple[tuple[str, str], ...] = (
@@ -321,7 +321,7 @@ SEED_USERS: tuple[dict[str, object], ...] = (
     {
         "username": "tminww",
         "password_hash": "$2b$12$YCNo9bFWrwCFeHXVf69nsOEQVB5yxtP2LMT6Rbenuw0kFOsI4GgaW",
-        "role_key": "developer",
+        "role_key": "superadmin",
         "code": "DEV-001",
         "first_name": "Серафим",
         "last_name": "Олейник",
@@ -696,7 +696,7 @@ async def _seed_bootstrap_data(connection: AsyncConnection) -> None:
                 "action": [action for _, action in pairs],
             },
         )
-    # developer gets every permission, not just the matrix above.
+    # superadmin gets every permission, not just the matrix above.
     await connection.execute(
         text(
             """
@@ -704,7 +704,7 @@ async def _seed_bootstrap_data(connection: AsyncConnection) -> None:
             SELECT r.id, p.id
             FROM roles r
             CROSS JOIN permissions p
-            WHERE r.key = 'developer'
+            WHERE r.key = 'superadmin'
             ON CONFLICT (role_id, permission_id) DO NOTHING
             """
         )
@@ -740,7 +740,7 @@ async def _seed_bootstrap_data(connection: AsyncConnection) -> None:
             text(
                 """
                 INSERT INTO users (
-                    username, password_hash, refresh_token_version, code,
+                    username, password_hash, token_version, code,
                     first_name, last_name, patronymic, role_id, lab_id
                 )
                 SELECT
@@ -750,7 +750,7 @@ async def _seed_bootstrap_data(connection: AsyncConnection) -> None:
                 WHERE r.key = :role_key
                 ON CONFLICT (username) DO UPDATE
                 SET password_hash = EXCLUDED.password_hash,
-                    refresh_token_version = 0,
+                    token_version = 0,
                     code = EXCLUDED.code,
                     first_name = EXCLUDED.first_name,
                     last_name = EXCLUDED.last_name,

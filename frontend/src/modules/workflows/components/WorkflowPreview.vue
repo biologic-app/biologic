@@ -15,7 +15,6 @@ import { Controls } from '@vue-flow/controls'
 import { VueFlow, type NodeTypesObject } from '@vue-flow/core'
 import WorkflowScreenRenderer from '@/modules/workflows/components/WorkflowScreenRenderer.vue'
 import { useJournalEngine } from '@/modules/workflows/composables/useJournalEngine'
-import { useAuth } from '@/modules/auth'
 import { ensureV2 } from '@/modules/workflows/engine/convert'
 import { buildPreviewActionEntry, type PreviewActionEntry } from '@/modules/workflows/engine/preview'
 import type { JournalEdge, JournalNode, JournalSchema, JournalStepData } from '@/modules/workflows/types/journal'
@@ -31,7 +30,6 @@ const props = defineProps<{
   schema: JournalSchema
 }>()
 
-const auth = useAuth()
 
 // Движок БЕЗ onSave и БЕЗ initialEntry → чистый прогон in-memory, нулевая
 // персистентность: reset()/goNext()/addLoopItem() вызывают внутренний persist(),
@@ -53,9 +51,9 @@ function onNext() {
   const step = engine.currentStep.value
   const entry = buildPreviewActionEntry(step, {
     answers: engine.answers.value,
-    // Реальный id актора резолвится в args (никуда не отправляется). Область
+    actorId: null,
+    // Actor identity is resolved by the backend. Область
     // (scope) в песочнице не задана — scope-цели резолвятся уже в раннере.
-    actorId: auth.user?.id ?? null,
     scopeId: undefined,
   })
   if (entry) {

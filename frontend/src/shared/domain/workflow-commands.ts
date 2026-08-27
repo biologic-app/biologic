@@ -37,7 +37,7 @@ export type WorkflowCommand = {
   fields: FormField[];
   successTitle: string;
   errorTitle: string;
-  body: (actorId: string, payload: Record<string, unknown>) => Record<string, unknown>;
+  body: (_actorId: string, payload: Record<string, unknown>) => Record<string, unknown>;
 };
 
 export const workflowCommands: WorkflowCommand[] = [
@@ -55,7 +55,7 @@ export const workflowCommands: WorkflowCommand[] = [
     fields: [{ key: "comment", label: t("workflowCommands.formFields.comment"), type: "textarea" }],
     successTitle: t("workflowCommands.directionsRegistered"),
     errorTitle: t("workflowCommands.failedToRegisterDirections"),
-    body: (actorId, payload) => ({ actor_id: actorId, comment: payload.comment }),
+    body: (_actorId, payload) => ({ comment: payload.comment }),
   },
   {
     key: "samples.register",
@@ -74,8 +74,7 @@ export const workflowCommands: WorkflowCommand[] = [
     ],
     successTitle: t("workflowCommands.samplesRegistered"),
     errorTitle: t("workflowCommands.failedToRegisterSamples"),
-    body: (actorId, payload) => ({
-      actor_id: actorId,
+    body: (_actorId, payload) => ({
       received_at: payload.received_at,
       deadline: payload.deadline,
     }),
@@ -94,7 +93,7 @@ export const workflowCommands: WorkflowCommand[] = [
     fields: [{ key: "reason", label: t("workflowCommands.formFields.reason"), type: "textarea", required: true }],
     successTitle: t("workflowCommands.samplesRejected"),
     errorTitle: t("workflowCommands.failedToRejectSamples"),
-    body: (actorId, payload) => ({ actor_id: actorId, reason: payload.reason }),
+    body: (_actorId, payload) => ({ reason: payload.reason }),
   },
   {
     key: "samples.close",
@@ -113,8 +112,7 @@ export const workflowCommands: WorkflowCommand[] = [
     ],
     successTitle: t("workflowCommands.samplesClosed"),
     errorTitle: t("workflowCommands.failedToCloseSamples"),
-    body: (actorId, payload) => ({
-      actor_id: actorId,
+    body: (_actorId, payload) => ({
       verdict: payload.verdict,
       comment: payload.comment,
     }),
@@ -133,7 +131,7 @@ export const workflowCommands: WorkflowCommand[] = [
     fields: [{ key: "reason", label: t("workflowCommands.formFields.reason"), type: "textarea", required: true }],
     successTitle: t("workflowCommands.researchRejected"),
     errorTitle: t("workflowCommands.failedToRejectResearch"),
-    body: (actorId, payload) => ({ actor_id: actorId, reason: payload.reason }),
+    body: (_actorId, payload) => ({ reason: payload.reason }),
   },
   {
     key: "tests.complete",
@@ -153,8 +151,7 @@ export const workflowCommands: WorkflowCommand[] = [
     ],
     successTitle: t("workflowCommands.testsCompleted"),
     errorTitle: t("workflowCommands.failedToCompleteTests"),
-    body: (actorId, payload) => ({
-      actor_id: actorId,
+    body: (_actorId, payload) => ({
       value: payload.value,
       norm: payload.norm,
       comment: payload.comment,
@@ -174,6 +171,6 @@ export const workflowCommands: WorkflowCommand[] = [
     fields: [{ key: "reason", label: t("workflowCommands.formFields.reason"), type: "textarea", required: true }],
     successTitle: t("workflowCommands.testsRejected"),
     errorTitle: t("workflowCommands.failedToRejectTests"),
-    body: (actorId, payload) => ({ actor_id: actorId, reason: payload.reason }),
+    body: (_actorId, payload) => ({ reason: payload.reason }),
   },
 ];

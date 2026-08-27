@@ -1,6 +1,5 @@
 import { computed, onMounted, ref, shallowRef } from 'vue'
 import { apiCommandRequest, apiReadListRequest, buildApiUrl } from '@/shared/api/client.api'
-import { useAuth } from '@/modules/auth'
 import type { Notification } from '@/shared/types'
 
 interface BackendNotification {
@@ -17,8 +16,6 @@ interface BackendNotification {
   target_user_id: string | null
   target_role_key: string | null
 }
-
-const SYSTEM_ACTOR_ID = '00000000-0000-0000-0000-000000000000'
 
 const notifications = shallowRef<Notification[]>([])
 const isFetching = ref(false)
@@ -168,7 +165,6 @@ const connectNotificationStream = (showToast: (notification: Notification) => vo
 
 export function useSystemNotifications() {
   const toast = useToast()
-  const auth = useAuth()
 
   onMounted(() => {
     if (!initialized) {
@@ -187,10 +183,8 @@ export function useSystemNotifications() {
   })
 
   const markNotificationRead = async (notificationId: string) => {
-    const actorId = auth.user?.id || SYSTEM_ACTOR_ID
     const response = await apiCommandRequest<BackendNotification>(`/alerts/${notificationId}/mark-read`, {
       method: 'POST',
-      body: { actor_id: actorId }
     })
     upsertNotification(mapNotification(response.data))
   }

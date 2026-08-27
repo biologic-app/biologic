@@ -126,13 +126,11 @@ class SubscriptionRequest(StrictRequest):
     user_id: UUID | None = None
 
 
-class RegisterDirectionRequest(BaseModel):
-    actor_id: UUID
+class RegisterDirectionRequest(StrictRequest):
     comment: str | None = None
 
 
-class RegisterSampleRequest(BaseModel):
-    actor_id: UUID
+class RegisterSampleRequest(StrictRequest):
     received_at: datetime
     deadline: datetime | None = None
 
@@ -147,58 +145,49 @@ class RegisterSampleRequest(BaseModel):
         return value
 
 
-class RejectSampleRequest(BaseModel):
-    actor_id: UUID
+class RejectSampleRequest(StrictRequest):
     reason: str
 
 
-class RejectResearchRequest(BaseModel):
-    actor_id: UUID
+class RejectResearchRequest(StrictRequest):
     reason: str
 
 
-class AssignResearchRequest(BaseModel):
-    actor_id: UUID
+class AssignResearchRequest(StrictRequest):
     research_goal_id: UUID
     comment: str | None = None
 
 
-class CompleteTestRequest(BaseModel):
-    actor_id: UUID
+class CompleteTestRequest(StrictRequest):
     value: str
     norm: str | None = None
     comment: str | None = None
     verdict: bool | None = None
 
 
-class RejectTestRequest(BaseModel):
-    actor_id: UUID
+class RejectTestRequest(StrictRequest):
     reason: str
 
 
-class CloseSampleRequest(BaseModel):
-    actor_id: UUID
+class CloseSampleRequest(StrictRequest):
     verdict: str
     comment: str | None = None
 
 
-class CreateProtocolRequest(BaseModel):
-    actor_id: UUID
+class CreateProtocolRequest(StrictRequest):
     sample_ids: list[UUID]
     protocol_type_id: UUID | None = None
     conclusion_id: UUID | None = None
     copies: int | None = None
 
 
-class UpdateProtocolRequest(BaseModel):
-    actor_id: UUID
+class UpdateProtocolRequest(StrictRequest):
     protocol_type_id: UUID | None = None
     conclusion_id: UUID | None = None
     copies: int | None = None
 
 
-class IssueProtocolRequest(BaseModel):
-    actor_id: UUID
+class IssueProtocolRequest(StrictRequest):
     issued_at: datetime | None = None
 
     @field_validator("issued_at")

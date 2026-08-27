@@ -1,43 +1,20 @@
-ROLE_PERMISSIONS: dict[str, set[str]] = {
-    "developer": {"*"},
-    "registrar": {
-        "directions.create",
-        "directions.update",
-        "directions.register",
-        "directions.import",
-        "samples.create",
-        "samples.update",
-        "samples.register",
-        "samples.reject",
-    },
-    "lab_doctor": {
-        "research.reject",
-        "tests.result",
-        "tests.reject",
-        "samples.reject",
-    },
-    "lab_chief": {
-        "research.reject",
-        "research.add_tests",
-        "tests.result",
-        "tests.reject",
-        "samples.reject",
-        "samples.close",
-    },
-    "lab_assistant": {"research.read", "tests.read"},
-    "branch_chief": {"directions.read", "samples.read", "alerts.read"},
-    "sanitary_inspector": {"directions.read", "samples.read", "protocols.read"},
-    "user_admin": {
-        "users.*",
-        "roles.*",
-        "permissions.*",
-        "user_scopes.*",
-        "role_subscription_rules.*",
-    },
-}
+def authorize(actor: object, code: str, resource: object | None = None) -> bool:
+    """Application-layer authorization hook.
+
+    ``CurrentPrincipal`` supplies ``can``; keeping this adapter structural avoids
+    coupling domain/application services to the HTTP dependency module.  A
+    missing capability is always deny (including unknown resources).
+    """
+    checker = getattr(actor, "can", None)
+    if not callable(checker):
+        return False
+    return bool(checker(code))
 
 
 def is_action_allowed(*, role_key: str, permission: str) -> bool:
-    permissions = ROLE_PERMISSIONS.get(role_key, set())
-    resource = permission.split(".", maxsplit=1)[0]
-    return "*" in permissions or f"{resource}.*" in permissions or permission in permissions
+    """Deprecated compatibility shim; role grants now come from PostgreSQL.
+
+    It intentionally fails closed rather than maintaining a second hardcoded
+    role-permission source of truth.
+    """
+    return role_key == "superadmin" and permission.count(".") == 1

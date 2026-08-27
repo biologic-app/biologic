@@ -269,13 +269,15 @@ class UserScopeRepository:
         return await _read_row(self.session, UserScope, "user_scopes", user_scope_id)
 
     async def create(self, values: dict[str, Any]) -> Any:
-        return await _create_row(self.session, UserScope, _pick(values, ("user_id", "scope_id")))
+        return await _create_row(
+            self.session, UserScope, _pick(values, ("user_id", "scope_kind", "scope_id"))
+        )
 
     async def update(self, user_scope_id: UUID, values: dict[str, Any]) -> Any:
         return await _update_row(
             self.session,
             await self.read(user_scope_id),
-            _pick(values, ("user_id", "scope_id")),
+            _pick(values, ("user_id", "scope_kind", "scope_id")),
         )
 
     async def delete(self, user_scope_id: UUID) -> None:
@@ -483,7 +485,7 @@ def _user_write_fields() -> tuple[str, ...]:
     return (
         "username",
         "password_hash",
-        "refresh_token_version",
+        "status",
         "code",
         "first_name",
         "last_name",
@@ -494,7 +496,7 @@ def _user_write_fields() -> tuple[str, ...]:
 
 
 def _role_sortable_fields() -> tuple[str, ...]:
-    return ("id", "key", "name", "scope_type", "created_at", "updated_at")
+    return ("id", "key", "name", "scope_type", "is_system", "created_at", "updated_at")
 
 
 def _permission_sortable_fields() -> tuple[str, ...]:
@@ -506,7 +508,7 @@ def _role_permission_sortable_fields() -> tuple[str, ...]:
 
 
 def _user_scope_sortable_fields() -> tuple[str, ...]:
-    return ("id", "user_id", "scope_id")
+    return ("id", "user_id", "scope_kind", "scope_id")
 
 
 def _role_subscription_rule_sortable_fields() -> tuple[str, ...]:

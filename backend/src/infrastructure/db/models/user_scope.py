@@ -5,6 +5,7 @@ from uuid import UUID
 from sqlalchemy import (
     ForeignKey,
     Index,
+    Text,
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
@@ -37,3 +38,4 @@ class UserScope(Base):
         nullable=False,
     )
     scope_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    scope_kind: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'object'"))

@@ -490,7 +490,7 @@ export async function completeRun(entryId: string): Promise<JournalEntry> {
 // ─── Execute-step (domain actions, US-007) ────────────────────────────────────
 
 // One action on the wire: the backend reads `command` + opaque `resolved_args`
-// (target id under the command's targetKey, plus command args like actor_id).
+// (target id under the command's targetKey, plus command arguments).
 export interface ExecuteStepActionPayload {
   actionId: string
   command: string
@@ -501,8 +501,6 @@ export interface ExecuteStepPayload {
   nodeId: string
   attempt: number
   actions: ExecuteStepActionPayload[]
-  // Top-level fallback actor for actions whose resolved_args omit `actor_id`.
-  actorId?: string | null
   author?: string | null
 }
 
@@ -530,7 +528,6 @@ export async function executeStep(
       command: action.command,
       resolved_args: action.resolvedArgs,
     })),
-    ...(payload.actorId ? { actor_id: payload.actorId } : {}),
     ...(payload.author ? { author: payload.author } : {}),
   }
   const response = await apiCommandRequest<Record<string, unknown>>(

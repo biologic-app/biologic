@@ -9,7 +9,6 @@ import ConfirmDialog from '@/shared/ui/ConfirmDialog.vue';
 import WorkflowScreenRenderer from '@/modules/workflows/components/WorkflowScreenRenderer.vue';
 import { useJournalUser } from '@/modules/workflows/composables/useJournalUser';
 import { useJournalEngine } from '@/modules/workflows/composables/useJournalEngine';
-import { useAuth } from '@/modules/auth';
 import { addComment, createEntry, deleteEntry, executeStep, getEntriesForSchema, getEntry, saveEntryProgress } from '@/modules/workflows/api/workflows.api';
 import { StepAttemptTracker, resolveActions } from '@/modules/workflows/engine/actions';
 import type { ApiClientError } from '@/shared/api/client.api';
@@ -32,7 +31,6 @@ const emit = defineEmits<{
 
 const { current: currentUser, authorName } = useJournalUser()
 const toast = useToast()
-const auth = useAuth()
 
 // Попытки execute-step по (run, node): прозрачный ретрай шлёт тот же attempt.
 const attempts = new StepAttemptTracker()
@@ -101,15 +99,14 @@ async function runStepActions(step: JournalNode): Promise<boolean> {
 
   const runId = selectedEntryId.value
   const nodeId = step.id
-  const actorId = auth.user?.id ?? null
   const resolved = resolveActions(actions, {
     answers: engine.answers.value,
-    actorId,
+    actorId: null,
     scopeId: props.scope,
   })
   const attempt = attempts.current(runId, nodeId)
   const call = () =>
-    executeStep(runId, { nodeId, attempt, actions: resolved, actorId, author: authorName() })
+    executeStep(runId, { nodeId, attempt, actions: resolved, author: authorName() })
 
   actionError.value = null
   try {

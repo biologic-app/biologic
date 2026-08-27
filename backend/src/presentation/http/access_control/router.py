@@ -22,7 +22,8 @@ from src.application.access_control.use_cases.user_scope_crud import UserScopeCr
 from src.core.pagination import PaginationDependency
 from src.core.responses import ListResponse, SingleResponse
 from src.presentation.http.access_control.dependencies import (
-    get_actor_id,
+    CurrentPrincipal,
+    get_current_principal,
     get_permission_use_case,
     get_role_permission_set_use_case,
     get_role_permission_use_case,
@@ -33,8 +34,6 @@ from src.presentation.http.access_control.dependencies import (
     get_user_use_case,
 )
 from src.presentation.http.access_control.schemas import (
-    PermissionCreateRequest,
-    PermissionUpdateRequest,
     RoleCreateRequest,
     RolePermissionCreateRequest,
     RolePermissionsReplaceRequest,
@@ -119,10 +118,10 @@ async def read_user_permissions(
 
 @router.get("/user/me/permissions")
 async def read_current_user_permissions(
-    actor_id: Annotated[UUID, Depends(get_actor_id)],
+    principal: Annotated[CurrentPrincipal, Depends(get_current_principal)],
     use_case: UserPermissionSet,
 ) -> SingleResponse[dict[str, object]]:
-    return await use_case.read_effective(actor_id)
+    return await use_case.read_effective(principal.user_id)
 
 
 @router.get("/users/{user_id}/overrides")
@@ -215,32 +214,6 @@ async def read_permission(
     use_case: PermissionUseCase,
 ) -> SingleResponse[dict[str, object]]:
     return await use_case.read(permission_id)
-
-
-@router.post("/permissions", status_code=status.HTTP_201_CREATED)
-async def create_permission(
-    payload: PermissionCreateRequest,
-    use_case: PermissionUseCase,
-) -> SingleResponse[dict[str, object]]:
-    return await use_case.create(payload)
-
-
-@router.patch("/permissions/{permission_id}")
-async def update_permission(
-    permission_id: UUID,
-    payload: PermissionUpdateRequest,
-    use_case: PermissionUseCase,
-) -> SingleResponse[dict[str, object]]:
-    return await use_case.update(permission_id, payload)
-
-
-@router.delete("/permissions/{permission_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_permission(
-    permission_id: UUID,
-    use_case: PermissionUseCase,
-) -> Response:
-    await use_case.delete(permission_id)
-    return _deleted_response()
 
 
 @router.get("/role_permissions")

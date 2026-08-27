@@ -10,6 +10,8 @@ export {};
 declare module "vue-router" {
   interface RouteMeta {
     requiresAuth: boolean;
+    /** Canonical backend permission code (resource.action). */
+    permission?: string;
     resource?: Resource;
     action?: Action;
   }

@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     database_url: str
     jwt_secret_key: str
     jwt_algorithm: str = "HS256"
+    jwt_issuer: str = "biologic-role"
+    jwt_audience: str = "biologic-role-api"
     access_token_ttl_seconds: int = 1800  # 30 minutes
     # Refresh token lifetime. Without "remember me" the session is short-lived
     # (1 day); with it the refresh token lives for 30 days. The window is

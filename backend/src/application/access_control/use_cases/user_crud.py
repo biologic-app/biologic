@@ -9,6 +9,7 @@ from src.application.access_control.use_cases._shared import (
     payload_dict,
     single_response,
 )
+from src.core.errors import ForbiddenError
 from src.core.pagination import PaginationParams
 from src.core.responses import ListResponse, SingleResponse
 from src.domain.uow import UnitOfWorkFactory
@@ -16,7 +17,8 @@ from src.domain.uow import UnitOfWorkFactory
 _FIELDS = (
     "id",
     "username",
-    "refresh_token_version",
+    "token_version",
+    "status",
     "code",
     "first_name",
     "last_name",
@@ -42,13 +44,30 @@ class UserCrudUseCase:
 
     async def create(self, payload: BaseModel) -> SingleResponse[dict[str, object]]:
         async with self._uow_factory() as uow:
+            role_id = payload.model_dump(exclude_unset=True).get("role_id")
+            if role_id is not None:
+                role = await uow.roles.read(role_id)
+                if getattr(role, "is_system", False) or getattr(role, "key", None) == "superadmin":
+                    raise ForbiddenError("The superadmin role cannot be assigned through the API.")
             row = await uow.users.create(payload_dict(payload))
             await uow.commit()
             return single_response(row, _FIELDS, operation="users.create")
 
     async def update(self, item_id: UUID, payload: BaseModel) -> SingleResponse[dict[str, object]]:
         async with self._uow_factory() as uow:
-            row = await uow.users.update(item_id, payload_dict(payload))
+            values = payload_dict(payload)
+            # Version changes invalidate every access/refresh token for the
+            # affected account.  The version itself is server-owned.
+            values.pop("token_version", None)
+            if "role_id" in values:
+                role = await uow.roles.read(values["role_id"])
+                if getattr(role, "is_system", False) or getattr(role, "key", None) == "superadmin":
+                    raise ForbiddenError("The superadmin role cannot be assigned through the API.")
+            row = await uow.users.update(item_id, values)
+            if any(key in values for key in ("password_hash", "role_id", "status")):
+                row.token_version = int(getattr(row, "token_version", 0)) + 1
+                if hasattr(row, "refresh_token_version"):
+                    row.refresh_token_version = row.token_version
             await uow.commit()
             return single_response(row, _FIELDS, operation="users.update")
 

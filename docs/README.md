@@ -16,6 +16,7 @@ docs/
 - [backend-architecture-review.md](architecture/backend-architecture-review.md) — целевая DDD-архитектура (модульный монолит, EventBus).
 - [backend-ddd-contexts.md](architecture/backend-ddd-contexts.md) — bounded contexts.
 - [schema-vs-backend-diff.md](architecture/schema-vs-backend-diff.md) — расхождения справочной модели данных и ORM.
+- [legacy-mysql-postgres-mapping.md](architecture/legacy-mysql-postgres-mapping.md) — mapping дампа MySQL 5.1 в canonical PostgreSQL, преобразования типов и orphan-policy.
 - [2026-05-14-backend-mvp-ddd-api-design.md](architecture/2026-05-14-backend-mvp-ddd-api-design.md) — спецификация API (CRUD + команды).
 - [2026-07-22-workflow-ui-engine-overview.md](architecture/2026-07-22-workflow-ui-engine-overview.md) — обзор движка рабочих процессов (frontend + backend + execute-step); точка входа.
 - [2026-07-22-workflow-schema-v2.md](architecture/2026-07-22-workflow-schema-v2.md) — спецификация формата схемы v2 (граф + экран + доменные привязки).

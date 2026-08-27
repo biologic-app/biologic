@@ -7,8 +7,8 @@ import {
 } from "../../../src/shared/config/user-modes";
 
 describe("isSuperAdminRole", () => {
-  test("возвращает true для роли developer", () => {
-    expect(isSuperAdminRole("developer")).toBe(true);
+  test("возвращает true для роли superadmin", () => {
+    expect(isSuperAdminRole("superadmin")).toBe(true);
   });
 
   test("возвращает false для обычных ролей", () => {
@@ -23,8 +23,8 @@ describe("isSuperAdminRole", () => {
     expect(isSuperAdminRole("")).toBe(false);
   });
 
-  test("superAdminRoles содержит developer", () => {
-    expect(superAdminRoles.has("developer")).toBe(true);
+  test("superAdminRoles содержит superadmin", () => {
+    expect(superAdminRoles.has("superadmin")).toBe(true);
   });
 });
 

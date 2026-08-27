@@ -150,11 +150,13 @@ export const fetchNextBaseNo = async (yearNo: number): Promise<number> => {
   return (top ?? 0) + 1
 }
 
-export const registerDirection = (id: string, actorId: string | null, comment: string | null) =>
-  apiCommandRequest<Record<string, unknown>>(`/directions/${id}/register`, {
+export const registerDirection = (id: string, actorId: string | null, comment: string | null) => {
+  void actorId
+  return apiCommandRequest<Record<string, unknown>>(`/directions/${id}/register`, {
     method: 'POST',
-    body: { actor_id: actorId, comment }
+    body: { comment }
   })
+}
 
 export const createDoctor = (body: Record<string, unknown>) =>
   apiCreateRequest<ReferenceLike & { id: string }>('/doctors', { method: 'POST', body })
@@ -288,11 +290,13 @@ export const assignSampleResearch = (
   sampleId: string,
   researchGoalId: string,
   actorId: string | null
-) =>
-  apiCommandRequest<Record<string, unknown>>(`/samples/${sampleId}/assign-research`, {
+) => {
+  void actorId
+  return apiCommandRequest<Record<string, unknown>>(`/samples/${sampleId}/assign-research`, {
     method: 'POST',
-    body: { actor_id: actorId, research_goal_id: researchGoalId, comment: null }
+    body: { research_goal_id: researchGoalId, comment: null }
   })
+}
 
 export const deleteResearch = (researchId: string) =>
   apiDeleteRequest<Record<string, unknown>>(`/research/${researchId}`, { method: 'DELETE' })

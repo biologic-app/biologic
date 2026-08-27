@@ -2,6 +2,7 @@ from datetime import timedelta
 from uuid import UUID
 
 from fastapi.testclient import TestClient
+from jose import jwt
 from pytest import MonkeyPatch
 
 from src.app_factory import create_app
@@ -12,6 +13,7 @@ from src.presentation.http.access_control.dependencies import get_auth_use_case
 
 USER_ID = UUID("00000000-0000-0000-0000-000000000001")
 REFRESH_VERSION = 7
+SESSION_ID = UUID("00000000-0000-0000-0000-000000000002")
 
 
 def _session() -> AuthSession:
@@ -25,6 +27,7 @@ def _session() -> AuthSession:
         patronymic=None,
         refresh_token_version=REFRESH_VERSION,
         permissions=[],
+        session_id=SESSION_ID,
     )
 
 
@@ -68,8 +71,32 @@ def _mint_refresh_cookie(refresh_version: int = REFRESH_VERSION) -> str:
         secret_key=settings.jwt_secret_key,
         algorithm=settings.jwt_algorithm,
         expires_delta=timedelta(seconds=settings.refresh_token_ttl_seconds),
-        additional_claims={"rv": refresh_version},
+        additional_claims={"rv": refresh_version, "sid": str(SESSION_ID)},
+        issuer=settings.jwt_issuer,
+        audience=settings.jwt_audience,
     )
+    return token
+
+
+def _mint_access_cookie(*, subject: UUID | str = USER_ID) -> str:
+    """Mint a signed access token for negative refresh-flow cases."""
+    settings = get_settings()
+    token, _ = encode_jwt_token(
+        subject=subject if isinstance(subject, UUID) else UUID(int=0),
+        token_type="access",
+        secret_key=settings.jwt_secret_key,
+        algorithm=settings.jwt_algorithm,
+        expires_delta=timedelta(seconds=settings.access_token_ttl_seconds),
+        additional_claims={"rv": REFRESH_VERSION},
+        issuer=settings.jwt_issuer,
+        audience=settings.jwt_audience,
+    )
+    if isinstance(subject, str):
+        # The encoder accepts UUID subjects, so replace only the claim under
+        # test while keeping the token correctly signed.
+        payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+        payload["sub"] = subject
+        token = jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
     return token
 
 
@@ -148,6 +175,36 @@ def test_refresh_with_revoked_version_returns_401(monkeypatch: MonkeyPatch) -> N
         response = client.post(
             "/api/v1/auth/refresh",
             headers={"Cookie": f"refresh_cookie={stale}"},
+        )
+
+        assert response.status_code == 401
+    finally:
+        get_settings.cache_clear()
+
+
+def test_refresh_with_access_token_returns_401(monkeypatch: MonkeyPatch) -> None:
+    """A token issued for API access must not be accepted by refresh."""
+    try:
+        client = _client(monkeypatch)
+
+        response = client.post(
+            "/api/v1/auth/refresh",
+            headers={"Cookie": f"refresh_cookie={_mint_access_cookie()}"},
+        )
+
+        assert response.status_code == 401
+    finally:
+        get_settings.cache_clear()
+
+
+def test_refresh_with_invalid_subject_returns_401(monkeypatch: MonkeyPatch) -> None:
+    """A signed token with a non-UUID subject must fail closed."""
+    try:
+        client = _client(monkeypatch)
+
+        response = client.post(
+            "/api/v1/auth/refresh",
+            headers={"Cookie": f"refresh_cookie={_mint_access_cookie(subject='not-a-uuid')}"},
         )
 
         assert response.status_code == 401

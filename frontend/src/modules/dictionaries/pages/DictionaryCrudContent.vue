@@ -1354,7 +1354,6 @@ const saveProtocolCommand = async (payload: Record<string, unknown>) => {
     await apiRequest("/protocols", {
       method: "POST",
       body: {
-        actor_id: actorId,
         sample_ids: selectedRows.value.map((row) => row.id),
         protocol_type_id: payload.protocol_type_id || null,
         conclusion_id: payload.conclusion_id || null,
