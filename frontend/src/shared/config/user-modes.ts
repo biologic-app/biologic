@@ -229,7 +229,7 @@ export const defaultUserModeId: UserModeId = "developer";
  * и автоматически покрывает любые новые ресурсы/действия. Сверяем с `role_key`
  * пользователя (см. AuthUser.role), а не с фронтовым режимом.
  */
-export const superAdminRoles: ReadonlySet<string> = new Set<string>(["developer"]);
+export const superAdminRoles: ReadonlySet<string> = new Set<string>(["superadmin"]);
 
 export const isSuperAdminRole = (role: string | null | undefined): boolean =>
   role != null && superAdminRoles.has(role);

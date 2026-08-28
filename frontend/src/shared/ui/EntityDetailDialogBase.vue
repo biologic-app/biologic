@@ -13,7 +13,6 @@ import {
   loadReferenceOptions,
 } from "@/shared/api/client.api";
 import { usePermission } from "@/shared/composables/usePermission";
-import { useAuth } from "@/modules/auth";
 import { useEntityForm } from "@/shared/composables/useEntityForm";
 import ProtocolPreviewModal from "@/shared/ui/ProtocolPreviewModal.vue";
 import TechnicalAuditTimeline from "@/shared/ui/TechnicalAuditTimeline.vue";
@@ -151,7 +150,6 @@ const referenceOptions = ref<Record<string, Array<{ label: string; value: FieldV
 const previewOpen = ref(false);
 
 const { can } = usePermission();
-const auth = useAuth();
 const toast = useToast();
 const { t } = useI18n();
 const { formState, sync, setValue, buildPayload, missingRequired } = useEntityForm();
@@ -856,12 +854,6 @@ async function saveInline() {
   saving.value = true;
   try {
     const payload = buildPayload(props.config.fields);
-    // Протокол — командная сущность: PATCH /protocols/{id} требует actor_id
-    // в теле (см. UpdateProtocolRequest), в отличие от плоского CRUD
-    // направлений/образцов.
-    if (props.businessKind === "protocols" && auth.user?.id) {
-      payload.actor_id = auth.user.id;
-    }
     const response = await apiUpdateRequest<CrudRow>(`${props.config.endpoint}/${row.id}`, {
       method: "PATCH",
       body: payload,
@@ -881,7 +873,6 @@ async function saveInline() {
 // verdict === false — валидное заполненное значение, поэтому проверяем строго
 // через `!== null`.
 async function saveOneTestRow(row: RelatedRow) {
-  const actorId = auth.user?.id;
   const value = (row.value ?? null) as string | null;
   const norm = (row.norm ?? null) as string | null;
   const comment = (row.comment ?? null) as string | null;
@@ -892,7 +883,7 @@ async function saveOneTestRow(row: RelatedRow) {
   if (isFilled && row.statusCode === "in_progress") {
     await apiCommandRequest(`/tests/${row.id}/complete`, {
       method: "POST",
-      body: { actor_id: actorId, value, norm, comment, verdict },
+      body: { value, norm, comment, verdict },
     });
     return;
   }

@@ -4,6 +4,7 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import (
+    Boolean,
     DateTime,
     Index,
     Text,
@@ -42,6 +43,7 @@ class Role(Base):
         nullable=False,
         server_default=text("'global'::role_scope_type"),
     )
+    is_system: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

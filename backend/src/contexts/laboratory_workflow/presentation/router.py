@@ -62,9 +62,14 @@ from src.core.pagination import PaginationDependency
 from src.core.responses import ListResponse, ResponseMeta, SingleResponse
 from src.infrastructure.repositories.catalogs import DoctorRepository, ObjectRepository
 from src.infrastructure.uow import build_uow_factory
-from src.presentation.http.access_control.dependencies import get_current_user_id_optional
+from src.presentation.http.access_control.dependencies import (
+    get_current_user_id,
+    get_current_user_id_optional,
+    require_permission,
+)
 
 router = APIRouter(tags=["workflow"])
+ActorId = Annotated[UUID, Depends(get_current_user_id)]
 
 
 async def get_workflow_command_service() -> WorkflowCommandService:
@@ -449,32 +454,40 @@ async def delete_protocol(
     return _deleted_response()
 
 
-@router.post("/directions/{direction_id}/register")
+@router.post(
+    "/directions/{direction_id}/register",
+    dependencies=[Depends(require_permission("directions.register"))],
+)
 async def register_direction(
     direction_id: UUID,
     request: RegisterDirectionRequest,
     service: Annotated[WorkflowCommandService, Depends(get_workflow_command_service)],
+    actor_id: ActorId,
 ) -> SingleResponse[CommandResult]:
     result = await service.register_direction(
         RegisterDirectionInput(
             direction_id=direction_id,
-            actor_id=request.actor_id,
+            actor_id=actor_id,
             comment=request.comment,
         ),
     )
     return SingleResponse(data=result, meta=ResponseMeta(operation="directions.register"))
 
 
-@router.post("/samples/{sample_id}/register")
+@router.post(
+    "/samples/{sample_id}/register",
+    dependencies=[Depends(require_permission("samples.register"))],
+)
 async def register_sample(
     sample_id: UUID,
     request: RegisterSampleRequest,
     service: Annotated[WorkflowCommandService, Depends(get_workflow_command_service)],
+    actor_id: ActorId,
 ) -> SingleResponse[CommandResult]:
     result = await service.register_sample(
         RegisterSampleInput(
             sample_id=sample_id,
-            actor_id=request.actor_id,
+            actor_id=actor_id,
             received_at=request.received_at,
             deadline=request.deadline,
         ),
@@ -482,32 +495,40 @@ async def register_sample(
     return SingleResponse(data=result, meta=ResponseMeta(operation="samples.register"))
 
 
-@router.post("/samples/{sample_id}/reject")
+@router.post(
+    "/samples/{sample_id}/reject",
+    dependencies=[Depends(require_permission("samples.reject"))],
+)
 async def reject_sample(
     sample_id: UUID,
     request: RejectSampleRequest,
     service: Annotated[WorkflowCommandService, Depends(get_workflow_command_service)],
+    actor_id: ActorId,
 ) -> SingleResponse[CommandResult]:
     result = await service.reject_sample(
         RejectSampleInput(
             sample_id=sample_id,
-            actor_id=request.actor_id,
+            actor_id=actor_id,
             reason=request.reason,
         ),
     )
     return SingleResponse(data=result, meta=ResponseMeta(operation="samples.reject"))
 
 
-@router.post("/samples/{sample_id}/assign-research")
+@router.post(
+    "/samples/{sample_id}/assign-research",
+    dependencies=[Depends(require_permission("research.create"))],
+)
 async def assign_research(
     sample_id: UUID,
     request: AssignResearchRequest,
     service: Annotated[WorkflowCommandService, Depends(get_workflow_command_service)],
+    actor_id: ActorId,
 ) -> SingleResponse[CommandResult]:
     result = await service.assign_research(
         AssignResearchInput(
             sample_id=sample_id,
-            actor_id=request.actor_id,
+            actor_id=actor_id,
             research_goal_id=request.research_goal_id,
             comment=request.comment,
         ),
@@ -515,16 +536,20 @@ async def assign_research(
     return SingleResponse(data=result, meta=ResponseMeta(operation="samples.assign_research"))
 
 
-@router.post("/samples/{sample_id}/close")
+@router.post(
+    "/samples/{sample_id}/close",
+    dependencies=[Depends(require_permission("samples.close"))],
+)
 async def close_sample(
     sample_id: UUID,
     request: CloseSampleRequest,
     service: Annotated[WorkflowCommandService, Depends(get_workflow_command_service)],
+    actor_id: ActorId,
 ) -> SingleResponse[CommandResult]:
     result = await service.close_sample(
         CloseSampleInput(
             sample_id=sample_id,
-            actor_id=request.actor_id,
+            actor_id=actor_id,
             verdict=request.verdict,
             comment=request.comment,
         ),
@@ -532,32 +557,40 @@ async def close_sample(
     return SingleResponse(data=result, meta=ResponseMeta(operation="samples.close"))
 
 
-@router.post("/research/{research_id}/reject")
+@router.post(
+    "/research/{research_id}/reject",
+    dependencies=[Depends(require_permission("research.reject"))],
+)
 async def reject_research(
     research_id: UUID,
     request: RejectResearchRequest,
     service: Annotated[WorkflowCommandService, Depends(get_workflow_command_service)],
+    actor_id: ActorId,
 ) -> SingleResponse[CommandResult]:
     result = await service.reject_research(
         ResearchCommandInput(
             research_id=research_id,
-            actor_id=request.actor_id,
+            actor_id=actor_id,
             reason=request.reason,
         ),
     )
     return SingleResponse(data=result, meta=ResponseMeta(operation="research.reject"))
 
 
-@router.post("/tests/{test_id}/complete")
+@router.post(
+    "/tests/{test_id}/complete",
+    dependencies=[Depends(require_permission("tests.complete"))],
+)
 async def complete_test(
     test_id: UUID,
     request: CompleteTestRequest,
     service: Annotated[WorkflowCommandService, Depends(get_workflow_command_service)],
+    actor_id: ActorId,
 ) -> SingleResponse[CommandResult]:
     result = await service.complete_test(
         CompleteTestInput(
             test_id=test_id,
-            actor_id=request.actor_id,
+            actor_id=actor_id,
             value=request.value,
             norm=request.norm,
             comment=request.comment,
@@ -567,26 +600,34 @@ async def complete_test(
     return SingleResponse(data=result, meta=ResponseMeta(operation="tests.complete"))
 
 
-@router.post("/tests/{test_id}/reject")
+@router.post(
+    "/tests/{test_id}/reject",
+    dependencies=[Depends(require_permission("tests.reject"))],
+)
 async def reject_test(
     test_id: UUID,
     request: RejectTestRequest,
     service: Annotated[WorkflowCommandService, Depends(get_workflow_command_service)],
+    actor_id: ActorId,
 ) -> SingleResponse[CommandResult]:
     result = await service.reject_test(
-        TestCommandInput(test_id=test_id, actor_id=request.actor_id, reason=request.reason),
+        TestCommandInput(test_id=test_id, actor_id=actor_id, reason=request.reason),
     )
     return SingleResponse(data=result, meta=ResponseMeta(operation="tests.reject"))
 
 
-@router.post("/protocols")
+@router.post(
+    "/protocols",
+    dependencies=[Depends(require_permission("protocols.create"))],
+)
 async def create_protocol(
     request: CreateProtocolRequest,
     service: Annotated[WorkflowCommandService, Depends(get_workflow_command_service)],
+    actor_id: ActorId,
 ) -> SingleResponse[CommandResult]:
     result = await service.create_protocol(
         CreateProtocolInput(
-            actor_id=request.actor_id,
+            actor_id=actor_id,
             sample_ids=request.sample_ids,
             protocol_type_id=request.protocol_type_id,
             conclusion_id=request.conclusion_id,
@@ -596,16 +637,20 @@ async def create_protocol(
     return SingleResponse(data=result, meta=ResponseMeta(operation="protocols.create"))
 
 
-@router.patch("/protocols/{protocol_id}")
+@router.patch(
+    "/protocols/{protocol_id}",
+    dependencies=[Depends(require_permission("protocols.update"))],
+)
 async def update_protocol(
     protocol_id: UUID,
     request: UpdateProtocolRequest,
     service: Annotated[WorkflowCommandService, Depends(get_workflow_command_service)],
+    actor_id: ActorId,
 ) -> SingleResponse[CommandResult]:
     result = await service.update_protocol(
         UpdateProtocolInput(
             protocol_id=protocol_id,
-            actor_id=request.actor_id,
+            actor_id=actor_id,
             protocol_type_id=request.protocol_type_id,
             conclusion_id=request.conclusion_id,
             copies=request.copies,
@@ -614,16 +659,20 @@ async def update_protocol(
     return SingleResponse(data=result, meta=ResponseMeta(operation="protocols.update"))
 
 
-@router.post("/protocols/{protocol_id}/issue")
+@router.post(
+    "/protocols/{protocol_id}/issue",
+    dependencies=[Depends(require_permission("protocols.issue"))],
+)
 async def issue_protocol(
     protocol_id: UUID,
     request: IssueProtocolRequest,
     service: Annotated[WorkflowCommandService, Depends(get_workflow_command_service)],
+    actor_id: ActorId,
 ) -> SingleResponse[CommandResult]:
     result = await service.issue_protocol(
         IssueProtocolInput(
             protocol_id=protocol_id,
-            actor_id=request.actor_id,
+            actor_id=actor_id,
             issued_at=request.issued_at,
         ),
     )

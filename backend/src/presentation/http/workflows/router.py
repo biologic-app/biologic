@@ -18,7 +18,10 @@ from src.application.workflows.use_cases.run_crud import WorkflowRunUseCase
 from src.application.workflows.use_cases.template_crud import WorkflowTemplateUseCase
 from src.core.pagination import PaginationDependency
 from src.core.responses import ListResponse, SingleResponse
-from src.presentation.http.access_control.dependencies import get_current_user_id_optional
+from src.presentation.http.access_control.dependencies import (
+    CurrentPrincipal,
+    get_current_principal,
+)
 from src.presentation.http.workflows.dependencies import (
     get_attachment_use_case,
     get_execute_step_use_case,
@@ -224,7 +227,7 @@ async def execute_step(
     run_id: UUID,
     payload: ExecuteStepRequest,
     use_case: Annotated[ExecuteStepUseCase, Depends(get_execute_step_use_case)],
-    actor_id: Annotated[UUID | None, Depends(get_current_user_id_optional)],
+    principal: Annotated[CurrentPrincipal, Depends(get_current_principal)],
 ) -> SingleResponse[dict[str, object]]:
     command = ExecuteStepInput(
         run_id=run_id,
@@ -238,7 +241,7 @@ async def execute_step(
             )
             for action in payload.actions
         ],
-        actor_id=payload.actor_id or actor_id,
+        actor_id=principal.user_id,
         author=payload.author,
     )
     return await use_case.execute(command)

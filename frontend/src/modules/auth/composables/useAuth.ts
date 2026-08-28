@@ -8,7 +8,6 @@ import {
   defaultUserModeId,
   isSuperAdminRole,
   isUserModeId,
-  modeAllows,
   resolveModePermissions,
   resolveUserMode,
   type ModePermission,
@@ -20,8 +19,8 @@ import { router } from "@/app/router";
 export const useAuth = defineStore("auth", () => {
   const user = useStorage<AuthUser | null>("auth:user", null);
   // Права роли с бэкенда (наполняются при логине/restoreSession).
-  // Источник истины для can(): если массив непустой — берём его, иначе
-  // фронтовый пресет активного режима (см. effectivePermissions ниже).
+  // Backend grants are authoritative. Presets are available only for an
+  // explicitly opted-in mock-auth session.
   const permissions = useStorage<Permission[]>("auth:permissions", []);
   const activeModeId = useStorage<UserModeId>("auth:mode", defaultUserModeId);
   // ISO timestamps returned by the backend. Persisted so a page reload can
@@ -58,7 +57,7 @@ export const useAuth = defineStore("auth", () => {
   };
 
   const isAuthenticated = computed(() => !!user.value);
-  // Суперадмин (роль developer) обходит проверку прав — см. superAdminRoles.
+  // Superadmin bypasses permissions, but authentication is still required.
   const isSuperAdmin = computed(() => isSuperAdminRole(user.value?.role));
 
   const activeMode = computed(() => resolveUserMode(activeModeId.value));
@@ -68,7 +67,7 @@ export const useAuth = defineStore("auth", () => {
     if (permissions.value.length > 0) {
       return permissions.value as unknown as ModePermission[];
     }
-    return import.meta.env.DEV
+    return import.meta.env.VITE_MOCK_AUTH === "true"
       ? resolveModePermissions(activeModeId.value)
       : [];
   });
@@ -193,12 +192,17 @@ export const useAuth = defineStore("auth", () => {
     }
   };
 
-  const can: (resource: Resource, action: Action) => boolean = (
-    resource,
-    action,
-  ) =>
-    isSuperAdmin.value ||
-    modeAllows(effectivePermissions.value, resource, action);
+  const can: (resource: Resource, action: Action) => boolean = (resource, action) => {
+    if (isSuperAdmin.value) return true;
+    // Compatibility for screens still using view/edit while API grants use
+    // canonical read/update verbs.
+    const canonicalAction: Action = action === "view" ? "read" : action === "edit" ? "update" : action;
+    return effectivePermissions.value.some(
+      (permission) =>
+        (permission.resource === "*" || permission.resource === resource) &&
+        (permission.action === "*" || permission.action === canonicalAction || permission.action === action),
+    );
+  };
 
   return {
     user,

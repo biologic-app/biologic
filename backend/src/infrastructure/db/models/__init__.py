@@ -24,6 +24,7 @@ from src.infrastructure.db.models.sample import Sample
 from src.infrastructure.db.models.sample_lab import SampleLab
 from src.infrastructure.db.models.sample_status import SampleStatus
 from src.infrastructure.db.models.sample_type import SampleType
+from src.infrastructure.db.models.session import Session
 from src.infrastructure.db.models.subscription import Subscription
 from src.infrastructure.db.models.test import Test
 from src.infrastructure.db.models.test_status import TestStatus
@@ -65,6 +66,7 @@ __all__ = [
     "Sample",
     "SampleLab",
     "SampleStatus",
+    "Session",
     "SampleType",
     "Subscription",
     "Test",

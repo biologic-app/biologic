@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import secrets
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal, cast
@@ -36,6 +37,8 @@ def encode_jwt_token(
     algorithm: str,
     expires_delta: timedelta,
     additional_claims: Mapping[str, Any] | None = None,
+    issuer: str | None = None,
+    audience: str | None = None,
 ) -> tuple[str, datetime]:
     now = datetime.now(UTC).replace(microsecond=0)
     expires_at = now + expires_delta
@@ -44,7 +47,12 @@ def encode_jwt_token(
         "typ": token_type,
         "iat": int(now.timestamp()),
         "exp": int(expires_at.timestamp()),
+        "jti": str(UUID(int=secrets.randbits(128))),
     }
+    if issuer is not None:
+        payload["iss"] = issuer
+    if audience is not None:
+        payload["aud"] = audience
     if additional_claims:
         payload.update(dict(additional_claims))
     token = jwt.encode(payload, secret_key, algorithm=algorithm)
@@ -57,8 +65,22 @@ def decode_jwt_token(
     secret_key: str,
     algorithm: str,
     expected_type: TokenType | None = None,
+    issuer: str | None = None,
+    audience: str | None = None,
 ) -> dict[str, Any]:
-    payload = cast(dict[str, Any], jwt.decode(token, secret_key, algorithms=[algorithm]))
+    if algorithm not in {"HS256", "HS384", "HS512"}:
+        raise ValueError("Unsupported JWT algorithm.")
+    payload = cast(
+        dict[str, Any],
+        jwt.decode(
+            token,
+            secret_key,
+            algorithms=[algorithm],
+            issuer=issuer,
+            audience=audience,
+            options={"verify_iss": issuer is not None, "verify_aud": audience is not None},
+        ),
+    )
     token_type = payload.get("typ")
     if expected_type is not None and token_type != expected_type:
         raise ValueError("Unexpected token type.")
@@ -72,8 +94,29 @@ def token_subject(payload: Mapping[str, Any]) -> UUID:
     return UUID(raw_subject)
 
 
+def token_session_id(payload: Mapping[str, Any]) -> UUID:
+    raw = payload.get("sid")
+    if not isinstance(raw, str):
+        raise ValueError("Token session is missing.")
+    return UUID(raw)
+
+
+def token_version(payload: Mapping[str, Any]) -> int:
+    raw = payload.get("ver", payload.get("rv"))
+    if not isinstance(raw, int) or raw < 0:
+        raise ValueError("Token version is invalid.")
+    return raw
+
+
+def token_jti(payload: Mapping[str, Any]) -> UUID:
+    raw = payload.get("jti")
+    if not isinstance(raw, str):
+        raise ValueError("Token id is missing.")
+    return UUID(raw)
+
+
 def token_refresh_version(payload: Mapping[str, Any]) -> int:
-    raw_version = payload.get("rv")
+    raw_version = payload.get("ver", payload.get("rv"))
     if raw_version is None:
         raise ValueError("Refresh token version is missing.")
     if not isinstance(raw_version, int):

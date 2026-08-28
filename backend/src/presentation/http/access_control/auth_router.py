@@ -1,6 +1,6 @@
-from datetime import datetime, timedelta
+from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, Response, status
 
@@ -13,14 +13,19 @@ from src.core.security import (
     decode_jwt_token,
     encode_jwt_token,
     token_expiration,
+    token_jti,
     token_refresh_version,
+    token_session_id,
     token_subject,
     token_ttl_seconds,
 )
+from src.infrastructure.db.models import Session
+from src.infrastructure.uow import build_uow_factory
 from src.presentation.http.access_control.auth_schemas import LoginRequest
 from src.presentation.http.access_control.dependencies import (
+    CurrentPrincipal,
     get_auth_use_case,
-    get_current_user_id,
+    get_current_principal,
 )
 
 router = APIRouter(tags=["auth"])
@@ -43,16 +48,17 @@ def _write_cookie(
     )
 
 
-def _mint_access_cookie(
-    response: Response, user_id: UUID, settings: Settings
-) -> datetime:
+def _mint_access_cookie(response: Response, session: AuthSession, settings: Settings) -> datetime:
     delta = timedelta(seconds=settings.access_token_ttl_seconds)
     token, access_exp = encode_jwt_token(
-        subject=user_id,
+        subject=session.user_id,
         token_type="access",
         secret_key=settings.jwt_secret_key,
         algorithm=settings.jwt_algorithm,
         expires_delta=delta,
+        additional_claims={"sid": str(session.session_id), "ver": session.token_version},
+        issuer=settings.jwt_issuer,
+        audience=settings.jwt_audience,
     )
     _write_cookie(response, settings.access_cookie_name, token, delta, settings)
     return access_exp
@@ -73,7 +79,13 @@ def _mint_refresh_cookie(
         secret_key=settings.jwt_secret_key,
         algorithm=settings.jwt_algorithm,
         expires_delta=delta,
-        additional_claims={"rv": session.refresh_token_version},
+        additional_claims={
+            "sid": str(session.session_id),
+            "ver": session.token_version,
+            "rv": session.token_version,
+        },
+        issuer=settings.jwt_issuer,
+        audience=settings.jwt_audience,
     )
     _write_cookie(response, settings.refresh_cookie_name, token, delta, settings)
     return refresh_exp
@@ -84,19 +96,24 @@ def _decode_refresh_cookie(request: Request, settings: Settings) -> dict[str, ob
     if not token:
         raise UnauthorizedError("Missing refresh token.")
     try:
-        return decode_jwt_token(
+        payload = decode_jwt_token(
             token,
             secret_key=settings.jwt_secret_key,
             algorithm=settings.jwt_algorithm,
             expected_type="refresh",
+            issuer=settings.jwt_issuer,
+            audience=settings.jwt_audience,
         )
+        token_subject(payload)
+        token_session_id(payload)
+        token_refresh_version(payload)
+        token_jti(payload)
+        return payload
     except Exception as exc:  # noqa: BLE001 — any decode failure is a 401
         raise UnauthorizedError("Invalid or expired refresh token.") from exc
 
 
-def _read_refresh_expiry(
-    request: Request, settings: Settings, fallback: datetime
-) -> datetime:
+def _read_refresh_expiry(request: Request, settings: Settings, fallback: datetime) -> datetime:
     """Best-effort read of the current refresh token's expiry so `/auth/me`
     and `/auth/refresh` can report it without re-minting the refresh cookie
     (the refresh window is fixed at login and never extended)."""
@@ -116,6 +133,7 @@ def _session_envelope(
                 "username": session.username,
                 "role_key": session.role_key,
                 "role_name": session.role_name,
+                "status": session.status,
                 "first_name": session.first_name,
                 "last_name": session.last_name,
                 "patronymic": session.patronymic,
@@ -134,10 +152,8 @@ async def login(
 ) -> SingleResponse[dict[str, object]]:
     settings = get_settings()
     session = await use_case.authenticate(payload.username, payload.password)
-    access_exp = _mint_access_cookie(response, session.user_id, settings)
-    refresh_exp = _mint_refresh_cookie(
-        response, session, settings, remember=payload.remember_me
-    )
+    access_exp = _mint_access_cookie(response, session, settings)
+    refresh_exp = _mint_refresh_cookie(response, session, settings, remember=payload.remember_me)
     return _session_envelope(session, access_exp, refresh_exp, "auth.login")
 
 
@@ -147,6 +163,10 @@ async def refresh(
 ) -> SingleResponse[dict[str, object]]:
     settings = get_settings()
     payload = _decode_refresh_cookie(request, settings)
+    try:
+        token_jti(payload)
+    except ValueError as exc:
+        raise UnauthorizedError("Invalid refresh token id.") from exc
     user_id = token_subject(payload)
     refresh_version = token_refresh_version(payload)
     refresh_exp = token_expiration(payload)
@@ -154,10 +174,17 @@ async def refresh(
     session = await use_case.session_for_user(user_id)
     if session.refresh_token_version != refresh_version:
         raise UnauthorizedError("Refresh token has been revoked.")
+    raw_sid = payload.get("sid")
+    if raw_sid is not None:
+        try:
+            if session.session_id != token_session_id(payload):
+                raise UnauthorizedError("Refresh session has been revoked.")
+        except ValueError as exc:
+            raise UnauthorizedError("Invalid refresh session.") from exc
 
     # Fixed window: only the access cookie is re-minted; the refresh cookie is
     # left untouched so its absolute expiry (30 days / 1 day) is preserved.
-    access_exp = _mint_access_cookie(response, session.user_id, settings)
+    access_exp = _mint_access_cookie(response, session, settings)
     return _session_envelope(session, access_exp, refresh_exp, "auth.refresh")
 
 
@@ -166,18 +193,28 @@ async def me(
     request: Request,
     response: Response,
     use_case: AuthUC,
-    user_id: Annotated[UUID, Depends(get_current_user_id)],
+    principal: Annotated[CurrentPrincipal, Depends(get_current_principal)],
 ) -> SingleResponse[dict[str, object]]:
     settings = get_settings()
-    session = await use_case.session_for_user(user_id)
-    access_exp = _mint_access_cookie(response, session.user_id, settings)
+    session = await use_case.session_for_user(principal.user_id)
+    session = replace(session, session_id=principal.session_id)
+    access_exp = _mint_access_cookie(response, session, settings)
     refresh_exp = _read_refresh_expiry(request, settings, fallback=access_exp)
     return _session_envelope(session, access_exp, refresh_exp, "auth.me")
 
 
 @router.post("/auth/logout", status_code=status.HTTP_200_OK)
-async def logout(response: Response) -> SingleResponse[dict[str, object]]:
+async def logout(
+    response: Response,
+    principal: Annotated[object, Depends(get_current_principal)],
+) -> SingleResponse[dict[str, object]]:
     settings = get_settings()
+
+    async with build_uow_factory()() as uow:
+        row = await uow.session.get(Session, principal.session_id)  # type: ignore[union-attr]
+        if row is not None:
+            row.revoked_at = datetime.now(UTC)
+            await uow.commit()
     for name in (settings.access_cookie_name, settings.refresh_cookie_name):
         response.delete_cookie(
             key=name,

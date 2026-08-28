@@ -13,7 +13,8 @@ class StrictRequest(BaseModel):
 class UserCreateRequest(StrictRequest):
     username: str
     password_hash: str
-    refresh_token_version: int | None = None
+    token_version: int | None = None
+    status: str = "active"
     code: str | None = None
     first_name: str | None = None
     last_name: str | None = None
@@ -25,7 +26,8 @@ class UserCreateRequest(StrictRequest):
 class UserUpdateRequest(StrictRequest):
     username: str | None = None
     password_hash: str | None = None
-    refresh_token_version: int | None = None
+    token_version: int | None = None
+    status: str | None = None
     code: str | None = None
     first_name: str | None = None
     last_name: str | None = None
@@ -115,11 +117,13 @@ class RoleSubscriptionRuleUpdateRequest(StrictRequest):
 
 class UserScopeCreateRequest(StrictRequest):
     user_id: UUID
+    scope_kind: Literal["branch", "lab", "object"] = "object"
     scope_id: UUID | None = None
 
 
 class UserScopeUpdateRequest(StrictRequest):
     user_id: UUID | None = None
+    scope_kind: Literal["branch", "lab", "object"] | None = None
     scope_id: UUID | None = None
 
 

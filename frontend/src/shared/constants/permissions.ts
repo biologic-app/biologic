@@ -24,6 +24,7 @@ export const resources: Resource[] = [
   'protocol-types',
   'statuses',
   'user-types',
+  'roles',
   'objects'
 ]
 
@@ -114,7 +115,8 @@ export const resourceLabels: Record<Resource, string> = {
   'protocol-types': t('permissions.resourceLabels.protocol-types'),
   statuses: t('permissions.resourceLabels.statuses'),
   'user-types': t('permissions.resourceLabels.user-types'),
-  objects: t('permissions.resourceLabels.objects')
+  objects: t('permissions.resourceLabels.objects'),
+  roles: t('permissions.resourceLabels.user-types'),
 }
 
 export const actionLabels: Record<Action, string> = {
@@ -132,5 +134,7 @@ export const actionLabels: Record<Action, string> = {
   release: t('permissions.actionLabels.release'),
   reject: t('permissions.actionLabels.reject'),
   requeue: t('permissions.actionLabels.requeue'),
-  approve: t('permissions.actionLabels.approve')
+  approve: t('permissions.actionLabels.approve'),
+  read: t('permissions.actionLabels.view'),
+  update: t('permissions.actionLabels.edit'),
 }

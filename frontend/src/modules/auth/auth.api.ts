@@ -18,6 +18,7 @@ interface BackendAuthEnvelope {
       username: string;
       role_key: string;
       role_name: string;
+      status?: string;
       first_name: string | null;
       last_name: string | null;
       patronymic: string | null;
@@ -49,45 +50,27 @@ const knownResources: Resource[] = [
   "statuses",
   "user-types",
   "objects",
+  // `roles` is the canonical backend resource. `user-types` remains in the
+  // union temporarily so older screens can be upgraded independently.
+  "roles",
 ];
 
-const knownActions: Action[] = [...crudActions, ...commandActions];
+const knownActions: Action[] = [...crudActions, ...commandActions, "read", "update"];
 
 const mapResource = (resource: string): Resource | null => {
   const normalized = resource.trim().toLowerCase().replace(/_/g, "-");
-  const mapped =
-    normalized === "roles" ||
-      normalized === "role-permissions" ||
-      normalized === "role-subscription-rules"
-      ? "user-types"
-      : normalized === "results"
-        ? "research"
-      : normalized === "direction-statuses" ||
-          normalized === "sample-statuses" ||
-          normalized === "research-statuses" ||
-          normalized === "test-statuses" ||
-          normalized === "conclusion-statuses"
-        ? "statuses"
-      : normalized;
-  return knownResources.includes(mapped as Resource)
-    ? (mapped as Resource)
+  return knownResources.includes(normalized as Resource)
+    ? (normalized as Resource)
     : null;
 };
 
 const mapAction = (action: string): Action | null => {
   const normalized = action.trim().toLowerCase();
-  const actionMap: Record<string, Action> = {
-    read: "view",
-    update: "edit",
-    issue: "release",
-    result: "complete",
-  };
-  const mapped = actionMap[normalized] ?? normalized;
-  return knownActions.includes(mapped as Action) ? (mapped as Action) : null;
+  return knownActions.includes(normalized as Action) ? (normalized as Action) : null;
 };
 
 const mapPermissions = (
-  permissions: Array<{ resource: string; action: string }>,
+  permissions: Array<{ resource: string; action: string; scope?: string | null }>,
 ): Permission[] => {
   const normalized = new Map<string, Permission>();
 
@@ -97,12 +80,12 @@ const mapPermissions = (
     if (!resource || !action) {
       return;
     }
-    normalized.set(`${resource}:${action}`, { resource, action });
+    normalized.set(`${resource}:${action}`, {
+      resource,
+      action,
+      ...(permission.scope ? { scope: permission.scope as Permission["scope"] } : {}),
+    });
   });
-
-  if (!normalized.has("dashboard:view")) {
-    normalized.set("dashboard:view", { resource: "dashboard", action: "view" });
-  }
 
   return Array.from(normalized.values());
 };
@@ -119,7 +102,7 @@ const mapUser = (payload: BackendAuthEnvelope["data"]["user"]): AuthUser => {
     email: `${payload.username}@local`,
     fullName: fullName || payload.username,
     role: payload.role_key,
-    status: "active",
+    status: payload.status ?? "active",
     department: { id: null, name: null } satisfies NamedRef,
     deletedAt: null,
   };
@@ -168,7 +151,6 @@ export const me = async () => {
   const session = mapSession(response.data);
   const permissionsResponse = await apiRequest<BackendPermissionsEnvelope>("/user/me/permissions", {
     method: "GET",
-    headers: { "X-Actor-Id": session.user.id },
   }).catch(() => null);
 
   return {

@@ -3,9 +3,12 @@ from __future__ import annotations
 from typing import Any, Protocol
 from uuid import UUID
 
+from sqlalchemy import update
+
 from src.application.access_control.use_cases._shared import serialize_permission
 from src.core.responses import ResponseMeta, SingleResponse
 from src.domain.uow import UnitOfWorkFactory
+from src.infrastructure.db.models import User
 
 
 class _PermissionSetPayload(Protocol):
@@ -43,6 +46,12 @@ class RolePermissionSetUseCase:
                 role_id,
                 [item.model_dump(mode="python") for item in payload.permissions],
             )
+            if getattr(uow, "session", None) is not None:
+                await uow.session.execute(
+                    update(User)
+                    .where(User.role_id == role_id)
+                    .values(token_version=User.token_version + 1)
+                )
             await uow.commit()
             return SingleResponse(
                 data={

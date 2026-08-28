@@ -124,7 +124,6 @@ const createProtocol = async (group: ReleasedDirectionGroup) => {
     await apiRequest("/protocols", {
       method: "POST",
       body: {
-        actor_id: actorId,
         sample_ids: sampleIds,
       },
     });

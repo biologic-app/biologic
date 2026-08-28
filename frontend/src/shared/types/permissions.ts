@@ -18,8 +18,11 @@ export type Resource =
   | "protocol-types"
   | "statuses"
   | "user-types"
+  | "roles"
   | "objects";
 
+/** Canonical API CRUD verbs are read/create/update/delete. view/edit are kept
+ * as source-compatible aliases while the existing UI is migrated. */
 export type CrudAction = "view" | "create" | "edit" | "delete";
 
 export type CommandAction =
@@ -35,7 +38,7 @@ export type CommandAction =
   | "requeue"
   | "approve";
 
-export type Action = CrudAction | CommandAction;
+export type Action = CrudAction | CommandAction | "read" | "update";
 
 export type AccessScope =
   | "own"

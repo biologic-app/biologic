@@ -68,7 +68,6 @@ class ExecuteStepRequest(StrictRequest):
     node_id: str
     attempt: int = Field(ge=0)
     actions: list[ExecuteStepActionRequest] = Field(default_factory=list)
-    actor_id: UUID | None = None
     author: str | None = None
 
 
