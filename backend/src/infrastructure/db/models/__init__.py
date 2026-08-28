@@ -2,6 +2,7 @@ from src.infrastructure.db.models.base import Base
 from src.infrastructure.db.models.branch import Branch
 from src.infrastructure.db.models.change_log import ChangeLog
 from src.infrastructure.db.models.conclusion import Conclusion
+from src.infrastructure.db.models.database_backup import DatabaseBackup
 from src.infrastructure.db.models.direction import Direction
 from src.infrastructure.db.models.direction_status import DirectionStatus
 from src.infrastructure.db.models.doctor import Doctor
@@ -44,6 +45,7 @@ __all__ = [
     "Branch",
     "ChangeLog",
     "Conclusion",
+    "DatabaseBackup",
     "Direction",
     "DirectionStatus",
     "Doctor",

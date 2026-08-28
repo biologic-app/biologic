@@ -28,6 +28,12 @@ export const routes: RouteRecordRaw[] = [
         component: () => import("@/pages/DashboardPage.vue"),
       },
       {
+        path: "/data-operations",
+        name: "data-operations",
+        meta: { requiresAuth: true },
+        component: () => import("@/pages/DataOperationsPage.vue"),
+      },
+      {
         name: "directions",
         path: "/directions",
         meta: { requiresAuth: true },

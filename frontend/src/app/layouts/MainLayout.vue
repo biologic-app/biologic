@@ -52,6 +52,14 @@ const links = computed<NavigationMenuItem[][]>(() => [
       },
     },
     {
+      label: t("nav.dataOperations"),
+      icon: "i-lucide-database-backup",
+      to: { name: "data-operations" },
+      onSelect: () => {
+        open.value = false;
+      },
+    },
+    {
       label: t("nav.directions"),
       resource: "directions" as Resource,
       icon: canViewDirections.value ? "i-lucide-book-copy" : "i-lucide-lock",

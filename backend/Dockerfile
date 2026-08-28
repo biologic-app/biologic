@@ -7,6 +7,9 @@ ENV UV_LINK_MODE=copy
 
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y --no-install-recommends postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
 # --- Stage 2: Builder ---
 FROM python_base AS builder
 
