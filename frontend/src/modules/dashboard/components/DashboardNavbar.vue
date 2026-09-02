@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import NotificationsBellButton from '@/shared/ui/NotificationsBellButton.vue'
 import TourMenu from '@/shared/ui/TourMenu.vue'
-import CurrentBranchBadge from '@/shared/ui/CurrentBranchBadge.vue'
 
 defineProps<{
   title: string
@@ -20,8 +19,6 @@ defineProps<{
 
     <template #right>
       <slot name="right-leading" />
-
-      <CurrentBranchBadge />
 
       <NotificationsBellButton data-tour="dashboard-notifications" />
 
