@@ -13,10 +13,12 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from src.core.uuid7 import new_uuid7
 from src.infrastructure.db.models.base import Base
+from src.infrastructure.db.models.mixins import LabMixin, SoftDeleteMixin, TenantMixin
 
 
-class Research(Base):
+class Research(TenantMixin, LabMixin, SoftDeleteMixin, Base):
     __tablename__ = "research"
     __table_args__ = (
         Index("research_research_sample_id", "sample_id"),
@@ -42,7 +44,7 @@ class Research(Base):
     id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         primary_key=True,
-        server_default=text("uuidv7()"),
+        default=new_uuid7,
     )
     sample_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
@@ -56,10 +58,6 @@ class Research(Base):
             name="fk_research_research_goal_id_research_goals_id",
         ),
         nullable=False,
-    )
-    lab_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("labs.id", name="fk_research_lab_id_labs_id"),
     )
     comment: Mapped[str | None] = mapped_column(Text)
     recommendation: Mapped[str | None] = mapped_column(Text)
@@ -87,4 +85,3 @@ class Research(Base):
         nullable=False,
         server_default=text("CURRENT_TIMESTAMP"),
     )
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

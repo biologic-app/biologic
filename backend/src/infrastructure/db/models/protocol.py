@@ -16,10 +16,12 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from src.core.uuid7 import new_uuid7
 from src.infrastructure.db.models.base import Base
+from src.infrastructure.db.models.mixins import SoftDeleteMixin, TenantMixin
 
 
-class Protocol(Base):
+class Protocol(TenantMixin, SoftDeleteMixin, Base):
     __tablename__ = "protocols"
     __table_args__ = (
         Index("protocols_protocols_year_no", "year_no"),
@@ -32,7 +34,7 @@ class Protocol(Base):
     id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         primary_key=True,
-        server_default=text("uuidv7()"),
+        default=new_uuid7,
     )
     year_no: Mapped[int] = mapped_column(Integer, nullable=False)
     copies: Mapped[int | None] = mapped_column(SmallInteger)
@@ -66,4 +68,3 @@ class Protocol(Base):
         nullable=False,
         server_default=text("CURRENT_TIMESTAMP"),
     )
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

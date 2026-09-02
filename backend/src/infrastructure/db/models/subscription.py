@@ -13,10 +13,12 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from src.core.uuid7 import new_uuid7
 from src.infrastructure.db.models.base import Base
+from src.infrastructure.db.models.mixins import SoftDeleteMixin, TenantMixin
 
 
-class Subscription(Base):
+class Subscription(TenantMixin, SoftDeleteMixin, Base):
     """Explicit user subscription to a direction or a sample.
 
     Implicit followers (registrars, direction owner) are derived at read
@@ -40,7 +42,7 @@ class Subscription(Base):
     id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         primary_key=True,
-        server_default=text("uuidv7()"),
+        default=new_uuid7,
     )
     user_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
@@ -59,4 +61,3 @@ class Subscription(Base):
         nullable=False,
         server_default=text("CURRENT_TIMESTAMP"),
     )
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

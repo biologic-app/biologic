@@ -22,6 +22,8 @@ interface BackendAuthEnvelope {
       first_name: string | null;
       last_name: string | null;
       patronymic: string | null;
+      branch_id?: string | null;
+      branch_name?: string | null;
     };
     permissions: Array<{ resource: string; action: string; scope?: string | null }>;
     access_expires_at: string;
@@ -105,6 +107,9 @@ const mapUser = (payload: BackendAuthEnvelope["data"]["user"]): AuthUser => {
     status: payload.status ?? "active",
     department: { id: null, name: null } satisfies NamedRef,
     deletedAt: null,
+    branch: payload.branch_id
+      ? { id: payload.branch_id, name: payload.branch_name ?? null }
+      : null,
   };
 };
 

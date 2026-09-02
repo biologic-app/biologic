@@ -13,10 +13,12 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from src.core.uuid7 import new_uuid7
 from src.infrastructure.db.models.base import Base
+from src.infrastructure.db.models.mixins import LabMixin, SoftDeleteMixin, TenantMixin
 
 
-class Indicator(Base):
+class Indicator(TenantMixin, LabMixin, SoftDeleteMixin, Base):
     __tablename__ = "indicators"
     __table_args__ = (
         Index("indicators_indicators_research_goal_id", "research_goal_id"),
@@ -27,7 +29,7 @@ class Indicator(Base):
     id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         primary_key=True,
-        server_default=text("uuidv7()"),
+        default=new_uuid7,
     )
     name: Mapped[str] = mapped_column(Text, nullable=False)
     unit: Mapped[str | None] = mapped_column(Text)
@@ -64,4 +66,3 @@ class Indicator(Base):
         nullable=False,
         server_default=text("CURRENT_TIMESTAMP"),
     )
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

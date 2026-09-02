@@ -387,9 +387,11 @@ def _related_fields(model: type[Any]) -> dict[str, RelatedField]:
     if model is User:
         role = JoinSpec("user.role", Role, User.role_id == Role.id)
         lab = JoinSpec("user.lab", Lab, User.lab_id == Lab.id)
+        branch = JoinSpec("user.branch", Branch, User.branch_id == Branch.id)
         return {
             "role.name": RelatedField(Role.name, (role,)),
             "lab.name": RelatedField(Lab.name, (lab,)),
+            "branch.name": RelatedField(Branch.name, (branch,)),
         }
 
     if model is RolePermission:
@@ -492,6 +494,7 @@ def _user_write_fields() -> tuple[str, ...]:
         "patronymic",
         "role_id",
         "lab_id",
+        "branch_id",
     )
 
 

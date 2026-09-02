@@ -83,11 +83,13 @@ type UserRow = {
   patronymic?: string;
   role_id?: string | number | boolean | null;
   lab_id?: string | number | boolean | null;
+  branch_id?: string | number | boolean | null;
   is_registrar?: boolean;
   is_lab_head?: boolean;
   is_branch_head?: boolean;
   role?: { name?: string | null } | null;
   lab?: { name?: string | null } | null;
+  branch_name?: string | null;
   [key: string]: unknown;
 };
 
@@ -112,6 +114,9 @@ const roleOptions = ref<
 const labOptions = ref<
   Array<{ label: string; value: string | number | boolean | null }>
 >([]);
+const branchOptions = ref<
+  Array<{ label: string; value: string | number | boolean | null }>
+>([]);
 const form = reactive({
   username: "",
   code: "",
@@ -120,6 +125,7 @@ const form = reactive({
   patronymic: "",
   role_id: "",
   lab_id: null as string | number | boolean | null,
+  branch_id: null as string | number | boolean | null,
   is_registrar: false,
   is_lab_head: false,
   is_branch_head: false,
@@ -133,7 +139,7 @@ const table = useServerTable<UserRow>(
       method: "GET",
       params: {
         ...params,
-        include: "role,lab",
+        include: "role,lab,branch",
       },
     }),
   {
@@ -148,6 +154,7 @@ const table = useServerTable<UserRow>(
       last_name: { value: "", matchMode: "contains" },
       "role.name": { value: "", matchMode: "contains" },
       "lab.name": { value: "", matchMode: "contains" },
+      "branch.name": { value: "", matchMode: "contains" },
       is_registrar: { value: [], matchMode: "in" },
       updated_at: { value: [null, null], matchMode: "between" },
     },
@@ -196,6 +203,7 @@ watch(
       form.patronymic = "";
       form.role_id = "";
       form.lab_id = null;
+      form.branch_id = null;
       form.is_registrar = false;
       form.is_lab_head = false;
       form.is_branch_head = false;
@@ -210,6 +218,7 @@ watch(
     form.patronymic = selected?.patronymic || "";
     form.role_id = selected?.role_id ? String(selected.role_id) : "";
     form.lab_id = selected?.lab_id || null;
+    form.branch_id = selected?.branch_id || null;
     form.is_registrar = Boolean(selected?.is_registrar);
     form.is_lab_head = Boolean(selected?.is_lab_head);
     form.is_branch_head = Boolean(selected?.is_branch_head);
@@ -307,11 +316,19 @@ const uiColumns = computed<NuxtTableColumn<UserRow>[]>(() => {
         isSkeletonRow(row.original) ? renderSkeletonCell("lab.name", 5) : row.original.lab?.name || "-",
     },
     {
+      accessorKey: "branch_name",
+      header: t("access.columns.branch"),
+      cell: ({ row }) =>
+        isSkeletonRow(row.original)
+          ? renderSkeletonCell("branch_name", 6)
+          : row.original.branch_name || "-",
+    },
+    {
       accessorKey: "is_registrar",
       header: t("access.columns.registrar"),
       cell: ({ row }) =>
         isSkeletonRow(row.original)
-          ? renderSkeletonCell("is_registrar", 6)
+          ? renderSkeletonCell("is_registrar", 7)
           :
           h(
             UBadge,
@@ -383,6 +400,7 @@ const accessDialogTitle = computed(() =>
 const accessFieldOptions = computed(() => ({
   role_id: roleOptions.value,
   lab_id: labOptions.value,
+  branch_id: branchOptions.value,
 }));
 
 const isDrilled = computed(() => roleDrillStack.value.length > 0);
@@ -628,6 +646,7 @@ const columnLabels: Record<string, string> = {
   last_name: t("access.columns.lastName"),
   "role.name": t("access.columns.role"),
   "lab.name": t("access.columns.laboratory"),
+  branch_name: t("access.columns.branch"),
   is_registrar: t("access.columns.registrar"),
   actions: t("access.columns.actions"),
 };
@@ -662,6 +681,7 @@ const onSave = async (formPayload?: Record<string, unknown>) => {
       patronymic: source.patronymic || null,
       role_id: source.role_id || null,
       lab_id: source.lab_id || null,
+      branch_id: source.branch_id || null,
       is_registrar: Boolean(source.is_registrar),
       is_lab_head: Boolean(source.is_lab_head),
       is_branch_head: Boolean(source.is_branch_head),
@@ -726,13 +746,15 @@ const onSave = async (formPayload?: Record<string, unknown>) => {
 };
 
 onMounted(async () => {
-  const [roles, labs] = await Promise.all([
+  const [roles, labs, branches] = await Promise.all([
     loadReferenceOptions("/roles").catch(() => []),
     loadReferenceOptions("/labs").catch(() => []),
+    loadReferenceOptions("/branches").catch(() => []),
     refreshPermissionCatalog().catch(() => { }),
   ]);
   roleOptions.value = roles;
   labOptions.value = labs;
+  branchOptions.value = branches;
   await table.fetch();
 });
 </script>
@@ -808,6 +830,7 @@ onMounted(async () => {
           <UInput v-model="filters.code.value" :placeholder="t('access.columns.code')" />
           <UInput v-model="filters['role.name'].value" :placeholder="t('access.columns.role')" />
           <UInput v-model="filters['lab.name'].value" :placeholder="t('access.columns.laboratory')" />
+          <UInput v-model="filters['branch.name'].value" :placeholder="t('access.columns.branch')" />
         </div>
       </CrudFilterModal>
 

@@ -12,10 +12,12 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from src.core.uuid7 import new_uuid7
 from src.infrastructure.db.models.base import Base
+from src.infrastructure.db.models.mixins import SoftDeleteMixin, TenantMixin
 
 
-class ResearchStatus(Base):
+class ResearchStatus(TenantMixin, SoftDeleteMixin, Base):
     __tablename__ = "research_statuses"
     __table_args__ = (
         Index("research_statuses_research_statuses_code", "code", unique=True),
@@ -25,7 +27,7 @@ class ResearchStatus(Base):
     id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         primary_key=True,
-        server_default=text("uuidv7()"),
+        default=new_uuid7,
     )
     code: Mapped[str | None] = mapped_column(Text)
     color: Mapped[str | None] = mapped_column(Text)
@@ -39,4 +41,3 @@ class ResearchStatus(Base):
         nullable=False,
         server_default=text("CURRENT_TIMESTAMP"),
     )
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -12,6 +12,10 @@ export interface AuthUser {
     name: string | null
   }
   deletedAt: string | null
+  branch: {
+    id: string
+    name: string | null
+  } | null
 }
 
 export interface AuthData {

@@ -210,16 +210,10 @@ const groups = computed<CommandPaletteGroup<CommandPaletteItem>[]>(() => [
 
 <template>
   <UDashboardGroup unit="rem" storage="local">
-    <UDashboardSidebar
-      id="default"
-      v-model:open="open"
-      collapsible
-      resizable
-      :ui="{
-        header: 'lg:border-b lg:border-default',
-        footer: 'lg:border-t lg:border-default',
-      }"
-    >
+    <UDashboardSidebar id="default" v-model:open="open" collapsible resizable :ui="{
+      header: 'lg:border-b lg:border-default',
+      footer: 'lg:border-t lg:border-default',
+    }">
       <template #header="{ collapsed }">
         <UserMenu :collapsed="collapsed" />
       </template>
@@ -227,13 +221,7 @@ const groups = computed<CommandPaletteGroup<CommandPaletteItem>[]>(() => [
       <template #default="{ collapsed }">
         <UDashboardSearchButton :collapsed="collapsed" class="bg-transparent ring-default" />
 
-        <UNavigationMenu
-          :collapsed="collapsed"
-          :items="links[0]"
-          orientation="vertical"
-          tooltip
-          popover
-        >
+        <UNavigationMenu :collapsed="collapsed" :items="links[0]" orientation="vertical" tooltip popover>
           <template #item-label="{ item }">
             <span class="flex min-w-0 flex-col items-start">
               <span class="truncate">{{ item.label }}</span>
@@ -242,22 +230,10 @@ const groups = computed<CommandPaletteGroup<CommandPaletteItem>[]>(() => [
           </template>
         </UNavigationMenu>
 
-        <UNavigationMenu
-          :collapsed="collapsed"
-          :items="links[1]"
-          orientation="vertical"
-          tooltip
-          class="mt-auto"
-        />
+        <UNavigationMenu :collapsed="collapsed" :items="links[1]" orientation="vertical" tooltip class="mt-auto" />
       </template>
       <template #footer="{ collapsed }">
-        <UNavigationMenu
-          :collapsed="collapsed"
-          :items="links[2]"
-          orientation="vertical"
-          tooltip
-          popover
-        />
+        <UNavigationMenu :collapsed="collapsed" :items="links[2]" orientation="vertical" tooltip popover />
       </template>
     </UDashboardSidebar>
 

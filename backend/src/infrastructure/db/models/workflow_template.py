@@ -7,10 +7,12 @@ from sqlalchemy import DateTime, Integer, Text, text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from src.core.uuid7 import new_uuid7
 from src.infrastructure.db.models.base import Base
+from src.infrastructure.db.models.mixins import SoftDeleteMixin, TenantMixin
 
 
-class WorkflowTemplate(Base):
+class WorkflowTemplate(TenantMixin, SoftDeleteMixin, Base):
     """A workflow definition. Its schema is versioned in workflow_schema_versions;
     ``current_version`` points at the latest committed version (0 = no versions)."""
 
@@ -19,7 +21,7 @@ class WorkflowTemplate(Base):
     id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         primary_key=True,
-        server_default=text("uuidv7()"),
+        default=new_uuid7,
     )
     title: Mapped[str] = mapped_column(Text, nullable=False)
     current_version: Mapped[int] = mapped_column(
@@ -37,4 +39,3 @@ class WorkflowTemplate(Base):
         nullable=False,
         server_default=text("CURRENT_TIMESTAMP"),
     )
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

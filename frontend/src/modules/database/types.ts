@@ -17,9 +17,16 @@ export interface DatabaseBackup {
   sizeBytes: number;
   durationMs: number | null;
   error: string | null;
+  createdBy: string | null;
+  createdByName: string | null;
   createdAt: string;
   completedAt: string | null;
   restoredAt: string | null;
+  restoredBy: string | null;
+  restoredByName: string | null;
+  /** "completed" | "failed" | null when this dump was never restored. */
+  restoreStatus: "completed" | "failed" | null;
+  restoreError: string | null;
   /** False when the file was removed from disk behind the registry's back. */
   fileExists: boolean;
 }

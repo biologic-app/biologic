@@ -9,6 +9,14 @@ from src.infrastructure.db.models.doctor import Doctor
 from src.infrastructure.db.models.enums import AccessScopeType, RoleScopeType
 from src.infrastructure.db.models.indicator import Indicator
 from src.infrastructure.db.models.lab import Lab
+from src.infrastructure.db.models.mixins import (
+    BranchMixin,
+    DeletedMixin,
+    LabMixin,
+    OwnerMixin,
+    SoftDeleteMixin,
+    TenantMixin,
+)
 from src.infrastructure.db.models.notification import Notification
 from src.infrastructure.db.models.object import Object
 from src.infrastructure.db.models.permission import Permission
@@ -63,6 +71,12 @@ __all__ = [
     "Role",
     "RolePermission",
     "RoleSubscriptionRule",
+    "TenantMixin",
+    "BranchMixin",
+    "OwnerMixin",
+    "LabMixin",
+    "SoftDeleteMixin",
+    "DeletedMixin",
     "Sample",
     "SampleLab",
     "SampleStatus",

@@ -15,10 +15,12 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from src.core.uuid7 import new_uuid7
 from src.infrastructure.db.models.base import Base
+from src.infrastructure.db.models.mixins import OwnerMixin, SoftDeleteMixin, TenantMixin
 
 
-class Direction(Base):
+class Direction(OwnerMixin, TenantMixin, SoftDeleteMixin, Base):
     __tablename__ = "directions"
     __table_args__ = (
         Index("directions_directions_year_no", "year_no"),
@@ -31,6 +33,7 @@ class Direction(Base):
         ),
         Index("directions_directions_doctor_id", "doctor_id"),
         Index("directions_directions_object_id", "object_id"),
+        Index("directions_directions_owner_id", "owner_id"),
         Index("directions_directions_status_id", "status_id"),
         Index("directions_directions_is_urgent", "is_urgent"),
         Index("directions_directions_sampled_at", "sampled_at"),
@@ -48,7 +51,7 @@ class Direction(Base):
     id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         primary_key=True,
-        server_default=text("uuidv7()"),
+        default=new_uuid7,
     )
     year_no: Mapped[int] = mapped_column(Integer, nullable=False)
     base_no: Mapped[int | None] = mapped_column(Integer)
@@ -88,4 +91,3 @@ class Direction(Base):
         nullable=False,
         server_default=text("CURRENT_TIMESTAMP"),
     )
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

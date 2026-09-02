@@ -11,10 +11,12 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from src.core.uuid7 import new_uuid7
 from src.infrastructure.db.models.base import Base
+from src.infrastructure.db.models.mixins import TenantMixin
 
 
-class UserScope(Base):
+class UserScope(TenantMixin, Base):
     __tablename__ = "user_scopes"
     __table_args__ = (
         Index("user_scopes_user_scopes_user_id_scope_id", "user_id", "scope_id", unique=True),
@@ -30,7 +32,7 @@ class UserScope(Base):
     id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         primary_key=True,
-        server_default=text("uuidv7()"),
+        default=new_uuid7,
     )
     user_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),

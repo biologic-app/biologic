@@ -7,10 +7,12 @@ from sqlalchemy import DateTime, Index, Text, text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from src.core.uuid7 import new_uuid7
 from src.infrastructure.db.models.base import Base
+from src.infrastructure.db.models.mixins import TenantMixin
 
 
-class UiEvent(Base):
+class UiEvent(TenantMixin, Base):
     """Passive UI telemetry event (ROADMAP A2.3).
 
     Anonymous-by-design: only element/session identifiers are stored, never
@@ -37,7 +39,7 @@ class UiEvent(Base):
     id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         primary_key=True,
-        server_default=text("uuidv7()"),
+        default=new_uuid7,
     )
     event: Mapped[str] = mapped_column(Text, nullable=False)
     element_id: Mapped[str | None] = mapped_column(Text)

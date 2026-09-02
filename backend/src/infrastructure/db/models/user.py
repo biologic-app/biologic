@@ -12,12 +12,15 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, foreign, mapped_column, relationship
 
+from src.core.uuid7 import new_uuid7
 from src.infrastructure.db.models.base import Base
+from src.infrastructure.db.models.branch import Branch
+from src.infrastructure.db.models.mixins import LabMixin, SoftDeleteMixin, TenantMixin
 
 
-class User(Base):
+class User(TenantMixin, LabMixin, SoftDeleteMixin, Base):
     __tablename__ = "users"
     __table_args__ = (
         Index("users_users_username", "username", unique=True),
@@ -26,10 +29,17 @@ class User(Base):
         Index("users_users_deleted_at", "deleted_at"),
     )
 
+    branch: Mapped[Branch | None] = relationship(
+        Branch,
+        primaryjoin=lambda: foreign(User.branch_id) == Branch.id,
+        viewonly=True,
+        lazy="selectin",
+    )
+
     id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         primary_key=True,
-        server_default=text("uuidv7()"),
+        default=new_uuid7,
     )
     username: Mapped[str] = mapped_column(Text, nullable=False)
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
@@ -43,10 +53,6 @@ class User(Base):
         PGUUID(as_uuid=True),
         ForeignKey("roles.id", name="fk_users_role_id_roles_id"),
         nullable=False,
-    )
-    lab_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("labs.id", name="fk_users_lab_id_labs_id"),
     )
     created_by: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
@@ -66,4 +72,7 @@ class User(Base):
         nullable=False,
         server_default=text("CURRENT_TIMESTAMP"),
     )
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    @property
+    def branch_name(self) -> str | None:
+        return self.branch.name if self.branch is not None else None

@@ -7,15 +7,17 @@ from sqlalchemy import DateTime, ForeignKey, Index, Integer, text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from src.core.uuid7 import new_uuid7
 from src.infrastructure.db.models.base import Base
+from src.infrastructure.db.models.mixins import TenantMixin
 
 
-class Session(Base):
+class Session(TenantMixin, Base):
     __tablename__ = "sessions"
     __table_args__ = (Index("sessions_user_id", "user_id"),)
 
     id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, server_default=text("uuidv7()")
+        PGUUID(as_uuid=True), primary_key=True, default=new_uuid7
     )
     user_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("users.id"), nullable=False

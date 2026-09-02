@@ -115,51 +115,63 @@ def upgrade() -> None:
         """
     )
 
+    # Older databases may already have these tables from the pre-split status
+    # models.  CREATE TABLE IF NOT EXISTS does not reconcile their columns.
+    # Add the temporary display column expected by this migration; it is
+    # removed again by the later status cleanup migration.
+    for table in (
+        "direction_statuses",
+        "sample_statuses",
+        "research_statuses",
+        "test_statuses",
+    ):
+        op.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS name text")
+
     op.execute(
         """
-        INSERT INTO direction_statuses (code, name)
+        INSERT INTO direction_statuses (id, code, name)
         VALUES
-            ('draft', 'Черновик'),
-            ('registered', 'Зарегистрировано'),
-            ('in_progress', 'В работе'),
-            ('partially_completed', 'Частично выполнено'),
-            ('completed', 'Выполнено')
+            (gen_random_uuid(), 'draft', 'Черновик'),
+            (gen_random_uuid(), 'registered', 'Зарегистрировано'),
+            (gen_random_uuid(), 'in_progress', 'В работе'),
+            (gen_random_uuid(), 'partially_completed', 'Частично выполнено'),
+            (gen_random_uuid(), 'completed', 'Выполнено')
         ON CONFLICT (code) DO NOTHING
         """
     )
     op.execute(
         """
-        INSERT INTO sample_statuses (code, name)
+        INSERT INTO sample_statuses (id, code, name)
         VALUES
-            ('pending', 'На регистрации'),
-            ('registered', 'Зарегистрирован'),
-            ('rejected', 'Брак'),
-            ('in_progress', 'На исследовании'),
-            ('analyzed', 'Обработан'),
-            ('completed', 'Закрыт')
+            (gen_random_uuid(), 'pending', 'На регистрации'),
+            (gen_random_uuid(), 'registered', 'Зарегистрирован'),
+            (gen_random_uuid(), 'rejected', 'Брак'),
+            (gen_random_uuid(), 'in_progress', 'На исследовании'),
+            (gen_random_uuid(), 'analyzed', 'Обработан'),
+            (gen_random_uuid(), 'completed', 'Закрыт')
         ON CONFLICT (code) DO NOTHING
         """
     )
     op.execute(
         """
-        INSERT INTO research_statuses (code, name)
+        INSERT INTO research_statuses (id, code, name)
         VALUES
-            ('draft', 'Черновик'),
-            ('ordered', 'Запланировано'),
-            ('in_progress', 'В работе'),
-            ('completed', 'Завершено'),
-            ('rejected', 'Отклонено')
+            (gen_random_uuid(), 'draft', 'Черновик'),
+            (gen_random_uuid(), 'ordered', 'Запланировано'),
+            (gen_random_uuid(), 'in_progress', 'В работе'),
+            (gen_random_uuid(), 'completed', 'Завершено'),
+            (gen_random_uuid(), 'rejected', 'Отклонено')
         ON CONFLICT (code) DO NOTHING
         """
     )
     op.execute(
         """
-        INSERT INTO test_statuses (code, name)
+        INSERT INTO test_statuses (id, code, name)
         VALUES
-            ('queued', 'Запланировано'),
-            ('in_progress', 'Выполняется'),
-            ('completed', 'Выполнено'),
-            ('rejected', 'Отклонено')
+            (gen_random_uuid(), 'queued', 'Запланировано'),
+            (gen_random_uuid(), 'in_progress', 'Выполняется'),
+            (gen_random_uuid(), 'completed', 'Выполнено'),
+            (gen_random_uuid(), 'rejected', 'Отклонено')
         ON CONFLICT (code) DO NOTHING
         """
     )

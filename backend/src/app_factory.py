@@ -1,4 +1,5 @@
 from pathlib import Path
+from uuid import UUID
 
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
@@ -7,10 +8,12 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import FileResponse
 
 from src.api.v1.router import router as api_v1_router
+from src.core.branch_context import set_current_branch_id
 from src.core.config import Settings, get_settings
 from src.core.errors import AppError
 from src.core.handlers import app_error_handler, http_error_handler, validation_error_handler
 from src.core.lifecycle import lifespan, new_shutdown_event
+from src.core.security import decode_jwt_token
 from src.plugins.scalar import register as register_scalar
 
 
@@ -53,6 +56,31 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.middleware("http")
+    async def branch_scope_context(request, call_next):
+        """Make the signed branch claim available to every write path."""
+        set_current_branch_id(None)
+        token = request.cookies.get(settings.access_cookie_name)
+        if token:
+            try:
+                payload = decode_jwt_token(
+                    token,
+                    secret_key=settings.jwt_secret_key,
+                    algorithm=settings.jwt_algorithm,
+                    expected_type="access",
+                    issuer=settings.jwt_issuer,
+                    audience=settings.jwt_audience,
+                )
+                raw_branch_id = payload.get("branch_id")
+                if raw_branch_id:
+                    set_current_branch_id(UUID(str(raw_branch_id)))
+            except (ValueError, TypeError):
+                set_current_branch_id(None)
+        try:
+            return await call_next(request)
+        finally:
+            set_current_branch_id(None)
 
     register_scalar(app)
     app.include_router(api_v1_router, prefix=settings.api_v1_prefix)

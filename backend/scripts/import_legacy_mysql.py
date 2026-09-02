@@ -346,7 +346,7 @@ async def ensure_import_schema(target: asyncpg.Connection) -> None:
     await target.execute(
         """
         CREATE TABLE IF NOT EXISTS legacy_import.warning (
-            id uuid PRIMARY KEY DEFAULT uuidv7(),
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
             source_table text NOT NULL,
             source_id text,
             code text NOT NULL,

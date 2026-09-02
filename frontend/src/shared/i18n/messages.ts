@@ -72,17 +72,24 @@ export const messages = {
       },
     },
     dataOperations: {
-      subtitle:
-        "Полный дамп базы сохраняется файлом на сервере, в базе хранится только путь к нему",
       unreachable: "База данных недоступна",
       fileMissing: "Файл дампа отсутствует на диске",
-      restoredAt: "Восстановлено {date}",
+      restoredAt: "Восстановлено {name} · {date}",
+      restoreFailed: "Восстановление не удалось ({name} · {date})",
+      unknownActor: "неизвестно",
+      health: {
+        title: "Хелсчеки бэкапов за год",
+        year: "Год",
+        noBackup: "{date} — бэкапов не было",
+        failed: "ошибка",
+      },
       actions: {
         create: "Создать дамп",
         upload: "Загрузить дамп",
         download: "Скачать",
         restore: "Восстановить",
         delete: "Удалить",
+        copyError: "Скопировать ошибку",
       },
       summary: {
         database: "База данных",
@@ -98,14 +105,21 @@ export const messages = {
       },
       engineHint: {
         custom: "Схема и данные, восстановление через pg_restore",
-        sql: "Только данные; схему держит Alembic",
+        sql: "Схема и данные; DDL восстанавливается идемпотентно",
       },
       columns: {
         file: "Файл",
+        date: "Дата",
         status: "Статус",
+        restore: "Восстановление",
         origin: "Источник",
         size: "Размер",
         duration: "Длительность",
+        actions: "Действия",
+      },
+      restoreStatusLabel: {
+        completed: "Восстановлено",
+        failed: "Ошибка",
       },
       status: {
         in_progress: "Выполняется",
@@ -116,15 +130,24 @@ export const messages = {
         export: "Экспорт",
         upload: "Загружен",
       },
+      searchPlaceholder: "Поиск по файлу",
+      filters: {
+        allStatuses: "Любой статус",
+        allOrigins: "Любой источник",
+      },
       empty: {
         title: "Дампов пока нет",
         description: "Создайте дамп текущей базы или загрузите готовый файл",
+      },
+      notFound: {
+        title: "Ничего не найдено",
+        description: "Измените поиск или фильтры",
       },
       upload: {
         title: "Загрузка дампа",
         description: "Файл сохраняется в хранилище; восстановление запускается отдельно",
         dropHere: "Перетащите файл дампа сюда",
-        hint: "PostgreSQL-архив (.dump) или SQL-скрипт (.sql), до {limit} МБ",
+        hint: "Gzip-архив дампа (.sql.gz или .dump.gz), до {limit} МБ",
         choose: "Выбрать файл",
         replace: "Заменить файл",
         submit: "Загрузить",
@@ -138,6 +161,10 @@ export const messages = {
         title: "Удалить дамп?",
         description: "Запись и файл «{file}» будут удалены с диска сервера безвозвратно.",
       },
+      deleteSelected: {
+        title: "Удалить выбранные дампы?",
+        description: "Записи и файлы ({count}) будут удалены с диска сервера безвозвратно.",
+      },
       toasts: {
         loadFailed: "Не удалось получить состояние базы",
         created: "Дамп создан",
@@ -150,6 +177,8 @@ export const messages = {
         deleted: "Дамп удалён",
         deleteFailed: "Дамп не удалён",
         downloadFailed: "Скачивание не выполнено",
+        copied: "Скопировано",
+        copyFailed: "Не удалось скопировать",
       },
     },
     nav: {
@@ -195,6 +224,7 @@ export const messages = {
       decline: "Отказаться",
     },
     userMenu: {
+      branch: "Филиал",
       palette: "Палитра",
       primary: "Основной цвет",
       neutral: "Нейтральный цвет",
@@ -729,6 +759,7 @@ export const messages = {
         lastName: "Фамилия / Отчество",
         role: "Роль",
         laboratory: "Лаборатория",
+        branch: "Филиал",
         registrar: "Регистратор",
         actions: "Действия",
         key: "Ключ",
@@ -1484,17 +1515,24 @@ export const messages = {
       },
     },
     dataOperations: {
-      subtitle:
-        "A full dump is written to a file on the server; the database stores only its path",
       unreachable: "The database is unreachable",
       fileMissing: "The dump file is missing on disk",
-      restoredAt: "Restored {date}",
+      restoredAt: "Restored by {name} · {date}",
+      restoreFailed: "Restore failed ({name} · {date})",
+      unknownActor: "unknown",
+      health: {
+        title: "Backup healthchecks for the year",
+        year: "Year",
+        noBackup: "{date} — no backup",
+        failed: "failed",
+      },
       actions: {
         create: "Create dump",
         upload: "Upload dump",
         download: "Download",
         restore: "Restore",
         delete: "Delete",
+        copyError: "Copy error",
       },
       summary: {
         database: "Database",
@@ -1510,14 +1548,21 @@ export const messages = {
       },
       engineHint: {
         custom: "Schema and data, restored with pg_restore",
-        sql: "Data only; Alembic owns the schema",
+        sql: "Schema and data; DDL is restored idempotently",
       },
       columns: {
         file: "File",
+        date: "Date",
         status: "Status",
+        restore: "Restore",
         origin: "Origin",
         size: "Size",
         duration: "Duration",
+        actions: "Actions",
+      },
+      restoreStatusLabel: {
+        completed: "Restored",
+        failed: "Failed",
       },
       status: {
         in_progress: "In progress",
@@ -1528,15 +1573,24 @@ export const messages = {
         export: "Export",
         upload: "Uploaded",
       },
+      searchPlaceholder: "Search by file",
+      filters: {
+        allStatuses: "Any status",
+        allOrigins: "Any origin",
+      },
       empty: {
         title: "No dumps yet",
         description: "Create a dump of the current database or upload an existing file",
+      },
+      notFound: {
+        title: "Nothing found",
+        description: "Try a different search or filters",
       },
       upload: {
         title: "Upload a dump",
         description: "The file is stored as-is; restoring it is a separate step",
         dropHere: "Drop the dump file here",
-        hint: "PostgreSQL archive (.dump) or SQL script (.sql), up to {limit} MB",
+        hint: "Gzip archive of the dump (.sql.gz or .dump.gz), up to {limit} MB",
         choose: "Choose file",
         replace: "Replace file",
         submit: "Upload",
@@ -1550,6 +1604,10 @@ export const messages = {
         title: "Delete this dump?",
         description: "The record and the file \"{file}\" will be removed from the server for good.",
       },
+      deleteSelected: {
+        title: "Delete the selected dumps?",
+        description: "{count} record(s) and their files will be removed from the server for good.",
+      },
       toasts: {
         loadFailed: "Could not read the database state",
         created: "Dump created",
@@ -1562,6 +1620,8 @@ export const messages = {
         deleted: "Dump deleted",
         deleteFailed: "Dump was not deleted",
         downloadFailed: "Download failed",
+        copied: "Copied",
+        copyFailed: "Copy failed",
       },
     },
     nav: {
@@ -1606,6 +1666,7 @@ export const messages = {
       decline: "Decline",
     },
     userMenu: {
+      branch: "Branch",
       palette: "Palette",
       primary: "Primary color",
       neutral: "Neutral color",
@@ -2148,6 +2209,7 @@ export const messages = {
         lastName: "Last name / Patronymic",
         role: "Role",
         laboratory: "Laboratory",
+        branch: "Branch",
         registrar: "Registrar",
         actions: "Actions",
         key: "Key",

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -43,6 +44,9 @@ class _Row:
         self.created_at = datetime.now(UTC)
         self.completed_at = None
         self.restored_at = None
+        self.restored_by = None
+        self.restore_status = None
+        self.restore_error = None
         for key, value in values.items():
             setattr(self, key, value)
 
@@ -51,6 +55,9 @@ class _FakeRepository:
     def __init__(self) -> None:
         self.rows: list[_Row] = []
         self.deleted: list[UUID] = []
+        # Actor-name resolution needs a real SQLAlchemy session; router tests
+        # stub it out via the monkeypatch in `_client()` instead.
+        self.session = None
 
     async def list(self, *, limit: int) -> tuple[list[_Row], int]:
         return self.rows[:limit], len(self.rows)
@@ -89,7 +96,11 @@ def _seed_completed_backup(repository: _FakeRepository, tmp_path: Path) -> _Row:
     return row
 
 
-def _client(repository: _FakeRepository) -> TestClient:
+def _client(repository: _FakeRepository, monkeypatch: MonkeyPatch) -> TestClient:
+    async def fake_resolve_actor_names(*_args: Any, **_kwargs: Any) -> dict[UUID, str]:
+        return {}
+
+    monkeypatch.setattr(database_router, "_resolve_actor_names", fake_resolve_actor_names)
     app = create_app()
     app.dependency_overrides[database_router.get_backup_repository] = lambda: repository
     app.dependency_overrides[get_current_user_id] = lambda: ACTOR_ID
@@ -109,7 +120,7 @@ def test_create_backup_writes_a_file_and_records_its_path(
     monkeypatch.setattr(database_router, "create_dump", fake_create_dump)
     monkeypatch.setattr(database_router, "preferred_format", lambda: "sql")
 
-    response = _client(repository).post("/api/v1/database/backups")
+    response = _client(repository, monkeypatch).post("/api/v1/database/backups")
 
     assert response.status_code == 201
     data = response.json()["data"]
@@ -134,7 +145,7 @@ def test_failed_export_keeps_an_honest_record_and_no_stray_file(
     monkeypatch.setattr(database_router, "create_dump", failing_dump)
     monkeypatch.setattr(database_router, "preferred_format", lambda: "sql")
 
-    response = _client(repository).post("/api/v1/database/backups")
+    response = _client(repository, monkeypatch).post("/api/v1/database/backups")
 
     assert response.status_code == 400
     assert "pg_dump exploded" in response.json()["detail"]
@@ -148,17 +159,33 @@ def test_upload_stores_the_file_and_classifies_its_format(
 ) -> None:
     _configure(monkeypatch, tmp_path)
     repository = _FakeRepository()
+    payload = gzip.compress(b"PGDMP\x00binary-archive")
 
-    response = _client(repository).post(
+    response = _client(repository, monkeypatch).post(
         "/api/v1/database/backups/upload",
-        files={"file": ("legacy.dump", b"PGDMP\x00binary-archive", "application/octet-stream")},
+        files={"file": ("legacy.dump.gz", payload, "application/gzip")},
     )
 
     assert response.status_code == 201
     data = response.json()["data"]
     assert data["format"] == "custom"
     assert data["origin"] == "upload"
-    assert Path(data["file_path"]).read_bytes() == b"PGDMP\x00binary-archive"
+    assert Path(data["file_path"]).read_bytes() == payload
+
+
+def test_upload_rejects_a_non_gzip_file(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
+    _configure(monkeypatch, tmp_path)
+    repository = _FakeRepository()
+
+    response = _client(repository, monkeypatch).post(
+        "/api/v1/database/backups/upload",
+        files={"file": ("legacy.sql", b"INSERT INTO t VALUES (1);", "application/sql")},
+    )
+
+    assert response.status_code == 400
+    assert repository.rows == []
+    backups_dir = tmp_path / "backups"
+    assert not backups_dir.exists() or list(backups_dir.iterdir()) == []
 
 
 def test_upload_rejects_a_dump_over_the_configured_limit(
@@ -168,10 +195,11 @@ def test_upload_rejects_a_dump_over_the_configured_limit(
     monkeypatch.setenv("APP_DATABASE_BACKUP_MAX_MB", "0")
     get_settings.cache_clear()
     repository = _FakeRepository()
+    payload = gzip.compress(b"INSERT INTO t VALUES (1);")
 
-    response = _client(repository).post(
+    response = _client(repository, monkeypatch).post(
         "/api/v1/database/backups/upload",
-        files={"file": ("big.sql", b"INSERT INTO t VALUES (1);", "application/sql")},
+        files={"file": ("big.sql.gz", payload, "application/gzip")},
     )
 
     assert response.status_code == 400
@@ -186,7 +214,7 @@ def test_restore_requires_the_literal_confirmation(
     repository = _FakeRepository()
     row = _seed_completed_backup(repository, tmp_path)
 
-    client = _client(repository)
+    client = _client(repository, monkeypatch)
     assert client.post(f"/api/v1/database/backups/{row.id}/restore").status_code == 400
 
     restored: list[tuple[Path, str]] = []
@@ -202,7 +230,36 @@ def test_restore_requires_the_literal_confirmation(
 
     assert response.status_code == 200
     assert restored == [(Path(row.file_path), "sql")]
-    assert response.json()["data"]["restored_at"] is not None
+    data = response.json()["data"]
+    assert data["restored_at"] is not None
+    assert data["restored_by"] == str(ACTOR_ID)
+    assert data["restore_status"] == "completed"
+    assert row.restored_by == ACTOR_ID
+    assert row.restore_status == "completed"
+    assert row.restore_error is None
+
+
+def test_failed_restore_records_who_tried_and_why(
+    monkeypatch: MonkeyPatch, tmp_path: Path
+) -> None:
+    _configure(monkeypatch, tmp_path)
+    repository = _FakeRepository()
+    row = _seed_completed_backup(repository, tmp_path)
+
+    async def failing_restore(path: Path, fmt: str) -> None:
+        raise data_transfer.DatabaseTransferError("pg_restore exploded")
+
+    monkeypatch.setattr(database_router, "restore_dump", failing_restore)
+    response = _client(repository, monkeypatch).post(
+        f"/api/v1/database/backups/{row.id}/restore",
+        params={"confirmation": database_router.RESTORE_CONFIRMATION},
+    )
+
+    assert response.status_code == 400
+    assert row.restored_by == ACTOR_ID
+    assert row.restore_status == "failed"
+    assert row.restore_error == "pg_restore exploded"
+    assert row.restored_at is not None
 
 
 def test_delete_removes_the_file_alongside_the_record(
@@ -212,7 +269,7 @@ def test_delete_removes_the_file_alongside_the_record(
     repository = _FakeRepository()
     row = _seed_completed_backup(repository, tmp_path)
 
-    response = _client(repository).delete(f"/api/v1/database/backups/{row.id}")
+    response = _client(repository, monkeypatch).delete(f"/api/v1/database/backups/{row.id}")
 
     assert response.status_code == 204
     assert repository.deleted == [row.id]
@@ -220,12 +277,19 @@ def test_delete_removes_the_file_alongside_the_record(
 
 
 def test_detect_format_reads_the_pg_dump_magic() -> None:
-    assert data_transfer.detect_format(b"PGDMP\x01") == data_transfer.CUSTOM_FORMAT
-    assert data_transfer.detect_format(b"-- Bio") == data_transfer.SQL_FORMAT
+    assert (
+        data_transfer.detect_format(gzip.compress(b"PGDMP\x01")) == data_transfer.CUSTOM_FORMAT
+    )
+    assert data_transfer.detect_format(gzip.compress(b"-- Bio")) == data_transfer.SQL_FORMAT
+
+
+def test_is_gzip_checks_the_magic_bytes() -> None:
+    assert data_transfer.is_gzip(gzip.compress(b"data")) is True
+    assert data_transfer.is_gzip(b"-- Bio") is False
 
 
 def test_build_filename_matches_the_engine_extension() -> None:
-    assert data_transfer.build_filename(data_transfer.CUSTOM_FORMAT).endswith(".dump")
+    assert data_transfer.build_filename(data_transfer.CUSTOM_FORMAT).endswith(".dump.gz")
     assert data_transfer.build_filename(data_transfer.SQL_FORMAT, prefix="uploaded").startswith(
         "uploaded-"
     )

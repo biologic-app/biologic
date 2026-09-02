@@ -34,9 +34,15 @@ interface WireBackup {
   size_bytes: number;
   duration_ms: number | null;
   error: string | null;
+  created_by: string | null;
+  created_by_name: string | null;
   created_at: string;
   completed_at: string | null;
   restored_at: string | null;
+  restored_by: string | null;
+  restored_by_name: string | null;
+  restore_status: "completed" | "failed" | null;
+  restore_error: string | null;
   file_exists: boolean;
 }
 
@@ -67,9 +73,15 @@ const toBackup = (wire: WireBackup): DatabaseBackup => ({
   sizeBytes: wire.size_bytes,
   durationMs: wire.duration_ms,
   error: wire.error,
+  createdBy: wire.created_by,
+  createdByName: wire.created_by_name,
   createdAt: wire.created_at,
   completedAt: wire.completed_at,
   restoredAt: wire.restored_at,
+  restoredBy: wire.restored_by,
+  restoredByName: wire.restored_by_name,
+  restoreStatus: wire.restore_status,
+  restoreError: wire.restore_error,
   fileExists: wire.file_exists,
 });
 

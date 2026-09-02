@@ -1,3 +1,5 @@
+import os
+import sys
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -6,6 +8,21 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 APP_DIR = Path(__file__).resolve().parents[1]
 BASE_DIR = APP_DIR.parent
+
+
+def _default_backup_dir() -> Path:
+    """A system data directory, deliberately outside the project checkout.
+
+    The project folder can be wiped by a redeploy or a clean checkout; dumps
+    living there would vanish with it. ``ProgramData`` on Windows and
+    ``/var/lib`` on POSIX are the conventional homes for a service's own
+    persistent state.
+    """
+    if sys.platform == "win32":
+        base = Path(os.environ.get("PROGRAMDATA", r"C:\ProgramData"))
+    else:
+        base = Path("/var/lib")
+    return base / "biologic" / "backups"
 
 
 class Settings(BaseSettings):
@@ -43,7 +60,8 @@ class Settings(BaseSettings):
     database_backup_max_mb: int = 1024
     # Filesystem directory holding database dumps. Only the path is kept in
     # PostgreSQL (``database_backups``); the payload never lives in a table.
-    database_backup_dir: str = str(BASE_DIR / "var" / "backups")
+    # Defaults outside the project checkout — see ``_default_backup_dir``.
+    database_backup_dir: str = str(_default_backup_dir())
     # A restore takes ACCESS EXCLUSIVE locks on every application table. Rather
     # than queue behind a long-running transaction until the request times out,
     # give up after this many seconds and tell the operator why.

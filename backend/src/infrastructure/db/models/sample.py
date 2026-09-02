@@ -15,10 +15,12 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from src.core.uuid7 import new_uuid7
 from src.infrastructure.db.models.base import Base
+from src.infrastructure.db.models.mixins import OwnerMixin, SoftDeleteMixin, TenantMixin
 
 
-class Sample(Base):
+class Sample(OwnerMixin, TenantMixin, SoftDeleteMixin, Base):
     __tablename__ = "samples"
     __table_args__ = (
         Index("samples_samples_direction_id", "direction_id"),
@@ -29,6 +31,7 @@ class Sample(Base):
         Index("samples_samples_received_at", "received_at"),
         Index("samples_samples_completed_at", "completed_at"),
         Index("samples_samples_deleted_at", "deleted_at"),
+        Index("samples_samples_owner_id", "owner_id"),
         Index(
             "samples_samples_active_created_at",
             text("created_at DESC"),
@@ -40,7 +43,7 @@ class Sample(Base):
     id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         primary_key=True,
-        server_default=text("uuidv7()"),
+        default=new_uuid7,
     )
     month_no: Mapped[int | None] = mapped_column(Integer)
     name: Mapped[str] = mapped_column(Text, nullable=False)
@@ -94,4 +97,3 @@ class Sample(Base):
         nullable=False,
         server_default=text("CURRENT_TIMESTAMP"),
     )
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

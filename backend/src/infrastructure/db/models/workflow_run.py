@@ -15,10 +15,12 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from src.core.uuid7 import new_uuid7
 from src.infrastructure.db.models.base import Base
+from src.infrastructure.db.models.mixins import SoftDeleteMixin, TenantMixin
 
 
-class WorkflowRun(Base):
+class WorkflowRun(TenantMixin, SoftDeleteMixin, Base):
     """A single execution of a workflow template at a pinned schema version.
 
     ``answers``/``loops`` hold the executor's input; ``history`` the traversal
@@ -37,7 +39,7 @@ class WorkflowRun(Base):
     id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         primary_key=True,
-        server_default=text("uuidv7()"),
+        default=new_uuid7,
     )
     template_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
@@ -80,4 +82,3 @@ class WorkflowRun(Base):
         nullable=False,
         server_default=text("CURRENT_TIMESTAMP"),
     )
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

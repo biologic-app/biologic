@@ -23,6 +23,7 @@ from src.application.access_control.use_cases.user_permission_set import (
     UserPermissionSetUseCase,
 )
 from src.application.access_control.use_cases.user_scope_crud import UserScopeCrudUseCase
+from src.core.branch_context import set_current_branch_id
 from src.core.config import get_settings
 from src.core.errors import ForbiddenError, UnauthorizedError
 from src.core.security import (
@@ -93,6 +94,7 @@ class CurrentPrincipal:
     is_superadmin: bool
     grants: frozenset[str]
     scopes: tuple[dict[str, object], ...]
+    branch_id: UUID | None
 
     def can(self, code: str) -> bool:
         if self.is_superadmin or code in self.grants or "*" in self.grants:
@@ -153,6 +155,7 @@ async def get_current_principal(request: Request) -> CurrentPrincipal:
         for override, permission in overrides:
             code = f"{permission.resource}.{permission.action}"
             (grants.add if override.allowed else grants.discard)(code)
+        set_current_branch_id(user.branch_id)
         scope_rows = (
             (await uow.session.execute(select(UserScope).where(UserScope.user_id == user.id)))
             .scalars()
@@ -166,6 +169,7 @@ async def get_current_principal(request: Request) -> CurrentPrincipal:
             role.key == "superadmin",
             frozenset(grants),
             tuple({"scope_kind": s.scope_kind, "scope_id": str(s.scope_id)} for s in scope_rows),
+            user.branch_id,
         )
 
 

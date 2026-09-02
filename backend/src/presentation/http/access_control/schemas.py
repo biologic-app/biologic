@@ -21,6 +21,7 @@ class UserCreateRequest(StrictRequest):
     patronymic: str | None = None
     role_id: UUID
     lab_id: UUID | None = None
+    branch_id: UUID | None = None
 
 
 class UserUpdateRequest(StrictRequest):
@@ -34,6 +35,7 @@ class UserUpdateRequest(StrictRequest):
     patronymic: str | None = None
     role_id: UUID | None = None
     lab_id: UUID | None = None
+    branch_id: UUID | None = None
 
 
 class RoleCreateRequest(StrictRequest):

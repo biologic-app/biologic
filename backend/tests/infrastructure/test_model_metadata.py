@@ -23,5 +23,5 @@ def test_research_lab_id_metadata() -> None:
     for foreign_key in column.foreign_keys:
         assert foreign_key.constraint is not None
         constraint_names.add(foreign_key.constraint.name)
-    assert constraint_names == {"fk_research_lab_id_labs_id"}
+    assert constraint_names == set()
     assert "research_research_lab_id" in {idx.name for idx in table.indexes}

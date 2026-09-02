@@ -60,6 +60,8 @@ const user = computed(() => {
   };
 });
 
+const branchName = computed(() => auth.user?.branch?.name?.trim() || null);
+
 const items = computed<DropdownMenuItem[][]>(() => [
   [
     {
@@ -67,6 +69,15 @@ const items = computed<DropdownMenuItem[][]>(() => [
       label: user.value.name,
       avatar: user.value.avatar,
     },
+    ...(branchName.value
+      ? [
+          {
+            type: "label" as const,
+            label: branchName.value,
+            icon: "i-lucide-building-2",
+          },
+        ]
+      : []),
   ],
   [
     {
@@ -254,7 +265,7 @@ const items = computed<DropdownMenuItem[][]>(() => [
     <UButton
       v-bind="{
         ...user,
-        label: collapsed ? undefined : user?.name,
+        label: undefined,
         trailingIcon: collapsed ? undefined : 'i-lucide-chevrons-up-down',
       }"
       color="neutral"
@@ -265,7 +276,17 @@ const items = computed<DropdownMenuItem[][]>(() => [
       :ui="{
         trailingIcon: 'text-dimmed',
       }"
-    />
+    >
+      <span v-if="!collapsed" class="min-w-0 flex-1 text-start">
+        <span class="block truncate">{{ user.name }}</span>
+        <span
+          v-if="branchName"
+          class="block min-w-0 truncate text-xs font-normal text-muted"
+        >
+          <span class="truncate">{{ branchName }}</span>
+        </span>
+      </span>
+    </UButton>
 
     <template #chip-leading="{ item }">
       <div class="inline-flex items-center justify-center shrink-0 size-5">

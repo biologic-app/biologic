@@ -87,15 +87,15 @@ def upgrade() -> None:
         """)
 
     op.execute("""
-        INSERT INTO roles (key, name, scope_type)
+        INSERT INTO roles (id, key, name, scope_type)
         VALUES
-            ('admin', 'Administrator', 'global'),
-            ('registrar', 'Registrar', 'own_branch'),
-            ('branch_chief', 'Branch Chief', 'own_branch'),
-            ('lab_chief', 'Laboratory Chief', 'own_lab'),
-            ('lab_doctor', 'Laboratory Doctor', 'own_lab'),
-            ('laborant', 'Laborant', 'own_lab'),
-            ('sanitary_inspector', 'Sanitary Inspector', 'own_objects')
+            (uuidv7(), 'admin', 'Administrator', 'global'),
+            (uuidv7(), 'registrar', 'Registrar', 'own_branch'),
+            (uuidv7(), 'branch_chief', 'Branch Chief', 'own_branch'),
+            (uuidv7(), 'lab_chief', 'Laboratory Chief', 'own_lab'),
+            (uuidv7(), 'lab_doctor', 'Laboratory Doctor', 'own_lab'),
+            (uuidv7(), 'laborant', 'Laborant', 'own_lab'),
+            (uuidv7(), 'sanitary_inspector', 'Sanitary Inspector', 'own_objects')
         ON CONFLICT (key) DO UPDATE
         SET
             name = EXCLUDED.name,

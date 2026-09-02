@@ -15,7 +15,7 @@ from src.core.config import get_settings
 from src.core.errors import UnauthorizedError
 from src.core.security import verify_password
 from src.domain.uow import UnitOfWork, UnitOfWorkFactory
-from src.infrastructure.db.models import Session
+from src.infrastructure.db.models import Branch, Session
 
 
 @dataclass(frozen=True)
@@ -33,6 +33,8 @@ class AuthSession:
     permissions: list[dict[str, object]]
     session_id: UUID = field(default_factory=uuid4)
     status: str = "active"
+    branch_id: UUID | None = None
+    branch_name: str | None = None
 
     @property
     def token_version(self) -> int:
@@ -126,4 +128,15 @@ class AuthUseCase:
             permissions=sorted(effective.values(), key=permission_sort_key),
             session_id=session_id or uuid4(),
             status=getattr(user, "status", "active"),
+            branch_id=getattr(user, "branch_id", None),
+            branch_name=await self._branch_name(uow, getattr(user, "branch_id", None)),
         )
+
+    @staticmethod
+    async def _branch_name(uow: UnitOfWork, branch_id: UUID | None) -> str | None:
+        if branch_id is None:
+            return None
+        branch = (
+            await uow.session.execute(select(Branch).where(Branch.id == branch_id))
+        ).scalar_one_or_none()  # type: ignore[union-attr]
+        return branch.name if branch is not None else None

@@ -9,6 +9,7 @@ from sqlalchemy import BindParameter, bindparam, text
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
 from src.core.config import get_settings
+from src.core.uuid7 import new_uuid7
 
 # ---------------------------------------------------------------------------
 # Realistic dev reference dataset.
@@ -587,15 +588,20 @@ async def _seed_bootstrap_data(connection: AsyncConnection) -> None:
         await connection.execute(
             text(
                 """
-                INSERT INTO roles (key, name, scope_type)
-                VALUES (:key, :name, CAST(:scope_type AS role_scope_type))
+                INSERT INTO roles (id, key, name, scope_type)
+                VALUES (:id, :key, :name, CAST(:scope_type AS role_scope_type))
                 ON CONFLICT (key) DO UPDATE
                 SET name = EXCLUDED.name,
                     scope_type = EXCLUDED.scope_type,
                     updated_at = CURRENT_TIMESTAMP
                 """
             ),
-            {"key": role_key, "name": payload["name"], "scope_type": payload["scope_type"]},
+            {
+                "id": new_uuid7(),
+                "key": role_key,
+                "name": payload["name"],
+                "scope_type": payload["scope_type"],
+            },
         )
 
     for table, status_rows in (
@@ -607,15 +613,16 @@ async def _seed_bootstrap_data(connection: AsyncConnection) -> None:
         await connection.execute(
             text(
                 f"""
-                INSERT INTO {table} (code, color)
+                INSERT INTO {table} (id, code, color)
                 SELECT * FROM unnest(
-                    CAST(:code AS text[]), CAST(:color AS text[])
+                    CAST(:id AS uuid[]), CAST(:code AS text[]), CAST(:color AS text[])
                 )
                 ON CONFLICT (code) DO UPDATE
                 SET color = EXCLUDED.color
                 """  # noqa: S608 (table is one of 4 fixed literals above, not user input)
             ),
             {
+                "id": [new_uuid7() for _ in status_rows],
                 "code": [code for code, _ in status_rows],
                 "color": [color for _, color in status_rows],
             },
@@ -624,12 +631,15 @@ async def _seed_bootstrap_data(connection: AsyncConnection) -> None:
     await connection.execute(
         text(
             """
-            INSERT INTO protocol_types (code, name)
-            SELECT * FROM unnest(CAST(:code AS text[]), CAST(:name AS text[]))
+            INSERT INTO protocol_types (id, code, name)
+            SELECT * FROM unnest(
+                CAST(:id AS uuid[]), CAST(:code AS text[]), CAST(:name AS text[])
+            )
             ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
             """
         ),
         {
+            "id": [new_uuid7() for _ in PROTOCOL_TYPES],
             "code": [code for code, _ in PROTOCOL_TYPES],
             "name": [name for _, name in PROTOCOL_TYPES],
         },
@@ -640,24 +650,33 @@ async def _seed_bootstrap_data(connection: AsyncConnection) -> None:
     await connection.execute(
         text(
             """
-            INSERT INTO branches (code, name)
-            SELECT src.code, src.name
-            FROM unnest(CAST(:code AS text[]), CAST(:name AS text[])) AS src(code, name)
+            INSERT INTO branches (id, code, name)
+            SELECT src.id, src.code, src.name
+            FROM unnest(
+                CAST(:id AS uuid[]), CAST(:code AS text[]), CAST(:name AS text[])
+            ) AS src(id, code, name)
             WHERE NOT EXISTS (SELECT 1 FROM branches b WHERE b.code = src.code)
             """
         ),
-        {"code": [code for code, _ in BRANCHES], "name": [name for _, name in BRANCHES]},
+        {
+            "id": [new_uuid7() for _ in BRANCHES],
+            "code": [code for code, _ in BRANCHES],
+            "name": [name for _, name in BRANCHES],
+        },
     )
 
     await connection.execute(
         text(
             """
-            INSERT INTO permissions (resource, action)
-            SELECT * FROM unnest(CAST(:resource AS text[]), CAST(:action AS text[]))
+            INSERT INTO permissions (id, resource, action)
+            SELECT * FROM unnest(
+                CAST(:id AS uuid[]), CAST(:resource AS text[]), CAST(:action AS text[])
+            )
             ON CONFLICT (resource, action) DO NOTHING
             """
         ),
         {
+            "id": [new_uuid7() for _ in PERMISSION_CATALOG],
             "resource": [resource for resource, _ in PERMISSION_CATALOG],
             "action": [action for _, action in PERMISSION_CATALOG],
         },
@@ -680,41 +699,52 @@ async def _seed_bootstrap_data(connection: AsyncConnection) -> None:
         await connection.execute(
             text(
                 """
-                INSERT INTO role_permissions (role_id, permission_id)
-                SELECT r.id, p.id
+                INSERT INTO role_permissions (id, role_id, permission_id)
+                SELECT gen.id, r.id, p.id
                 FROM unnest(
-                    CAST(:resource AS text[]), CAST(:action AS text[])
-                ) AS m(resource, action)
-                JOIN permissions p ON p.resource = m.resource AND p.action = m.action
+                    CAST(:id AS uuid[]), CAST(:resource AS text[]), CAST(:action AS text[])
+                ) AS gen(id, resource, action)
+                JOIN permissions p ON p.resource = gen.resource AND p.action = gen.action
                 CROSS JOIN (SELECT id FROM roles WHERE key = :role_key) r
                 ON CONFLICT (role_id, permission_id) DO NOTHING
                 """
             ),
             {
                 "role_key": role_key,
+                "id": [new_uuid7() for _ in pairs],
                 "resource": [resource for resource, _ in pairs],
                 "action": [action for _, action in pairs],
             },
         )
-    # superadmin gets every permission, not just the matrix above.
+    # superadmin gets every permission, not just the matrix above. The row
+    # count depends on a runtime CROSS JOIN, so the permission set is fetched
+    # first — that's what the id/permission_id arrays below are sized to.
+    permission_ids = (
+        (await connection.execute(text("SELECT id FROM permissions"))).scalars().all()
+    )
     await connection.execute(
         text(
             """
-            INSERT INTO role_permissions (role_id, permission_id)
-            SELECT r.id, p.id
-            FROM roles r
-            CROSS JOIN permissions p
-            WHERE r.key = 'superadmin'
+            INSERT INTO role_permissions (id, role_id, permission_id)
+            SELECT gen.id, (SELECT id FROM roles WHERE key = 'superadmin'), gen.permission_id
+            FROM unnest(
+                CAST(:id AS uuid[]), CAST(:permission_id AS uuid[])
+            ) AS gen(id, permission_id)
             ON CONFLICT (role_id, permission_id) DO NOTHING
             """
-        )
+        ),
+        {
+            "id": [new_uuid7() for _ in permission_ids],
+            "permission_id": list(permission_ids),
+        },
     )
 
     await connection.execute(
         text(
             """
-            INSERT INTO conclusions (code, name, text_singular, text_plural, comment)
+            INSERT INTO conclusions (id, code, name, text_singular, text_plural, comment)
             SELECT * FROM unnest(
+                CAST(:id AS uuid[]),
                 CAST(:code AS text[]),
                 CAST(:name AS text[]),
                 CAST(:text_singular AS text[]),
@@ -725,6 +755,7 @@ async def _seed_bootstrap_data(connection: AsyncConnection) -> None:
             """
         ),
         {
+            "id": [new_uuid7() for _ in CONCLUSIONS],
             "code": [row[0] for row in CONCLUSIONS],
             "name": [row[1] for row in CONCLUSIONS],
             "text_singular": [row[2] for row in CONCLUSIONS],
@@ -740,12 +771,13 @@ async def _seed_bootstrap_data(connection: AsyncConnection) -> None:
             text(
                 """
                 INSERT INTO users (
-                    username, password_hash, token_version, code,
-                    first_name, last_name, patronymic, role_id, lab_id
+                    id, username, password_hash, token_version, code,
+                    first_name, last_name, patronymic, role_id, lab_id, branch_id
                 )
                 SELECT
-                    :username, :password_hash, 0, :code,
-                    :first_name, :last_name, NULL, r.id, NULL
+                    :id, :username, :password_hash, 0, :code,
+                    :first_name, :last_name, NULL, r.id, NULL,
+                    (SELECT id FROM branches WHERE code = 'BR-CENTRAL')
                 FROM roles r
                 WHERE r.key = :role_key
                 ON CONFLICT (username) DO UPDATE
@@ -757,23 +789,24 @@ async def _seed_bootstrap_data(connection: AsyncConnection) -> None:
                     patronymic = EXCLUDED.patronymic,
                     role_id = EXCLUDED.role_id,
                     lab_id = EXCLUDED.lab_id,
+                    branch_id = EXCLUDED.branch_id,
                     deleted_at = NULL,
                     updated_at = CURRENT_TIMESTAMP
                 """
             ),
-            user,
+            {**user, "id": new_uuid7()},
         )
 
     for role_key, entity_type in ROLE_SUBSCRIPTION_RULES:
         await connection.execute(
             text(
                 """
-                INSERT INTO role_subscription_rules (role_id, entity_type)
-                SELECT id, :entity_type FROM roles WHERE key = :role_key
+                INSERT INTO role_subscription_rules (id, role_id, entity_type)
+                SELECT :id, id, :entity_type FROM roles WHERE key = :role_key
                 ON CONFLICT DO NOTHING
                 """
             ),
-            {"role_key": role_key, "entity_type": entity_type},
+            {"role_key": role_key, "entity_type": entity_type, "id": new_uuid7()},
         )
 
 
@@ -862,9 +895,10 @@ async def _seed_reference_rows(connection: AsyncConnection) -> None:
     await connection.execute(
         text(
             """
-            INSERT INTO labs (code, name, full_name)
+            INSERT INTO labs (id, code, name, full_name)
             SELECT * FROM unnest(
-                CAST(:code AS text[]), CAST(:name AS text[]), CAST(:full_name AS text[])
+                CAST(:id AS uuid[]), CAST(:code AS text[]),
+                CAST(:name AS text[]), CAST(:full_name AS text[])
             )
             ON CONFLICT (code) DO UPDATE
             SET name = EXCLUDED.name,
@@ -873,6 +907,7 @@ async def _seed_reference_rows(connection: AsyncConnection) -> None:
             """
         ),
         {
+            "id": [new_uuid7() for _ in REAL_LABS],
             "code": [code for code, _, _ in REAL_LABS],
             "name": [name for _, name, _ in REAL_LABS],
             "full_name": [full for _, _, full in REAL_LABS],
@@ -882,12 +917,15 @@ async def _seed_reference_rows(connection: AsyncConnection) -> None:
     await connection.execute(
         text(
             """
-            INSERT INTO sample_types (code, name)
-            SELECT * FROM unnest(CAST(:code AS text[]), CAST(:name AS text[]))
+            INSERT INTO sample_types (id, code, name)
+            SELECT * FROM unnest(
+                CAST(:id AS uuid[]), CAST(:code AS text[]), CAST(:name AS text[])
+            )
             ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
             """
         ),
         {
+            "id": [new_uuid7() for _ in SAMPLE_TYPES],
             "code": [code for code, _ in SAMPLE_TYPES],
             "name": [name for _, name in SAMPLE_TYPES],
         },
@@ -896,11 +934,12 @@ async def _seed_reference_rows(connection: AsyncConnection) -> None:
     await connection.execute(
         text(
             """
-            INSERT INTO doctors (last_name, first_name, patronymic)
-            SELECT src.last_name, src.first_name, src.patronymic
+            INSERT INTO doctors (id, last_name, first_name, patronymic)
+            SELECT src.id, src.last_name, src.first_name, src.patronymic
             FROM unnest(
-                CAST(:last AS text[]), CAST(:first AS text[]), CAST(:patronymic AS text[])
-            ) AS src(last_name, first_name, patronymic)
+                CAST(:id AS uuid[]), CAST(:last AS text[]),
+                CAST(:first AS text[]), CAST(:patronymic AS text[])
+            ) AS src(id, last_name, first_name, patronymic)
             WHERE NOT EXISTS (
                 SELECT 1 FROM doctors d
                 WHERE d.last_name = src.last_name
@@ -910,6 +949,7 @@ async def _seed_reference_rows(connection: AsyncConnection) -> None:
             """
         ),
         {
+            "id": [new_uuid7() for _ in DOCTORS],
             "last": [last for last, _, _ in DOCTORS],
             "first": [first for _, first, _ in DOCTORS],
             "patronymic": [patronymic for _, _, patronymic in DOCTORS],
@@ -919,8 +959,9 @@ async def _seed_reference_rows(connection: AsyncConnection) -> None:
     await connection.execute(
         text(
             """
-            INSERT INTO objects (code, name, full_name, address, branch_id)
+            INSERT INTO objects (id, code, name, full_name, address, branch_id)
             SELECT
+                src.id,
                 src.code,
                 src.name,
                 src.name,
@@ -930,8 +971,9 @@ async def _seed_reference_rows(connection: AsyncConnection) -> None:
                     (SELECT id FROM branches ORDER BY code, id LIMIT 1)
                 )
             FROM unnest(
-                CAST(:code AS text[]), CAST(:name AS text[]), CAST(:address AS text[])
-            ) AS src(code, name, address)
+                CAST(:id AS uuid[]), CAST(:code AS text[]),
+                CAST(:name AS text[]), CAST(:address AS text[])
+            ) AS src(id, code, name, address)
             ON CONFLICT (code) DO UPDATE
             SET name = EXCLUDED.name,
                 full_name = EXCLUDED.full_name,
@@ -940,6 +982,7 @@ async def _seed_reference_rows(connection: AsyncConnection) -> None:
             """
         ),
         {
+            "id": [new_uuid7() for _ in OBJECTS],
             "code": [code for code, _, _ in OBJECTS],
             "name": [name for _, name, _ in OBJECTS],
             "address": [address for _, _, address in OBJECTS],
@@ -949,13 +992,14 @@ async def _seed_reference_rows(connection: AsyncConnection) -> None:
     await connection.execute(
         text(
             """
-            INSERT INTO research_goals (code, name, comment, lab_id)
-            SELECT src.goal_code, src.goal_name, 'Realistic dev seed goal', l.id
+            INSERT INTO research_goals (id, code, name, comment, lab_id)
+            SELECT src.id, src.goal_code, src.goal_name, 'Realistic dev seed goal', l.id
             FROM unnest(
+                CAST(:id AS uuid[]),
                 CAST(:lab_code AS text[]),
                 CAST(:goal_code AS text[]),
                 CAST(:goal_name AS text[])
-            ) AS src(lab_code, goal_code, goal_name)
+            ) AS src(id, lab_code, goal_code, goal_name)
             JOIN labs l ON l.code = src.lab_code
             ON CONFLICT (code) DO UPDATE
             SET name = EXCLUDED.name,
@@ -964,6 +1008,7 @@ async def _seed_reference_rows(connection: AsyncConnection) -> None:
             """
         ),
         {
+            "id": [new_uuid7() for _ in RESEARCH_GOALS],
             "lab_code": [lab for lab, _, _ in RESEARCH_GOALS],
             "goal_code": [code for _, code, _ in RESEARCH_GOALS],
             "goal_name": [name for _, _, name in RESEARCH_GOALS],
@@ -980,17 +1025,19 @@ async def _seed_reference_rows(connection: AsyncConnection) -> None:
         text(
             """
             INSERT INTO indicators (
-                name, unit, norm_text, comment, research_goal_id, sample_type_id
+                id, name, unit, norm_text, comment, research_goal_id, sample_type_id
             )
             SELECT
+                m.id,
                 rg.code || ' / ' || st.code,
                 'ед.',
                 'в пределах нормы',
                 'Realistic dev seed indicator',
                 rg.id,
                 st.id
-            FROM unnest(CAST(:goal_code AS text[]), CAST(:st_code AS text[]))
-                AS m(goal_code, st_code)
+            FROM unnest(
+                CAST(:id AS uuid[]), CAST(:goal_code AS text[]), CAST(:st_code AS text[])
+            ) AS m(id, goal_code, st_code)
             JOIN research_goals rg ON rg.code = m.goal_code
             JOIN sample_types st ON st.code = m.st_code
             WHERE NOT EXISTS (
@@ -998,7 +1045,11 @@ async def _seed_reference_rows(connection: AsyncConnection) -> None:
             )
             """
         ),
-        {"goal_code": goal_codes, "st_code": sample_type_codes},
+        {
+            "id": [new_uuid7() for _ in goal_codes],
+            "goal_code": goal_codes,
+            "st_code": sample_type_codes,
+        },
     )
 
 
@@ -1024,11 +1075,11 @@ async def _seed_workflow_rows(connection: AsyncConnection) -> None:
                 SELECT id FROM direction_statuses WHERE code = 'draft' LIMIT 1
             )
             INSERT INTO directions (
-                year_no, base_no, doctor_id, object_id, status_id,
+                id, year_no, base_no, doctor_id, object_id, status_id,
                 created_by, updated_by, sampled_at, received_at
             )
             SELECT
-                EXTRACT(YEAR FROM CURRENT_DATE)::int,
+                :id, EXTRACT(YEAR FROM CURRENT_DATE)::int,
                 :base_no, doctor.id, object_row.id, status_row.id,
                 actor.id, actor.id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
             FROM actor, doctor, object_row, status_row
@@ -1036,6 +1087,7 @@ async def _seed_workflow_rows(connection: AsyncConnection) -> None:
             """
         ),
         {
+            "id": new_uuid7(),
             "doctor_last": WORKFLOW_DOCTOR_LAST,
             "object_code": WORKFLOW_OBJECT,
             "base_no": TEST_CODES["direction_base_no"],
@@ -1057,17 +1109,18 @@ async def _seed_workflow_rows(connection: AsyncConnection) -> None:
                 SELECT id FROM users WHERE username = 'admin' LIMIT 1
             )
             INSERT INTO samples (
-                name, direction_id, sample_type_id, status_id,
+                id, name, direction_id, sample_type_id, status_id,
                 created_by, updated_by, sampled_at
             )
             SELECT
-                :sample_name, direction_row.id, sample_type.id, status_row.id,
+                :id, :sample_name, direction_row.id, sample_type.id, status_row.id,
                 actor.id, actor.id, CURRENT_TIMESTAMP
             FROM direction_row, sample_type, status_row, actor
             WHERE NOT EXISTS (SELECT 1 FROM samples WHERE name = :sample_name)
             """
         ),
         {
+            "id": new_uuid7(),
             "base_no": TEST_CODES["direction_base_no"],
             "sample_type_code": WORKFLOW_SAMPLE_TYPE,
             "sample_name": TEST_CODES["sample"],
@@ -1076,10 +1129,12 @@ async def _seed_workflow_rows(connection: AsyncConnection) -> None:
     await connection.execute(
         text(
             """
-            INSERT INTO sample_labs (sample_id, lab_id)
-            SELECT s.id, l.id
+            INSERT INTO sample_labs (id, sample_id, lab_id)
+            SELECT gen.id, s.id, l.id
             FROM samples s
             JOIN labs l ON l.code = ANY(CAST(:lab_codes AS text[]))
+            JOIN unnest(CAST(:ids AS uuid[]), CAST(:lab_codes AS text[]))
+                AS gen(id, lab_code) ON gen.lab_code = l.code
             WHERE s.name = :sample_name
               AND NOT EXISTS (
                   SELECT 1 FROM sample_labs sl
@@ -1090,6 +1145,7 @@ async def _seed_workflow_rows(connection: AsyncConnection) -> None:
         {
             "sample_name": TEST_CODES["sample"],
             "lab_codes": list(WORKFLOW_SAMPLE_LABS),
+            "ids": [new_uuid7() for _ in WORKFLOW_SAMPLE_LABS],
         },
     )
     await connection.execute(
@@ -1108,11 +1164,11 @@ async def _seed_workflow_rows(connection: AsyncConnection) -> None:
                 SELECT id FROM users WHERE username = 'admin' LIMIT 1
             )
             INSERT INTO research (
-                sample_id, research_goal_id, lab_id, status_id,
+                id, sample_id, research_goal_id, lab_id, status_id,
                 created_by, updated_by, comment
             )
             SELECT
-                sample_row.id, goal.id, goal.lab_id, status_row.id,
+                :id, sample_row.id, goal.id, goal.lab_id, status_row.id,
                 actor.id, actor.id, 'Realistic dev seed'
             FROM sample_row, goal, status_row, actor
             WHERE NOT EXISTS (
@@ -1122,6 +1178,7 @@ async def _seed_workflow_rows(connection: AsyncConnection) -> None:
             """
         ),
         {
+            "id": new_uuid7(),
             "sample_name": TEST_CODES["sample"],
             "research_goal_code": WORKFLOW_GOAL,
         },
@@ -1145,8 +1202,8 @@ async def _seed_workflow_rows(connection: AsyncConnection) -> None:
             actor AS (
                 SELECT id FROM users WHERE username = 'admin' LIMIT 1
             )
-            INSERT INTO tests (research_id, indicator_id, status_id, created_by, updated_by)
-            SELECT research_row.id, indicator.id, status_row.id, actor.id, actor.id
+            INSERT INTO tests (id, research_id, indicator_id, status_id, created_by, updated_by)
+            SELECT :id, research_row.id, indicator.id, status_row.id, actor.id, actor.id
             FROM research_row, indicator, status_row, actor
             WHERE NOT EXISTS (
                 SELECT 1 FROM tests t
@@ -1155,6 +1212,7 @@ async def _seed_workflow_rows(connection: AsyncConnection) -> None:
             """
         ),
         {
+            "id": new_uuid7(),
             "sample_name": TEST_CODES["sample"],
             "indicator_name": WORKFLOW_INDICATOR,
         },
@@ -1173,15 +1231,20 @@ async def _seed_generated_workflow_rows(
     batch_size: int,
 ) -> None:
     for start_index, end_index in _iter_seed_batches(total_count=count, batch_size=batch_size):
+        row_count = end_index - start_index + 1
         await connection.execute(
             text(
                 """
                 WITH generated AS (
-                    SELECT generated_index
-                    FROM generate_series(
-                        CAST(:start_index AS integer),
-                        CAST(:end_index AS integer)
-                    ) AS series(generated_index)
+                    SELECT * FROM unnest(
+                        CAST(:indices AS integer[]),
+                        CAST(:direction_ids AS uuid[]),
+                        CAST(:sample_ids AS uuid[]),
+                        CAST(:research_ids AS uuid[]),
+                        CAST(:test_ids AS uuid[])
+                    ) AS g(
+                        generated_index, direction_id, sample_id, research_id, test_id
+                    )
                 ),
                 actor AS (
                     SELECT id FROM users WHERE username = 'admin' LIMIT 1
@@ -1218,6 +1281,7 @@ async def _seed_generated_workflow_rows(
                 ),
                 inserted_directions AS (
                     INSERT INTO directions (
+                        id,
                         year_no,
                         base_no,
                         doctor_id,
@@ -1229,6 +1293,7 @@ async def _seed_generated_workflow_rows(
                         received_at
                     )
                     SELECT
+                        generated.direction_id,
                         EXTRACT(YEAR FROM CURRENT_DATE)::int,
                         :base_no_start + generated.generated_index,
                         doctor.id,
@@ -1248,18 +1313,19 @@ async def _seed_generated_workflow_rows(
                         FROM directions existing
                         WHERE existing.base_no = :base_no_start + generated.generated_index
                     )
-                    RETURNING id, base_no
+                    RETURNING id, base_no, base_no - :base_no_start AS generated_index
                 ),
                 all_directions AS (
-                    SELECT id, base_no FROM inserted_directions
+                    SELECT id, base_no, generated_index FROM inserted_directions
                     UNION ALL
-                    SELECT directions.id, directions.base_no
+                    SELECT directions.id, directions.base_no, generated.generated_index
                     FROM directions
                     JOIN generated
                         ON directions.base_no = :base_no_start + generated.generated_index
                 ),
                 inserted_samples AS (
                     INSERT INTO samples (
+                        id,
                         month_no,
                         name,
                         direction_id,
@@ -1271,6 +1337,7 @@ async def _seed_generated_workflow_rows(
                         received_at
                     )
                     SELECT
+                        generated.sample_id,
                         EXTRACT(MONTH FROM CURRENT_DATE)::int,
                         :sample_name_prefix
                             || lpad(
@@ -1286,6 +1353,7 @@ async def _seed_generated_workflow_rows(
                         CURRENT_TIMESTAMP,
                         CURRENT_TIMESTAMP
                     FROM all_directions
+                    JOIN generated ON generated.generated_index = all_directions.generated_index
                     CROSS JOIN sample_type
                     CROSS JOIN sample_status
                     CROSS JOIN actor
@@ -1302,20 +1370,25 @@ async def _seed_generated_workflow_rows(
                     RETURNING id, name, direction_id
                 ),
                 all_samples AS (
-                    SELECT id, name, direction_id FROM inserted_samples
-                    UNION ALL
-                    SELECT samples.id, samples.name, samples.direction_id
-                    FROM samples
-                    JOIN all_directions ON all_directions.id = samples.direction_id
-                    WHERE samples.name = :sample_name_prefix
-                        || lpad(
-                            (all_directions.base_no - :base_no_start)::text,
-                            7,
-                            '0'
-                        )
+                    SELECT s.id, s.name, s.direction_id, ad.generated_index
+                    FROM (
+                        SELECT id, name, direction_id FROM inserted_samples
+                        UNION ALL
+                        SELECT samples.id, samples.name, samples.direction_id
+                        FROM samples
+                        JOIN all_directions ON all_directions.id = samples.direction_id
+                        WHERE samples.name = :sample_name_prefix
+                            || lpad(
+                                (all_directions.base_no - :base_no_start)::text,
+                                7,
+                                '0'
+                            )
+                    ) s
+                    JOIN all_directions ad ON ad.id = s.direction_id
                 ),
                 inserted_research AS (
                     INSERT INTO research (
+                        id,
                         sample_id,
                         research_goal_id,
                         lab_id,
@@ -1325,6 +1398,7 @@ async def _seed_generated_workflow_rows(
                         comment
                     )
                     SELECT
+                        generated.research_id,
                         all_samples.id,
                         goal.id,
                         goal.lab_id,
@@ -1333,6 +1407,7 @@ async def _seed_generated_workflow_rows(
                         actor.id,
                         :research_comment_prefix || ' ' || right(all_samples.name, 7)
                     FROM all_samples
+                    JOIN generated ON generated.generated_index = all_samples.generated_index
                     CROSS JOIN goal
                     CROSS JOIN research_status
                     CROSS JOIN actor
@@ -1345,16 +1420,21 @@ async def _seed_generated_workflow_rows(
                     RETURNING id, sample_id
                 ),
                 all_research AS (
-                    SELECT id, sample_id FROM inserted_research
-                    UNION ALL
-                    SELECT research.id, research.sample_id
-                    FROM research
-                    JOIN all_samples ON all_samples.id = research.sample_id
-                    CROSS JOIN goal
-                    WHERE research.research_goal_id = goal.id
+                    SELECT r.id, r.sample_id, asmp.generated_index
+                    FROM (
+                        SELECT id, sample_id FROM inserted_research
+                        UNION ALL
+                        SELECT research.id, research.sample_id
+                        FROM research
+                        JOIN all_samples ON all_samples.id = research.sample_id
+                        CROSS JOIN goal
+                        WHERE research.research_goal_id = goal.id
+                    ) r
+                    JOIN all_samples asmp ON asmp.id = r.sample_id
                 ),
                 inserted_tests AS (
                     INSERT INTO tests (
+                        id,
                         research_id,
                         indicator_id,
                         status_id,
@@ -1362,12 +1442,14 @@ async def _seed_generated_workflow_rows(
                         updated_by
                     )
                     SELECT
+                        generated.test_id,
                         all_research.id,
                         indicator.id,
                         test_status.id,
                         actor.id,
                         actor.id
                     FROM all_research
+                    JOIN generated ON generated.generated_index = all_research.generated_index
                     CROSS JOIN indicator
                     CROSS JOIN test_status
                     CROSS JOIN actor
@@ -1387,8 +1469,11 @@ async def _seed_generated_workflow_rows(
                 """
             ),
             {
-                "start_index": start_index,
-                "end_index": end_index,
+                "indices": list(range(start_index, end_index + 1)),
+                "direction_ids": [new_uuid7() for _ in range(row_count)],
+                "sample_ids": [new_uuid7() for _ in range(row_count)],
+                "research_ids": [new_uuid7() for _ in range(row_count)],
+                "test_ids": [new_uuid7() for _ in range(row_count)],
                 "base_no_start": GENERATED_DIRECTION_BASE_NO_START,
                 "doctor_last": WORKFLOW_DOCTOR_LAST,
                 "object_code": TEST_CODES["object"],

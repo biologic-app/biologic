@@ -12,10 +12,12 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from src.core.uuid7 import new_uuid7
 from src.infrastructure.db.models.base import Base
+from src.infrastructure.db.models.mixins import LabMixin, SoftDeleteMixin, TenantMixin
 
 
-class SampleLab(Base):
+class SampleLab(TenantMixin, LabMixin, SoftDeleteMixin, Base):
     """Sample ↔ laboratory assignment (many-to-many, soft-deletable).
 
     A sample belongs to one or more laboratories, derived at import time from
@@ -41,7 +43,7 @@ class SampleLab(Base):
     id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         primary_key=True,
-        server_default=text("uuidv7()"),
+        default=new_uuid7,
     )
     sample_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
@@ -52,15 +54,7 @@ class SampleLab(Base):
         ),
         nullable=False,
     )
-    lab_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(
-            "labs.id",
-            name="fk_sample_labs_lab_id_labs_id",
-            ondelete="CASCADE",
-        ),
-        nullable=False,
-    )
+    lab_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -71,4 +65,3 @@ class SampleLab(Base):
         nullable=False,
         server_default=text("CURRENT_TIMESTAMP"),
     )
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

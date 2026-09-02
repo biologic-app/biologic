@@ -14,10 +14,12 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from src.core.uuid7 import new_uuid7
 from src.infrastructure.db.models.base import Base
+from src.infrastructure.db.models.mixins import TenantMixin
 
 
-class WorkflowRunEvent(Base):
+class WorkflowRunEvent(TenantMixin, Base):
     """Append-only log of run comments and activity.
 
     Each comment or activity entry is its own row — never a mutated JSONB list —
@@ -33,7 +35,7 @@ class WorkflowRunEvent(Base):
     id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         primary_key=True,
-        server_default=text("uuidv7()"),
+        default=new_uuid7,
     )
     run_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),

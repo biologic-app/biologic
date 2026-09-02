@@ -25,6 +25,8 @@ _FIELDS = (
     "patronymic",
     "role_id",
     "lab_id",
+    "branch_id",
+    "branch_name",
     "created_at",
     "updated_at",
 )
@@ -64,7 +66,7 @@ class UserCrudUseCase:
                 if getattr(role, "is_system", False) or getattr(role, "key", None) == "superadmin":
                     raise ForbiddenError("The superadmin role cannot be assigned through the API.")
             row = await uow.users.update(item_id, values)
-            if any(key in values for key in ("password_hash", "role_id", "status")):
+            if any(key in values for key in ("password_hash", "role_id", "status", "branch_id")):
                 row.token_version = int(getattr(row, "token_version", 0)) + 1
                 if hasattr(row, "refresh_token_version"):
                     row.refresh_token_version = row.token_version

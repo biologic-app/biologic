@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 from sqlalchemy.ext.asyncio import AsyncConnection
 
@@ -58,9 +58,9 @@ def test_seed_test_data_batches_large_counts() -> None:
 async def test_seed_test_data_bulk_generation_uses_generate_series_batches() -> None:
     class FakeConnection:
         def __init__(self) -> None:
-            self.calls: list[tuple[str, dict[str, int]]] = []
+            self.calls: list[tuple[str, dict[str, Any]]] = []
 
-        async def execute(self, statement: object, params: dict[str, int]) -> None:
+        async def execute(self, statement: object, params: dict[str, Any]) -> None:
             self.calls.append((str(statement), params))
 
     connection = FakeConnection()
@@ -72,11 +72,14 @@ async def test_seed_test_data_bulk_generation_uses_generate_series_batches() -> 
     )
 
     assert len(connection.calls) == 3
-    assert connection.calls[0][1]["start_index"] == 1
-    assert connection.calls[0][1]["end_index"] == 10_000
-    assert connection.calls[2][1]["start_index"] == 20_001
-    assert connection.calls[2][1]["end_index"] == 25_001
+    assert connection.calls[0][1]["indices"] == list(range(1, 10_001))
+    assert connection.calls[2][1]["indices"] == list(range(20_001, 25_002))
+    for _, params in connection.calls:
+        row_count = len(params["indices"])
+        for key in ("direction_ids", "sample_ids", "research_ids", "test_ids"):
+            assert len(params[key]) == row_count
+            assert len({str(v) for v in params[key]}) == row_count  # all distinct
     normalized_sql = [" ".join(sql.split()) for sql, _ in connection.calls]
-    assert all("generate_series(" in sql for sql in normalized_sql)
-    assert all("CAST(:start_index AS integer)" in sql for sql in normalized_sql)
-    assert all("CAST(:end_index AS integer)" in sql for sql in normalized_sql)
+    assert all("unnest(" in sql for sql in normalized_sql)
+    assert all("CAST(:indices AS integer[])" in sql for sql in normalized_sql)
+    assert all("CAST(:direction_ids AS uuid[])" in sql for sql in normalized_sql)

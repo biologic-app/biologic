@@ -14,10 +14,12 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from src.core.uuid7 import new_uuid7
 from src.infrastructure.db.models.base import Base
+from src.infrastructure.db.models.mixins import LabMixin, SoftDeleteMixin, TenantMixin
 
 
-class RoleSubscriptionRule(Base):
+class RoleSubscriptionRule(TenantMixin, LabMixin, SoftDeleteMixin, Base):
     """Mandatory, admin-configured subscription rule keyed on a role.
 
     Everyone holding ``role_id`` implicitly follows entities of ``entity_type``,
@@ -68,7 +70,7 @@ class RoleSubscriptionRule(Base):
     id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         primary_key=True,
-        server_default=text("uuidv7()"),
+        default=new_uuid7,
     )
     role_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
@@ -76,14 +78,6 @@ class RoleSubscriptionRule(Base):
         nullable=False,
     )
     entity_type: Mapped[str] = mapped_column(Text, nullable=False)
-    branch_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("branches.id", name="fk_role_subscription_rules_branch_id_branches_id"),
-    )
-    lab_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("labs.id", name="fk_role_subscription_rules_lab_id_labs_id"),
-    )
     status_code: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -95,4 +89,3 @@ class RoleSubscriptionRule(Base):
         nullable=False,
         server_default=text("CURRENT_TIMESTAMP"),
     )
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

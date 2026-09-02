@@ -59,7 +59,7 @@ _STATUS_COLORS: tuple[tuple[str, dict[str, str]], ...] = (
 
 def upgrade() -> None:
     for table, colors in _STATUS_COLORS:
-        op.add_column(table, sa.Column("color", sa.Text(), nullable=True))
+        op.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS color text")
         for code, color in colors.items():
             op.execute(
                 sa.text(

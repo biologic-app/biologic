@@ -7,10 +7,12 @@ from sqlalchemy import BigInteger, DateTime, Index, Integer, Text, text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from src.core.uuid7 import new_uuid7
 from src.infrastructure.db.models.base import Base
+from src.infrastructure.db.models.mixins import TenantMixin
 
 
-class DatabaseBackup(Base):
+class DatabaseBackup(TenantMixin, Base):
     """Registry row for one full-database dump kept on the filesystem.
 
     PostgreSQL stores only the metadata — ``file_path`` above all; the dump
@@ -28,7 +30,7 @@ class DatabaseBackup(Base):
     id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         primary_key=True,
-        server_default=text("uuidv7()"),
+        default=new_uuid7,
     )
     filename: Mapped[str] = mapped_column(Text, nullable=False)
     file_path: Mapped[str] = mapped_column(Text, nullable=False)
@@ -49,3 +51,7 @@ class DatabaseBackup(Base):
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     restored_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    restored_by: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    # "completed" | "failed" | NULL when never restored.
+    restore_status: Mapped[str | None] = mapped_column(Text)
+    restore_error: Mapped[str | None] = mapped_column(Text)

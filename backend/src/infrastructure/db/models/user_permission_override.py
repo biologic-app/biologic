@@ -6,7 +6,6 @@ from sqlalchemy import (
     Boolean,
     ForeignKey,
     Index,
-    text,
 )
 from sqlalchemy import (
     Enum as SQLEnum,
@@ -14,11 +13,13 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from src.core.uuid7 import new_uuid7
 from src.infrastructure.db.models.base import Base
 from src.infrastructure.db.models.enums import AccessScopeType
+from src.infrastructure.db.models.mixins import TenantMixin
 
 
-class UserPermissionOverride(Base):
+class UserPermissionOverride(TenantMixin, Base):
     __tablename__ = "user_permission_overrides"
     __table_args__ = (
         Index(
@@ -33,7 +34,7 @@ class UserPermissionOverride(Base):
     id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         primary_key=True,
-        server_default=text("uuidv7()"),
+        default=new_uuid7,
     )
     user_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
