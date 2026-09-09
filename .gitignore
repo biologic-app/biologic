@@ -5,6 +5,7 @@
 reports/
 *.log
 .DS_Store
+*__pycache__/
 
 # Smithers run store (ephemeral — never commit)
 smithers.db
