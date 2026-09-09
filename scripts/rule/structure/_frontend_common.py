@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Iterator
@@ -20,7 +21,7 @@ else:
 
 
 ROOT = Path(__file__).resolve().parents[3]
-FRONTEND = ROOT / "frontend"
+FRONTEND = Path(os.environ.get("FRONTEND_STRUCTURE_ROOT", str(ROOT / "frontend"))).resolve()
 SRC = FRONTEND / "src"
 TECHNICAL_PARTS = {
     "node_modules", ".git", "dist", "build", "dev-dist", "dist-ssr",
@@ -41,7 +42,10 @@ class Violation:
 
     def print(self) -> None:
         """Print the violation in the stable checker output format."""
-        location = str(self.path.relative_to(ROOT))
+        try:
+            location = str(self.path.relative_to(ROOT))
+        except ValueError:
+            location = str(self.path)
         if self.line is not None:
             location += f":{self.line}:{(self.column or 0) + 1}"
         print(f"{location} [{self.rule}] {self.message}")
